@@ -16,7 +16,7 @@ trying to figure out which CI gate to run locally before pushing.
 ## Running tests
 
 ```bash
-# Fast tier
+# Fast tier (make test adds the 1 s budget)
 go test ./...
 
 # Full suite: both tiers (see Running CI Gates Locally → Test tiers)
@@ -71,8 +71,8 @@ How to run the documentation checks and work their allowlists:
 | `TestUpdateDemandTableCovers`           | The Update Demand reference covers every registered component category |
 | `TestPerPackageCoverageFloors`          | The floor table `.github/coverage-floors.txt` is sound (real package dirs, 0..100, no duplicate); `make cover` / CI `coverage` measure against it |
 | `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
-| `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
-| `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
+| `TestSkillsCoverAll*`                   | Skill files mention every registered operator (components, regressions, matrix ops, overlays, windows), synth distribution, field type, CLI leaf, MCP tool and prompt; every operator declares a `Purpose`; every skill cross-reference resolves. Spread over `internal/skills`, `internal/descriptor`, `internal/integration` and `mcp/gosdk`: run `go test ./... -run TestSkillsCoverAll` |
+| `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves, or `mcp` (there is no `skills/index.json` — the `embed.FS` walk is the index) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
@@ -81,16 +81,26 @@ How to run the documentation checks and work their allowlists:
 | `TestCanStreamRequest_RegressionMatrix` | Regression matrix on the exported `CanStreamRequest` helper |
 | `TestManifest*Complete`                 | Manifest enumerates every registered operator, test, distribution, MCP tool, error code |
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
-| `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
+| `TestCodesHaveFixups`                   | Each error code has a `codeMetadata` Message and at least one Fixup (or `FixupNotApplicable`) |
+| `TestEmittedCodeLiteralsRegistered`     | Every code-shaped string literal in non-test Go source is a registered code (`errors/codes.go`) |
+| `TestRefusalMessagesUseWireKeys`        | Request-facing refusal prose names wire keys (`params.field`, `max_iters`), not Go field paths |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
-| `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Known breaks sit in the shrink-only allowlist `internal/doccheck/allowlists/links.txt`; `make linkcheck-external` checks http(s) links by hand |
-| `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and `docs/src/cli/flags.md` name the same leaves and flags (global, persistent, per-leaf, aliases included), names only, both directions; known gaps sit in the shrink-only allowlist `internal/doccheck/allowlists/cli-flags.txt` |
-| `TestNoRemovedNamesInDocs`              | No served text (`docs/src/**` minus the coverage page, root README / CONTRIBUTING / SECURITY, a default instance's skills, MCP tool descriptions, manifest, error messages and fixups, examples) names a spelling from the removed-name denylist `removedNames` (whole word, a reason per entry); today's hits sit in the shrink-only allowlist `internal/doccheck/allowlists/removed-names.txt` |
-| `TestDocsSnippetsRun`                   | Every `json` block in `docs/src/**` that is a request root (by its keys — the shared `internal/requestroot` rule plus a `cohort` object or `requests` / `base` / `sweep` — or by strict-decoding as one) runs on the example fixture cohorts (predict valid, process no error, output not asserted); a keyed root that fails the strict decode fails, naming the decode error; `jsonc` blocks are not read. Fence tags: `json norun` opts out, `json cohort=<fixture>[,…]` picks cohorts, untagged runnable blocks fail; `go compile` blocks must build (`TestDocsSnippetsCompile`, heavy tier). Known failures sit in the shrink-only allowlists `internal/doccheck/allowlists/snippets.txt` and `snippets-go.txt` |
+| `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Allowlist `internal/doccheck/allowlists/links.txt`, locked empty; `make linkcheck-external` checks http(s) links by hand |
+| `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and the generated `docs/src/cli/reference.md` carry the same leaves and, per leaf, the same flags (aliases included), plus the root's global flags, both directions; every flag the concepts page `docs/src/cli/flags.md` names is mounted somewhere; allowlist `cli-flags.txt`, locked empty |
+| `TestCLIReferenceCurrent`               | `docs/src/cli/reference.md` matches a fresh render of the command tree (`internal/cli` `CLIReference`, `internal/docgen` `RenderCLIReference`) byte for byte; `make docs` rewrites it |
+| `TestFlagUsageOneWordingPerName`       | A flag name mounted on several CLI leaves carries one usage wording everywhere, unless `usageVariants` (`internal/cli/tree_test.go`) declares a per-leaf meaning with its exact wording count and a reason; no usage string is under 20 characters (urfave's `--help` / `--version` aside). The walk is the production one (`internal/cli` `Leaves`) |
+| `TestNoRemovedNamesInDocs`              | No served text (`docs/src/**` minus the coverage page, root README / CONTRIBUTING / SECURITY, a default instance's skills, MCP tool descriptions, manifest, error messages and fixups, examples) names a spelling from the removed-name denylist `doccheck.RemovedNames` (whole word, a reason per entry; an `io.<Name>` entry also matches the import alias `pio.<Name>`); allowlist `internal/doccheck/allowlists/removed-names.txt`, locked empty |
+| `TestNoRemovedNamesInPromptsAndReference` | Heavy tier (`mcp/gosdk`): the same denylist over every MCP prompt a default server mounts (description, argument descriptions, `prompts/get` body) and every file `ExportReference` writes; allowlist `internal/doccheck/allowlists/removed-names-prompts.txt`, locked empty |
+| `TestDocsBaselinesEmpty`                | Every documentation-check allowlist under `internal/doccheck/allowlists/` holds header lines only: a doc check's finding is fixed, never baselined (fast tier, `make doc-checks`) |
+| `TestInstallDocAssetNamesMatchRelease`  | The download table on `docs/src/getting-started/installation.md` names exactly the archives `scripts/release-dist.sh` builds (one per target, `.tar.gz` / Windows `.zip`) plus `checksums.txt`; a new target or a renamed archive fails until the page follows (fast tier, `make doc-checks`) |
+| `TestDocsExampleTagTableMatchesCanonicalTags` | The tag table on `docs/src/examples/library.md` lists exactly `internal/examples.CanonicalTags`, each tag once; a tag added to or dropped from the taxonomy fails until the page follows (fast tier, `make doc-checks`) |
+| `TestSupportedProtocolVersionsPinned`   | The MCP revisions the go-sdk serves equal the pinned list in `mcp/gosdk`, and `docs/src/mcp/protocol.md` names each revision and the go-sdk version `go.mod` pins; a bump that changes the set is a deliberate diff, and a dropped revision needs a documented deprecation first |
+| `TestServe_NegotiatesEverySDKRevision`  | `mcpserve` narrows no revision: `initialize` echoes every SDK revision before `2026-07-28` and answers any other value with `2025-11-25` (`mcpserve/`) |
+| `TestDocsSnippetsRun`                   | Every `json` block in `docs/src/**` that is a request root (by its keys — the shared `internal/requestroot` rule plus a `cohort` object or `requests` / `base` / `sweep` — or by strict-decoding as one) runs on the example fixture cohorts (predict valid, process no error, output not asserted); a keyed root that fails the strict decode fails, naming the decode error; `jsonc` blocks are not read. Fence tags: `json norun <reason>` opts out (a `norun` with no reason fails), `json cohort=<fixture>[,…]` picks cohorts, untagged runnable blocks fail; `go compile` blocks must build (`TestDocsSnippetsCompile`, heavy tier). Allowlists `internal/doccheck/allowlists/snippets.txt` and `snippets-go.txt`, locked empty |
 | `TestDocsCoverageCurrent`               | The generated coverage matrix `docs/src/contract/coverage.md` matches a fresh build from its sources of truth (public API dump, CLI tree, manifest, MCP registrations, env vars, `Options` / Request / Response fields); lives in `internal/cli` (only it may walk the CLI tree); regenerate with `make docs` |
-| `TestDocsCoverageNoGaps`                | No required coverage cell (per row kind: mdBook, skill pack, GoDoc, CLI help; verbatim mention) is empty unless the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` names it |
+| `TestDocsCoverageNoGaps`                | No required coverage cell (per row kind: mdBook, skill pack, GoDoc, CLI help; verbatim mention) is empty (allowlist `internal/doccheck/allowlists/coverage.txt`, locked empty) |
 | `TestDocCoverageNotImportedByDescriptor` | The no-execute descriptor packages (`internal/descriptor`, `descriptor/`) never import the coverage generator `internal/doccoverage` |
-| `TestProfileServedTextNoHiddenFeature` | Heavy. Under every single-feature-hidden feature profile, no served text (manifest, MCP tools / prompts / resources, skills, examples, `docs export` tree) names a hidden operator, hidden feature's MCP tool or hidden slot token, and no core tool description loses a sentence to the prose scrub (its clause is feature-fenced). Shrink-only allowlist `internal/doccheck/allowlists/served-text.txt` (empty) |
+| `TestProfileServedTextNoHiddenFeature` | Heavy. Under every single-feature-hidden feature profile, no served text (manifest, MCP tools / prompts / resources, skills, examples, `docs export` tree) names a hidden operator, hidden feature's MCP tool or hidden slot token, and no core tool description loses a sentence to the prose scrub (its clause is feature-fenced). Allowlist `internal/doccheck/allowlists/served-text.txt`, locked empty |
 | `docs` CI job (not a Go test)          | `mdbook build docs` prints no `WARN` / `ERROR` line (this catches a broken page and a search index past mdBook's 10 MB warning), then `make doc-checks` runs the fast doc checks |
 | `TestFacadeExamplesPresent`             | The pinned runnable GoDoc task examples (`facadeExamples` in `facade_examples_test.go`: root `example_*_test.go`, `observe`, `mcpserve`) all exist and carry a checked `// Output:` (compile-only ones are named); an unpinned example in those packages fails too, so the set only grows |
 
@@ -118,12 +128,18 @@ the hash. After a legitimate change to the generator:
 
 ```bash
 go test ./descriptor/ -run 'Test.*Golden' -update
-go test ./descriptor/ -run TestGoldensNotHandEdited   # confirms the new hash sticks
+go test -count=1 ./descriptor/ -run TestGoldensNotHandEdited   # confirms the new hash sticks
 ```
+
+Other generators (public API, fingerprint, reference oracles, the
+guide) have their own commands: [Regenerating
+Goldens](../internals/regenerating-goldens.md).
 
 Never hand-edit a golden file — the gate will catch you.
 
 ## Adding a new gate
 
-If your change introduces a structural invariant, add a test for it and
-a row in the table above.
+If your change introduces a structural invariant, add a test for it, a
+row in the table above and prose in the matching
+`.claude/reference/update-demand/gates*.md` slice. A fast documentation
+check also joins `DOC_CHECKS` ([Documentation Checks](doc-checks.md)).

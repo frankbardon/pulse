@@ -76,9 +76,9 @@ Splits the rows by calendar period of a date, such as month, quarter, ISO week o
 
 - Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
 - Named with no period it groups by month; picked by default for a date field with no grouper type, it groups by day.
-- Weeks are ISO weeks, Monday to Sunday, numbered within the ISO year.
+- Weeks are ISO weeks, Monday to Sunday, numbered within the ISO year, unless params.week_start is sunday.
 - A fiscal offset applies to years and quarters only; a fiscal year is named for the calendar year it ends in.
-- A date-and-time field is grouped by the day it falls on.
+- A datetime field is read on the local clock of its time zone (UTC unless the slot or the request sets one).
 - Only buckets that hold at least one row appear; an empty band or period is left out, not shown as zero.
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 
@@ -115,7 +115,7 @@ Labels each row with the named date range its date falls in, such as custom fisc
 - Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
 - Both ends of each range are inclusive; the ranges may not overlap.
 - A row outside every range goes to an unmatched group (named "unmatched" unless you rename it), not dropped.
-- A date-and-time field is matched by the day it falls on.
+- A datetime field is matched by the day it falls on in its time zone (UTC unless the slot or the request sets one).
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 
 **Use something else:**
@@ -152,7 +152,7 @@ Finds k segments of rows that are alike across several numbers at once, such as 
 - Segments are found, not given: each row joins the nearest segment centre, and the centres are chosen to keep rows close to their own.
 - Numbers are put on a common scale first by default, so no field dominates because of its units.
 - Segments are named cluster_1 to cluster_k from largest to smallest and come back in that order; the same data and seed give the same names.
-- It needs every row before it can name any segment, so it cannot stream.
+- It needs every row before it can name any segment, so it cannot stream; params.fit within refits inside each bucket of the groupers before it.
 - A row missing any of the numbers lands in no segment; it is counted as missing.
 
 **Use something else:**
@@ -228,7 +228,7 @@ Splits the rows into equal-sized groups by rank of a number, such as quartiles o
 - Equal values can fall in two neighbouring groups when a cut lands among them.
 - Groups are named Q1 to Q4 for quartiles, D1 to D10 for deciles, P1 to P100 for percentiles and B1, B2 and so on otherwise; Q1 is the lowest.
 - Groups come back in bucket order, D1 up to D10, not text order; an explicit sort still wins.
-- It needs every row before it can cut, so it cannot stream.
+- It needs every row before it can cut, so it cannot stream; params.fit within recuts inside each bucket of the groupers before it.
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 
 **Use something else:**

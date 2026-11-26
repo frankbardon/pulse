@@ -1,6 +1,6 @@
 ---
 name: compose-post-fit
-description: ComposedRequest.post_fit — run an embedder-registered POSTFIT_<NS>_<NAME> operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says.
+description: Compose `post_fit` — run an embedder-registered POSTFIT_<NS>_<NAME> operator over a batch's finished fits (a response-curve table, a marginal-return grid, a scenario table) and read its scalars and tables from the post_fit root. How to find the instance's operators, the entry shape and phase, what an operator reads, the failures, and what Explain says.
 kind: design
 type: guide
 applies_to: compose, predict
@@ -34,7 +34,7 @@ A **post-fit entry** runs a computation over models the batch has already fitted
 
 ## Phase and reads
 
-The batch runs slots and sweeps → fits → optimize → **post-fit** → nested-model comparisons. Each entry runs once. The operator reads only:
+The batch runs fits → optimize → slots → **post-fit** → nested-model comparisons (a slot an optimize block's `result()` reads runs before optimize). Each entry runs once. The operator reads only:
 
 - each named fit: coefficients and standard errors by term, the `vcov` matrix when the fit computed one (`vcov: true`), each channel's adstock record (kernel, parameters, lag weights) and a Bayesian media-mix fit's pooled posterior draws when it ran with `params.return_draws`;
 - any ungrouped slot value, by the `result(slot, aggregation)` reader's rules;

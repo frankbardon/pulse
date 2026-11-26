@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "FacetSchema summarising a filtered experiment cohort's region distribution decorated with an OVERLAY_INDEX_VS_POP group overlay that scores each region's subset frequency against the population frequency from an unfiltered comparison cohort (100 * subset_freq / pop_freq). First FACET-host overlay (E5-S2): GROUP scope, Ref.Population names the comparison cohort, one SeriesEntry per host value carrying the index on Summary.Statistic. Streamable — runs as a post-finalize fold over the host's per-value distribution against the resolver's population view. Pop frequencies of zero emit PULSE_OVERLAY_REF_ZERO and skip the entry; renderers centre diverging colour ramps on baseline = 100.",
+    "description": "Facet of region on the converters of experiment.pulse (FILTER_INCLUDE converted yes) decorated with an OVERLAY_INDEX_VS_POP group overlay: each region's share of the converters against its share of the whole cohort, 100 * subset_freq / pop_freq (north about 114, west about 82 here). ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). One series entry per region carries the index on summary.statistic. Streamable. A zero population frequency emits PULSE_OVERLAY_REF_ZERO and skips the entry; renderers centre colour ramps on baseline 100.",
     "intents": [
       "benchmark",
       "composition"
     ],
     "name": "facet-index-vs-pop",
-    "operators": [],
+    "operators": ["FILTER_INCLUDE"],
     "capabilities": [
       "capability:facet"
     ],
@@ -25,6 +25,15 @@
   "fields": [
     "region"
   ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "converted",
+      "values": [
+        "yes"
+      ]
+    }
+  ],
   "overlays": [
     {
       "name": "region_vs_population",
@@ -32,7 +41,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": "experiment_population.pulse"
+          "cohort": ".data/experiment.pulse"
         }
       }
     }

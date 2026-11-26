@@ -27,7 +27,7 @@ Names in `expression` are the row's columns at this window's turn (group keys an
 
 ## Output
 
-One `float64` per row on `Label`: `s_events / s_n` over two earlier share labels is the decile's lift.
+One `float64` per row on `label`: `s_events / s_n` over two earlier share labels is the decile's lift.
 
 <!-- generated: contract -->
 

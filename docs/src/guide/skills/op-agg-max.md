@@ -35,11 +35,11 @@ Ordered (opt-in): a `categorical_*` field's levels by rank; without either key a
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Scalar `float64`. Per-group when wired under a grouper. Ordered: the highest level's dictionary index — a code, not a magnitude.
+Scalar `float64` (a decimal string over `decimal128`). Per-group when wired under a grouper. Ordered: the highest level's dictionary index — a code, not a magnitude.
 
 ## Components
 

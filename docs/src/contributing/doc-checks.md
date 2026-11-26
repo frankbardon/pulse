@@ -26,16 +26,21 @@ test, so a renamed or moved check cannot drop out silently.
 
 | Check | Tier | Package | Allowlist |
 |---|---|---|---|
+| `TestDocsBaselinesEmpty` | fast | `internal/integration` | every list: each must be empty |
 | `TestDocsLinksResolve` | fast | `internal/integration` | `links.txt` |
 | `TestDocsSnippetsRun` | fast | `internal/integration` | `snippets.txt` |
 | `TestDocsSnippetsCompile` | heavy | `internal/integration` | `snippets-go.txt` |
 | `TestCliHelpMatchesFlagsDoc` | fast | `cmd/pulse` | `cli-flags.txt` |
+| `TestCLIReferenceCurrent` | fast | `internal/cli` | none: run `make docs` |
 | `TestNoRemovedNamesInDocs` | fast | root | `removed-names.txt` |
+| `TestNoRemovedNamesInPromptsAndReference` | heavy | `mcp/gosdk` | `removed-names-prompts.txt` |
 | `TestDocsCoverageCurrent`, `TestDocsCoverageNoGaps` | fast | `internal/cli` | `coverage.txt` |
 | `TestProfileServedTextNoHiddenFeature` | heavy | root | `served-text.txt` |
 | `TestFacadeExamplesPresent` | fast | root | none: the pinned list in the test |
 | `TestSkillExampleTagPointersResolve` | fast | `internal/descriptor` | none |
 | `TestDocsGeneratedCurrent` | fast | root | none: run `make docs` |
+| `TestInstallDocAssetNamesMatchRelease` | fast | `internal/integration` | none |
+| `TestDocsExampleTagTableMatchesCanonicalTags` | fast | `internal/integration` | none |
 
 The `docs` job also fails when `mdbook build` prints a `WARN` or `ERROR`
 line, so keep the build warning-free. CI pins mdBook to 0.5.4, the
@@ -46,17 +51,15 @@ three when you do.
 
 ## Allowlists
 
-Each allowlist is a file under `internal/doccheck/allowlists/`, one
-entry per line: `path<TAB>entry<TAB>reason`. The lists hold the
-violations that existed when the check landed. They only shrink:
+Each check reads one file under `internal/doccheck/allowlists/`
+(`path<TAB>entry<TAB>reason` per line, `#` lines are headers). Every
+list is empty, and `TestDocsBaselinesEmpty` keeps it so: a list with
+any entry fails it. A doc check that finds a problem is fixed in the
+docs, the skill or the generator, never baselined. A new check commits
+its own list with header lines only.
 
-- A new violation that the list does not name fails the check. Fix it.
-  Never add it to the list.
-- An entry that no longer violates fails as stale. When you fix one,
-  delete its line in the same change.
-
-The content work in the U32b unit (`docs/roadmap/units/U32b-docs-content.md`)
-empties every list.
+The lists still reconcile in both directions: a violation the list does
+not name fails, and an entry that no longer violates fails as stale.
 
 ## Snippet tags
 
@@ -74,10 +77,11 @@ comments are not strict JSON. The tag goes after the fence's language:
 | Fence | Meaning |
 |---|---|
 | `json cohort=<name>[,<name>…]` | run on these `internal/examples/fixtures` cohorts |
-| `json norun` | skip this block: no decode, no run (a deliberately wrong request, an error example) |
+| `json norun <reason>` | skip this block: no decode, no run. The reason is one word saying why it cannot run: `fragment` (one slot, not a whole request), `extension-operator` (names an operator the fixtures' instance does not register), `elided-request`, `placeholder`, … A `norun` with no reason fails |
 | `go compile` | the block must build (`TestDocsSnippetsCompile`, heavy tier) |
 
-A runnable request with no `cohort=` tag fails the check. A `go` block
+A runnable request with no `cohort=` tag fails the check. Prefer
+making a block run (point it at a fixture's fields) over `norun`. A `go` block
 without `compile` is never built. A Go block without a package clause
 gets `package snippet`, so it must carry its own imports.
 
@@ -93,13 +97,19 @@ source (the skill, or `internal/docgen`). Then run `make docs`.
   check passes no matter what the other pages say.
 - Adding or removing a mention on any page can change the coverage page.
   Run `make docs` before you commit.
+- The guide names every operator, field type and MCP tool, so for those
+  rows the coverage page's mdBook cell counts only hand-written pages. In
+  the mdBook and skill-pack cells a Request or Response slot counts only
+  as a code span (`` `sort` ``) or as `Request.<Field>` /
+  `Response.<Field>`: many slot keys are common words. The page's Rules
+  section states the full rule.
 
 ## Search index
 
 `docs/book.toml` keeps the generated Analysis Guide and the coverage
 page out of the search index (`[output.html.search.chapter]`), and
-indexes by h2 section (`heading-split-level = 2`). The index measured
-9.2 MB this way, against 23.0 MB with every page indexed. mdBook warns
+indexes by h2 section (`heading-split-level = 2`); with every page
+indexed it would be more than twice the limit. mdBook warns
 when the index passes 10 MB, and that warning fails the `docs` job. If
 the index grows past the limit, exclude more generated pages or cut
 text. Do not remove the warning check.

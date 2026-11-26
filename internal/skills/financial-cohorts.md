@@ -1,10 +1,10 @@
 ---
 name: financial-cohorts
-description: decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO.
+description: decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, the decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_DECIMAL_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO.
 type: guide
 kind: design
 applies_to: process, compose, predict, inspect
-covers: [decimal128, PULSE_DECIMAL_OVERFLOW, PULSE_PRECISION_LOSS, PULSE_DECIMAL_DIVIDE_BY_ZERO]
+covers: [decimal128, PULSE_DECIMAL_OVERFLOW, PULSE_DECIMAL_PRECISION_LOSS, PULSE_DECIMAL_DIVIDE_BY_ZERO]
 ---
 
 # Financial cohorts (decimal128)
@@ -16,7 +16,7 @@ covers: [decimal128, PULSE_DECIMAL_OVERFLOW, PULSE_PRECISION_LOSS, PULSE_DECIMAL
 - Currency, billing, accounting, tax, payments, ledger entries.
 - Anything reconciling to a downstream system of record (GL, payments rail, exchange).
 
-`f64` is fine for descriptive analytics where last-cent precision is irrelevant. Once the column drives money movement, switch to decimal.
+`f64` is fine for descriptive analytics where last-cent precision is irrelevant. Once the field drives money movement, switch to decimal.
 
 ## Type spec
 
@@ -35,20 +35,13 @@ Both precision and scale persist in the schema; `pulse_inspect` surfaces both pe
 
 Banker's rounding (half-to-even), the unbiased choice for large series. One mode, no per-op override. At scale 0: `0.5 → 0`, `1.5 → 2`, `2.5 → 2`, `-1.5 → -2`, `1.6 → 2`.
 
-## Precision propagation (SQL:2016 / Arrow Decimal128)
+## Result scale
 
-| Op | Result precision | Result scale |
-|---|---|---|
-| `(p1,s1) + (p2,s2)` | `max(p1-s1, p2-s2) + max(s1,s2) + 1` | `max(s1, s2)` |
-| `(p1,s1) - (p2,s2)` | same as `+` | same as `+` |
-| `(p1,s1) * (p2,s2)` | `p1 + p2` | `s1 + s2` |
-| `(p1,s1) / (p2,s2)` | `p1 + s2 + 1` | `max(s1+s2, MIN_SCALE)` where `MIN_SCALE = 4` |
-
-All result precisions clamp at **38**. When clamping kicks in and the value overflows, `PULSE_DECIMAL_OVERFLOW`.
+A computed decimal carries a scale, not a declared precision: any result past 38 digits is `PULSE_DECIMAL_OVERFLOW`. A division divides at scale `max(…, 4)` (`MinDecimalScale`), banker's rounding.
 
 ## Formulas and filters
 
-In the formula attribute and the expression filter a decimal stays exact — `0.1 + 0.2 == 0.3` holds, `price / cost > 1.2` is decided exactly. Operator scales, `??` / ternary lifting, the numeric built-ins (`abs`, `round`, `max`, `mean`, …), the `float()` escape and the compile refusals: `decimal-formulas`.
+In the formula attribute and the expression filter a decimal stays exact — `price / cost > 1.2` is decided exactly. Operator scales, `??` / ternary lifting, the numeric built-ins (`abs`, `round`, `max`, `mean`, …), the `float()` escape and the compile refusals: `decimal-formulas`.
 
 ## Divide-by-zero
 
@@ -56,24 +49,25 @@ Decimal divide-by-zero raises `PULSE_DECIMAL_DIVIDE_BY_ZERO`. No NaN, no infinit
 
 ## Aggregations on decimal fields
 
-An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict and the runtime refuse every other built-in with ONE `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` error (never a warning), at every aggregation slot — crosstab cell and margin aggregations included. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
+An aggregator takes a decimal field iff its manifest `accepts_types` lists `decimal128`; predict and the runtime refuse every other built-in with ONE `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL` error (never a warning), at every aggregation slot<!-- feature: capability:crosstab --> — crosstab cell and margin aggregations included<!-- /feature -->. Registered extension aggregators are exempt (exact values via `DecimalValue`). What a supported one returns follows from the math it needs:
 
 | Kind | Result |
 |---|---|
 | sum | decimal128 (overflow → error) |
 | min / max | decimal128 |
-| mean | decimal128; f64 fallback + `PULSE_PRECISION_LOSS` warning on overflow |
-| variance | decimal128 at `2 * mean_scale` (f64 fallback) |
-| standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback) |
+| mean | decimal128 at `mean_scale` = `max(scale, 4)`; f64 fallback + `PULSE_DECIMAL_PRECISION_LOSS` warning on overflow |
+| variance | decimal128 at `2 * mean_scale` (f64 fallback, same warning) |
+| standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback, same warning) |
+| ratio (decimal numerator / denominator params) | f64 |
 | counts (rows, distinct values, nulls) | JSON integer, never a decimal string; null count reads the bitmap only |
 
 An empty sum is `"0.00"` (at the field scale), never null; `n == 0` in the components floor is the emptiness signal. Mean, min / max, variance and standard deviation of no value are `null`.
 
-**v1 not supported** on decimal: order statistics (median, percentiles), standardised and shape moments (z-score, skewness, kurtosis), modes, range.
+**Not supported** on decimal: order statistics (median, percentiles), standardised and shape moments (z-score, skewness, kurtosis), modes, range.
 
 ## Precision-loss path on the mean
 
-Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_PRECISION_LOSS` **warning** (not an error). For audited workloads, split or coarsen so the warning never fires.
+Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_DECIMAL_PRECISION_LOSS` **warning** (not an error). For audited workloads, split or coarsen so the warning never fires.
 
 ## Null state
 
@@ -85,17 +79,11 @@ The standard comparison filterers — range, include / exclude, expression — w
 
 ## Feature operators
 
-Feature transforms are float math: none emits a decimal column, and categorical- or date-only transforms never take a decimal source. Which accept one is the manifest `accepts_types` of each feature (predict and the runtime refuse the rest of a categorical- or date-only transform's types with `PULSE_FIELD_TYPE_UNSUPPORTED`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original column.
+Feature transforms are float math: none emits a decimal column, and categorical- or date-only transforms never take a decimal source. Which accept one is the manifest `accepts_types` of each feature (predict and the runtime refuse the rest of a categorical- or date-only transform's types with `PULSE_FIELD_TYPE_UNSUPPORTED`). Feature outputs are NOT auditor-defensible — for decimal precision downstream, aggregate on the original field.
 
 ## Importer accepts / rejects
 
 CSV / TSV / NDJSON / JSON-array importers parse decimal strings strictly. Accepted: `"123"`, `"-123.45"`, `"+0.001"`. Rejected: `"$1,234.56"`, `"1 234.56"`, `"1.5e3"`, leading/trailing whitespace. Malformed row → `PULSE_IMPORT_ROW_ERROR`; row is skipped.
-
-## v1 deferred
-
-- Per-op rounding-mode override.
-- `MIN_SCALE` configuration on division (locked at 4).
-- Decimal-aware median / percentile / mode.
 
 ## Cross-links
 

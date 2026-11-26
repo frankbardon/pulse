@@ -29,12 +29,12 @@ Within a major version (v1.x.y):
 | Third-party types | `afero.Fs` appears in the v1 API (`Options.FS`, the `io` factory) and is frozen with it. Pulse does not replace it within v1. |
 | `.pulse` file format | Every cohort written by any v1 release stays readable by every later v1 release. Format versions 0x01 and 0x02 are readable forever. A newer format version is only written when a cohort uses a feature that needs it, and older binaries refuse it with a coded error rather than misreading it. |
 | Shard archives | Same promise as `.pulse` files. |
-| `--json` envelope | `{format_version, data, request, errors, warnings}`. New fields may appear; existing fields are not renamed, removed or retyped without a `format_version` bump, and a bump only happens in a major release. |
+| `--json` envelope | `{format_version, data, request, errors, warnings}`. New fields may appear; existing fields are not renamed, removed or retyped without a `format_version` bump, and a bump only happens in a major release. The manifest payload's own `data.format_version` ("1.0") versions the manifest document and follows the same rule independently. |
 | Request / response payloads | The JSON Schema served by `pulse schema` evolves additively within v1. |
 | Operator names | `AGG_*`, `TEST_*`, `OVERLAY_*` etc. are not renamed or removed within v1. Deprecated operators keep working until v2. |
 | Error codes | Code strings are stable. Message text and fixup prose may improve at any time. |
 | CLI | Leaf names and documented flags are stable. Human-readable (non-`--json`) output is **not** covered. |
-| MCP | Tool names, tool input fields, resource URI schemes and prompt names are stable; additions only. |
+| MCP | Tool names, tool input fields, resource URI schemes and prompt names are stable; additions only. Protocol revisions are those the pinned go-sdk supports (`go.mod`); Pulse adds no restriction. A go-sdk bump may add a revision; none is dropped within v1 without a documented deprecation (a release note and a deprecated row on `docs/src/mcp/protocol.md`) at least one minor release earlier. `TestSupportedProtocolVersionsPinned` makes any change to the set a deliberate diff. stdio is the CLI transport; streamable HTTP is embedder-supplied through `mcp/gosdk`. |
 | Feature profiles | A profile file valid for v1.x stays valid for every later v1 release. New features never appear in an existing profile. |
 | Numerical results | For the same input and request, results are deterministic. A minor release may change a result only to fix a documented bug, and the release notes say so. |
 

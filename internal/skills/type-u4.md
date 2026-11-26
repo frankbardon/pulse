@@ -1,28 +1,28 @@
 ---
 name: type-u4
 kind: type
-description: 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
+description: 4-bit unsigned integer; bit-packed into one whole record byte of its own.
 type: reference
 applies_to: inspect, predict
 ---
 
 ## Bytes
 
-`ByteSize() == 0` — bit-packed. Each value is 4 bits; two `u4` fields share one byte (high nibble + low nibble). Stride math handled by `Schema.RecordByteSize`; place packed runs together for optimal layout. `FieldType.IsBitPacked()` reports `true`.
+Bit-packed (`IsBitPacked()` is `true`, `ByteSize()` is 0), yet each `u4` takes one whole record byte (`Schema.FieldWidth` = 1); fields never share a byte, so field order does not change the stride. Pulse writers store the value in the low nibble (`BitPosition` 0; a reader takes the high nibble when `BitPosition` > 0).
 
 ## Range
 
-`0..15` (4-bit unsigned). Natural fit for small ordinals — Likert 1..5, letter grades, satisfaction tiers, or any closed cardinal scale that lives below 16 distinct values.
+`0..15`. Inference picks `u4` for an integer field whose sampled values all lie in 0..15 (a 0/1-only field infers `packed_bool`); a later value past 15 promotes it up the integer ladder (`PULSE_IMPORT_WIDTH_PROMOTED`). Fits small ordinals: Likert 1..5, grades, tiers.
 
 ## Null
 
-Orthogonal to type. Mark the field `Nullable: true` and the per-record null bitmap carries the actual null state. No inline sentinel — `0` is the integer zero, not null. `IsNumericForAnalytics()` is `true`, so null-skip aggregator semantics apply.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap. `0` is the integer zero, never null. Analytics-numeric (`IsNumericForAnalytics()`), so aggregators skip nulls; strict `IsNumeric()` is `false`.
 
 ## Dictionary
 
-Absent. `u4` carries no inline dictionary block; values are interpreted as plain unsigned integers. If you need labeled categories, prefer `categorical_u8` (with `≤256` dict entries).
+Absent; values are plain unsigned integers. For labelled categories use `categorical_u8`, or bind a label table at read time.
 
 ## See
 
 - Skill: `cohort-schema-design` (Field-type matrix, Bit-packed runs).
-- Cross-link: `aggregation-design` for analytics-numeric coverage.
+- Cross-link: `type-packed-bool`, `type-u8`.

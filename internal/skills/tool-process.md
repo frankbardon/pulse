@@ -13,17 +13,18 @@ The body comes from `pulse_examples_get` (or is hand-authored and run through `p
 
 ## Input
 
-`request` (string): JSON-encoded `types.Request`. Top-level keys: `cohort`, `aggregations`, `groups`, `attributes`, `filterers`, `windows`, `features`, `regressions`, `crosstab`, `joins`, `overlays`, `post_tests`.
+The request's keys at top level (no wrapper, no JSON string): `cohort` (`{filename}`<!-- feature: capability:union -->, or `union`<!-- /feature -->), then the slots (`aggregations`, `groups`, `filterers`, `tests`, `crosstab`, `return`, …). The tool schema lists every key; `request-envelope` maps them.
 
 ## Output
 
-`descriptor.Envelope` wrapping `pulse.Response`. `data` carries `Data` (rows or matrix), `Metadata` (cohort filename, partial-cohort reasons), and `Components` (universal floor + per-operator state — see `response-components`). `errors` / `warnings` use coded entries. Record rows (an ungrouped windowed run) carry `decimal128` as a decimal string, `date` as `YYYY-MM-DD` and `datetime` as RFC 3339 UTC (`…Z`): never epoch numbers, no zone applied.
+No envelope: `data`, `metadata` (`total_rows`, `filtered_rows`, `cohort_file`, partial-cohort reasons), each slot family's results (`tests`, `regressions`, `overlays`, …), coded `warnings`, and `returned {preset, digest}` when shaped. A refusal is a tool error `{code, message, details}`. Record rows (an ungrouped windowed run) carry `decimal128` as a decimal string, `date` as `YYYY-MM-DD` and `datetime` as RFC 3339 UTC (`…Z`): never epoch numbers, no zone applied.
 
 ## Gotchas
 
+- **The MCP default `return` preset is `standard`** (the server's `--return` or feature profile may change it): `components` and some per-slot detail are absent. Ask for them with `"return": {"preset": "full"}` or an `include` list (`response-shaping`).
 - Slot keys differ from manifest catalog names: groupings go under `"groups"` (NOT `"groupers"`); aggregations under `"aggregations"` (NOT `"aggregators"`). An unknown key at any depth → `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path` (`sort[0].direction`) and a "did you mean" suggestion.
-- DO NOT author bodies from external docs or source code — they may be out of date. Always seed from `pulse_examples_search` + `pulse_examples_get` or `pulse_manifest`.
-- Smart defaults: omitting `Type` on a slot that names a field auto-infers from schema type. Disable via `Options.DisableDefaults` or CLI `--no-defaults`.
+- Seed bodies from `pulse_examples_search` + `pulse_examples_get` or `pulse_manifest`, never external docs or source code.
+- Smart defaults: a slot naming a `field` without `type` gets one from the field type (`defaults_applied` in predict says which); the library's `Options.DisableDefaults` / CLI `--no-defaults` turn them off.
 <!-- feature: capability:models -->
 - `models: [{name, path}]` loads saved model files by name for scoring references; see `compose-fits` (Loading).
 <!-- /feature -->
@@ -31,5 +32,6 @@ The body comes from `pulse_examples_get` (or is hand-authored and run through `p
 ## See
 
 - `request-envelope` — slot map, smart defaults, normalization.
-- `response-components` — universal floor + per-operator components emitted in `Response.Components`.
+- `response-shaping` — `return` presets, `include` / `exclude`.
+- `response-components` — the counts behind each figure (`components`, `full` preset).
 - `aggregation-design`, `grouper-design`, `attribute-composition` — operator catalogs.

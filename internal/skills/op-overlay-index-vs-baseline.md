@@ -20,25 +20,24 @@ Overlays decorate the host; no `Response.Components`.
 | `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 | `partition_by` | list | — | A leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`. |
 
-`Scope` must be `group`. `Ref.BaselineIndex.Position` (int, required) — `>= 0`; positional anchor in host order. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+`scope` must be `group`. `ref.baseline_index.position` (int, required) — `>= 0`; positional anchor in host order. `level`/`within` must be `0`. Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
 
-SERIES — ordered grouped Process host (e.g. a date grouper). Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Ratio twin of the baseline delta.
+Ordered SERIES host (e.g. a date grouper). Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Ratio twin of the baseline delta.
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key in host order, carrying `index = point / baseline × 100` on `Summary.Statistic`. Baseline ordinal itself emits `100.0` (self-vs-self). Layer `Baseline = 100`.
+SERIES — one entry per host group key in host order, `summary.statistic` = `point / baseline × 100` (the baseline point itself: `100`). Layer `summary.baseline` = `100`.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).
-- Zero baseline → NaN across entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer, unlike the subtractive twin.
-- Absent host point → `SeriesEntry` with unset `Statistic`.
-- Absent baseline ordinal yields `0.0` from host → routes to zero-baseline arm.
-- Buffered — `host.ValueAt(Position)` post-finalize via `ApplyOverlaysSeries`.
+- Out-of-range `position` → `PULSE_OVERLAY_REF_UNKNOWN` at run time (predict cannot know the series length).
+- Zero (or absent) baseline point → `null` across entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer, unlike the subtractive twin.
+- Absent host point → its entry keeps the key, no `statistic`.
+- Buffered: the baseline is read after the host finalizes.
 - Weighted host → weighted figure (reads the host payload).
 
 ## See

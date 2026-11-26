@@ -393,9 +393,8 @@ func TestCrosstab_BufferedAuxMarginNoAllocationWhenAbsent(t *testing.T) {
 
 // TestCrosstab_BufferedAuxMarginNonMergeableCell covers the realistic
 // buffered caller. AGG_WELFORD and AGG_MEDIAN are non-mergeable, so they
-// force the buffered path by construction — and two BERA stat-test
-// families are built on AGG_WELFORD, so a Visa metric added on either
-// reaches this code and nothing else.
+// force the buffered path by construction — and stat-test families an
+// embedder builds on AGG_WELFORD reach this code and nothing else.
 //
 // The gate assertion is the non-vacuity control: without it the case
 // would silently become a third fused test the day the gate widened.

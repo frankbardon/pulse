@@ -45,7 +45,7 @@ type RealPather interface {
 // The probe MUST stay cheap. No filesystem walks, no Stat. The optional
 // "open-and-inspect" fallback the story Notes mention is intentionally
 // NOT taken here: every wrapper Pulse cares about (BasePathFs in-tree;
-// the BERA CoR overlay downstream) can advertise RealPath at near-zero
+// an embedder's overlay fs downstream) can advertise RealPath at near-zero
 // cost. Adding an Open-based probe would charge an extra syscall on the
 // hot path for every Process() call. If a future fs needs it we can add
 // the probe as an opt-in third layer; today the two layers above cover

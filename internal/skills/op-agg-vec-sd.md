@@ -25,11 +25,11 @@ Slot: `vector` or `fields`, no `field` (`vector-aggregates`). Default label `AGG
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 
-Rich `[]float64`, one SAMPLE standard deviation per member (n − 1<!-- feature: AGG_STDDEV -->; `AGG_STDDEV` is the population form unless `ddof: 1`<!-- /feature -->); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
+JSON array of numbers, one SAMPLE standard deviation per member (n − 1<!-- feature: AGG_STDDEV -->; `AGG_STDDEV` is the population form unless `ddof: 1`<!-- /feature -->); a null member skips only that element. An element with N* ≤ 1 — one answering row, none, or all weight on one row — is NaN (`null`), never 0.
 
 <!-- generated: reading-the-output -->
 
@@ -41,7 +41,7 @@ Rich `[]float64`, one SAMPLE standard deviation per member (n − 1<!-- feature:
 
 ## Gotchas
 
-- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a Sort key, a window, post-test or overlay input<!-- feature: capability:crosstab -->, a crosstab cell or margin without `element`<!-- /feature -->, or a chain stage feeding another — unless expanded (`vector-aggregates`).
+- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a `sort` key, a window, post-test or overlay input<!-- feature: capability:crosstab -->, a crosstab cell or margin without `element`<!-- /feature -->, or a chain stage feeding another — unless expanded (`vector-aggregates`).
 - Expanded columns are ordinary nullable f64 columns; a `return` path names one quoted, `data[*]."<label>[<elem>]"`.
 <!-- feature: capability:crosstab -->
 - `element` cell: a record reaches an auxiliary margin only if its member reached a cell.

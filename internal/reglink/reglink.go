@@ -54,7 +54,7 @@ func KnownFamily(family string) bool { return slices.Contains(families, family) 
 func FamilyRefusal(family string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_REGRESSION_INVALID_FAMILY,
-		"REG_GLM Family must be one of "+strings.Join(families, ", ")+"; got "+family,
+		"REG_GLM family must be one of "+strings.Join(families, ", ")+"; got "+family,
 		map[string]any{"family": family, "allowed": Families()},
 	)
 }
@@ -126,7 +126,7 @@ func CheckPair(family, link string) *errors.CodedError {
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_REGRESSION_INVALID_LINK,
-		"REG_GLM Family="+family+" requires Link in {"+strings.Join(allowed, ", ")+"}; got "+link,
+		"REG_GLM family="+family+" requires link in {"+strings.Join(allowed, ", ")+"}; got "+link,
 		map[string]any{"family": family, "link": link, "allowed": slices.Clone(allowed)},
 	)
 }

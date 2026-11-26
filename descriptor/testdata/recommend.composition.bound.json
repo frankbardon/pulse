@@ -316,7 +316,7 @@
             "use": "GROUP_CATEGORY"
           },
           {
-            "when": "the field has few categories and each should be its own column",
+            "when": "the field has few categories and each should be its own field",
             "use": "FEAT_ONE_HOT"
           }
         ]
@@ -344,7 +344,7 @@
             "use": "GROUP_CATEGORY"
           },
           {
-            "when": "the field has few categories and each should be its own column",
+            "when": "the field has few categories and each should be its own field",
             "use": "FEAT_ONE_HOT"
           }
         ]
@@ -372,7 +372,7 @@
             "use": "GROUP_CATEGORY"
           },
           {
-            "when": "the field has few categories and each should be its own column",
+            "when": "the field has few categories and each should be its own field",
             "use": "FEAT_ONE_HOT"
           }
         ]
@@ -384,4 +384,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ddd19e3aeaebc83928b2a81e6ef4694ff7a5a2d824621bc87c267edca0a105d1
+// golden-hash: 99e98eae975f522ffe4af0c911bc7df0d21f75f86b8d1a328dd74e4982ac59a1

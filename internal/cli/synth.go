@@ -3,10 +3,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 
 	pulse "github.com/frankbardon/pulse"
+	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -44,7 +46,7 @@ func synthFromSchemaCmd() *cli.Command {
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
 			&cli.IntFlag{Name: "rows", Usage: "Override row_count from spec"},
 			&cli.IntFlag{Name: "seed", Usage: "Deterministic RNG seed", Value: 0},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			specPath := cmd.String("spec")
@@ -60,7 +62,7 @@ func synthFromSchemaCmd() *cli.Command {
 			}
 			spec, err := synth.ParseSpec(raw)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SYNTH_SPEC_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if rows > 0 {
 				spec.RowCount = rows
@@ -73,7 +75,7 @@ func synthFromSchemaCmd() *cli.Command {
 
 			res, err := p.Synth(ctx, spec, output, pulse.SynthOptions{Seed: int64(seed)})
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -95,7 +97,7 @@ func synthFromProfileCmd() *cli.Command {
 		Name:  "from-profile",
 		Usage: "Top up a source cohort with rows generated from a previously-captured profile",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON path", Required: true},
+			&cli.StringFlag{Name: "profile", Aliases: []string{"p"}, Usage: "Profile JSON file to synthesize from (as written by pulse profile create)", Required: true},
 			&cli.StringFlag{Name: "source", Usage: "Source .pulse cohort the profile was captured from — copied into the output tagged _synthetic=false unless --synthetic-only; never opened for write", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path — must differ from --source", Required: true},
 			&cli.IntFlag{Name: "rows", Usage: "Number of NEW rows to generate (not a top-up-to-total target)", Required: true},
@@ -109,7 +111,7 @@ func synthFromProfileCmd() *cli.Command {
 			&cli.IntFlag{Name: "disclosure-sample", Usage: "Cap on the generated rows the fidelity report's disclosure section measures the Gower distance to closest record over; more rows are sampled from a seeded stream that never moves the generated rows. 0 keeps the default 10000"},
 			&cli.BoolFlag{Name: "no-disclosure", Usage: "Leave the disclosure section (exact-match rate, Gower distance to closest record) out of the fidelity report"},
 			&cli.StringFlag{Name: "emit-spec", Usage: "Write the profile-derived spec (after any --rules merge) to this path as indented JSON — the spec that actually generates, so 'synth from-schema' reproduces this run at the same seed"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			profPath := cmd.String("profile")
@@ -149,7 +151,7 @@ func synthFromProfileCmd() *cli.Command {
 				}
 				fidelityModel = &pulse.Request{}
 				if err := decodeRequestJSON(data, fidelityModel, "fidelity model request"); err != nil {
-					return cliCodedError(cmd, jsonOut, "SYNTH_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 
@@ -165,7 +167,7 @@ func synthFromProfileCmd() *cli.Command {
 			// rather than flattening them into a placeholder.
 			if rulesPath != "" {
 				if err := synth.ApplyRulesFile(fs, spec, rulesPath); err != nil {
-					return cliCodedError(cmd, jsonOut, "SYNTH_RULES_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 			// --constraints and --max-rejection-rate merge at the same
@@ -173,12 +175,12 @@ func synthFromProfileCmd() *cli.Command {
 			// eager compile live in synth.ApplyConstraintsFile.
 			if constraintsPath != "" {
 				if err := synth.ApplyConstraintsFile(fs, spec, constraintsPath); err != nil {
-					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 			if cmd.IsSet("max-rejection-rate") {
 				if err := synth.ApplyMaxRejectionRate(spec, cmd.Float("max-rejection-rate")); err != nil {
-					return cliCodedError(cmd, jsonOut, "SYNTH_CONSTRAINTS_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 			// Emitted BEFORE generation on purpose: the document's
@@ -188,7 +190,7 @@ func synthFromProfileCmd() *cli.Command {
 			// precisely when the run that follows fails.
 			if emitSpecPath != "" {
 				if err := synth.WriteSpec(fs, spec, emitSpecPath); err != nil {
-					return cliCodedError(cmd, jsonOut, "SYNTH_EMIT_SPEC_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 
@@ -227,7 +229,7 @@ func synthFromProfileCmd() *cli.Command {
 				DisableDisclosure:  cmd.Bool("no-disclosure"),
 			})
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SYNTH_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)
@@ -323,10 +325,10 @@ func profileCreateCmd() *cli.Command {
 		Name:  "create",
 		Usage: "Create a profile JSON for an existing .pulse cohort",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output profile JSON path", Required: true},
 			&cli.IntFlag{Name: "top-k", Usage: "Top-K categorical values to retain per field", Value: 32},
-			&cli.BoolFlag{Name: "include-stats", Usage: "Include percentile / std stats", Value: true},
+			&cli.BoolFlag{Name: "include-stats", Usage: "Include percentile / std stats (--include-stats=false omits them)", Value: true},
 			&cli.BoolFlag{Name: "include-correlations", Usage: "Capture pairwise numeric correlations"},
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},
@@ -381,7 +383,7 @@ func profileCreateCmd() *cli.Command {
 				Seed:        int64(seed),
 			})
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "PROFILE_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			fs := afero.NewOsFs()
 			out, err := json.MarshalIndent(prof, "", "  ")
@@ -398,7 +400,7 @@ func profileCreateCmd() *cli.Command {
 			// run's file in place would answer a question nobody asked.
 			if suggestRulesPath != "" {
 				if err := synth.WriteRuleCandidates(fs, prof.RuleCandidates, suggestRulesPath); err != nil {
-					return cliCodedError(cmd, jsonOut, "SUGGEST_RULES_ERROR", err)
+					return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 			if jsonOut {
@@ -433,14 +435,19 @@ func cliError(cmd *cli.Command, jsonOut bool, code, msg string) error {
 	return fmt.Errorf("%s: %s", code, msg)
 }
 
-// cliErrorFrom is cliError for an error value: the text path is
-// cliError's exact "CODE: message", while the --json path goes through
-// writeCodedErrorEnvelope, so a *errors.CodedError anywhere in the chain
-// surfaces as errors[0].code and code is only the fallback for an
-// uncoded error.
+// cliErrorFrom is cliError for an error value. A *errors.CodedError
+// anywhere in the chain reports its own code on both paths: the --json
+// path goes through writeCodedErrorEnvelope (errors[0].code), the text
+// path returns err itself, whose Error() already reads "CODE: message".
+// code is only the fallback for an uncoded error, printed as cliError's
+// "CODE: message".
 func cliErrorFrom(cmd *cli.Command, jsonOut bool, code string, err error) error {
 	if jsonOut {
 		return writeCodedErrorEnvelope(cmd.Writer, code, err)
+	}
+	var ce *perrors.CodedError
+	if stderrors.As(err, &ce) {
+		return err
 	}
 	return fmt.Errorf("%s: %s", code, err.Error())
 }

@@ -13,8 +13,7 @@ fixed-width `u32` index into it. A cohort may declare N independent
 groups; groups never reference each other. A **constant group** holds
 exactly one entry and no per-row index — how a column with one value
 across the whole cohort is stored once. A cohort with at least one
-group is written at format `0x02`; one without is `0x01`,
-byte-identical to every file written before groups existed.
+group is written at format `0x02`; one without is `0x01`.
 
 ## Logical vs physical
 
@@ -35,21 +34,9 @@ bitmap at all.
 
 ## Schema extension block
 
-After the `0x01` field descriptors:
-
-```
-u64 extension_length
-  u16 section_count
-  per section: u16 tag, u8 flags (bit0 REQUIRED), u64 length, bytes
-```
-
-An unknown REQUIRED section is refused (`ENCODING_INVALID`); an unknown
-optional one is skipped. Reserved flag bits, a duplicated tag, or a
-payload not consumed exactly are refused. Section tag `1` is GROUPS
-(always REQUIRED); tag `2` is VECTORS, the dim and metadata of every
-`vec_*` field ([Vector fields](field-types.md#vector-fields)); tag `3`
-is ZONE, the cohort's default zone field
-([Schema Block](schema-block.md#cohort-default-zone-zone-tag-3)). GROUPS:
+Groups ride section tag `1` (GROUPS, always REQUIRED) of the `0x02`
+schema extension block; the section framing is on
+[Schema Block](schema-block.md#top-level-shape). GROUPS:
 
 ```
 u16 group_count (>= 1)
@@ -209,8 +196,8 @@ fails predict the same way. Detection only suggests, and `Run` ignores
 ## Converting an existing cohort (retro-dedup)
 
 `pulse dedup COHORT --group KEY:MEMBER,...` (library `Pulse.Dedup`,
-MCP `pulse_dedup`) converts a cohort that is already on disk, so a
-grouped cohort no longer needs the original source. It takes the same
+MCP `pulse_dedup`) converts a cohort that is already on disk, so grouping it needs no
+original source. It takes the same
 declarations, `--elide-constants`, `--dedup-ratio-floor` and `--strict`
 as import (elision is CLI + library only, not on `pulse_dedup`). The
 byte work is `io.DedupJob`. The source is read through its LOGICAL

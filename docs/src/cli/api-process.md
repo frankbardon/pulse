@@ -21,16 +21,19 @@ pulse api process --request FILE [--json] [--stream] [--no-defaults]
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--request`       | `-r` | string | (required) | Path to the request JSON file |
-| `--json`          |      | bool   | false      | Emit the result wrapped in the JSON envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON (one per line) instead of buffering; a run that warned ends with one `{"warnings": [...]}` line |
-| `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference; require explicit `Type` on every aggregation and grouper |
-| `--no-components` |      | bool   | false      | Suppress `Response.Components` (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline. The flag wins over a request `return` block (Components are still not computed, and the block gains `exclude: ["components"]`); only a request `"disable_components": false` re-opens them |
-| `--no-project`    |      | bool   | false      | Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode |
-| `--strict`        |      | bool   | false      | Promote request-validation warnings (e.g. numeric aggregation on a categorical field) into hard errors |
-| `--echo-request`  |      | bool   | false      | Include the normalized (post-defaults) request on `envelope.request`. Ignored under `--stream` because NDJSON has no envelope |
+Each flag's type and help text is in the
+[Command & flag reference](reference.md#pulse-api-process). The ones
+that change what runs:
+
+- `--no-defaults` turns off [smart defaults](#smart-defaults).
+- `--no-components` suppresses `Response.Components` (the counts behind
+  each figure); output is otherwise byte-identical. It wins over a
+  request `return` block (the block gains `exclude: ["components"]`);
+  only a request `"disable_components": false` re-opens them.
+- `--no-project` forces full-record decode (see
+  [Field projection](#field-projection)).
+- `--echo-request` puts the normalized (post-defaults) request on
+  `envelope.request`; ignored under `--stream`, which has no envelope.
 
 `--stream` and `--json` are mutually exclusive in spirit — `--stream`
 emits one JSON object per line; `--json` emits the full envelope.
@@ -45,39 +48,38 @@ to run it.
 The request file is a [`types.Request`](../library/overview.md)
 serialised to JSON. Minimal example:
 
-```json
+```json cohort=orders
 {
-  "cohort": {"filename": "sales.pulse"},
+  "cohort": {"filename": "orders.pulse"},
   "aggregations": [
     {"type": "AGG_SUM", "field": "revenue", "label": "total_revenue"}
   ]
 }
 ```
 
-The full request grammar is one JSON object whose top-level keys mirror
-`types.Request`: `cohort`, `filterers`, `features`, `attributes`,
-`groups`, `aggregations`, `windows`, `sort`, `tests`, `post_tests`,
-`outputs`. A canonical filter-group-aggregate example:
+The request is one JSON object whose top-level keys are the
+`types.Request` slots (`pulse schema | jq '."$defs".Request.properties | keys'`
+lists them). A canonical filter-group-aggregate example:
 
-```json
+```json cohort=experiment
 {
-  "cohort": {"filename": "data.pulse"},
+  "cohort": {"filename": "experiment.pulse"},
   "filterers": [
-    {"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}
+    {"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}
   ],
   "groups": [
     {"type": "GROUP_CATEGORY", "field": "region"}
   ],
   "aggregations": [
-    {"type": "AGG_COUNT",   "field": "id",    "label": "n"},
-    {"type": "AGG_AVERAGE", "field": "score", "label": "mean_score"}
+    {"type": "AGG_COUNT",   "field": "id",      "label": "n"},
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "mean_revenue"}
   ],
   "outputs": [{"format": "json"}]
 }
 ```
 
-The full grammar — windows, sort, tests, post-tests — is documented in
-[`types.Request`](https://github.com/frankbardon/pulse/blob/main/types/types.go);
+The full grammar is in the [payload schema](../contract/payload-schema.md)
+and [`types.Request`](https://github.com/frankbardon/pulse/blob/main/types/types.go);
 the LLM-facing companion is `skills/aggregation-design.md`.
 
 ## Pipeline order
@@ -107,12 +109,14 @@ Buffered-decode field projection is **on by default** and
 output-transparent: the engine decodes only the source fields the
 request actually reads, so the result payload is byte-identical to a
 full decode — just faster and lighter per record (measured ~7× on a
-narrow projection of a wide cohort). `--no-project` (or
+narrow projection of a wide cohort). The gain depends on the schema: it
+grows with the share of record bytes the request skips, so a narrow
+cohort gains little (a 15-field, 53-byte retail cohort measured no
+difference), and a request reading most fields gains nothing. `--no-project` (or
 `pulse.Options{DisableProjection: true}`) forces a full-record decode;
 use it only for debugging or when you need every field materialised.
-`pulse.Options.ProjectBufferedFields` is retained but deprecated (a
-harmless no-op). This flag is scoped to `pulse api process` in v1 —
-`pulse api process-chain` and `pulse api compose` do not expose it yet.
+The flag exists on `pulse api process` only; `process-chain` and
+`compose` always project.
 
 ## Output
 
@@ -148,14 +152,9 @@ leakage, labels, vectors, …) is also written to the envelope's
 top-level `warnings`; `data` keeps its copy. Under `--strict` the
 warnings `Options.Strict` covers refuse the run instead (exit 1).
 
-`data.components` is the additive `Response.Components` slot
-documented in CLAUDE.md → Output Format Contract and
-`skills/response-components.md`. The slot is `omitempty`: a run that
-emits no components-shaped state (a streaming `--stream` chunk between
-the first and last on a non-mergeable aggregator, for example) marshals
-without the `components` key at all — byte-identical to the pre-0.20
-wire shape. `format_version` stays at `"1.0"` because the slot is
-additive.
+`data.components` is the optional `Response.Components` slot — the
+counts behind each figure (`skills/response-components.md`). It is
+omitted when a run emits no components-shaped state.
 
 ### `--stream`
 

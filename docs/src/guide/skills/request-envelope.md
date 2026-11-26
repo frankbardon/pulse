@@ -11,48 +11,48 @@ covers: [Request, ComposedRequest, ChainRequest, FacetRequest, SampleRequest, En
 
 ## Envelope (response side)
 
-Every `--json` output and facade response uses `descriptor.Envelope`:
+Every `--json` output uses `descriptor.Envelope`:
 
 ```json
 {"format_version": "1.1", "data": {...}, "request": {...}, "errors": [], "warnings": []}
 ```
 
 - `format_version` — `"1.1"`; additive `data` fields never bump it.
-- `data` — the operation's payload.
+- `data` — the payload.
 - `request` — opt-in echo of the *normalized* request (`--echo-request`); streaming skips it.
-- `errors` / `warnings` — always arrays of `{code, message, details}`; resolve via `pulse_errors_lookup`.
+- `errors` / `warnings` — always arrays of `{code, message, details}` (`pulse_errors_lookup`).
 
 ## Request shapes (per command)
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, time_zone_field, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs, return`, `multiplicity`, `vectors`, `matrices` |
-| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
-| process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
-| facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
+| process, predict (`pulse api process`) | `Request` | `label, cohort, time_zone, time_zone_field, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, regressions, joins, labels, crosstab, overlays, outputs, disable_components, return`, `union`, `union_source_field`, `weight`, `params`, `multiplicity`, `vectors`, `matrices`, `models`, `populations` |
+| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each a `Request`) plus batch keys ([`compose-requests`](compose-requests.md)) |
+| process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays, params` (each stage: `{request: Request}`) |
+| facet (`pulse api facet`) | `FacetRequest` | `cohort, fields[], filterers, additive_fields, discrete_top_k, numeric_percentiles, include_histogram, histogram_bins, histogram_range, labels, overlays, time_zone, time_zone_field` |
 | sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
 
-Each operation's MCP tool: manifest `mcp_tools`.
+MCP tool per operation: manifest `mcp_tools`.
 
 Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See [`weighting`](weighting.md).
 
-Slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways, grouper keys in key order). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
+Slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways, grouper keys in key order). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a field, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
-```json
+```json cohort=experiment
 {
   "cohort": {"filename": "sales.pulse"},
-  "filterers":    [{"type": "FILTER_INCLUDE", "field": "status", "values": ["active"]}],
-  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
+  "filterers": [{"type": "FILTER_INCLUDE", "field": "treatment", "values": ["variant"]}],
+  "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
   "aggregations": [
-    {"type": "AGG_COUNT", "field": "id",      "label": "n"},
-    {"type": "AGG_SUM",   "field": "revenue", "label": "revenue"}
+    {"type": "AGG_COUNT", "field": "id", "label": "n"},
+    {"type": "AGG_SUM", "field": "revenue", "label": "rev"}
   ]
 }
 ```
 
-Every `type` is an operator constant from `pulse_manifest` `components.<category>`; runnable requests: `pulse_examples_search`.
+Every `type` is an operator from `pulse_manifest` `components.<category>`; runnable requests: `pulse_examples_search`.
 
 ## Slot-key gotchas
 
@@ -64,7 +64,7 @@ Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`; a nu
 | `aggregators` | `aggregations` |
 | `filters` | `filterers` |
 | `tests_post` | `post_tests` |
-| `output` | `outputs` |
+| `output` (not materialize) | `outputs` |
 | `request` (Compose top-level) | `requests` |
 
 Per-operator slot: `type`, `field`, `label`, optional `params` (keys: its atomic skill).
@@ -85,12 +85,11 @@ A `type` defaults only on `groups`, `aggregations`, crosstab axes and cell(s); n
 
 `pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string` (authoritative).
 
-- **Streams:** online aggregators (manifest `streamable: true`), ungrouped or under a streamable grouper; row-local attributes; whole-cohort-statistic attributes (z-scores) in two passes.
-- **Buffers:** order-statistic aggregators (median, percentile); percentile-rank attributes; groupers with `streamable: false`; windows; decimal aggregations; two-pass attributes combined with features or groups; tier-2 post tests.
+Each operator's manifest entry carries `streamable` (+ `streamable_hint`). Windows, order statistics, percentile ranks, decimal aggregations, tier-2 post tests and two-pass attributes beside features or groups buffer.
 
 ## Time zones
 
-`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (a batch root: per inner `Request`). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
 Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → cohort `zone_field` → `Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
 

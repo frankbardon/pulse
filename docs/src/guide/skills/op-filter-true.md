@@ -1,6 +1,6 @@
 ```yaml
 name: op-filter-true
-description: Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness.
+description: Keep records where the field is logically true. Strict packed_bool by default; opt into JS truthiness.
 kind: operator
 category: FILTER
 operator: FILTER_TRUE
@@ -27,11 +27,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | empty (strict) | Omit, or `["strict"]`, requires `packed_bool` and matches raw `1`. `["truthy"]` enables JavaScript-style coercion across any scalar field type (a `vec_f32` / `vec_f64` field is refused, `PULSE_VECTOR_FIELD_NOT_SCALAR`). Other values → `PROCESSING_CONFIG`. |
+| `values` | array | empty (strict) | Omit, or `["strict"]`, requires `packed_bool` and matches raw `1`. `["truthy"]` enables JavaScript-style coercion across any scalar field type (a `vec_f32` / `vec_f64` field is refused, `PULSE_VECTOR_FIELD_NOT_SCALAR`). Other values → `PROCESSING_CONFIG`. |
 
 ## Inputs
 
-- `Field` — strict mode: `packed_bool` only. Truthy mode: any scalar field type.
+- `field` — strict mode: `packed_bool` only. Truthy mode: any scalar field type.
 
 ## Output
 
@@ -46,7 +46,7 @@ Row-level predicate. Pass when value is true / truthy. No emitted column.
 
 ## Gotchas
 
-- Strict mode on non-`packed_bool` → `PULSE_FIELD_TYPE_UNSUPPORTED` with the suggested `Values=["truthy"]` fix.
+- Strict mode on non-`packed_bool` → `PULSE_FIELD_TYPE_UNSUPPORTED` with the suggested `values: ["truthy"]` fix.
 - Truthy mode coerces: `0`, `NaN`, `""`, `null` → falsy; everything else → truthy. Null rows DROP in both directions.
 - `decimal128` truthiness uses `Sign() != 0`.
 

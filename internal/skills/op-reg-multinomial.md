@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, multinomial, buffered-pipeline]
 ---
 
-Rides `Response.Regressions[i]`; no `Response.Components`.
+Rides `regressions[i]`; no `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -36,7 +36,7 @@ Flat keys (no `params`); shared: `regression-spec`.
 | `term_tests` | bool | `false` | — |
 | `weight` | slot weight | — | — |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | — | Every non-intercept key. |
+| `multiplicity` | object | — | Non-intercept keys. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
 | `holdout` | expr | — | Scores: `regression-row-scores`. |
@@ -58,7 +58,7 @@ Flat keys (no `params`); shared: `regression-spec`.
 
 ## Output
 
-`Reference`, `Categories`; `Coefficients` / `StdErrors` / `PValues` (Wald z) / `CILower` / `CIUpper` keyed `"<level>:<term>"` per non-reference level; `Deviance`, `NullDeviance`, `PseudoR2`, `TwoLogLik`, `AIC`. `exponentiate`: `Exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `TermTests`, per predictor, df K−1: `wald_*`, `lr_*` (vs the refit without it).
+`reference`, `categories`; `coefficients` / `std_errors` / `p_values` (Wald z) / `ci_lower` / `ci_upper` keyed `"<level>:<term>"` per non-reference level; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik`, `aic`. `exponentiate`: `exponentiated` (e^β, e^β·SE, e^CI). `term_tests`: `term_tests`, per predictor, df K−1: `wald_*`, `lr_*` (vs the refit without it).
 
 <!-- generated: reading-the-output -->
 
@@ -72,9 +72,9 @@ Flat keys (no `params`); shared: `regression-spec`.
 - `penalty` (glmnet `ungrouped`): EVERY level gets coefficients, no `reference`; null SE / p / CI unless `resample`; no `vcov`.
 - `resample` / `selection` keep the categories: a bootstrap draw lacking one skips, a jackknife fails (`replicate_empty_level`).
 <!-- feature: ATTR_REG_PREDICT -->
-- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `Categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
+- `ATTR_REG_PREDICT`: `category` → P(y = it); `output: class` → index in `categories`; `scale: link` → log-odds (penalized: x'β). `coef()` reads `"<level>:<term>"`.
 <!-- /feature -->
-- Probability weight: no `TwoLogLik` / `AIC` / `lr_*`.
+- Probability weight: no `two_log_lik` / `aic` / `lr_*`.
 <!-- feature: capability:compose_compare -->
 - `compare`: df (K−1)·terms; same `reference`.
 <!-- /feature -->

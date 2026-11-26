@@ -14,8 +14,8 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_DISTINCT_SUM`](#op-agg_distinct_sum) | Total of a numeric field counting each key once, such as a respondent's weight summed once per respondent. | What is the weighted base when each respondent appears on several rows? | intermediate | [`AGG_SUM`](#op-agg_sum) when every row is its own unit and should be added.<br>[`AGG_DISTINCT_COUNT`](#op-agg_distinct_count) when you want how many keys there are, not a total. |
 | [`AGG_FREQUENCY`](#op-agg_frequency) | How many rows hold one chosen value of a field, such as the Yes answers, over all rows or per group. | How many respondents answered Yes in each region? | basic | [`AGG_MODE_COUNT`](#op-agg_mode_count) when you want how many rows share the field's most common value, whatever it is.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want a count for every value of the field: group by it, then count rows.<br>[`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want rows holding any of several values: keep them, then count rows.<br>[`AGG_SET_FREQUENCY`](#op-agg_set_frequency) when the field is a multi-select. |
 | [`AGG_KURTOSIS`](#op-agg_kurtosis) | How heavy a numeric field's tails are next to a normal distribution: positive when extreme values are more common. | Do transaction amounts have more extreme values than a bell curve would give? | advanced | [`AGG_SKEWNESS`](#op-agg_skewness) when you want to know whether the field is lopsided.<br>[`TEST_SHAPIRO_WILK`](test.md#op-test_shapiro_wilk) when you want a test of whether the field follows a normal shape. |
-| [`AGG_MAE`](#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. | On average, how many units off is the sales model on the held-out weeks? | intermediate | [`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones.<br>[`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value. |
-| [`AGG_MAPE`](#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. | On the held-out weeks, how far off is the sales model, as a share of actual sales? | intermediate | [`AGG_MAE`](#op-agg_mae) when actual values can be 0 or close to 0, where a share is undefined or explodes.<br>[`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones. |
+| [`AGG_MAE`](#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. | On average, how many units off is the sales model on the held-out weeks? | intermediate | [`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones.<br>[`AGG_MAPE`](#op-agg_mape) when you want the miss as a share of the actual value. |
+| [`AGG_MAPE`](#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. | On the held-out weeks, how far off is the sales model, as a share of actual sales? | intermediate | [`AGG_MAE`](#op-agg_mae) when actual values can be 0 or close to 0, where a share is undefined or explodes.<br>[`AGG_RMSE`](#op-agg_rmse) when large misses should count for more than small ones. |
 | [`AGG_MAX`](#op-agg_max) | Largest value of a numeric or date field, over all rows or per group. | What is the latest order date in each region? | basic | [`AGG_MIN`](#op-agg_min) when you want the smallest value.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when one extreme row would mislead and you want a high value that ignores it.<br>[`AGG_RANGE`](#op-agg_range) when you want the distance between smallest and largest. |
 | [`AGG_MEDIAN`](#op-agg_median) | Middle value of a numeric field once sorted: the typical row, not pulled by a few extreme values. | What is the typical household income in each region? | basic | [`AGG_PERCENTILE`](#op-agg_percentile) when you want a value other than the middle, such as the 90th percentile.<br>[`AGG_AVERAGE`](#op-agg_average) when the field is roughly symmetric and you want a figure that combines across groups.<br>[`AGG_MODE`](#op-agg_mode) when the field holds categories rather than numbers. |
 | [`AGG_MIN`](#op-agg_min) | Smallest value of a numeric or date field, over all rows or per group. | What is the earliest order date in each region? | basic | [`AGG_MAX`](#op-agg_max) when you want the largest value.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when one extreme row would mislead and you want a low value that ignores it.<br>[`AGG_RANGE`](#op-agg_range) when you want the distance between smallest and largest. |
@@ -144,7 +144,7 @@ Lower end of a confidence interval for the mean of a numeric field, showing how 
 
 **Assumptions:**
 
-- Rows are independent draws, unweighted.
+- Rows are independent draws; under a row weight the interval rests on the weighted base (frequency weights) or the effective sample size (probability weights).
 - Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.
 - Empty (NaN) when fewer than two rows have a value.
 
@@ -179,7 +179,7 @@ Upper end of a confidence interval for the mean of a numeric field, showing how 
 
 **Assumptions:**
 
-- Rows are independent draws, unweighted.
+- Rows are independent draws; under a row weight the interval rests on the weighted base (frequency weights) or the effective sample size (probability weights).
 - Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.
 - Empty (NaN) when fewer than two rows have a value.
 
@@ -380,7 +380,7 @@ How heavy a numeric field's tails are next to a normal distribution: positive wh
 
 - Missing values are skipped.
 - Population excess kurtosis g2 (dividing by n, minus 3): a normal shape scores 0, and at small n it differs from the adjusted G2 most packages print.
-- It is 0 when n is 0 or 1 or every value is the same.
+- It reads empty (null), never 0, when n is 0 or 1 or every value is the same.
 
 **Use something else:**
 
@@ -395,7 +395,7 @@ How heavy a numeric field's tails are next to a normal distribution: positive wh
 
 ### `AGG_MAE`
 
-Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row.
+Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row.
 
 **Level:** intermediate
 
@@ -430,7 +430,7 @@ Average size of a prediction's miss in the actual's own units, comparing an actu
 
 ### `AGG_MAPE`
 
-Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row.
+Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row.
 
 **Level:** intermediate
 
@@ -485,6 +485,7 @@ Largest value of a numeric or date field, over all rows or per group.
 
 - Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
+- A categorical field is read only as ordered levels (params.ordered or params.levels); the result is then the highest level's dictionary index, a code.
 
 **Use something else:**
 
@@ -519,6 +520,7 @@ Middle value of a numeric field once sorted: the typical row, not pulled by a fe
 
 - Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - With an even number of values it is the halfway point between the two middle values.
+- A categorical field is read only as ordered levels (params.ordered or params.levels): the result is the middle level's dictionary index, a code, with no interpolation.
 
 **Use something else:**
 
@@ -553,6 +555,7 @@ Smallest value of a numeric or date field, over all rows or per group.
 
 - Missing values are skipped; a group where no row has a value reads empty (null), never 0.
 - It rests on one row, so a single bad record sets it.
+- A categorical field is read only as ordered levels (params.ordered or params.levels); the result is then the lowest level's dictionary index, a code.
 
 **Use something else:**
 
@@ -693,6 +696,7 @@ Value of a numeric field below which a chosen share of rows fall, such as the 90
 
 - Missing values are skipped.
 - Linear interpolation between the two nearest sorted values, so the result may be a value no row holds.
+- A categorical field is read only as ordered levels (params.ordered or params.levels): the result is a level's dictionary index, a code, with no interpolation.
 
 **Use something else:**
 
@@ -1007,7 +1011,7 @@ How lopsided a numeric field is: positive when a long tail runs to high values, 
 
 - Missing values are skipped.
 - Population moment coefficient g1 (dividing by n): at small n it runs smaller in size than the adjusted G1 most packages print.
-- It is 0 when n is 0 or 1 or every value is the same.
+- It reads empty (null), never 0, when n is 0 or 1 or every value is the same.
 
 **Use something else:**
 
@@ -1257,7 +1261,7 @@ Average of a numeric field where each row counts in proportion to a weight field
 **Assumptions:**
 
 - Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) it reads empty (null), never 0.
-- Negative weights are not refused and can make the result unstable.
+- Rows with a negative or non-finite weight are left out with a warning.
 
 **Use something else:**
 

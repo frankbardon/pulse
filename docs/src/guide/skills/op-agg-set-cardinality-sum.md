@@ -29,7 +29,7 @@ None. Weight-aware (`"weight": null` opts out): Σw·popcount (a float).
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

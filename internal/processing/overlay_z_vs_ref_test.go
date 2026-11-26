@@ -124,7 +124,7 @@ func TestApplyZVsRef_TripleBypassesParamsDefaults(t *testing.T) {
 		t.Fatalf("applyZVsRef: %v", err)
 	}
 	for i := 0; i < 4; i++ {
-		approxEqual(t, "entry (triple bypasses Params)", entryStat(t, layer, i), 0.26355, 1e-4)
+		approxEqual(t, "entry (triple bypasses params)", entryStat(t, layer, i), 0.26355, 1e-4)
 	}
 }
 

@@ -17,11 +17,11 @@ Weighted: the variance is the sample m2_w / (Σw − 1); `N` stays the contribut
 
 ## Inputs
 
-- `Field` — strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordTriple{Mean, Variance, N}` via `RichAggregator`.
+Row value: the JSON object `{mean, variance, n}`; scalar fallback the running mean (NaN, `null` in JSON, with no rows). A window formula reads `w.Mean`, `w.Variance`, `w.N`.
 
 <!-- generated: reading-the-output -->
 
@@ -39,8 +39,8 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 ## Gotchas
 
 - Sample variance (`n-1`), not population (`n`); undefined (`null`, triple and components) below 2 values (Σw ≤ 1), never 0 — a pairwise / t / z overlay skips that leg.
-- The rich triple is what cell-level t / z overlays read, via `Components.Crosstab.CellComponents`; they difference cells via `origin` / `shifted_mean`, as the two-sample tests do: no digits lost at a 1e12 offset.
-- Margin reducibility = recompute, not pool by addition.
+- The rich triple is what cell-level t / z overlays read, via `components.crosstab.cell_components`; they difference cells via `origin` / `shifted_mean`, as the two-sample tests do: no digits lost at a 1e12 offset.
+- Crosstab margins recompute from rows.
 - Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`) — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (disabled → `PULSE_OVERLAY_COMPONENTS_REQUIRED`)<!-- feature: OVERLAY_PROP_Z_VS_PRIOR -->; `OVERLAY_PROP_Z_VS_PRIOR` refuses it with its own `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`)<!-- /feature -->; an unscored one beside a scalar runs.
 
 ## See

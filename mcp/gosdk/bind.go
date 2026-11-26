@@ -11,7 +11,7 @@ package gosdk
 // session = one Server, so re-registering a tool by name (Server.AddTool
 // replaces same-name entries) mutates this session's view and go-sdk auto-emits
 // notifications/tools/list_changed to the connected client. Multi-file binding
-// is not supported in v1: the latest inspect wins.
+// is not supported: the latest inspect wins.
 //
 // Concurrency note: divergent schemas across CONCURRENT sessions would require
 // one Server per session (the HTTP StreamableHTTPHandler getServer factory
@@ -39,7 +39,7 @@ import (
 //
 // Best-effort: silently degrades to the global (unbound) tools when
 // cfg.BindOnInspect is off, the server is nil, or the cohort cannot be
-// re-opened. Multi-file is latest-inspect-wins (v1 limitation).
+// re-opened. Multi-file is latest-inspect-wins.
 //
 // joins (pulse_inspect `joins`) names the cohorts the session's requests
 // join: each target that opens (through the instance FS, like the bound

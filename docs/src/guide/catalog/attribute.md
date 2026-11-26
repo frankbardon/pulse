@@ -4,15 +4,15 @@ The attributes this instance offers: what each is for, the questions it answers 
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
-| [`ATTR_CODE_IN`](#op-attr_code_in) | Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base. | What share of all respondents gave a top-two-box answer (codes 4 or 5)? | basic | [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.<br>[`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select. |
-| [`ATTR_DATE_PART`](#op-attr_date_part) | Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. | Which month of the year does each order fall in, so seasons can be compared across years? | basic | [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.<br>[`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar columns at once, including weekday. |
+| [`ATTR_CODE_IN`](#op-attr_code_in) | Adds a 1 / 0 field saying whether each row's code is one of a listed set, keeping every row in the base. | What share of all respondents gave a top-two-box answer (codes 4 or 5)? | basic | [`FILTER_INCLUDE`](filterer.md#op-filter_include) when you want to keep only the rows with those codes.<br>[`AGG_FREQUENCY`](aggregator.md#op-agg_frequency) when you want how often a single value occurs.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when the field is a multi-select. |
+| [`ATTR_DATE_PART`](#op-attr_date_part) | Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour. | Which month of the year does each order fall in, so seasons can be compared across years? | basic | [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.<br>[`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar fields at once, including weekday. |
 | [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) | Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together. | What is each respondent's score on the satisfaction factor behind these rating questions? | advanced | [`MAT_FACTOR`](matrix.md#op-mat_factor) when you want how many factors there are and which fields load on each.<br>[`ATTR_PC_SCORE`](#op-attr_pc_score) when you want a summary of all the fields' variance rather than a common trait. |
-| [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
+| [`ATTR_FORMULA`](#op-attr_formula) | Adds a number to every row computed from the row's own fields with an expression, such as price * qty. | What is each order's line total from its price and quantity? | intermediate | [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a field.<br>[`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field. |
 | [`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) | Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together. | Which respondents gave an unusual pattern of answers across the whole battery, even if no single answer is extreme? | advanced | [`ATTR_ZSCORE`](#op-attr_zscore) when only one field matters.<br>[`TEST_HOTELLING_T2`](test.md#op-test_hotelling_t2) when you want how far apart groups are, not single rows. |
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
 | [`ATTR_PC_SCORE`](#op-attr_pc_score) | Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. | What is each respondent's score on the main dimension behind these rating questions? | advanced | [`MAT_PCA`](matrix.md#op-mat_pca) when you want how many dimensions there are and which fields load on each.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is across the fields. |
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
-| [`ATTR_PREVIOUS_STATE`](#op-attr_previous_state) | Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. | How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from column and a to column.<br>[`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows. |
+| [`ATTR_PREVIOUS_STATE`](#op-attr_previous_state) | Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. | How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from field and a to field.<br>[`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows. |
 | [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) | Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. | How closely does each respondent's brand ratings follow the ideal loyalist profile? | intermediate | [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) when you want how far apart the values are rather than how alike the pattern is.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is against the whole cohort.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
 | [`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) | Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out. | Which rows would change the model's answer if they were dropped? | advanced | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are, whatever its target.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
@@ -21,7 +21,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_REG_INFLUENCE`](#op-attr_reg_influence) when you want how much each row moves the fitted line.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
 | [`ATTR_SCALE_SCORE`](#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four? | intermediate | [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.<br>[`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items. |
 | [`ATTR_SEM_SCORE`](#op-attr_sem_score) | Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. | What is each respondent's perceived-value score under our brand model, to crosstab it by segment? | advanced | [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when you do not yet know which measures belong to which quality.<br>[`MAT_SEM`](matrix.md#op-mat_sem) when you want the model's fit, paths and latent means rather than per-row scores.<br>[`ATTR_SCALE_SCORE`](#op-attr_scale_score) when every item counts equally and you want a plain battery average. |
-| [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
+| [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 field saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a field to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
 | [`ATTR_SET_POPCOUNT`](#op-attr_set_popcount) | Adds to every row the number of options its multi-select field has selected. | How many reasons did each respondent tick? | basic | [`AGG_SET_CARDINALITY_AVG`](aggregator.md#op-agg_set_cardinality_avg) when you want the average number of selections per group.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when you want whether one particular option was chosen. |
 | [`ATTR_TSCORE`](#op-attr_tscore) | Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. | How does each candidate's test result compare with the group, on a 50-centred scale? | intermediate | [`ATTR_ZSCORE`](#op-attr_zscore) when you want plain standard-deviation units centred on 0.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when you want each row's percentile rank (the share at or below it when values are untied). |
 | [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) | Adds to every row how far its set of related fields lies from a target profile, optionally in units of each field's spread. | How far is each store's KPI profile from the benchmark store, with every KPI on its own scale? | intermediate | [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) when you want how alike the pattern is rather than how far apart the values are.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when the target is the cohort's own centre.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
@@ -33,14 +33,14 @@ The attributes this instance offers: what each is for, the questions it answers 
 
 ### `ATTR_CODE_IN`
 
-Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base.
+Adds a 1 / 0 field saying whether each row's code is one of a listed set, keeping every row in the base.
 
 **Level:** basic
 
 **Questions it answers:**
 
 - What share of all respondents gave a top-two-box answer (codes 4 or 5)?
-- Which orders carry one of the priority status codes, as a column to average by region?
+- Which orders carry one of the priority status codes, as a field to average by region?
 
 **Use cases by domain:**
 
@@ -66,7 +66,7 @@ Adds a 1 / 0 column saying whether each row's code is one of a listed set, keepi
 
 ### `ATTR_DATE_PART`
 
-Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.
+Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour.
 
 **Level:** basic
 
@@ -78,7 +78,7 @@ Adds a calendar part of a date or timestamp to every row, such as the year, the 
 **Use cases by domain:**
 
 - *survey:* Tag each response with its fieldwork year-month.
-- *ops:* Month-of-year column for comparing seasonal order volume.
+- *ops:* Month-of-year field for comparing seasonal order volume.
 - *science:* Collection year per sample for a by-year breakdown.
 
 **Assumptions:**
@@ -90,7 +90,7 @@ Adds a calendar part of a date or timestamp to every row, such as the year, the 
 **Use something else:**
 
 - [`GROUP_DATE`](grouper.md#op-group_date) when you only want rows grouped by day, week, month or year.
-- [`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar columns at once, including weekday.
+- [`FEAT_DATE_FEATURES`](feature.md#op-feat_date_features) when you want several calendar fields at once, including weekday.
 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
@@ -143,7 +143,7 @@ Adds a number to every row computed from the row's own fields with an expression
 **Questions it answers:**
 
 - What is each order's line total from its price and quantity?
-- Which rows meet a combined rule, as a 0/1 column for counting?
+- Which rows meet a combined rule, as a 0/1 field for counting?
 
 **Use cases by domain:**
 
@@ -155,11 +155,11 @@ Adds a number to every row computed from the row's own fields with an expression
 
 - A missing field enters the expression as nil, and an operator that cannot take nil fails the request. A guard such as x ?? 0 turns each missing value into a real 0, which pulls averages down, so prefer dropping those rows with FILTER_NULL or pick a fallback that means something.
 - True / false results become 1 / 0.
-- It cannot read another attribute's column from the same request.
+- It cannot read another attribute's output from the same request.
 
 **Use something else:**
 
-- [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a column.
+- [`FILTER_EXPRESSION`](filterer.md#op-filter_expression) when you want to keep or drop rows by a rule rather than add a field.
 - [`FEAT_LOG`](feature.md#op-feat_log) when you want the logarithm of a field.
 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
@@ -251,12 +251,12 @@ Adds to every row its score on one principal component of several related numeri
 **Questions it answers:**
 
 - What is each respondent's score on the main dimension behind these rating questions?
-- Can I replace these five correlated measures with one summary column for a later model?
+- Can I replace these five correlated measures with one summary field for a later model?
 
 **Use cases by domain:**
 
 - *survey:* Score each respondent on the leading dimension of an attitude battery, to segment or chart by it.
-- *science:* Reduce many correlated measurements of each specimen to a few component columns before further analysis.
+- *science:* Reduce many correlated measurements of each specimen to a few component scores before further analysis.
 
 **Assumptions:**
 
@@ -341,7 +341,7 @@ Adds to each row of a long panel the state the same subject held at its previous
 
 **Use something else:**
 
-- [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from column and a to column.
+- [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from field and a to field.
 - [`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows.
 
 **Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`missing-value`](../glossary.md#term-missing-value)
@@ -538,7 +538,7 @@ Adds to every row the value a model fitted once, elsewhere in the request, predi
 **Assumptions:**
 
 - The model is fitted once, on the fit request's own rows, before any slot runs; scoring never refits.
-- The scoring rows must carry every predictor column the fit used, built the same way (same features); an absent one-hot column is the reference level.
+- The scoring rows must carry every predictor field the fit used, built the same way (same features); an absent one-hot field is the reference level.
 - A row missing any predictor the score reads gets no value (null), never 0.
 - A prediction reflects association in the fitted rows, never what would happen if a predictor were changed.
 
@@ -681,13 +681,13 @@ Adds to every row its score on one hidden quality of a structural equation model
 
 ### `ATTR_SET_HAS`
 
-Adds a 1 / 0 column saying whether each row's multi-select field includes one named option.
+Adds a 1 / 0 field saying whether each row's multi-select field includes one named option.
 
 **Level:** basic
 
 **Questions it answers:**
 
-- Which respondents ticked 'price' among their reasons, as a column to cross with other answers?
+- Which respondents ticked 'price' among their reasons, as a field to cross with other answers?
 - Which tickets carry the 'urgent' tag?
 
 **Use cases by domain:**

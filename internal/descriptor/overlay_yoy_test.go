@@ -297,7 +297,7 @@ func TestValidateOverlay_YoYMissingRefRejected(t *testing.T) {
 	}
 	env := predictFromBytes(data, req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for empty Ref")
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for empty ref")
 	}
 }
 

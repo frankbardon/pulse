@@ -12,7 +12,7 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Jackknife resampling (Indeed #10): REG_OLS with resample=jackknife replaces analytical std errors with leave-one-out estimates; forces the buffered orchestrator path.",
+    "description": "Jackknife resampling: REG_OLS with resample jackknife replaces the analytical standard errors, p-values and intervals with leave-one-out estimates; the coefficients do not move. Resampling buffers the request.",
     "intents": [
       "drivers"
     ]

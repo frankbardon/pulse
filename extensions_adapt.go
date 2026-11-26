@@ -991,7 +991,7 @@ func (a attrCore) Compute(records []*processing.Record, field string) ([]float64
 }
 
 // attrCodes is the per-slot code check of an attribute declaring
-// InheritsDictionary (U67 E3-S2): every value it emits must be a code of
+// InheritsDictionary: every value it emits must be a code of
 // its source field's n-entry dictionary (prevstate.CodeFault), NaN only
 // when the value is an extend.NullableAttribute reporting true (a null).
 type attrCodes struct {

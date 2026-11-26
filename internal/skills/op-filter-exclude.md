@@ -1,6 +1,6 @@
 ---
 name: op-filter-exclude
-description: Drop records whose field value appears in the supplied Values list.
+description: Drop records whose field value appears in the supplied `values` list.
 kind: operator
 category: FILTER
 operator: FILTER_EXCLUDE
@@ -15,22 +15,22 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Block-list. Categorical fields resolve labels through the dictionary; numeric fields parse each entry via `strconv.ParseFloat`. |
+| `values` | array | (required) | Block-list of strings: labels on a categorical field, numbers otherwise. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Row-level predicate. Drop when `Field`'s value is in `Values`; pass otherwise. No emitted column.
+Row-level predicate. Drop when `field`'s value is in `values`; pass otherwise. No emitted column.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
 - Null rows PASS this filter (an include filter drops them).
-- Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
+- Unknown categorical label in `values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
 
 ## See
 

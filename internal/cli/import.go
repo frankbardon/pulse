@@ -18,7 +18,18 @@ import (
 
 // charsetFlagUsage is the one-line help for --charset. It is shared by every
 // leaf that can be handed a `.sav`, so the wording cannot drift between them.
-const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. windows-1252, latin1, utf-8)"
+const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. windows-1252, latin1, utf-8); ignored for any other input format"
+
+// Shared usage strings: one wording per flag name across every leaf that
+// mounts it (TestFlagUsageOneWordingPerName).
+const (
+	// importInputUsage is --input on the import leaves.
+	importInputUsage = "Source file to import, in the leaf's format (host OS path)"
+	// sheetUsage is --sheet wherever an Excel workbook can be read.
+	sheetUsage = "Excel sheet to read; omit for the first sheet (ignored for non-Excel input)"
+	// elideConstantsUsage is --elide-constants on every leaf that writes a cohort.
+	elideConstantsUsage = "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"
+)
 
 // spssMissingFlagUsage is the one-line help for --spss-missing, shared by
 // every leaf a `.sav` can arrive through so the wording cannot drift.
@@ -48,14 +59,14 @@ var formatFlagUsage = "Input format (" + commaList(pio.Formats()) + ")"
 // one.
 func importFlags() []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
+		&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: importInputUsage, Required: true},
 		&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
 		&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 		&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 		&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 		&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
-		&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-		&cli.BoolFlag{Name: "elide-constants", Usage: "Store fields holding one value on every row once in the schema block instead of per row (writes format 0x02, unreadable by older pulse binaries)"},
+		&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+		&cli.BoolFlag{Name: "elide-constants", Usage: elideConstantsUsage},
 		&cli.StringSliceFlag{Name: "group", Usage: "Declare a parent group: KEY[,KEY...]:MEMBER[,MEMBER...] stores each distinct tuple once and refuses a member that varies within its key; MEMBER[,MEMBER...] is a plain tuple group. Repeatable, one group per flag (writes format 0x02, unreadable by older pulse binaries)"},
 		&cli.FloatFlag{Name: "dedup-ratio-floor", Value: encx.DefaultDedupRatioFloor, Usage: "Rows per distinct tuple below which a --group draws a PULSE_DEDUP_LOW_RATIO warning (the group is still written); 1 leaves only the grows-the-file check"},
 		&cli.BoolFlag{Name: "strict", Usage: "Treat import warnings as errors: a partial import (PULSE_IMPORT_ROWS_DROPPED) and parent-group viability warnings (PULSE_GROUP_TOO_NARROW, PULSE_DEDUP_LOW_RATIO) fail the import, which writes nothing"},
@@ -150,7 +161,7 @@ func importExcelCmd() *cli.Command {
 	return importLeaf(&cli.Command{
 		Name:  "excel",
 		Usage: "Import Excel file into .pulse format",
-		Flags: withImportFlags(&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"}),
+		Flags: withImportFlags(&cli.StringFlag{Name: "sheet", Usage: sheetUsage}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runImport(ctx, cmd, "excel")
 		},
@@ -244,7 +255,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	if err != nil {
 		err = cliSourceZoneError(err)
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -288,16 +299,16 @@ func importPredictCmd() *cli.Command {
 		Name:  "predict",
 		Usage: "Validate an import without writing output",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: importInputUsage, Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: formatFlagUsage},
-			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
+			&cli.StringFlag{Name: "sheet", Usage: sheetUsage},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "suggest-groups", Usage: "Detect candidate parent groups (a key and the fields it determines) and measure each over every row: ratio, resident dictionary bytes, projected file size and a ready-to-paste --group value. Suggests only; nothing is declared"},
 			&cli.StringSliceFlag{Name: "group", Usage: "Evaluate a parent-group declaration exactly as 'import <format> --group' would apply it (same syntax, repeatable): its verdict and measured figures, or the error the import would fail with"},
 			&cli.BoolFlag{Name: "elide-constants", Usage: "Report the fields 'import <format> --elide-constants' would elide and the bytes saved"},
@@ -387,7 +398,7 @@ func importPredictCmd() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -486,10 +497,10 @@ func importSchemaTemplateCmd() *cli.Command {
 		ArgsUsage: "INPUT",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: formatFlagUsage},
-			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
+			&cli.StringFlag{Name: "sheet", Usage: sheetUsage},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
-			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
+			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

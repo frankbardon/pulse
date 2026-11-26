@@ -227,7 +227,7 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	if attr.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s requires Target", attr.Type),
+			fmt.Sprintf("%s requires target", attr.Type),
 			map[string]any{"attribute": string(attr.Type)},
 		)
 	}
@@ -243,7 +243,7 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 			if !regressionAcceptsType(f.Type) {
 				return nil, errors.NewCodedErrorWithDetails(
 					errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-					fmt.Sprintf("%s Target %q must reference a numeric field, got %s", attr.Type, attr.Target, f.Type),
+					fmt.Sprintf("%s target %q must reference a numeric field, got %s", attr.Type, attr.Target, f.Type),
 					map[string]any{"attribute": string(attr.Type), "field": attr.Target, "field_type": f.Type.String()},
 				)
 			}

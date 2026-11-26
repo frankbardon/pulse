@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Percent change versus the row one period earlier in the date-ordered partition.",
+    "description": "Percent change against the row params.periods (1) rows earlier in the date-ordered orders, as a ratio (1.59 = up 159%); the first row has no predecessor and reads null.",
     "intents": [
       "change_over_time"
     ],

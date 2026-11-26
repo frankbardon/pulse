@@ -1,6 +1,6 @@
 ```yaml
 name: compose-fits
-description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
+description: Compose `fits` — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -41,7 +41,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 
 - `name` is required and unique. All kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: bound names of that kind), a name of another kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
 - Every slot, sweep-expanded too, receives every fit.
-- A regression's predictor list is authoritative: a scoring slot supplies those columns; an absent one-hot column is the reference level.
+- A regression's predictor list is fixed at the fit: a scoring slot supplies those fields; an absent one-hot column is the reference level.
 - A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale` / `bound`): no refit, full precision, null on a null predictor; see [`op-attr-reg-predict`](op-attr-reg-predict.md).
 - A slot's formula or filter expression reads a regression figure with `coef("<name>", "<term>"[, "point|lower|upper|se"])`; see [`expression-language`](expression-language.md).
 - A vector fit is read by `params.fit` on a fitted vector attribute or any matrix slot ([`op-mat-correlation`](op-mat-correlation.md)): it emits from the bound state, reading no row of its own, matched BY LABEL under the fit's weight basis.
@@ -56,7 +56,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 
 ## Loading
 
-`models: [{name, path}]` on any request (slot, fit request, process, chain stage, facet, filter-to-file) loads a saved model (a `.pulse-sem.json`: a SEM fit) under `name` into the same namespace; `populations: [{name, path}]` (not on facet) loads a population file as a vector fit, read by `params.fit` and matched by label. A loaded name reads like the fit that saved it, on any cohort with its columns (a saved sweep fit: `sweep_axis()` too). Files load before anything runs. Refusals (`details.model` / `details.population`): `PULSE_MODEL_REF_INVALID`, `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, `PULSE_MODEL_NAME_COLLISION` (`details.sources`).
+`models: [{name, path}]` on any request root (a slot, a fit request, a process request, any root that reads a cohort) loads a saved model (a `.pulse-sem.json`: a SEM fit) under `name` into the same namespace; `populations: [{name, path}]` (not on every root) loads a population file as a vector fit, read by `params.fit` and matched by label. A loaded name reads like the fit that saved it, on any cohort with its fields (a saved sweep fit: `sweep_axis()` too). Files load before anything runs. Refusals (`details.model` / `details.population`): `PULSE_MODEL_REF_INVALID`, `PULSE_MODEL_FILE_UNREADABLE`, `PULSE_MODEL_FILE_INVALID`, `PULSE_MODEL_VERSION_UNSUPPORTED`, `PULSE_MODEL_NAME_COLLISION` (`details.sources`).
 
 Registered populations (`PULSE_POPULATIONS_DIR` or the embedder; manifest `extensions.populations`) are bound in every request already: reference one with `params.fit`. Reusing its name in an entry or fit is `PULSE_MODEL_NAME_COLLISION`.
 

@@ -51,9 +51,9 @@ func TestJoinKeysRefusals_OrderCodesAndDetails(t *testing.T) {
 		details string
 	}{
 		{errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED, "only inner join is implemented in v1", `{"kind":"left"}`},
-		{errors.PULSE_JOIN_KEYS_EMPTY, "OnPair requires both LeftField and RightField", `{"index":2}`},
-		{errors.PULSE_JOIN_FIELD_UNKNOWN, "OnPair.LeftField not found in left schema", `{"field":"zz","index":3}`},
-		{errors.PULSE_JOIN_FIELD_UNKNOWN, "OnPair.RightField not found in right schema", `{"field":"zz","index":4}`},
+		{errors.PULSE_JOIN_KEYS_EMPTY, "a join's on pair requires both left_field and right_field", `{"index":2}`},
+		{errors.PULSE_JOIN_FIELD_UNKNOWN, "a join's on left_field is not a field of the left cohort", `{"field":"zz","index":3}`},
+		{errors.PULSE_JOIN_FIELD_UNKNOWN, "a join's on right_field is not a field of the right cohort", `{"field":"zz","index":4}`},
 		{errors.PULSE_JOIN_TYPE_MISMATCH, "join key types are not compatible",
 			`{"index":5,"left_field":"amount","left_type":"decimal128","right_field":"id","right_type":"f64"}`},
 		{errors.PULSE_JOIN_TYPE_MISMATCH, JoinKeySetRejection,

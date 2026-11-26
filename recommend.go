@@ -43,7 +43,7 @@ import (
 // after a fully bound draft of the same hint, level and advisory
 // standing. A hint that is not a cohort field, or whose kind no role of
 // the intent takes, is SERVICE_VALIDATION; a cohort that cannot be read
-// is DATA_FILE (ENCODING_INVALID for a malformed header or schema).
+// is SERVICE_RESOURCE (ENCODING_INVALID for a malformed header or schema).
 // A weight-only operator (AGG_WEIGHTED_MEAN) binds its weight_field to
 // the cohort's suggested weight (Inspect's suggested_weight, from the
 // SPSS sidecar), else asks for it unless an instance default weight
@@ -125,20 +125,21 @@ type anchorFault struct{ err error }
 func (a *anchorFault) Error() string { return a.err.Error() }
 func (a *anchorFault) Unwrap() error { return a.err }
 
-// cohortOpenError is a no-execute surface's unopenable cohort: DATA_FILE
-// (the code the predict roots' openGuideCohort raises), message
-// "<prefix>: <fs error>", details.path, the fs error kept as Cause.
+// cohortOpenError is a no-execute surface's unopenable cohort:
+// SERVICE_RESOURCE, the code the runtime raises for the same cohort (so
+// predict and process agree), message "<prefix>: <fs error>",
+// details.path, the fs error kept as Cause.
 func cohortOpenError(prefix, path string, err error) *errors.CodedError {
 	// A coded refusal (an interrupted shard append's
 	// PULSE_SHARD_APPEND_INCOMPLETE) keeps its own code and details, as
-	// Open reports it; a bare filesystem error is DATA_FILE.
+	// Open reports it; a bare filesystem error is SERVICE_RESOURCE.
 	var coded *errors.CodedError
 	if stderrors.As(err, &coded) {
 		ce := errors.NewCodedErrorWithDetails(coded.Code, prefix+": "+coded.Message, coded.Details)
 		ce.Cause = err
 		return ce
 	}
-	ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE, prefix+": "+err.Error(), map[string]any{"path": path})
+	ce := errors.NewCodedErrorWithDetails(errors.SERVICE_RESOURCE, prefix+": "+err.Error(), map[string]any{"path": path})
 	ce.Cause = err
 	return ce
 }
@@ -166,7 +167,7 @@ func asAnchorFault(err error) (*anchorFault, bool) {
 // a no-execute read (Predict, Inspect, the guidance surfaces). A
 // returned *anchorFault is an unresolvable anchor; any other error is
 // the open itself. An anchored shard is predicted as the single file it
-// is: its run reads only that shard (U51), so no archive term applies.
+// is: its run reads only that shard, so no archive term applies.
 func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
 	if archivePath, e, ok := service.SplitAnchorPath(path); ok {

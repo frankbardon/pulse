@@ -1,13 +1,12 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "3-stage ProcessChain decorated with one whole-chain OVERLAY_INDEX_VS_STAGE spec (Ref.Stage.Index=0, Target.Stage.Index=2). Each stage preserves SERIES shape (grouper + scalar aggregator on region) so the whole-chain shape gate accepts: stage 0 sums revenue per region (label v), stage 1 sums v per region (label w), stage 2 counts w per region (label c). The post-finalize whole-chain barrier compares the stage 2 result against the stage 0 baseline and emits one OverlayLayer on ChainResponse.Overlays whose SeriesPayload carries per-region indices (100 * stage2 / stage0). Whole-chain overlays operate AFTER every stage finishes — the per-stage overlay slot on ChainStage.Request.Overlays stays untouched. Buffered: every E6 whole-chain kind is currently OverlayStreamability=false because the post-stage barrier runs after stage finalisation.",
+    "description": "3-stage process chain on experiment.pulse with one whole-chain OVERLAY_INDEX_VS_STAGE (ref.index 0, target.index 2): 100 * stage-2 value / stage-0 value per region. Every stage groups by region with one scalar aggregation, the shape the whole-chain gate accepts: stage 0 sums revenue (v), stage 1 sums v (w), stage 2 sums w (c). Re-summing a per-region total keeps it, so every index reads 100: the chain reconciles. The layer lands on the chain response's overlays after every stage finishes; a stage's own overlays are separate. Buffered.",
     "intents": [
       "benchmark"
     ],
     "name": "chain-whole-chain-index-vs-stage",
     "operators": [
-      "AGG_COUNT",
       "AGG_SUM",
       "GROUP_CATEGORY"
     ],
@@ -69,7 +68,7 @@
         ],
         "aggregations": [
           {
-            "type": "AGG_COUNT",
+            "type": "AGG_SUM",
             "field": "w",
             "label": "c"
           }

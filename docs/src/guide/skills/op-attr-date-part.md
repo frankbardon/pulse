@@ -9,11 +9,9 @@ applies_to: process, compose, predict
 examples_tags: [time-series, feature-engineering, streaming-friendly]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 ## Use when
 
-Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.
+Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour.
 
 Questions it answers:
 
@@ -32,7 +30,7 @@ Use something else:
 
 ## Inputs
 
-`Field` — `date` or `datetime` (a schema field). `Label` — required, new column name.
+`field` — `date` or `datetime` (a schema field). `label` — derived field name; default `ATTR_DATE_PART_<field>`.
 
 ## Output
 

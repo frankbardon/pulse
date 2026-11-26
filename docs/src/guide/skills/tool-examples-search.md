@@ -20,7 +20,7 @@ Find a runnable template matching the question; clone its body via `pulse_exampl
 
 ## Output
 
-`descriptor.Envelope` wrapping lightweight summaries: `name`, `category`, `tags`, `operators` (sorted), `description`, [`intents`](intents.md) (absent when none), `question` + `interpretation` (each when declared — a story declares both). Ranked by distinct matched fields, then name. Empty filter returns the full library list. Use the `name` to fetch the runnable body via `pulse_examples_get`.
+`{results: [...]}` (no envelope) of lightweight summaries: `name`, `category`, `tags`, `operators` (sorted), `description`, [`intents`](intents.md) (absent when none), `question` + `interpretation` (each when declared — a story declares both). Ranked by distinct matched fields, then name. Empty filter returns the full library list. Use the `name` to fetch the runnable body via `pulse_examples_get`.
 
 ## Gotchas
 

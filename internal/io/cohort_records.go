@@ -57,24 +57,25 @@ func (c *CohortRecords) Close() error {
 	return err
 }
 
-// readingPulseFileError is an unopenable (or unsizable) cohort: DATA_FILE,
-// message "reading pulse file: <fs error>" (export's historical text),
-// details.path, the fs error kept as Cause.
+// readingPulseFileError is an unopenable (or unsizable) cohort:
+// SERVICE_RESOURCE, the code every surface reports for a cohort it
+// cannot open, message "reading pulse file: <fs error>", details.path,
+// the fs error kept as Cause.
 func readingPulseFileError(path string, err error) *errors.CodedError {
-	ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE, "reading pulse file: "+err.Error(), map[string]any{"path": path})
+	ce := errors.NewCodedErrorWithDetails(errors.SERVICE_RESOURCE, "reading pulse file: "+err.Error(), map[string]any{"path": path})
 	ce.Cause = err
 	return ce
 }
 
 // OpenCohortRecords opens path on fsys for a sequential record pass.
-// An unopenable path is DATA_FILE "reading pulse file: ..."
+// An unopenable path is SERVICE_RESOURCE "reading pulse file: ..."
 // (readingPulseFileError); header, schema and archive faults keep their own
 // codes (ENCODING_INVALID, PULSE_COHORT_COMPRESSED, the PULSE_ARCHIVE_*
 // / PULSE_SHARD_* codes). The caller owns Close.
 //
 // An anchored path opens its ARCHIVE: the reserved entry is refused
-// before the archive is opened, an unopenable archive is the same DATA_FILE
-// "reading pulse file" error, and the rest are encx.OpenArchiveEntryRecords'
+// before the archive is opened, an unopenable archive is the same
+// SERVICE_RESOURCE "reading pulse file" error, and the rest are encx.OpenArchiveEntryRecords'
 // refusals (PULSE_ARCHIVE_MAGIC_INVALID for a single file,
 // PULSE_SHARD_MISSING + details.entry for an unknown entry).
 func OpenCohortRecords(fsys afero.Fs, path string) (*CohortRecords, error) {

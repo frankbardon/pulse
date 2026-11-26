@@ -195,7 +195,7 @@ func PostTestDepth(postTests []*types.Test, groups []*types.Group) (int, *errors
 			}
 		}
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_PARTITION_INVALID,
-			fmt.Sprintf("post_tests[%d] %s partitions by %d group key(s) and post_tests[%d] by %d: every post-test of one request must partition alike (Response.PostTests is one post-tests x partitions list); give them the same partition_by or run them as separate requests",
+			fmt.Sprintf("post_tests[%d] %s partitions by %d group key(s) and post_tests[%d] by %d: every post-test of one request must partition alike (the response's post_tests is one post-tests x partitions list); give them the same partition_by or run them as separate requests",
 				i, postTests[i].Type, d, first, depth),
 			map[string]any{
 				"index":        i,

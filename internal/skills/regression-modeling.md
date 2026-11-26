@@ -24,8 +24,8 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 | A category of 3+ levels? | ordered: the ordinal fit; unordered: the multinomial logit |
 | Prior knowledge about the coefficients, or want credible intervals? | the Bayesian linear fit (no p-values) |
 | Many correlated predictors? | a penalty (`l2` keeps all, `l1` / `elasticnet` zero some) |
-| Distrust the analytical SE? | the `Resample` modifier |
-| Unsure which predictors belong? | the `Selection` modifier — or a penalty, never both |
+| Distrust the analytical SE? | the `resample` modifier |
+| Unsure which predictors belong? | the `selection` modifier — or a penalty, never both |
 | A curved relationship? | polynomial columns built upstream, then a linear fit |
 | Non-negative slopes, a centred prior, a partial ridge, an embedder's model? | `regression-model-options` |
 
@@ -37,7 +37,7 @@ Streaming: OLS and Bayesian linear stream; the others and either modifier buffer
 
 Both compose with the OLS and GLM fits; the Bayesian fit rejects both (its credible intervals already convey uncertainty).
 
-### `Resample` (jackknife / bootstrap)
+### `resample` (jackknife / bootstrap)
 
 | Value | Behavior |
 |---|---|
@@ -45,20 +45,20 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both (its credi
 | `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
 | `"bootstrap"` | non-parametric (`bootstrap_iters`, `rng_seed`); SE = sample std of replicates; percentile-method p |
 
-Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds`, `bootstrap` supplies the missing SEs.
+Overwrites `std_errors` / `p_values`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds`, `bootstrap` supplies the missing SEs.
 
-### `Selection` (stepwise)
+### `selection` (stepwise)
 
 | Value | Behavior |
 |---|---|
 | `""` | fit on all predictors |
-| `"forward"` | start intercept-only; add the predictor that lowers `Criterion` most |
-| `"backward"` | start full; remove the predictor whose absence lowers `Criterion` most |
+| `"forward"` | start intercept-only; add the predictor that lowers `criterion` most |
+| `"backward"` | start full; remove the predictor whose absence lowers `criterion` most |
 | `"stepwise"` | bidirectional sweep |
 
-`Criterion ∈ {aic, bic}` required. `SelectedFeatures` lists chosen predictors; non-selected ones are DROPPED from `Coefficients` — absent ≠ zero.
+`criterion ∈ {aic, bic}` required. `selected_features` lists chosen predictors; non-selected ones are DROPPED from `coefficients` — absent ≠ zero.
 
-`Selection` + `Resample` is fine. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
+`selection` + `resample` is fine. `penalty` + `selection` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
 
 ## Textbook names → spec
 
@@ -66,14 +66,14 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 |---|---|
 <!-- feature: REG_OLS -->
 | Simple / Linear / Multiple | `REG_OLS`, one or more predictors |
-| Ridge | `REG_OLS{Penalty:"l2", Alpha:λ}` |
-| Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
-| Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
-| Non-negative (NNLS) | `REG_OLS{Bounds:{nonnegative:[…]}}` |
+| Ridge | `REG_OLS{penalty:"l2", alpha:λ}` |
+| Lasso | `REG_OLS{penalty:"l1", alpha:λ}` |
+| Elastic Net | `REG_OLS{penalty:"elasticnet", alpha, l1_ratio}` |
+| Non-negative (NNLS) | `REG_OLS{bounds:{nonnegative:[…]}}` |
 <!-- /feature -->
 <!-- feature: REG_GLM -->
-| Logistic / probit (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"\|"probit"}` (+ `Penalty`, `Alpha`) |
-| Negative binomial | `REG_GLM{Family:"negative_binomial"}` |
+| Logistic / probit (ridge / lasso) | `REG_GLM{family:"binomial", link:"logit"\|"probit"}` (+ `penalty`, `alpha`) |
+| Negative binomial | `REG_GLM{family:"negative_binomial"}` |
 <!-- /feature -->
 <!-- feature: REG_MULTINOMIAL -->
 | Multinomial logistic | `REG_MULTINOMIAL` (categorical target) |
@@ -82,13 +82,13 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
 <!-- /feature -->
 <!-- feature: REG_BAYES_LINEAR -->
-| Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |
+| Bayesian Linear | `REG_BAYES_LINEAR{prior:"nig"}` |
 <!-- /feature -->
 <!-- feature: REG_ORDINAL -->
 | Ordinal logit (polr) | `REG_ORDINAL{params:{link, levels}}` |
 <!-- /feature -->
-| Jackknife | an OLS / GLM spec with `Resample:"jackknife"` |
-| Stepwise | an OLS / GLM spec with `Selection:"stepwise", Criterion:"aic"\|"bic"` |
+| Jackknife | an OLS / GLM spec with `resample:"jackknife"` |
+| Stepwise | an OLS / GLM spec with `selection:"stepwise", criterion:"aic"\|"bic"` |
 <!-- feature: AGG_AVERAGE, REG_OLS -->
 | Ecological | a grouper + `AGG_AVERAGE` upstream → `REG_OLS` over per-group means (composed) |
 <!-- /feature -->
@@ -97,7 +97,7 @@ Runnable JSON: `internal/examples/regression/`.
 
 ## Polynomial terms
 
-Built in `features`, before the fit: `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`), degree `[2, 10]`. Standardize first — `x^10` overflows `f64`. Table: `feature-engineering`.
+Built in `features`, before the fit: `degree − 1` derived columns (`<label>_2 … <label>_<degree>`), `degree` in `[2, 10]`. Standardize first — `x^10` overflows `f64`. Table: `feature-engineering`.
 
 ## Ecological caveat
 
@@ -105,12 +105,12 @@ A significant group-level slope does NOT imply an individual-level association (
 
 ## Inference
 
-Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / CI for `l1` / `elasticnet` (advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` unless `Resample`), Wald-z p for the GLM, credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95).<!-- feature: capability:multiplicity --> A spec's own `multiplicity` block joins its coefficients' p-values to a correction family (`multiplicity-correction`).<!-- /feature -->
+Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / CI for `l1` / `elasticnet` (advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` unless `resample`), Wald-z p for the GLM, credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95).<!-- feature: capability:multiplicity --> A spec's own `multiplicity` block joins its coefficients' p-values to a correction family (`multiplicity-correction`).<!-- /feature -->
 
 ## Gotchas
 
 - `n_obs` < record count: missing values dropped rows.
-- A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
+- A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`; `_NO_CONVERGE` — raise `max_iters` / `tol` or cut `alpha`.
 - Knobs belong to their engine: another engine's knob is `PROCESSING_CONFIG` (`regression-spec`).
 
 ## See

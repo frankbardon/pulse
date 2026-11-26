@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "facet",
-    "description": "Numeric FacetSchema with percentiles (buffered path) and a fixed-width histogram over caller-supplied bounds (single-pass).",
+    "description": "Numeric facet request on a decimal128 field: summary statistics, percentiles (buffered) and a fixed-width histogram over caller-supplied bounds (single pass; values outside histogram_range are not binned).",
     "intents": [
       "distribution_shape",
       "describe"

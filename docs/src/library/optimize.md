@@ -1,6 +1,6 @@
 # Numerical Optimization (`optimize`)
 
-`github.com/frankbardon/pulse/optimize` holds Pulse's numerical solvers. Pulse's own estimators use it, and embedders can import it directly. It imports only the standard library and Pulse's `errors`, `linalg` and deterministic-math packages.
+`github.com/frankbardon/pulse/optimize` holds Pulse's numerical solvers. Pulse's own estimators use it, and embedders can import it directly. It imports only the standard library and Pulse's `errors` and `linalg`.
 
 ```go
 import "github.com/frankbardon/pulse/optimize"
@@ -43,21 +43,30 @@ The run also stops, converged, when no step lowers the cost at any damping up to
 
 `Minimize` minimizes a smooth objective under simple bounds and any number of general constraints. It is SLSQP (Sequential Least Squares Programming), ported statement by statement from SciPy 1.18.1. The SciPy BSD-3 notice ships beside the code in `optimize/SCIPY_LICENSE.txt`. You supply the gradients.
 
-```go
-// min x² + y²  subject to  x + y = 1,  0 ≤ x ≤ 10
-f := func(x []float64) float64 { return float64(x[0]*x[0]) + float64(x[1]*x[1]) }
-grad := func(x []float64) []float64 { return []float64{2 * x[0], 2 * x[1]} }
+```go compile
+package slsqp
 
-res, err := optimize.Minimize(f, grad, []float64{3, -2}, optimize.MinimizeOptions{
-	Lower: []float64{0, math.Inf(-1)},
-	Upper: []float64{10, math.Inf(1)},
-	Constraints: []optimize.Constraint{{
-		Type: optimize.Eq, // Fn(x) = 0; optimize.Ineq means Fn(x) ≥ 0
-		Fn:   func(x []float64) float64 { return x[0] + x[1] - 1 },
-		Grad: func(x []float64) []float64 { return []float64{1, 1} },
-	}},
-})
-// res.X ≈ (0.5, 0.5), res.F ≈ 0.5, res.Multipliers[0] ≈ 1
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/optimize"
+)
+
+// Solve finds min x² + y² subject to x + y = 1, 0 ≤ x ≤ 10.
+// res.X ≈ (0.5, 0.5), res.F ≈ 0.5, res.Multipliers[0] ≈ 1.
+func Solve() (*optimize.MinimizeResult, error) {
+	f := func(x []float64) float64 { return float64(x[0]*x[0]) + float64(x[1]*x[1]) }
+	grad := func(x []float64) []float64 { return []float64{2 * x[0], 2 * x[1]} }
+	return optimize.Minimize(f, grad, []float64{3, -2}, optimize.MinimizeOptions{
+		Lower: []float64{0, math.Inf(-1)},
+		Upper: []float64{10, math.Inf(1)},
+		Constraints: []optimize.Constraint{{
+			Type: optimize.Eq, // Fn(x) = 0; optimize.Ineq means Fn(x) ≥ 0
+			Fn:   func(x []float64) float64 { return x[0] + x[1] - 1 },
+			Grad: func(x []float64) []float64 { return []float64{1, 1} },
+		}},
+	})
+}
 ```
 
 | Option | Meaning | Default |

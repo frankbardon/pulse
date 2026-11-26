@@ -33,13 +33,13 @@ The weighted mean of the core family: same figure and engine, own type name and 
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
-- `weight_field` — numeric, same family
+- `weight_field` — a numeric field
 
 ## Output
 
-Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that used the running mean).
+Scalar `float64` — exact `Σ field·w / Σw`.
 
 ## Reading the output
 
@@ -69,7 +69,7 @@ All float64. With Σw = 0, `weighted_mean` and the scalar are `null` and the res
 
 ## Gotchas
 
-- Invalid/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
+- Invalid/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `field`); size from `sum_weights`/`n_eff`.
 - Unknown `weight_field` → `SERVICE_VALIDATION` (predict + runtime).
 - Scalar and every Σ key, `weighted_mean`, `n_eff`: binned sums, the same bits on every worker count and shard split; `m2_weighted` / `weighted_variance` are Welford — within ULP.
 

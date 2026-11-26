@@ -32,11 +32,11 @@ Use something else:
 | `fiscal_offset` | int | `0` | -11..11, `year`/`quarter`; keys `FY` (end-year). |
 | `frequency` | enum | — | Not a bucketing knob — the `OVERLAY_YOY` frequency an overlay on this grouper inherits when it sets none. |
 
-Other keys (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`. `tz` (IANA) / `tz_field` (per-row zone column): slot keys.
+Other keys (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`. `tz` (IANA) / `tz_field` (per-row zone field): slot keys.
 
 ## Inputs
 
-`Field`: `date`, `datetime` (in the resolved zone). `hour` / `hour_of_day`: `datetime` only.
+`field`: `date`, `datetime` (in the resolved zone). `hour` / `hour_of_day`: `datetime` only.
 
 ## Output
 

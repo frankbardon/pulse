@@ -23,11 +23,11 @@ Pooled-SE two-proportion z between host slots ALONG one axis of the SAME crossta
 | `n_source` | enum | — | Where each leg's n is read; omitted = the cell's base (the normalise denominator on a normalised host; weighted, its N*). |
 | `p_source` | enum | — | How each leg's share is read; omitted = `cell_value` on a normalised host, else `cell_value_pct`. |
 
-`Scope` (required) — `row` or `column`. `Ref` empty. The nine n modes (three distinct-KEY) and the `p_source` refusals: `pairwise-n-sources`.
+`scope` (required) — `row` or `column`. `ref` empty. Every n mode (the distinct-KEY ones too) and the `p_source` refusals: `pairwise-n-sources`.
 
 ## Host shape
 
-MATRIX crosstab + `Response.Components.Crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). The cell must be a count or a share: a code cell is refused (`overlay-pairwise`).
+MATRIX crosstab + `components.crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). The cell must be a count or a share: a code cell is refused (`overlay-pairwise`).
 
 ## Output
 
@@ -39,7 +39,7 @@ MATRIX — pair × opposite-axis grid of two-sided p-values; `payload.parts.lett
 
 ## Gotchas
 
-- Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
+- p equals every two-proportion z test's and overlay's on the same (success, n).
 - Degenerate pairs (n = 0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
 - `p_source` mismatch (a leg outside `[0,1]`) empties the layer; normalize a count cell first.
 - Distinct-KEY n modes need a distinct-key cell aggregator and a partitioned slab (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): `pairwise-n-sources`.

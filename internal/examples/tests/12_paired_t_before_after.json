@@ -3,7 +3,7 @@
     "interpretation": "Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level; the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.",
     "question": "Did customers spend more during the test period than they did before it?",
     "category": "tests",
-    "description": "Paired t-test on the per-unit revenue lift (revenue vs revenue_before) to detect the average treatment effect.",
+    "description": "Paired t-test of revenue against revenue_before, row by row: the average before-to-after change per customer, which mixes the treatment lift with the time drift.",
     "intents": [
       "change_over_time",
       "compare_groups"

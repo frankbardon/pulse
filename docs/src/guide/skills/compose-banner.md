@@ -1,6 +1,6 @@
 ```yaml
 name: compose-banner
-description: ComposedRequest.banner — a survey banner table (stub sections × column groups + a Total block) as ONE Compose request, expanded into ordinary crosstab slots and stitched back into ComposedResponse.banner with per-block significance letters.
+description: Compose `banner` — a survey banner table (stub sections × column groups + a Total block) as ONE Compose request, expanded into ordinary crosstab slots and stitched back into the response `banner` with per-block significance letters.
 type: guide
 kind: design
 applies_to: compose, predict

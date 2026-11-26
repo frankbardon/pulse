@@ -412,7 +412,7 @@ func StageJoinRefusal(req *types.Request, stageIndex int, stageName string) erro
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_STAGE_JOIN,
-		"only chain stage 0 may carry Joins; a later stage reads the previous stage's output",
+		"only chain stage 0 may carry joins; a later stage reads the previous stage's output",
 		map[string]any{"count": len(req.Joins), "stage": stageIndex, "stage_name": stageName})
 }
 
@@ -436,12 +436,12 @@ func MatrixRefusal(req *types.Request) error {
 	}
 	if len(req.Joins) > 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_UNSUPPORTED_SOURCE,
-			"matrices are not supported on a joined request; run them on a Request over the cohort without joins",
+			"matrices are not supported on a joined request; run them on a request over the cohort without joins",
 			map[string]any{"source": "join", "matrices": len(req.Matrices), "joins": len(req.Joins)})
 	}
 	if req.Crosstab != nil {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_HOST_CONFLICT,
-			"matrices are not supported on a crosstab request; run them on a separate Request",
+			"matrices are not supported on a crosstab request; run them on a separate request",
 			map[string]any{"host": "crosstab", "matrices": len(req.Matrices)})
 	}
 	return nil

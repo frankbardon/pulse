@@ -21,7 +21,9 @@ package types
 type LabelMode string
 
 const (
+	// LabelModeReplace rewrites the value in place with its label (the default).
 	LabelModeReplace LabelMode = "replace"
+	// LabelModeAugment keeps the value and adds a "<field>_label" column.
 	LabelModeAugment LabelMode = "augment"
 )
 
@@ -92,8 +94,7 @@ func (b *LabelBinding) AugmentFieldName() string {
 // SampleRequest is the input shape for pulse.SampleWithRequest. It
 // carries the cohort path, the row cap, and the per-request label
 // bindings that the no-struct Sample entry point cannot accept. The
-// shape is intentionally tiny — the legacy Sample(ctx, path, n)
-// signature stays for back-compat and is implemented as a thin
+// shape is intentionally tiny — Sample(ctx, path, n) is a thin
 // wrapper that builds a SampleRequest with no labels.
 type SampleRequest struct {
 	// Cohort selects the .pulse file. Same shape as Request.Cohort.

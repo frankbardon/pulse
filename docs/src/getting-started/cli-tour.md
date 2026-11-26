@@ -1,177 +1,63 @@
 # CLI Tour
 
-**Audience:** anyone who wants a map of every `pulse` subcommand before
-diving into per-command details.
+**Audience:** new CLI users who want a map of the `pulse` command tree.
 
-This page is a one-liner index of the CLI tree. Each row links to its
-detailed chapter where applicable; commands that are minor variants of
-each other (per-format `import`/`export` leaves, per-leaf `shard`
-maintenance commands) are listed compactly.
+`pulse --help` lists the command groups and `pulse <group> --help` a
+group's leaves. The generated
+[Command & flag reference](../cli/reference.md) has every leaf, flag and
+default. This page groups the commands by task and links each group to its
+chapter. [Your First Analysis](first-analysis.md) is a full import, predict,
+process and export run.
 
-> **LLM agents using MCP:** there is no equivalent skill — agents drive
-> Pulse through MCP tools, not the CLI. Start at the `session-bootstrap`
-> skill instead.
+> **LLM agents using MCP:** agents drive Pulse through MCP tools, not the
+> CLI. Start at the `session-bootstrap` skill.
 
-## Top-level groups
+## Commands by task
 
-```
-pulse [--json] [--slim]
-├── import      Tabular → .pulse (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, auto)
-├── export      .pulse  → tabular (same format set)
-├── convert     Tabular → tabular, with .pulse as the transparent middle
-├── cohort      Inspect or filter an existing .pulse file
-├── api         Processing operations (process, process-chain, compose, predict, sample, facet)
-├── shard       Build and maintain shard archives
-├── synth       Generate synthetic cohorts (from-schema, from-profile)
-├── profile     Capture a statistical profile of a cohort
-├── skills      Read the embedded LLM skill pack
-├── examples    Search and fetch the embedded runnable request library
-├── errors      Look up an error code's message and recovery fixups
-└── mcp         Run the Model Context Protocol server over stdio
-```
+| Task | Commands | Read |
+|---|---|---|
+| Bring data in | `import <format>` (`csv`, `tsv`, `ndjson`, `jsonarray`, `parquet`, `arrow`, `excel`, `spss`), `import schema-template`, `import predict`, `import transfer` | [Your First Cohort](first-cohort.md), [`import spss`](../cli/import-spss.md), [Transfer Compression](../format/transfer.md) |
+| Managed import pool | `import auto SOURCE` (TTL sidecar, `--ttl 7d` by default, `pin` to keep), `import list`, `import drop HANDLE`, all under `PULSE_IMPORTS_DIR` | [Options](../library/options.md#environment-variables) |
+| Take data out | `export <format>` (the same formats, plus `transfer`), `export predict`, `convert SOURCE TARGET` | [`export spss`](../cli/export-spss.md), [`--labels`](../cli/flags.md#--labels-export) |
+| Look at a cohort | `cohort inspect` (header only, never reads records), `api sample`, `api facet` | [`cohort inspect`](../cli/cohort-inspect.md), [`api sample`](../cli/api-sample.md), [`api facet`](../cli/api-facet.md) |
+| Run requests | `api process`, `api compose`, `api process-chain`, `api lookup` | [`api process`](../cli/api-process.md), [`api compose`](../cli/api-compose.md), [`api lookup`](../cli/api-lookup.md) |
+| Validate without running | `api predict`, `api predict-compose`, `api predict-facet`, `api predict-chain` | [`api predict`](../cli/api-predict.md) |
+| Write a derived cohort | `cohort filter`, `api materialize`, `rake`, `dedup` | [Filter to File](../library/filter-to-file.md), [Materialize](../library/materialize.md), [Raking](../library/rake.md), [Parent Groups](../format/parent-groups.md) |
+| Change a cohort in place | `cohort zone`, `widen`, `shard create` / `add` / `remove` / `list` / `extract` / `verify` / `compact`, `index build` / `list` / `verify` / `drop` | [Time Zones](../library/time-zones.md), [Managing Shard Archives](../internals/managing-shard-archives.md), [Point Lookup](../library/point-lookup.md) |
+| Generate synthetic data | `synth from-schema`, `synth from-profile`, `profile create` | [`synth from-schema`](../cli/synth-from-schema.md), [`synth from-profile`](../cli/synth-from-profile.md), [`profile create`](../cli/profile-create.md) |
+| Discover what Pulse offers | `pulse --json` (the manifest), `schema`, `skills list` / `show`, `examples search` / `show`, `errors lookup` / `list`, `recommend`, `explain`, `docs export` | [`manifest`](../cli/manifest.md), [`schema`](../cli/schema.md), [Examples Library](../examples/library.md), [Analysis Guide](../guide/index.md) |
+| Restrict an instance | `features init` / `check` / `diff` / `show` | [Feature Profiles](../library/feature-profiles.md) |
+| Serve agents | `mcp` | [`pulse mcp`](../cli/mcp.md), [MCP Integration](../mcp/index.md) |
+| Housekeeping | `version`, `completion` | [`completion`](../cli/completion.md) |
 
-Bare `pulse --json` prints the self-describing root manifest — commands,
-components, field types, and skill metadata in one envelope. Pass
-`--slim` to drop prose descriptions for size-sensitive clients.
-
-## End-to-end worked tour
-
-A complete read-aggregate cycle, one command per stage:
-
-```bash
-# 1. Import a CSV into a managed .pulse handle (TTL sidecar tracked).
-pulse import auto sales.csv --handle sales --ttl 30d
-
-# 2. Read the cohort's schema — types, descriptions, dictionaries.
-pulse cohort inspect sales.pulse
-
-# 3. Validate a request against the schema without running it.
-cat > req.json <<'EOF'
-{
-  "cohort": {"filename": "sales.pulse"},
-  "groups":       [{"type": "GROUP_CATEGORY", "field": "region"}],
-  "aggregations": [{"type": "AGG_SUM",        "field": "revenue", "label": "total"}]
-}
-EOF
-pulse api predict --request req.json --json | jq '.data | {valid, streamable, defaults_applied}'
-
-# 4. Execute the same request.
-pulse api process --request req.json --json
-```
-
-`api predict` reads only the header and schema, so it stays cheap even
-on multi-GB cohorts; the `streamable` / `streamable_reasons` fields
-tell you whether the request will run through the single-pass streaming
-path or be buffered. See [Performance Notes](../ops/performance.md).
+A `.pulse` path may be a single file or a **shard archive** (a Zip64 of
+shards plus a `_schema.pulse` entry). Every command reads a shard archive
+as the union of its shards; `archive.pulse#shard.pulse` opens one shard.
 
 ## Pipeline order
 
-Inside `api process`, operators run in a fixed sequence:
+Inside one request, operators run in a fixed order:
 
 ```
 Load -> Features -> Filter -> Attributes -> Group -> Aggregate -> Windows -> Sort -> Output
 ```
 
-Features run **before** filterers (so derived columns are addressable
-as filter, group, attribute, and window inputs); windows run **after**
-aggregation, on the post-aggregate row set.
+Features run before filterers, so a derived column can be a filter, group,
+attribute or window input. Windows run after aggregation, on the
+aggregated rows. A name exists only downstream of the operator that makes
+it.
 
-## API operations
+## Shared flags
 
-The "processing facade" — these are the operations exposed via the
-[Go library API](../library/overview.md) and the
-[MCP tool set](../mcp/index.md).
+- Global: `--json` (the manifest), `--slim`, `--intent`, `--log-level`,
+  `--limit`, `--memory-limit`, worker counts.
+- `--json` on a leaf prints the envelope
+  ([`--json` envelope](../cli/flags.md#--json-envelope)).
+- `--echo-request` (the `api` leaves) puts the normalized request on the
+  envelope's `request`.
+- `--no-defaults` (`api process`, `api compose`, `api process-chain`)
+  turns off [smart defaults](../cli/api-predict.md#smart-defaults).
 
-| Command | Purpose | Chapter |
-|---|---|---|
-| `pulse api process`       | Execute one request against a cohort | [api process](../cli/api-process.md) |
-| `pulse api process-chain` | Source-rooted linear chain of mergeable processing stages | (see `cmd/pulse/main.go`) |
-| `pulse api compose`       | Execute multiple requests in batch / parallel | [api compose](../cli/api-compose.md) |
-| `pulse api predict`       | Validate a request without executing | [api predict](../cli/api-predict.md) |
-| `pulse api sample`        | Return up to N rows | [api sample](../cli/api-sample.md) |
-| `pulse api facet`         | Return distinct values of a field (simple) or a multi-field rich summary | [api facet](../cli/api-facet.md) |
-
-`api process-chain` accepts a `ChainRequest` whose stages each see the
-previous stage's rows as their input cohort. Mergeable-only at v1 —
-non-mergeable stages fail with `PULSE_CHAIN_NOT_MERGEABLE` so callers
-can fall back to per-stage `api process` calls.
-
-## Cohort lifecycle
-
-| Command | Purpose | Chapter |
-|---|---|---|
-| `pulse cohort inspect PATH` | Read header + schema (no record data) | [cohort inspect](../cli/cohort-inspect.md) |
-| `pulse cohort filter`       | Write a filtered subset to a new `.pulse` (single file, shard archive, or `archive.pulse#shard.pulse` anchor) | See [Internals → Architecture](../internals/architecture.md) |
-
-## Import / export / convert
-
-`pulse import <format>` and `pulse export <format>` share the same flag
-shape per format (`--input`, `--output`, `--schema` for import).
-Supported formats today:
-
-`csv` · `tsv` · `ndjson` · `jsonarray` · `parquet` · `arrow` · `excel`
-
-Each format has a per-leaf command (e.g. `pulse import csv`). Run
-`pulse import --help` or `pulse export --help` for the full list.
-
-`pulse import auto SOURCE` auto-detects the source format and converts
-into the managed `.pulse` pool under `PULSE_IMPORTS_DIR`, with a TTL
-sidecar (`--ttl 7d` by default, `pin` to opt out). Use `pulse import
-list` to see managed handles and `pulse import drop HANDLE` to remove
-one.
-
-`pulse convert SOURCE TARGET` chains import + export with no
-intermediate file unless `--keep-pulse PATH` is passed. Format is
-auto-detected from extensions.
-
-## Shard archives
-
-A `.pulse` path may resolve to either a single-file cohort or a
-**shard archive** (uncompressed Zip64 carrying one canonical
-`_schema.pulse` entry plus N standalone shard payloads). Every facade
-method (`Process`, `Compose`, `Sample`, `Facet`, `Inspect`, `Predict`,
-`ProcessStream`) operates transparently on the union of shards.
-
-| Command | Purpose |
-|---|---|
-| `pulse shard create ARCHIVE --include SHARD ...` | Create a new archive from one or more single-file `.pulse` shards (atomic temp+rename) |
-| `pulse shard add ARCHIVE SHARD`                  | Append a shard to an existing archive (cohesion validated) |
-| `pulse shard remove ARCHIVE BASENAME`            | Remove a shard from an archive by basename |
-| `pulse shard list ARCHIVE`                       | List shards inside an archive with per-shard record counts |
-| `pulse shard extract ARCHIVE BASENAME`           | Write one shard's standalone `.pulse` bytes to stdout |
-| `pulse shard verify ARCHIVE`                     | Strict dict-prefix cohesion check across shards |
-| `pulse shard compact ARCHIVE`                    | Defragment the archive in place |
-
-The `archive.pulse#shard.pulse` anchor opens one shard as a one-shard
-cohort. See [Internals → Managing Shard Archives](../internals/managing-shard-archives.md).
-
-## Synthetic data
-
-| Command | Purpose | Chapter |
-|---|---|---|
-| `pulse synth from-schema`   | Generate from a JSON spec | [synth from-schema](../cli/synth-from-schema.md) |
-| `pulse synth from-profile`  | Generate from a captured profile | [synth from-profile](../cli/synth-from-profile.md) |
-| `pulse profile create`      | Capture a profile from an existing cohort | [profile create](../cli/profile-create.md) |
-
-## Self-description & LLM surface
-
-| Command | Purpose | Chapter |
-|---|---|---|
-| `pulse --json`              | Root manifest (commands, components, field types, skills) | [manifest](../cli/manifest.md) |
-| `pulse skills list`         | List embedded skills with metadata | [How LLMs Use Pulse](../mcp/index.md) |
-| `pulse skills show NAME`    | Print a skill's full markdown body | same |
-| `pulse examples search`     | Search embedded runnable request examples by tag, category, or operator | [Examples Library](../examples/library.md) |
-| `pulse examples get NAME`   | Print one example's full JSON body | same |
-| `pulse errors lookup CODE`  | Print an error code's canonical message and recovery fixups | (see `errors/`) |
-| `pulse mcp`                 | Serve MCP over stdio | [mcp](../cli/mcp.md) |
-
-## Cross-cutting flags
-
-Most leaves accept `--json` (envelope output), `--no-defaults` (turn off
-smart operator-type inference — see
-[`api predict` → Smart defaults](../cli/api-predict.md#smart-defaults)),
-and `--echo-request` (include the normalized request on
-`envelope.request`). Full list: [Flag Reference](../cli/flags.md).
-
-The single environment variable to know is `PULSE_DATA_DIR` — see
-[Installation](installation.md).
+Semantics: [CLI concepts & shared flags](../cli/flags.md). The one
+required environment variable is `PULSE_DATA_DIR`
+([Installation](installation.md#set-the-data-directory)).

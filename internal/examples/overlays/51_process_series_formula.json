@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Grouped Process aggregating revenue by month decorated with a SERIES OVERLAY_FORMULA: one expr-lang expression evaluated per month against the SERIES namespace — value (the scored aggregation), total (the sum over every month), prior (the previous present month; null on the first) and baseline (the month at params.baseline_position, 0-based). Here: month-over-month change as a share of the yearly total, plus the month indexed on the first month. A grouped request with two or more groupers runs it once per partition (params.partition_by). Buffered.",
+    "description": "Grouped Process aggregating revenue by month decorated with a SERIES OVERLAY_FORMULA: one expression evaluated per month against the SERIES namespace — value (the scored aggregation), total (the sum over every month), prior (the previous present month; null on the first) and baseline (the month at params.baseline_position, 0-based). Here: month-over-month change as a share of the yearly total, plus the month indexed on the first month. A grouped request with two or more groupers runs it once per partition (params.partition_by). Buffered.",
     "intents": [
       "change_over_time",
       "benchmark"

@@ -217,7 +217,7 @@ type RegressionSpec struct {
 	Tol float64 `json:"tol,omitempty"`
 
 	// Prior names the prior family for REG_BAYES_LINEAR. Only "nig"
-	// (Normal-Inverse-Gamma, conjugate) is supported in v1.
+	// (Normal-Inverse-Gamma, conjugate) is supported.
 	Prior string `json:"prior,omitempty"`
 
 	// PriorMu is the prior mean vector for the coefficients
@@ -532,7 +532,7 @@ const (
 
 // MarginsInferenceResample is RegressionMarginsResult.Inference under
 // the regression's Resample: the effects' standard errors are their
-// replicate spread (U69 #639).
+// replicate spread.
 const MarginsInferenceResample = "resample"
 
 // Binary-predictor treatments (RegressionMargins.Binary).

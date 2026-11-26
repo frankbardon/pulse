@@ -116,7 +116,7 @@ func TestApplyZCell_TripleBypassesParamsDefaults(t *testing.T) {
 	}
 	got := cellAt(t, layer, 0, 0)
 	// Same answer as TestApplyZCell_TripleKnownAnswer — triple wins.
-	approxEqual(t, "p-value (triple bypasses Params)", got, 0.26355, 1e-4)
+	approxEqual(t, "p-value (triple bypasses params)", got, 0.26355, 1e-4)
 }
 
 // TestApplyZCell_DegenerateInsufficientN exercises the n<2 rejection

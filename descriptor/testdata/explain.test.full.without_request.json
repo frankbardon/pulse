@@ -84,16 +84,17 @@
       "2 p-values here carry no adjustment for multiple comparisons, so some may fall below alpha by chance alone; this is the concern the PULSE_ADVISORY_MANY_TESTS advisory raises.",
       "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
       "TEST_T: Rows are independent of each other, within and across groups.",
-      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances.",
+      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances; params.variance pooled runs Student's equal-variance form.",
+      "TEST_T: params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.",
       "TEST_T: The average is roughly normally distributed: safe for large groups, risky for small skewed ones.",
       "TEST_T: The p-value is two-sided: it looks for a difference in either direction.",
       "TEST_CHISQ: Each row is counted once and rows are independent of each other.",
       "TEST_CHISQ: It works on raw counts, never on percentages or averages.",
       "TEST_CHISQ: Expected counts should mostly be 5 or more (Cochran's rule: none below 1 and no more than a fifth below 5); below that the p-value is unreliable, and Pulse warns when any cell is under 5.",
-      "TEST_CHISQ: No continuity correction is applied."
+      "TEST_CHISQ: No continuity correction is applied unless params.correct is set (a 2x2 independence table only)."
     ]
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 37b23cc30e5301ce65513209a6c49cbc313475e2826178bb5858435a895748eb
+// golden-hash: 617b58053b2c90d1f2e945b05620ac28bf71d560c8e950731c8a960579ea5213

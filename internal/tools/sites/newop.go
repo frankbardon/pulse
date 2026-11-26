@@ -175,6 +175,9 @@ func newOpReport(r *repo, catName string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, gatesFromDirs(fmt.Sprintf("table-driven tests naming >= %d%% of the category — add a row for the new operator", int(mostThreshold*100)), tableTests)...)
 	rep.Gates = append(rep.Gates, a.categoryGates(r)...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
+	if classes["examples"] {
+		rep.Gates = append(rep.Gates, r.runnerGates()...)
+	}
 	rep.Regenerate = r.regens(regenPaths)
 	rep.Manual = manualFor(c.categoryDef)
 	if !opts.All {

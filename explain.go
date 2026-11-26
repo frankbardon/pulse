@@ -52,7 +52,7 @@ import (
 // (DefaultsApplied, and the step marked Defaulted), the advisories the
 // request raises and predict's verdict (Valid, with each refusal a
 // caveat). Without a cohort nothing is checked, and a caveat says so. A
-// cohort that cannot be read is DATA_FILE (ENCODING_INVALID for a
+// cohort that cannot be read is SERVICE_RESOURCE (ENCODING_INVALID for a
 // malformed header or schema). A Compose root is judged exactly as
 // PredictCompose judges it — the batch's fits and each slot's models
 // bound before any slot, every slot predicted over its own cohort,

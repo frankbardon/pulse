@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-paired-t
-description: Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
+description: Paired-sample t-test on the per-row difference d = field − field2; streamable via Welford on d.
 kind: operator
 category: TEST
 operator: TEST_PAIRED_T
@@ -28,25 +28,24 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `partition_by` | list | — | Post-test over 2+ groupers: one run per partition, the rows sharing these leading group keys (default all but the last; `[]` = one run). |
 
-Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre / before value).
-- `weight` — one weight per row = per pair (a null in either field drops the pair); one-sample t on d over w*, `df` = N*−1 (Σw or Kish n_eff). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
+- `weight` — one weight per row = per pair (a null in either field drops the pair); one-sample t on d over w*, `df` = N*−1 (Σw or Kish n_eff). `details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 
 ## Inputs
 
-`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `Field2` — numeric (same set; same row pairs with Field).
+`field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `field2` (required, the pre / before value) — numeric (same set), on the same record.
 
 ## Output
 
-`Statistic` = t; `DF` = n − 1; `PValue` two-sided via Student-t. `Details`: `mean_diff`, `variance` (of d), `n`, `ci_low`, `ci_high`. Effect size Cohen's d_z (unbanded).
+`statistic` = t; `df` = n − 1; `p_value` two-sided via Student-t. `details`: `mean_diff`, `variance` (of d), `n`, `ci_low`, `ci_high`. `effect_size.cohens_d` = Cohen's d_z (mean of d over its sd).
 
 ## Reading the output
 
-- `statistic`: t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
+- `statistic`: t is the average of the per-row differences (field - field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
-- `details.mean_diff`: The average of Field - Field2 over complete pairs, in the field's own units.
+- `details.mean_diff`: The average of field - field2 over complete pairs, in the field's own units.
 
 ## Contract
 
@@ -58,10 +57,10 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 ## Gotchas
 
-- Pairing is **per-row**: Field and Field2 must already encode the (post, pre) pair on the same record. If pairing is across rows, build a paired column upstream first.
-- Streamable — Welford runs on d = Field − Field2 in a single pass.
-- A null in Field or Field2 drops the pair; `n` counts complete pairs.
-- Tier-2 variant `TEST_PAIRED_T/paired_two_sided_post` runs over two output columns of the result set. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
+- Pairing is **per-row**: `field` and `field2` must already encode the (post, pre) pair on the same record. If pairing is across rows, reshape so both values sit on one record first.
+- Streamable — Welford runs on d = `field` − `field2` in a single pass.
+- A null in `field` or `field2` drops the pair; `n` counts complete pairs.
+- Tier-2 variant `TEST_PAIRED_T/paired_two_sided_post` runs over two output columns of the result rows. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
 
 ## See
 

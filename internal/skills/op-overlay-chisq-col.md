@@ -15,16 +15,16 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — must be `column`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+`scope` (enum, required) — must be `column`. `ref` (object, empty) — implicit-margin — leave empty. `level`/`within` must be `0`. Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Compatible with any crosstab regardless of cell aggregator; reads observed × expected from row/column margins recomputed by the buffered orchestrator.
+MATRIX crosstab (`crosstab.matrix`). Any cell aggregator; observed vs expected from the row / column margins.
 
 ## Output
 
-SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column key carrying `Summary.Statistic` (χ² value), `Summary.PValue`, `Summary.Parameters["df"]` = `rows - 1`. Layer `Baseline` unset (inferential).
+SERIES — `payload.shape` `"series"`. One `payload.series.entries[]` entry per column key carrying `summary.statistic` (χ² value), `summary.p_value`, `summary.parameters.df` = `rows - 1`. `summary.baseline` unset (inferential).
 
 <!-- generated: reading-the-output -->
 
@@ -33,11 +33,9 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per column
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: read as an absent cell (an observation of 0), never into a total.
-- Weighted host (both kinds, any source): cells are Σw; under probability each column is scaled to its margin's Kish `n_eff` (expected-low on the scaled column) — first-order Kish, not Rao-Scott. Each entry's `Parameters` adds that column's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
-- Reuses `chiSquareSurvival` — p-values byte-equal to every χ² test and overlay on the same contingency.
+- Weighted host (both kinds, any source): cells are Σw; under probability each column is scaled to its margin's Kish `n_eff` (expected-low on the scaled column) — first-order Kish, not Rao-Scott. Each entry's `summary.parameters` adds that column's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
+- p-values equal every χ² test's and overlay's on the same contingency.
 - Any `expected < 5` in a column emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending column.
-- Absent host cell treated as observed count of 0.
-- Buffered (inherent — host crosstab path always recomputes margins from raw rows).
 <!-- feature: AGG_MODE -->
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 <!-- /feature -->

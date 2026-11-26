@@ -37,8 +37,9 @@ const (
 )
 
 // ByteSize returns the number of bytes this field type occupies in a record.
-// Bit-packed types (U4, PackedBool) share bytes with adjacent fields and
-// return 0 here; their on-wire stride is handled by Schema.RecordByteSize.
+// Bit-packed types (U4, PackedBool) return 0 here, yet each still takes
+// one whole record byte (its BitPosition locates the value inside it);
+// fields never share a byte. Schema.FieldWidth returns that 1.
 // The vector types (vec_f32, vec_f64) also return 0: their width is
 // VectorElemSize × the field's dim, a property of the field within its
 // schema (Schema.FieldWidth), never of the type byte alone.
@@ -194,10 +195,10 @@ func (ft FieldType) IsCategorical() bool {
 	return ft == FieldTypeCategoricalU8 || ft == FieldTypeCategoricalU16 || ft == FieldTypeCategoricalU32
 }
 
-// IsBitPacked reports whether the field type shares its on-wire byte with
-// adjacent fields via bit packing (U4, PackedBool). Used by stride math
-// and the schema layout pass to advance the bit cursor instead of the
-// byte cursor.
+// IsBitPacked reports whether the field type carries fewer than 8 bits of
+// payload (U4, PackedBool), located in its one whole record byte by the
+// field's BitPosition. The byte is never shared with another field:
+// Schema.FieldWidth sizes it 1, so stride math advances one byte.
 func (ft FieldType) IsBitPacked() bool {
 	return ft == FieldTypeU4 || ft == FieldTypePackedBool
 }

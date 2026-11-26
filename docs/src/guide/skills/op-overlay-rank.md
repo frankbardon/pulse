@@ -29,17 +29,17 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `population` | `column` \| `matrix` \| `row` | `matrix` | `row` / `column` / `matrix`. |
+| `population` | enum | `matrix` | `row` (within the cell's row), `column` (within its column) or `matrix` (across every present cell). |
 
-`Scope` must be `cell`. `Reference` required — anchor for resolution + key-set gates only. `Targets` required slot labels.
+`scope` must be `cell`. `reference` required — anchors the slot match only. `targets` required slot labels.
 
 ## Host shape
 
-COMPOSE — MATRIX crosstab. The reference slot anchors schema-match + key-alignment but its VALUES are not consumed: rank math reads target cells only. That asymmetry keeps RANK orthogonal to the comparison family (INDEX / DELTA / PROP_Z / T / CHISQ).
+COMPOSE — MATRIX crosstab. Slots must match on schema and keys, but the reference's VALUES are never read: ranks come from the target cells only.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected population. Mirrors the target's RowKeys / ColumnKeys. `Baseline` unset. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
+MATRIX — `payload.matrix.cells[r][c].value` = 1-based rank (1 = largest) within the population, on the target's keys. `summary.baseline` unset. One layer per target, in `targets` order: one target keeps `name`; two or more are `<name>__<target>`, each the one-target layer. Over `options.max_panel_targets` (16) → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 
 ## Contract
 
@@ -50,8 +50,7 @@ MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected 
 
 - Tie-breaking: average rank (matches `scipy.stats.rankdata` default).
 - An absent target cell stays absent and is NOT in the population's denominator — ranks cover PRESENT cells only.
-- `population=row` → rank within the cell's row; `column` → within its column; `matrix` → across all present cells.
-- Buffered (the slot barrier always buffers, and ranking needs the full materialised matrix).
+- Buffered (the Compose fold always buffers).
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See

@@ -34,15 +34,15 @@ Use something else:
 | `n_source` | enum | — | Where each leg's n is read; omitted = the cell's base (the normalise denominator on a normalised host; weighted, its N*). |
 | `p_source` | enum | — | How each leg's share is read; omitted = `cell_value` on a normalised host, else `cell_value_pct`. |
 
-`Scope` (required) — `row` or `column`. `Ref` empty. n and share vocabulary, identical to the pairwise proportion z: [`pairwise-n-sources`](pairwise-n-sources.md).
+`scope` (required) — `row` or `column`. `ref` empty. n and share vocabulary, identical to the pairwise proportion z: [`pairwise-n-sources`](pairwise-n-sources.md).
 
 ## Host shape
 
-MATRIX crosstab + `Response.Components.Crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). A code cell is refused ([`overlay-pairwise`](overlay-pairwise.md)).
+MATRIX crosstab + `components.crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). A code cell is refused ([`overlay-pairwise`](overlay-pairwise.md)).
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout: [`overlay-pairwise`](overlay-pairwise.md)). Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. A design formula (market-research convention), pinned as is to R at 1e-10: the `sqrt(1/n_i + 1/n_j)` SE is not a probit share's real spread and no stock test computes it, so read the p as a convention, not a calibrated test. `letters`: `higher` from the sign of `t`.
+MATRIX — pair × opposite-axis grid of two-sided p-values (layout: [`overlay-pairwise`](overlay-pairwise.md)). Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. A design formula (market-research convention): the `sqrt(1/n_i + 1/n_j)` SE is not a probit share's real spread and no stock test computes it, so read the p as a convention, not a calibrated test. `letters`: `higher` from the sign of `t`.
 
 ## Reading the output
 

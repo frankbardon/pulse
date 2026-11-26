@@ -88,7 +88,7 @@ func (p *Pulse) predictCompose(ctx context.Context, req *ComposedRequest) (*desc
 // envelope's Data is a *FacetPredictResult.
 //
 // A returned error is a cancelled ctx, a nil request or cohort
-// (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
+// (SERVICE_VALIDATION), or a cohort that cannot be read (SERVICE_RESOURCE;
 // ENCODING_INVALID for a malformed header or schema). Every request
 // fault is a coded env.Errors entry with Valid false.
 func (p *Pulse) PredictFacet(ctx context.Context, req *FacetRequest) (*descriptor.Envelope, error) {

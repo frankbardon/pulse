@@ -45,6 +45,9 @@ func TestParseSnippetInfo(t *testing.T) {
 	}{
 		{"json", SnippetInfo{Lang: "json"}},
 		{"json norun", SnippetInfo{Lang: "json", NoRun: true}},
+		{"json norun fragment", SnippetInfo{Lang: "json", NoRun: true, NoRunReason: "fragment"}},
+		{"json norun extension-operator", SnippetInfo{Lang: "json", NoRun: true, NoRunReason: "extension-operator"}},
+		{"json fragment", SnippetInfo{Lang: "json"}},
 		{"json cohort=survey", SnippetInfo{Lang: "json", Cohorts: []string{"survey"}}},
 		{"json cohort=customers,customers_twin", SnippetInfo{Lang: "json", Cohorts: []string{"customers", "customers_twin"}}},
 		{"go compile", SnippetInfo{Lang: "go", Compile: true}},

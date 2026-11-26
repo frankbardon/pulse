@@ -16,11 +16,10 @@ import (
 // TestAPIPredict_ReadsCohortThroughFacadePath: `pulse api predict`
 // predicts a single file, a whole shard archive and an anchored shard
 // (`archive.pulse#shard.pulse`) through Pulse.PredictEnvelope — the
-// path-based, header-only read. The leaf used to os.ReadFile the cohort
-// whole and hand the bytes to PredictBytes, which held a whole archive
-// in memory and could not resolve an anchor at all (the file
-// "archive.pulse#shard.pulse" does not exist). A missing cohort stays a
-// coded PREDICT_ERROR envelope.
+// path-based, header-only read, which resolves an anchor (the file
+// "archive.pulse#shard.pulse" does not exist) without holding a whole
+// archive in memory. A missing cohort is a coded SERVICE_RESOURCE
+// envelope.
 func TestAPIPredict_ReadsCohortThroughFacadePath(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
 
@@ -74,11 +73,11 @@ func TestAPIPredict_ReadsCohortThroughFacadePath(t *testing.T) {
 		}
 	}
 
-	// An unopenable cohort is the facade's coded DATA_FILE (the predict
-	// roots' code), carried as its own code — never the PREDICT_ERROR
-	// placeholder an uncoded fault falls back to.
+	// An unopenable cohort is the facade's coded SERVICE_RESOURCE (the
+	// runtime's code for the same cohort), carried as its own code —
+	// never the CLI_ERROR fallback of an uncoded fault.
 	env, raw := run(filepath.Join(dir, "nope.pulse"))
-	if len(env.Errors) != 1 || env.Errors[0].Code != "DATA_FILE" {
-		t.Errorf("missing cohort: want one DATA_FILE, got\n%s", raw)
+	if len(env.Errors) != 1 || env.Errors[0].Code != "SERVICE_RESOURCE" {
+		t.Errorf("missing cohort: want one SERVICE_RESOURCE, got\n%s", raw)
 	}
 }

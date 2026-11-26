@@ -70,7 +70,7 @@ func TestCanStreamOverlays_WrongHostRoutesBuffered(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "v"}},
 		Overlays:     []types.OverlaySpec{{Kind: types.OverlayKindIndexVsPop}}}
 	if canStreamOverlays(req, nil) {
-		t.Error("a FACET kind on Request.Overlays streams")
+		t.Error("a FACET kind on overlays streams")
 	}
 	req.Overlays[0] = types.OverlaySpec{Kind: types.OverlayKindIndexVsTotal, Scope: types.OverlayScopeGroup}
 	if !canStreamOverlays(req, nil) {

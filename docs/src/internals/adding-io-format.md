@@ -5,7 +5,9 @@ tabular format (a peer to the existing `csv/`, `tsv/`, `ndjson/`,
 `jsonarray/`, `arrow/`, `parquet/`, `excel/`, `spss/` sub-packages under
 `internal/io/`).
 
-> **From CLAUDE.md, The Update Demand (registered I/O format row) and `.claude/reference/update-demand/io-export.md`.**
+The binding companion list is the Update Demand's I/O rows
+(`.claude/reference/update-demand/io-import.md` and `io-export.md`);
+this page explains each step.
 
 ## 1. Create the sub-package
 
@@ -173,9 +175,7 @@ four constructors. An unknown, empty or native `pulse` format is
 `PULSE_IO_FORMAT_UNSUPPORTED`. A read-only format would make
 `CanWrite` false and return its OWN coded error from the writer
 constructors naming the format, not the generic code — the extension is
-recognised, so "unsupported" says the wrong thing. (SPSS was the worked
-example until its writer landed; `PULSE_SPSS_EXPORT_UNSUPPORTED` has
-since been repurposed to mean "this cohort has no honest `.sav` form".)
+recognised, so "unsupported" says the wrong thing.
 
 **`internal/cli/import.go`** — an `importFormatCmd("yourformat")` line
 in the `Commands:` slice on `ImportCommand()`. Reader construction
@@ -273,7 +273,7 @@ two literals it emits — and the choice IS the zone contract:
 - A **wall clock** (a zone-less Arrow timestamp, `isAdjustedToUTC=false`,
   legacy Parquet `INT96`, every SPSS `DATETIME`) renders as a naive
   literal (`2006-01-02T15:04:05`), so the source zone and DST policy
-  apply; with no zone it reads as UTC, the same instant as before.
+  apply; with no zone it reads as UTC.
 
 Floor sub-second values toward the past (also before 1970) and report
 any floored fraction through `SourceWarningEmitter` as one
@@ -338,8 +338,7 @@ SILENTLY: both spellings keep importing and only the meaning changes.
 - A Writer with a native list type MUST route set cells through
   `parrow.AppendSetList` (or reproduce it): `nil` and `""` are the
   **null** cell and take the validity bit; anything else opens a
-  list, empty for the marker. Reading `""` as an empty list is the
-  bug this replaced.
+  list, empty for the marker. Never read `""` as an empty list.
 - A Reader with a native list type must render a present zero-length
   list as `iocore.EmptySetCell`, not `""` — `""` is a null token and the
   null cell already has its own channel one level up. `internal/io/arrow`'s
@@ -352,8 +351,8 @@ SILENTLY: both spellings keep importing and only the meaning changes.
 The matrix that pins all of this for every adapter at a narrow rung
 and a wide rung is `internal/io/settristate/`.
 
-`categorical_*` has the same empty-string-vs-null collapse and it
-does have a real out-of-band null channel now — see "The categorical
+`categorical_*` has the same empty-string-vs-null collapse, and it has
+a real out-of-band null channel — see "The categorical
 null cell" below. The two mechanisms do not overlap: a set cell's
 present-but-empty state stays on the `iocore.EmptySetCell` marker at
 every adapter, including the four with a null channel.
@@ -401,7 +400,7 @@ writer's null policy follows the caller's provenance, never the cell's
 spelling. Use `iocore.IsNullCell(v, explicit)` rather than testing the
 flag by hand. A Writer that ignores the interface entirely keeps the
 text convention and is unaffected; `internal/io/csv` and `internal/io/tsv` already
-render `nil` as `""`, so their bytes did not move.
+render `nil` as `""`, so they need no change.
 
 **Read side.** `Reader.ReadRows` yields `[]string`, which has no null
 channel at all — a JSON null, an Arrow validity bit and an empty JSON
@@ -430,7 +429,7 @@ every adapter.
 A gap is documented and asserted, never silent, and its **direction is
 part of the contract**: an adapter that cannot carry the distinction
 reads BOTH states back as **null**. Losing an empty string into null
-is the pre-existing behaviour and is recoverable from the source;
+is recoverable from the source;
 inventing an empty-string value where the cohort held a null would be
 new data. `internal/io/nullcell/` pins every row of that table, including the
 three gaps — flipping an entry fails the matrix.
@@ -620,7 +619,7 @@ is reachable from an external module.
 By default `ImportJob.Run` samples up to `SampleRows` rows and votes
 on each column's type in `internal/io/infer.go` — a guess made from
 stringified cells. A format that carries its own dictionary (SPSS
-`.sav`; in principle Parquet and Arrow) should not be guessed at.
+`.sav`) should not be guessed at.
 Such a reader implements the optional `io.SchemaAwareReader`:
 
 ```go
@@ -708,6 +707,24 @@ re-inferred types from the text the reader rendered would throw the
 source dictionary away through a command the registration itself
 created.
 
+### Declared widths: `DeclaredTypeReader`
+
+A format that types SOME columns but not the whole schema (Arrow,
+Parquet) implements `internal/iocore`'s `DeclaredTypeReader` instead:
+`DeclaredColumnTypes() (map[string]encoding.Field, error)` names the
+pinned columns by header name with their `Type` (plus `Precision` /
+`Scale` for `decimal128`). Inference still runs, but a pinned column
+skips the type vote and is never widened, so a value it cannot hold is
+a per-row `PULSE_IMPORT_ROW_ERROR`, never `PULSE_IMPORT_WIDTH_PROMOTED`.
+Nullability, dictionaries, set delimiters and every unpinned column stay
+inference's; a `ColumnTypeOverrides` entry beats a pin; an explicit or
+authoritative schema makes pins inert; `ConvertJob` reads the same pins.
+Pin only types that declare a real width — Arrow / Parquet pin unsigned
+integers, `float32` / `float64`, boolean, `date32` / `date64`, timestamp
+and `decimal128` (`internal/io/arrow` `DeclaresWidth`), and leave signed
+integers, strings, binary, dictionaries and lists to inference. The
+shared path is `internal/io/import_pins.go`.
+
 ### Non-fatal diagnostics: `io.SourceWarningEmitter`
 
 A reader whose parse can raise warnings that do not stop an import —
@@ -731,8 +748,7 @@ prints `Warning [CODE]: message` lines on the text path.
 
 Implementations must be pure accessors: calling `Warnings()` must not
 itself trigger a parse, and calling it twice must not double the set.
-Readers that do not implement the interface contribute `nil`, keeping
-every pre-existing report byte-identical.
+Readers that do not implement the interface contribute `nil`.
 
 ### Total failure is fatal, partial failure is not
 
@@ -768,14 +784,13 @@ provenance rule, since the overflow happens reading the source — and
 `ConvertJob.Run` stops there with no report and no `KeepPulseAt`
 intermediate. It is fatal rather than partial because capacity is not a
 property of the row: past the limit every further unseen category is
-dropped for the rest of the file, which used to leave a `ConvertReport`
-whose schema carried a silently short dictionary.
+dropped for the rest of the file, and a report would carry a silently
+short dictionary.
 
 This matters when you write an adapter because a format-wide mistake —
 a column type your writer has no mapping for, a cell shape your reader
-never parses — fails identically on every row. Before the verdict
-existed, three such bugs shipped looking like successful zero-row runs.
-Your adapter needs no code for this; just do not swallow the per-row
+never parses — fails identically on every row, and without the verdict
+it would look like a successful zero-row run. Your adapter needs no code for this; just do not swallow the per-row
 error, because the verdict is computed from the row-error slice.
 
 ### Source metadata with no Pulse home: `io.SidecarEmitter`
@@ -826,9 +841,8 @@ Four conventions an implementation should follow:
 4. **Keep the metadata payload flat and self-contained** — no
    filesystem paths, no byte offsets into the source, no references to
    anything outside itself — and hold it in a slot separate from the
-   fingerprint. A `.pulse` schema metadata block would delete the
-   sidecar entirely but needs a `FormatVersion` bump; a payload shaped
-   this way can be lifted into one verbatim if that ever lands.
+   fingerprint, so the payload could move into a `.pulse` schema
+   section verbatim.
 
 Build the document with `encoding/json` — never `fmt.Sprintf`. A
 returned error **fails the import**: the cohort write on the same
@@ -836,8 +850,7 @@ filesystem has just succeeded, so a sidecar write that then fails is a
 genuine fault, and a cohort silently missing the only surviving record
 of its source dictionary is exactly the quiet degradation the sidecar
 exists to prevent. Readers that do not implement the interface write no
-extra file and take no extra stat, keeping every other format's import
-byte-identical.
+extra file and take no extra stat.
 
 ### Encoding from raw storage: `io.CohortWriter`
 
@@ -864,6 +877,8 @@ type CohortSource struct {
     // ValueLabels: that binding resolved onto the dictionaries — per bound
     // field, entry text -> label (nil for a field that is no categorical)
     ValueLabels map[string]map[string]string
+    // ValueLabelOrder: each bound table's entry order, when the resolver reports one
+    ValueLabelOrder map[string][]string
     TimeZone string   // ExportJob.TimeZone when NOT UTC-equivalent, else ""
     Strict   bool     // ExportJob.Strict: fail, not warn, on a value stored inexactly
 }
@@ -879,8 +894,8 @@ type CohortWriter interface {
 receives both, and the header is still the projection-aware column list —
 and then calls `WriteCohort` *instead of* its own row loop. Nothing is
 double-decoded: the row loop does not run, and `WriteRow` is never
-called on that path. Writers that do not implement it take the unchanged
-row path, byte for byte.
+called on that path. Writers that do not implement it take the row
+path.
 
 **`Includes`, `Labelled` and `TimeZone` are carried so you can REFUSE them,** not
 because a cohort writer is expected to implement them. A writer that
@@ -911,21 +926,20 @@ been seen.
 
 A target that rebuilds a cohort from the row stream re-derives a schema
 by **inferring** it from the text the source just rendered, and inference
-cannot recover what the source *declared*. Two things went missing on
-`pulse convert survey.sav out.sav` because of it, and neither was
+cannot recover what the source *declared*. Without this interface, two
+things are lost on `pulse convert survey.sav out.sav`, and neither is
 recoverable downstream:
 
 - the **declared schema**. A `set_*` column round-trips as `"Q1A|Q1C"`
   tokens, so a re-inferred rung is only as wide as the options somebody
-  actually ticked; a value-labelled numeric came back as a string column
+  actually ticked; a value-labelled numeric comes back as a string column
   of bare numerals.
 - the **metadata sidecar**. It is the only home of the code / label /
   dictionary-ID triple *and* of the derived-column registry, so the
-  rebuilt cohort could not tell a synthesised multiple-dichotomy `set_*`
-  column from a real one. `internal/io/spss` then expanded it into member
-  variables that collided by name with the constituents already in the
-  cohort — `PULSE_SPSS_NAME_COLLISION`, which refused every
-  multiple-dichotomy convert outright.
+  rebuilt cohort cannot tell a synthesised multiple-dichotomy `set_*`
+  column from a real one. `internal/io/spss` would expand it into member
+  variables that collide by name with the constituents already in the
+  cohort (`PULSE_SPSS_NAME_COLLISION`).
 
 ```go
 type ConvertSource struct {
@@ -941,8 +955,7 @@ type SourceAwareWriter interface {
 ```
 
 `ConvertJob.Run` type-asserts it and calls `SetConvertSource` **before**
-`WriteHeader`; a target that does not implement it is never consulted and
-its convert output is byte-identical to the pre-interface shape.
+`WriteHeader`; a target that does not implement it is never consulted.
 
 **What you may assume, and what you may not.** The facts are offered only
 when the row stream is *faithful* to the schema — one cell per field, in
@@ -978,8 +991,8 @@ type TargetWarningEmitter interface {
 lift the result onto `ExportReport.TargetWarnings` /
 `ConvertReport.TargetWarnings`. Implementations must be pure accessors —
 calling `Warnings()` must not itself trigger work, and calling it twice
-must not double the set. Writers implementing neither contribute `nil`,
-so every pre-existing report stays byte-identical.
+must not double the set. Writers that do not implement it contribute
+`nil`.
 
 The canonical user is again `internal/io/spss`, whose encode raises diagnostics
 that do not stop an export but change what the file MEANS: a metadata
@@ -1033,13 +1046,12 @@ GC cannot reclaim; if you buffer on the heap, do nothing.
 
 ### Predicting a refusal: `io.CohortValidator`
 
-`pulse export predict` was target-blind. `ExportJob.Predict` read the
-source header and schema, estimated the row count, and answered "this
-export is fine" regardless of the target — which was harmless only for
-as long as every writer was infallible at the target boundary. The text
-adapters stringify anything handed to them. `internal/io/spss` is the first
-writer that can REFUSE, so predict was saying yes to exports that then
-failed.
+Without a target, `ExportJob.Predict` reads the source header and
+schema, estimates the row count and answers "this export is fine". That
+holds for the text adapters, which stringify anything handed to them,
+but not for a writer that can REFUSE at the target boundary
+(`internal/io/spss`). Such a writer implements `CohortValidator` so
+predict sees the refusal:
 
 ```go
 type CohortValidator interface {
@@ -1056,10 +1068,9 @@ itself carries — a predicted `PULSE_SPSS_NAME_INVALID` that exported as
 something else would be worse than no prediction at all.
 
 **Dispatch.** `ExportJob.Predict` type-asserts the interface. A Target
-that is nil, or one that does not implement it, is predicted **exactly**
-as it was before the interface existed: no extra read, no new failure
-mode, the same `PredictReport`. That is the whole compatibility contract
-and `TestExportJob_Predict_NonValidatingTargetUnchanged` pins it.
+that is nil, or one that does not implement it, is predicted
+target-blind: no extra read, no new failure mode, the same
+`PredictReport` (`TestExportJob_Predict_NonValidatingTargetUnchanged`).
 
 Unlike `CohortWriter`, a validator is reached **without** `SetPulseSchema`
 and **without** `WriteHeader` — predict starts no write lifecycle on a
@@ -1098,8 +1109,7 @@ and never `Close`s it, so no adapter's bytes can reach any filesystem.
 It mounts the target format's write flags too (`--sanitize-names` turns a
 `.sav` name refusal into a warning, so a predict that could not be told
 about it would refuse an export that would have succeeded), and with no
-`--format` it keeps the old target-blind behaviour and says so in the
-output. With `--labels` it routes through `Pulse.PredictExport`, which
+`--format` it stays target-blind and says so in the output. With `--labels` it routes through `Pulse.PredictExport`, which
 builds the label resolver from the instance's tables exactly as
 `Pulse.Export` does, so a label refusal predicts with the export's code.
 
@@ -1127,8 +1137,8 @@ for Excel, and as the four `.sav` write knobs did for SPSS). Registering
 a new `pulse import <fmt>` subcommand alone does not: that file carries
 per-format flags, not a format list.
 
-A new leaf **does** need a row in the command index in
-`docs/src/cli/flags.md`. `TestSkillsCoverAllCliLeaves`
+A new leaf **does** need `make docs`, which gives it a section in the
+generated [command and flag reference](../cli/reference.md). `TestSkillsCoverAllCliLeaves`
 (`cmd/pulse/cli_leaves_test.go`) walks the real command tree, `internal/cli.App()`,
 and fails if any runnable command path is named nowhere under `skills/`
 or `docs/src/`. It checks naming only — whether the prose is any good
@@ -1144,11 +1154,16 @@ special metadata (e.g., Parquet's per-column statistics).
 ## 7. Run the gates
 
 ```bash
-go test ./internal/io/<format>/...
-go test ./internal/skills/ -run TestSkillsCoverAll
-go test ./...
+go test -count=1 ./internal/io/<format>/... ./internal/io/nullcell/ ./internal/io/settristate/
+go test -count=1 ./io/ -run 'TestFactory|TestFromExt'
+go test -count=1 -tags heavy ./internal/iocore/ -run TestIOImportBoundary
+go test -count=1 . -run TestManifestImportCapability_MatchesFormatRegistry
+go test -count=1 ./internal/tools/citest/ -run TestRepoFuzzMatrix_InSync
+go test -count=1 ./internal/skills/ ./cmd/pulse/ -run TestSkillsCoverAll
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
 For format-specific perf, add benchmarks (`Benchmark<Format>...`) in
-the sub-package. There's no required perf gate today, but neighbouring
-formats have benchmarks you can mirror as a baseline.
+the sub-package. There is no required perf gate; neighbouring formats
+have benchmarks you can mirror as a baseline.

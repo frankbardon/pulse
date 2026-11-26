@@ -17,12 +17,12 @@ Slot and members as for `op-mat-covariance`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `control` | `"all"` \| [fields] | `all` | Held-fixed set; a listed member leaves the axis. |
-| `repair` | `nearest` | — | Repair non-PSD input. |
+| `control` | list | `all` | `"all"` or a field list: the held-fixed set; a listed member leaves the axis. |
+| `repair` | enum | — | `nearest`: repair a non-PSD input. |
 | `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, df = N* − 2 − g. |
-| `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
-| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `alpha` | float | `0.05` | In (0, 1): interval level; needs `inference`. |
+| `missing` | enum | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 | `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
 
 <!-- feature: capability:multiplicity -->
@@ -35,7 +35,7 @@ Integer / float members and controls.
 
 ## Output
 
-`primary`: partial r over the non-control members, diagonal 1. Pairwise `auxiliary.n`. `inference`: per pair p (t, = ppcor) and Fisher-z interval; diagonal null.
+`primary`: partial r over the non-control members, diagonal 1. Pairwise `auxiliary.n`. `inference`: per pair p (t test, as ppcor) and Fisher-z interval; diagonal null.
 
 <!-- generated: reading-the-output -->
 

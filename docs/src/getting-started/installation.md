@@ -2,89 +2,94 @@
 
 **Audience:** new users who want a working `pulse` binary on their PATH.
 
-This page walks through installing Pulse, the prerequisites it needs, and how
-to verify the install. Pulse is distributed as a single static Go binary;
-there is no installer, no daemon, and no config file.
+Pulse is one static binary: no installer, no daemon, no config file. The
+library needs only `go get github.com/frankbardon/pulse`; embedders start
+at the [Embedder Walkthrough](../library/embedder-walkthrough.md).
 
-> **LLM agents using MCP:** see the `session-bootstrap` skill via
-> `pulse_skills_get` — it covers session bootstrap rather than local install.
+> **LLM agents using MCP:** the `session-bootstrap` skill (via
+> `pulse_skills_get`) covers the session, not the install.
 
-## Prerequisites
+## Download a release
 
-| Requirement | Minimum |
+Each [GitHub Release](https://github.com/frankbardon/pulse/releases)
+carries one archive per platform plus `checksums.txt` (SHA-256 of every
+archive). `<version>` is the tag, `v` included (`v1.0.0`):
+
+| Platform | Asset |
 |---|---|
-| Go toolchain | 1.24 (see `go.mod`) |
-| OS | Linux, macOS, or Windows (anywhere Go cross-compiles) |
-| Disk | A few MB for the binary; cohort files live wherever you point `PULSE_DATA_DIR` |
+| Linux x86-64 | `pulse_<version>_linux_amd64.tar.gz` |
+| Linux ARM64 | `pulse_<version>_linux_arm64.tar.gz` |
+| macOS Intel | `pulse_<version>_darwin_amd64.tar.gz` |
+| macOS Apple silicon | `pulse_<version>_darwin_arm64.tar.gz` |
+| Windows x86-64 | `pulse_<version>_windows_amd64.zip` |
+| Windows ARM64 | `pulse_<version>_windows_arm64.zip` |
 
-`go.mod` is the source of truth for the supported Go version; if it drifts
-from this page the `go.mod` value wins.
+An archive holds the binary (`pulse`, or `pulse.exe` on Windows) at its
+root, with `LICENSE`, `THIRD_PARTY_NOTICES.md`, `README.md` and shell
+completion scripts under `completions/` (bash, zsh, fish). On Linux or
+macOS:
+
+```bash
+VERSION=v1.0.0 OS=linux ARCH=amd64
+BASE=https://github.com/frankbardon/pulse/releases/download/$VERSION
+curl -fLO "$BASE/pulse_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -fLO "$BASE/checksums.txt"
+grep "_${OS}_${ARCH}.tar.gz" checksums.txt | shasum -a 256 -c -
+tar -xzf "pulse_${VERSION}_${OS}_${ARCH}.tar.gz" pulse
+sudo mv pulse /usr/local/bin/
+```
+
+Pre-release tags (`v1.0.0-alpha.N`) are marked pre-release on GitHub and
+carry the same assets.
 
 ## Install with `go install`
 
-The fastest path on a developer machine:
+With a Go toolchain at the version `go.mod` names (1.26.1 today):
 
 ```bash
 go install github.com/frankbardon/pulse/cmd/pulse@latest
 ```
 
-This drops a `pulse` binary at `$(go env GOBIN)` (typically `~/go/bin`).
-Make sure that directory is on your `PATH`.
-
-Pin a specific release by replacing `@latest` with a tag:
-
-```bash
-go install github.com/frankbardon/pulse/cmd/pulse@v0.2.0
-```
+The binary lands in `$(go env GOBIN)` (default `~/go/bin`); put it on
+your `PATH`. Replace `@latest` with a tag (`@v1.0.0`) to pin a release.
 
 ## Build from source
-
-The same binary, built reproducibly from a checkout:
 
 ```bash
 git clone https://github.com/frankbardon/pulse.git
 cd pulse
-make build
-# Binary at ./bin/pulse
+make build      # binary at ./bin/pulse
 ```
 
-The `Makefile` is documented in [CLAUDE.md → Build /
-Env](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md#build--env);
-the relevant targets are `make build`, `make test`, `make lint`, and
-`make cover`.
+[Development Setup](../contributing/setup.md) covers the other targets.
 
-## Configure the data directory
+## Set the data directory
 
-Pulse reads and writes `.pulse` files under a base directory called
-`PULSE_DATA_DIR`. Most commands accept absolute paths and will work without
-it, but `pulse mcp` requires the variable so the MCP server can enumerate
-cohorts:
+`PULSE_DATA_DIR` is the one required environment variable: `pulse mcp`
+refuses to start without it (or `--data-dir`) and serves the cohorts under it. The other
+CLI commands resolve paths against the working directory, so the next
+pages work inside the data directory:
 
 ```bash
-export PULSE_DATA_DIR=/var/data/pulse
+export PULSE_DATA_DIR="$HOME/pulse-data"
+mkdir -p "$PULSE_DATA_DIR" && cd "$PULSE_DATA_DIR"
 ```
 
-The repo `Makefile` auto-loads a `.env` file from the repo root, so you can
-also drop `PULSE_DATA_DIR=...` there for local development.
-
-`PULSE_DATA_DIR` is the only required environment variable. See
-[Flag Reference](../cli/flags.md) for the full list of CLI flags and
-environment knobs.
+Every other `PULSE_*` variable is optional; the table is in
+[pulse.New & Options](../library/options.md#environment-variables).
 
 ## Verify
 
 ```bash
 pulse --version
-pulse --json | head -20
+pulse version --json
 ```
 
-`pulse --json` prints the root manifest — the full self-description of
-commands, components, field types, and embedded skills. If you see a
-top-level `format_version: "1.0"` envelope, the install is working.
+`pulse version --json` prints the build in the standard envelope
+(`"format_version": "1.1"`). Shell completion:
+[`pulse completion`](../cli/completion.md).
 
-## Where to go next
+## Next
 
-- New to the file format and vocabulary? [Your First Cohort](first-cohort.md)
-- Want a quick map of every command? [CLI Tour](cli-tour.md)
-- Embedding Pulse in a Go program? [Go API Overview](../library/overview.md)
-- Wiring Pulse into an MCP-aware client? [`pulse mcp`](../cli/mcp.md)
+[Your First Cohort](first-cohort.md): a CSV to a `.pulse` file in four
+commands.

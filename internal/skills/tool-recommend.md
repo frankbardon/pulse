@@ -14,14 +14,14 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 ## Input
 
 - `intent` (string, required): an ID from the `intents` skill. Unknown or empty → `PULSE_RECOMMEND_INTENT_UNKNOWN`; `details.valid` lists every ID.
-- `cohort` (string): a `.pulse` path. Set → drafts BOUND to its fields, each predict-checked. Omit → UNBOUND skeletons.
+- `cohort` (string): a `.pulse` path (a path here, not a `{filename}` object). Set → drafts BOUND to its fields, each predict-checked. Omit → UNBOUND skeletons.
 - `fields` (array, cohort only): hints; each pins the first role of the intent it fits. Not a field, or fits no role → `SERVICE_VALIDATION`. A `vec_f32` / `vec_f64` field fits only a vector slot.
 - `level` (`basic` / `intermediate` / `advanced`): rank that level first. Default: simplest first.
 - `limit` (int): cap, default 10.
 
 ## Output
 
-`intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`. `steps` is deprecated and always absent.
+The recommendation set (no envelope): `intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`.
 
 ## Gotchas
 
@@ -29,7 +29,7 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 - **`bound: false` on a cohort draft** means it `needs` a value only you can choose — a success value, a reference mean, a model family. Fill each `needs[].param` before running.
 - `bound: true` drafts passed predict; still read their `advisories`.
 - Empty `recommendations` + `routes_to` is not an error: tooling answers it, or nothing serves it yet.
-- Reads header, schema and sidecar only. Unreadable cohort → `DATA_FILE`.
+- Reads header, schema and sidecar only. Unreadable cohort → `SERVICE_RESOURCE`.
 - Ranking: hints, fully bound, level, fewest advisories, category, then operator name (alphabetical).
 - **A model reads a draft's column in the same request.** Label the score or feature entry, add the regression reading that label; no materialise step.
 - A native vector field is drafted whole as `"vector": "<field>"`, before a list of numeric columns, and only where its schema `kind` suits the operator; never in a scalar slot.

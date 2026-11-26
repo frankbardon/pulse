@@ -20,25 +20,25 @@ Synth distributions emit per-row values; no `Response.Components`.
 | `options` | list | (required) | Strings: dictionary entries in bit order (bit `i` ↔ `options[i]`), pre-registered at schema build (`synth-set-fields`). |
 | `frequencies` | list | `0.5` | Per-option `P(bit set)` in `[0, 1]` (default each); length must match `options`. |
 
-An option draws independently unless `Spec.SetCategoricalPairs` / `SetNumericPairs` / `SetSetPairs` names it as a captured joint pair's target — then its bit is resampled from the pair's conditional probability instead of `frequencies[i]`.
+An option draws independently unless a spec `set_categorical_pairs` / `set_numeric_pairs` / `set_set_pairs` entry names it as a joint pair's target — then its bit is resampled from the pair's conditional probability instead of `frequencies[i]`.
 
 ## Inputs
 
-Field `type:` — any set rung (`set_u8` … `set_u256`); `options` ≤ the type's `MaxSetEntries()`. The draw is width-agnostic.
+Field `type:` — any set rung (`set_u8` … `set_u256`); `options` no more than the type's member capacity.
 
 ## Output
 
-Per-row `map[string]bool` (every declared option; true = selected), assembled into the bitmask at write time from the pre-registered dictionary IDs.
+Per row, the selected options, written as the field's bitmask (no option selected = the empty mask, not null).
 
 <!-- generated: contract -->
 
 ## Gotchas
 
 - Empty `options`, `frequencies` length mismatch, or a frequency outside `[0, 1]` → `SERVICE_VALIDATION`.
-- `options` count over `MaxSetEntries()` → `PULSE_IMPORT_SET_OVERFLOW` at schema build.
-- `SpecFromProfile` fills this from `FieldProfile.Set.Options` and wires `SetCategoricalPairs`/`SetNumericPairs`/`SetSetPairs` from `Conditional.Set*Pairs` only when the paired field also reconstructed to its expected distribution (`weighted_categorical` / `normal` / `set_bernoulli`).
+- More `options` than the type holds → `PULSE_IMPORT_SET_OVERFLOW` before any row is written.
+- A profile-built spec fills this from the captured options and wires the set pairs only when the paired field also reconstructed to its expected distribution (`weighted_categorical` / `normal` / `set_bernoulli`).
 - Without `--conditional` every option draws its own marginal.
-- `SpecFromProfile` carries EVERY captured member at every rung (a 206-member `set_u256` round-trips member-for-member).
+- A profile carries every captured member at every rung.
 
 ## See
 

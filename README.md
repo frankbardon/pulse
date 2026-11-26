@@ -2,28 +2,21 @@
 
 High-performance, self-describing tabular data processing engine written in Go. Ships as a Go library (`github.com/frankbardon/pulse`) and a CLI binary (`cmd/pulse/`). Library is primary; CLI is a thin adapter.
 
-Pulse reads and writes `.pulse` files — a compact binary format with an inline schema, categorical dictionaries, and per-field descriptions. Import from CSV, TSV, NDJSON, JSON array, Parquet, Apache Arrow IPC, or Excel; run aggregations, filters, groupers, windows, features, statistical tests, and regressions; export back to any supported format.
+Pulse reads and writes `.pulse` files — a compact binary format with an inline schema, categorical dictionaries, and per-field descriptions. Import from CSV, TSV, NDJSON, JSON array, Parquet, Apache Arrow IPC, Excel or SPSS (`.sav` / `.zsav`); run aggregations, filters, groupers, windows, features, statistical tests, and regressions; export back to any supported format.
 
 LLM-native by design: every command supports `--json`, every operator declares its accepted types and streamability in the manifest, an embedded skill pack teaches agents how to operate Pulse, an embedded request-example library gives them runnable templates, and `pulse mcp` serves the full surface over Model Context Protocol.
 
 ## Installation
 
-### From source
-
-```bash
-git clone https://github.com/frankbardon/pulse.git
-cd pulse
-make build
-# Binary at ./bin/pulse
-```
-
-### Go install
+Download the archive for your platform from [GitHub Releases](https://github.com/frankbardon/pulse/releases): `pulse_<version>_<os>_<arch>.tar.gz` (Linux, macOS) or `pulse_<version>_windows_<arch>.zip`, for `amd64` and `arm64`, with `checksums.txt` beside them. Or, with Go 1.26.1+:
 
 ```bash
 go install github.com/frankbardon/pulse/cmd/pulse@latest
 ```
 
-Requires Go 1.22+.
+From source: `git clone https://github.com/frankbardon/pulse.git && cd pulse && make build` (binary at `./bin/pulse`).
+
+New here? Follow [Getting Started](https://frankbardon.github.io/pulse/getting-started/installation.html) (install → first cohort → first analysis → first MCP session). Embedding the library? Start at the [Embedder Walkthrough](https://frankbardon.github.io/pulse/library/embedder-walkthrough.html).
 
 ## Quickstart
 
@@ -140,62 +133,19 @@ pulse api facet --input data.pulse --field brand
 
 ### Synthetic data
 
-Generate a deterministic synthetic cohort from a schema spec or from a previously-captured profile:
+Generate a deterministic synthetic cohort from a schema spec, or top up a real cohort with rows drawn from its captured profile:
 
 ```bash
 pulse synth from-schema --spec spec.json --output synth.pulse --seed 42
 pulse profile create --input real.pulse --output profile.json --include-correlations
-pulse synth from-profile --profile profile.json --output synth.pulse --rows 100000 --seed 42
+pulse synth from-profile --profile profile.json --source real.pulse --output synth.pulse --rows 100000 --seed 42
 ```
 
 Distributions such as `normal`, `lognormal`, `poisson`, `bernoulli`, `weighted_categorical`, `regex`, `uniform_date` and `monotonic_from` (the manifest's `synth_distributions` block has the full list), pairwise correlations, value constraints. See the `synthetic-data` skill.
 
 ## CLI Reference
 
-```
-pulse
-├── --json [--slim]                       Root manifest (self-description)
-├── import
-│   ├── csv|tsv|ndjson|jsonarray|         --input FILE --output FILE [--schema FILE]
-│   │   parquet|arrow|excel
-│   ├── auto SOURCE                       Managed import (auto-detect format)
-│   ├── list                              List managed import handles
-│   ├── drop HANDLE                       Drop a managed handle
-│   ├── predict                           --input FILE [--schema FILE] --json
-│   └── schema-template INPUT             Generate editable schema from source
-├── export
-│   ├── csv|tsv|ndjson|jsonarray|         --input FILE --output FILE
-│   │   parquet|arrow|excel
-│   └── predict                           --input FILE --format FORMAT --json
-├── convert INPUT OUTPUT [--from F] [--to F] [--schema FILE] [--keep-pulse PATH]
-│   └── predict INPUT OUTPUT --json
-├── cohort
-│   ├── inspect PATH [--json] [--full-dict]
-│   └── filter --input FILE --output FILE --filter EXPR
-├── api
-│   ├── process --request FILE [--json] [--stream] [--no-defaults]
-│   ├── compose --request FILE [--json] [--stream] [--parallel N] [--no-fail-fast]
-│   ├── sample --input FILE --count N
-│   ├── facet --input FILE --field NAME
-│   └── predict --request FILE --json [--strict]
-├── synth
-│   ├── from-schema --spec FILE --output FILE [--rows N] [--seed N]
-│   └── from-profile --profile FILE --output FILE --rows N [--seed N]
-├── profile
-│   └── create --input FILE --output FILE [--top-k N] [--include-correlations]
-├── skills
-│   ├── list [--json]
-│   └── show NAME
-├── examples
-│   ├── search [--query Q] [--tag T ...] [--category C] [--json]
-│   └── show NAME [--json]
-├── errors
-│   ├── lookup CODE [--json]
-│   └── list [--domain D] [--query Q] [--json]
-└── mcp [--data-dir DIR] [--bind-on-open]   Serve MCP over stdio
-```
-
-Every leaf supports `--json` for output wrapped in a `descriptor.Envelope` with `format_version: "1.1"`, `data`, `errors`, and `warnings`. `pulse api compose --json` wraps a `ComposedResponse` `{responses[], overlays[]}` on `data` — not the legacy `[]*Response` array.
+`pulse --help` lists the command groups (`import`, `export`, `convert`, `cohort`, `api`, `synth`, `profile`, `shard`, `index`, `rake`, `recommend`, `explain`, `features`, `mcp`, …) and `pulse <command> --help` a leaf's flags. The generated [CLI reference](https://frankbardon.github.io/pulse/cli/reference.html) lists every leaf and flag. Every leaf with a result takes `--json` (see [Output Format Contract](#output-format-contract)); `pulse --json` prints the manifest.
 
 ## MCP Usage
 
@@ -235,31 +185,26 @@ Restart the host. Pulse tools appear in the tool list.
 
 ### Tool surface
 
+The core loop is below; `pulse_manifest`'s `mcp_tools` lists every tool the instance mounts (lookups, label / range / lookup tables, raking, chains, materialize, …), and each has a `tool-*` skill.
+
 | Tool | Purpose |
 |---|---|
-| `pulse_manifest` | **Call first.** Self-description: commands, operators, accepted types, tests, regressions, distributions, error codes, MCP tools, cohort field types. Cache once per session. |
+| `pulse_manifest` | **Call first.** Self-description: operators, accepted types, tests, regressions, error codes, MCP tools, field types. Cache once per session. |
+| `pulse_import` | Import a tabular source into a managed `.pulse` handle (TTL-tracked, default 7d). |
 | `pulse_inspect` | Read header + schema (no record bytes). Also binds session-scoped field-name enums on action tools. |
 | `pulse_predict` | Validate a request against the schema without executing. |
-| `pulse_process` | Execute one pre-built request. |
-| `pulse_compose` | Execute a batch of requests in one round trip. |
-| `pulse_sample` | Return up to N rows for preview. |
-| `pulse_facet` | Distinct values for a single field. |
-| `pulse_import` | Import a tabular source into a managed `.pulse` handle (TTL-tracked, default 7d). |
-| `pulse_dedup` | Deduplicate an existing cohort into parent groups, or suggest groups (read-only). |
-| `pulse_recommend` | Turn a question kind (intent ID) into ranked draft requests, predict-validated when bound to a cohort. |
-| `pulse_explain` | Say in plain words what a request will do, or what a result found (verdicts, strength bands, caveats). |
-| `pulse_drop` | Drop a managed handle. |
-| `pulse_imports_list` | Enumerate managed handles with sidecar metadata. |
-| `pulse_examples_search` | Search the embedded request-example library by query, tags, category. |
-| `pulse_examples_get` | Fetch one runnable example by name. |
+| `pulse_process` / `pulse_compose` | Execute one request / a batch in one round trip. |
+| `pulse_sample` / `pulse_facet` | Preview rows / distinct values of a field. |
+| `pulse_recommend` / `pulse_explain` | Draft requests for a question kind (intent ID) / say in plain words what a request does or a result found. |
 | `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |
-| `pulse_skills_list` / `pulse_skills_get` | Embedded skill pack. |
+| `pulse_skills_list` / `pulse_skills_get`, `pulse_examples_search` / `pulse_examples_get` | Embedded skill pack and runnable request examples. |
 
 ### Resources and prompts
 
 | URI | What |
 |---|---|
 | `pulse://<path>` | One per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON. |
+| `pulse://schema` | The request / response payload JSON Schema (`pulse schema`). |
 | `pulse-skill://<name>` | One per embedded skill. Read returns the markdown body. |
 
 Prompts `pulse-bootstrap` and `pulse-author-request`, plus one guided `pulse-<intent>` prompt per analytic intent (inspect → recommend → confirm → process → explain), are registered for hosts that surface them as slash commands.
@@ -274,7 +219,7 @@ Prompts `pulse-bootstrap` and `pulse-author-request`, plus one guided `pulse-<in
 
 ### Schema-bound enums
 
-After a successful `pulse_inspect`, the server registers session-scoped variants of the action tools whose JSON Schemas embed enums on field-name parameters — picked from a typed list rather than free-texted. Works on SSE / Streamable HTTP transports; on stdio the session does not support tool overrides, so enums are advisory and `pulse_predict` remains the validation gate. Disable with `--bind-on-open=false`.
+After a successful `pulse_inspect` (or `pulse_import`), the server re-registers the action tools with enums on their field-name parameters, so the client picks a field from a list instead of free-texting it (the latest inspect wins). Over stdio, one process is one session, so this is the session's view; an embedder serving several HTTP sessions from one server shares one tool set and should bind per server. `pulse_predict` stays the validation gate. Disable with `--bind-on-open=false`.
 
 The `session-bootstrap` skill (`pulse skills show session-bootstrap`) and the `tool-*` skills are the authoritative reference.
 
@@ -308,7 +253,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    importJob := pio.NewImportJob(src, "dataset.pulse")
+    importJob := pio.NewImportJob(src, "cohort.pulse")
     report, err := p.Import(ctx, importJob)
     if err != nil {
         log.Fatal(err)
@@ -317,7 +262,7 @@ func main() {
 
     // Run an aggregation.
     resp, err := p.Process(ctx, &pulse.Request{
-        Cohort: &types.Cohort{Filename: "dataset.pulse"},
+        Cohort: &types.Cohort{Filename: "cohort.pulse"},
         Aggregations: []*types.Aggregation{
             {Type: types.AGG_AVERAGE, Field: "score", Label: "avg"},
         },
@@ -327,8 +272,8 @@ func main() {
     }
     fmt.Println(resp.Data)
 
-    // Inspect a file.
-    result, err := p.Inspect(ctx, "dataset.pulse")
+    // Inspect the cohort.
+    result, err := p.Inspect(ctx, "cohort.pulse")
     if err != nil {
         log.Fatal(err)
     }
@@ -336,7 +281,7 @@ func main() {
 
     // Validate before execution.
     prediction, err := p.Predict(ctx, &pulse.Request{
-        Cohort: &types.Cohort{Filename: "dataset.pulse"},
+        Cohort: &types.Cohort{Filename: "cohort.pulse"},
         Aggregations: []*types.Aggregation{
             {Type: types.AGG_SUM, Field: "revenue"},
         },
@@ -350,7 +295,7 @@ func main() {
 
 ### Public facade
 
-`pulse.Pulse` exposes: `New`, `Open`, `Process`, `ProcessStream`, `Compose`, `ComposeParallel`, `Import`, `ImportFile`, `Drop`, `Imports`, `SweepImports`, `ResolveImport`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `Manifest`, plus example/error lookup helpers.
+`pulse.New` returns the `*pulse.Pulse` facade: `Process`, `ProcessStream`, `Compose`, `ComposeParallel`, `Import`, `Export`, `Convert`, `Inspect`, `Predict`, `Sample`, `Facet`, `Synth`, `Profile`, `Manifest` and more. `go doc github.com/frankbardon/pulse Pulse` lists every method; the [library guide](https://frankbardon.github.io/pulse/library/overview.html) explains them.
 
 ### Custom filesystem
 
@@ -369,7 +314,7 @@ p, _ := pulse.New(pulse.Options{
 
 ### Operator catalogue
 
-The manifest is the source of truth for what is registered — `pulse manifest --json` (or the `pulse_manifest` MCP tool) lists every operator with its params and capabilities. This README keeps categories and representative members only, never counts:
+The manifest is the source of truth for what is registered — `pulse --json` (or the `pulse_manifest` MCP tool) lists every operator with its params and capabilities. This README keeps categories and representative members only, never counts:
 
 - **Aggregators** (`AGG_*`): COUNT, SUM, AVERAGE, MIN, MAX, MEDIAN, STDDEV, PERCENTILE, FREQUENCY, DISTINCT_COUNT, WEIGHTED_MEAN, RATIO, set aggregators (SET_FREQUENCY, SET_UNION, …), …
 - **Attributes** (`ATTR_*`): ZSCORE, TSCORE, NORMALIZED, FORMULA, PERCENTILE, DATE_PART, regression diagnostics (REG_FITTED, REG_RESIDUAL, …), set attributes, …
@@ -378,7 +323,8 @@ The manifest is the source of truth for what is registered — `pulse manifest -
 - **Windows** (`WIN_*`): LAG, LEAD, ROW_NUMBER, RANK, RUNNING_SUM, MOVING_AVG, EWMA, PCT_CHANGE, …
 - **Features** (`FEAT_*`): LOG, SQRT, BUCKETIZE, ONE_HOT, TARGET_ENCODE, DATE_FEATURES, TRAIN_TEST_SPLIT, POLY, …
 - **Statistical tests** (`TEST_*`): tier-1 row tests (T, WELCH, CHISQ, ANOVA_F, KS, PEARSON_R, MANN_WHITNEY_U, FISHER_EXACT, SHAPIRO_WILK, …) and tier-2 post-tests (TUKEY_HSD, TREND, summary-statistic variants)
-- **Regressions** (`REG_*`): OLS, GLM, BAYES_LINEAR — with `Resample` / `Selection` modifiers and `FEAT_POLY` composition covering the common textbook regression variants
+- **Regressions** (`REG_*`): OLS, GLM, BAYES_LINEAR, … — with `Resample` / `Selection` modifiers and `FEAT_POLY` composition covering the common textbook regression variants
+- **Matrices** (`MAT_*`): COVARIANCE, CORRELATION, COLLINEARITY, … over a vector of fields
 - **Synth distributions**: listed under `synth_distributions` in the manifest
 
 ## LLM Skill Pack
@@ -395,7 +341,7 @@ pulse skills show session-bootstrap
 
 ### Bundled skills
 
-The pack has two shapes. **Atomic** skills cover one registered surface each, and their name says which: `op-<category>-<kebab>` per operator (`op-agg-sum`, `op-group-date`, `op-test-t`, …), `tool-<kebab>` per MCP tool (`tool-process`, `tool-predict`, …) and `type-<kebab>` per field type (`type-categorical-u8`, `type-set-u256`, …). **Topical** skills cover cross-cutting design:
+The pack has two shapes. **Atomic** skills cover one registered surface each, and their name says which: `op-<category>-<kebab>` per operator (`op-agg-sum`, `op-group-date`, `op-test-t`, …), `tool-<kebab>` per MCP tool (`tool-process`, `tool-predict`, …) and `type-<kebab>` per field type (`type-categorical-u8`, `type-set-u256`, …). **Topical** skills cover cross-cutting design; common entry points:
 
 | Skill | Purpose |
 |---|---|
@@ -428,11 +374,10 @@ The pack has two shapes. **Atomic** skills cover one registered surface each, an
 
 ### From Go
 
-The skill pack is embedded in the binary (`internal/skills/`) and is not a
-Go import. Reach it through `pulse skills list` / `pulse skills show <name>`,
-the MCP skill tools and `pulse-skill://` resources (mounted by
-`gosdk.Register` or `mcpserve`), or the `skills` block of
-`(*pulse.Pulse).Manifest`.
+The skill pack is embedded in the binary (`internal/skills/`), not a Go
+import. From Go, `(*pulse.Pulse).Skills` lists the skills an instance exposes
+and `Skill(name)` returns one body; the MCP skill tools and `pulse-skill://`
+resources (mounted by `gosdk.Register` or `mcpserve`) serve the same set.
 
 The root manifest (`pulse --json`) includes a `skills[]` array so agents can discover available skills in one call.
 
@@ -440,44 +385,16 @@ The root manifest (`pulse --json`) includes a `skills[]` array so agents can dis
 
 Binary, self-describing, fully transportable:
 
-- **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x01`, or `0x02` when the schema declares a parent group)
-- **Schema block**: field count, per-field descriptors (type, name, byte offset, bit position, source column index, optional description capped at 1000 bytes)
-- **Dictionary blocks**: one per categorical field (string-to-integer mapping stored inline)
-- **Record data**: fixed-width binary records, one per row
+- **9-byte header**: magic bytes (`PULSE\x00\x00\x00`) + format version (`0x02` when the schema declares a parent group, a vector or a default zone field, else `0x01`)
+- **Schema block**: per field — name, type, nullable flag, byte offset, bit position, source column index (`u16`), optional description (≤ 1000 bytes)
+- **Dictionary blocks**: one per categorical or set field
+- **Record data**: fixed-width binary records, then a per-record null bitmap when any field is nullable
 
-Field types (the manifest's `cohort_types` block is the authoritative list; per-type detail lives in the `type-*` skills):
-
-| Type | Bytes | Notes |
-|---|---|---|
-| `u4` | 0 | 4-bit unsigned; bit-packed |
-| `u8`, `u16`, `u32`, `u64` | 1, 2, 4, 8 | Unsigned integers |
-| `f32`, `f64` | 4, 8 | IEEE 754 floats |
-| `date` | 4 | Days since Unix epoch |
-| `datetime` | 8 | Seconds since Unix epoch |
-| `packed_bool` | 0 | Bit-packed; shares bytes with adjacent packed fields |
-| `categorical_u8`, `categorical_u16`, `categorical_u32` | 1, 2, 4 | Dictionary-encoded strings |
-| `decimal128` | 16 | Fixed precision/scale; banker's rounding |
-| `set_u8` … `set_u64`, `set_u128`, `set_u256` | 1–8, 16, 32 | Multi-select bitmask over an inline dictionary |
-
-Nullability is orthogonal to type: any field can be nullable, carried by a per-record null bitmap. Categorical width auto-selected from sample cardinality during import. Bit-packed types report `ByteSize() == 0` — they share bytes with adjacent packed fields. Schema reader rejects unknown type bytes at parse time with `ENCODING_INVALID`.
+A `.pulse` path may instead be a shard archive (an uncompressed Zip64 file of shards sharing one schema). The manifest's `cohort_types` block lists the field types; the [format chapter](https://frankbardon.github.io/pulse/format/header.html) and the `type-*` skills give each type's layout and semantics. An unknown type byte is refused at parse time with `ENCODING_INVALID`.
 
 ## Configuration
 
-Environment variables (`pulse.Options` always overrides; a `.env` at the repo root is auto-loaded):
-
-```bash
-export PULSE_DATA_DIR=/path/to/data        # Base directory for .pulse cohorts (fs.Default); bypass with Options{DataDir} or Options{FS}
-export PULSE_IMPORTS_DIR=imports           # Managed-imports subdir under the fs root (default "imports")
-export PULSE_IMPORT_TTL=7d                 # Default TTL for managed imports: Go duration ("24h"), day form ("7d") or "pin"; default 7d
-export PULSE_LABEL_TABLES_DIR=/path/labels # Directory whose *.json files auto-load as LabelTables at pulse.New, keyed by filename
-export PULSE_RANGE_TABLES_DIR=/path/ranges # Same shape for RangeTables ({label,start,end} array or {"description","ranges"} wrapper)
-export PULSE_LOOKUP_TABLES_DIR=/path/lookups # Same for LookupTables read by lookup() ({key: number} map or {"description","rows"} wrapper)
-export PULSE_POPULATIONS_DIR=/path/pops     # Saved *.pulse-population.json files registered as Extensions.Populations (name = file stem)
-export PULSE_MCP_NO_COHORT_SCAN=1          # pulse mcp only: skip the startup cohort enumeration; pulse:// URIs stay readable
-export PULSE_TEMPLATES_DIR=/a:/b           # Request-template roots, PATH-style precedence (first root wins)
-```
-
-Embedders override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, FS, LabelTablesDir, RangeTablesDir, LookupTablesDir, TemplateDirs}`; the cohort-scan switch is `gosdk.Config.DisableCohortScan` / `mcpserve.Options.DisableCohortScan` (CLI `pulse mcp --no-cohort-scan`). No config files.
+`PULSE_DATA_DIR` (the base directory for cohorts) is the one required environment variable; `pulse.Options` always overrides the environment. No config files. Every `PULSE_*` variable and the matching `Options` field is in the [Options reference](https://frankbardon.github.io/pulse/library/options.html).
 
 ## Output Format Contract
 
@@ -487,12 +404,13 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 {
   "format_version": "1.1",
   "data": { ... },
+  "request": { ... },
   "errors": [],
   "warnings": []
 }
 ```
 
-`format_version` is `"1.1"` (bumped from `"1.0"` for the Compose facade lift — `pulse api compose --json` now wraps a `ComposedResponse` object `{responses[], overlays[]}` on `data` instead of a raw `[]*Response` array). Errors/warnings use `{"code", "message", "details"}` entries (empty array when absent, never null). Additive-only: new `data` fields don't bump the version; renames or removals do.
+`request` appears only when `--echo-request` (`Options.EchoRequest`) asks for the normalised request. Errors and warnings are `{"code", "message", "details"}` entries (an empty array when absent, never null); any error makes the exit status 1. `format_version` is additive-only: new `data` fields don't bump it; renames or removals do. `pulse api compose --json` puts a `ComposedResponse` `{responses[], overlays[]}` on `data`.
 
 ## Development
 
@@ -500,11 +418,12 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 
 ```bash
 make build    # Binary at ./bin/pulse
-make test     # fast test tier: go test ./...
+make test     # fast test tier (go test ./...), failing any test that takes >= 1 s
 make test-heavy  # both tiers: go test -tags heavy ./... (tests >= 1 s live in //go:build heavy files)
 make fmt      # gofmt -w .
-make vet      # go vet
-make lint     # gofmt check (fmt-check) + go vet + staticcheck (make staticcheck) on both test tiers (auto-installed via go run); CI splits it into parallel jobs
+make vet      # go vet, both test tiers
+make smoke    # build and test the embedder smoke module (internal/embeddersmoke)
+make lint     # run as GOTOOLCHAIN=go1.26.1 make lint: gofmt check (fmt-check) + go vet + staticcheck (make staticcheck) on both test tiers (auto-installed via go run); CI splits it into parallel jobs
 make cover    # both tiers with coverage; fails on a package below its .github/coverage-floors.txt floor
 make vulncheck  # pinned govulncheck over ./..., GOOS=linux then GOOS=windows (needs network)
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
@@ -515,14 +434,14 @@ make sites ARGS="op MAT_PCA"  # change-site checklist (op / new-op / slot) for c
 make clean    # Remove artifacts
 ```
 
-A `.env` at repo root is auto-loaded by the Makefile.
+A `.env` at the repo root is loaded by the Makefile (not by the library or CLI).
 
 ### Run tests
 
 ```bash
 go test ./...               # fast tier
 go test -tags heavy ./...   # both tiers
-go test ./processing/...
+go test ./internal/processing/...
 go test ./internal/service/... -v -run TestProcess
 go test ./encoding/... -fuzz FuzzPulseFileHeader -fuzztime 30s
 ```
@@ -541,6 +460,8 @@ pulse/
 ├── synth/                  Synthetic data specs, profiles, Synth
 ├── mcp/gosdk/, mcpserve/   Mount Pulse's MCP tools / run a ready-made server
 ├── extend/                 Public extension-authoring contract (Record, Rows, operator interfaces)
+├── linalg/, optimize/, mcmc/  Public numeric cores: linear algebra, optimization, MCMC
+├── observe/                Metrics, log attributes and hooks (+ observe/otel, observe/prom)
 ├── docs/                   mdBook source (GitHub Pages)
 └── internal/               Everything else: service, descriptor and encoding
                             builders, io/<fmt> adapters, operator engine, synth engine, mcp core,

@@ -99,7 +99,7 @@ func runResampleCtx(
 func unknownResample(spec *types.RegressionSpec) error {
 	return errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_CONFIG,
-		"unknown Resample value: "+spec.Resample+" (expected jackknife | bootstrap)",
+		"unknown resample value: "+spec.Resample+" (expected jackknife | bootstrap)",
 		map[string]any{"resample": spec.Resample},
 	)
 }

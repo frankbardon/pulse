@@ -9,23 +9,20 @@ stable regardless of whether the underlying request shape streams
 inside the engine — non-streamable requests return the same iterator,
 they just buffer once internally before yielding.
 
-> **LLM agents using MCP:** the MCP-side streaming surface is
-> `pulse_process` with the streaming option. The Streamable predicate
-> is the same on both surfaces.
+> **LLM agents using MCP:** the MCP tools return buffered results and
+> have no streaming option; `pulse_predict` reports the same
+> `streamable` verdict as `Predict`.
 
 ## The iterator API
 
 ```go
-type RowIter = internal/service.RowIter
-
-// In service:
+// pulse.RowIter
 type RowIter interface {
-    Next(ctx context.Context) (Row, bool, error)
+    Next(ctx context.Context) (Row, bool, error) // Row is map[string]any
     Close() error
-    Metadata() *ResponseMetadata
+    Metadata() *types.ResponseMetadata
+    Components() *types.ResponseComponents
 }
-
-type Row = internal/service.Row // map[string]any
 ```
 
 Usage:
@@ -69,7 +66,7 @@ Precision applies only on the wire, so rows stay full `float64`. To
 write a row at the block's precision, assert
 `interface{ MarshalRow(pulse.Row) ([]byte, error) }` on the iterator;
 `pulse api process --stream` does exactly that. With no effective
-block, the iterator is the unshaped one, byte-identical to before.
+block, the iterator is unshaped.
 
 ## Run-time warnings
 
@@ -100,12 +97,8 @@ if !pred.Streamable {
 }
 ```
 
-The streaming-eligible request shapes are listed in
-[Performance Notes → Streaming path](../ops/performance.md#streaming-path-what-stays-out-of-memory).
-
-The complement — the request shapes that force the buffered path —
-is at [Performance Notes → Buffered
-path](../ops/performance.md#buffered-path-when-pulse-has-to-materialise).
+Which request shapes stream and which force the buffered path:
+[Performance Notes → Streaming or buffered](../ops/performance.md#streaming-or-buffered).
 
 `Streamable=false` doesn't mean the iterator is broken; it just
 means rows materialise inside the engine before `Next` yields them.
@@ -124,7 +117,7 @@ An embedder writes the same compose stream from a finished run with
 — the rows, then the trailing lines the CLI writes. Set
 `TerminalFits: true` (CLI `--stream-fits`) to end it with one
 `{"fits": {...}}` line, the buffered `fits` object, when the request
-declares fits; off, the stream is byte-identical.
+declares fits.
 
 ## Cancellation
 
@@ -147,13 +140,11 @@ row into your own struct before processing — `Row` is
 
 ## Inside the engine
 
-Under the hood, `ProcessStream` calls one of four orchestrator modes
-depending on the request shape: single-pass streaming, grouped
-streaming, two-pass streaming, or the buffered fallback. The choice
-is made by the engine's internal streamability gate, which is the
-same predicate `Predict.Streamable` reports — call `Predict` to learn
-the path before you run — this parity is
-enforced by `TestPredict_Streamable_MatchesRuntime`.
+Under the hood, `ProcessStream` picks an orchestrator mode from the
+request shape: single-pass streaming, grouped streaming, two-pass
+streaming, or the buffered fallback. The choice is made by the
+engine's streamability gate, the same predicate `Predict` reports as
+`Streamable`, so call `Predict` to learn the path before you run.
 
 If you find a request that predict says is streamable but `Next`
 materialises something large, that's a parity drift and a bug —

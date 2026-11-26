@@ -54,11 +54,11 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- PROCESSING ----------
 	PROCESSING_CONFIG: {
-		Message: "An operator's configuration is invalid (missing params, wrong type, out-of-range value).",
+		Message: "An operator's configuration is invalid (an unknown operator type, a missing param, a wrong type, an out-of-range value).",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Run pulse predict --json on the request first; the predict envelope names the offending operator and parameter so the fix is mechanical.",
+				Hint:   "Run predict on the request first (pulse_predict, or pulse api predict --json): its envelope names the offending operator and parameter.",
 			},
 		},
 	},
@@ -72,12 +72,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "Formula"},
-				Hint:   "Guard the formula with a null/zero check (e.g. wrap denominators in an iff(x == 0, null, x) before dividing).",
+				Hint:   "Guard the formula against the failing value, e.g. a zero denominator: `y == 0 ? nil : x / y`.",
 			},
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Filterers"},
-				Hint:   "Add a FILTER_RANGE that excludes the rows that trip the runtime error before the operator runs.",
+				Hint:   "Or filter out the rows that trip it (FILTER_RANGE, FILTER_EXPRESSION) before the operator runs.",
 			},
 		},
 	},
@@ -87,7 +87,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Groups", "*", "Type"},
-				Hint:   "Swap GROUP_QUANTILE for GROUP_RANGE on near-constant fields, or GROUP_CATEGORY for a high-cardinality numeric to GROUP_ROUNDED.",
+				Hint:   "Swap GROUP_QUANTILE for GROUP_RANGE on a near-constant field, or GROUP_CATEGORY on a high-cardinality numeric for GROUP_ROUNDED.",
 			},
 			{
 				Action: FixupReplaceOperator,
@@ -124,18 +124,18 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceOperator,
 				Path:     []string{"Regressions", "*", "Penalty"},
-				Hint:     "Add a regularization penalty (l2 / ridge is the conventional fix for collinearity) or drop the redundant predictor from Predictors[].",
+				Hint:     "Add penalty: l2 (ridge, the conventional fix for collinearity) or drop the redundant predictor from predictors.",
 				Examples: []any{"l2", "elasticnet"},
 			},
 		},
 	},
 	PROCESSING_REGRESSION_NO_CONVERGE: {
-		Message: "An iterative regression fit (IRLS for a generalized linear model, coordinate descent for a regularized least-squares fit) failed to converge within MaxIters.",
+		Message: "An iterative regression fit (IRLS for a generalized linear model, coordinate descent for a regularized least-squares fit) failed to converge within max_iters.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Regressions", "*", "MaxIters"},
-				Hint:   "Raise MaxIters, loosen Tol, rescale the predictors, or drop a near-collinear column; persistent non-convergence usually points to a separable / degenerate design.",
+				Hint:   "Raise max_iters, loosen tol, rescale the predictors, or drop a near-collinear predictor; persistent non-convergence usually points to a separable or degenerate design.",
 			},
 		},
 	},
@@ -156,23 +156,23 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Regressions", "*", "Alpha"},
-				Hint:   "Increase Alpha to lift the conditioning, or drop the degenerate (all-zero / duplicated) predictor from Predictors[].",
+				Hint:   "Increase alpha to lift the conditioning, or drop the degenerate (all-zero or duplicated) predictor from predictors.",
 			},
 		},
 	},
 	PROCESSING_REGRESSION_INVALID_FAMILY: {
-		Message: "REG_GLM was requested with a Family outside the supported set.",
+		Message: "REG_GLM was requested with a family outside the supported set.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "Family"},
-				Hint:     "Set Family to one of binomial (logistic), poisson, gamma, or negative_binomial (over-dispersed counts); check the regression-modeling skill for the family / link compatibility matrix.",
+				Hint:     "Set family to binomial (logistic), poisson, gamma or negative_binomial (over-dispersed counts); the regression-modeling skill lists each family's links.",
 				Examples: []any{"binomial", "poisson", "gamma", "negative_binomial"},
 			},
 		},
 	},
 	PROCESSING_REGRESSION_INVALID_LINK: {
-		Message: "The requested Link function is incompatible with the chosen Family.",
+		Message: "The requested link is not one the chosen family takes.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -188,7 +188,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Filterers"},
-				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim Predictors[] to a smaller set.",
+				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim predictors.",
 			},
 			{
 				Action: FixupReplaceOperator,
@@ -217,8 +217,18 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_REGULARIZED_SELECTION: {
+		Message: "A linear, generalized linear or multinomial regression slot sets both a penalty and a selection. The penalty already shrinks (l2) or selects (l1 / elasticnet) coefficients, so a greedy stepwise / forward / backward search on top is unusual and can yield a model harder to read than either alone. A predict warning only: the fit runs. details carry type, penalty and selection.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Selection"},
+				Hint:   "Drop selection and let the penalty choose (l1 / elasticnet zero coefficients), or drop penalty and keep the subset search; keep both only if the combination is intended.",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
-		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net or a penalised multinomial fit (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac, driscoll_kraay) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value (within one entity, under covariance.entity). details.reason names which.",
+		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net or a penalised multinomial fit (with or without resample / selection), or a robust covariance (hc0–hc3, cluster, hac, driscoll_kraay) beside a penalty, resample or selection, or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value (within one entity, under covariance.entity). details.reason names which.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -233,7 +243,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PROCESSING_VECTOR_LENGTH_MISMATCH: {
-		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. When both lengths are fixed by the request — literal arrays, or bare named vectors (a Request.Vectors member count, a vec_* field's dim) — predict reports it and the run refuses it at build, before any row; a computed argument (a nested call, a slice) is checked per row. details.function names the call, details.left and details.right the two lengths.",
+		Message: "A pairwise vector expression function (dot, dist or cosine) received two vectors of different lengths; the run fails instead of returning NaN. When both lengths are fixed by the request — literal arrays, or bare named vectors (a `vectors` entry's member count, a vec_* field's dim) — predict reports it and the run refuses it at build, before any row; a computed argument (a nested call, a slice) is checked per row. details.function names the call, details.left and details.right the two lengths.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -269,26 +279,30 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Call pulse predict --json on the request; predict reports the exact missing or malformed field path so the fix is mechanical.",
+				Hint:   "Run predict on the request (pulse_predict, or pulse api predict --json): it names the missing or malformed key.",
 			},
 		},
 	},
 	SERVICE_RESOURCE: {
-		Message: "A required resource could not be opened (missing .pulse file, unreadable path).",
+		Message: "A cohort (a .pulse file or shard archive) or a file Pulse writes beside it could not be opened, read or written.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Cohort", "Filename"},
-				Hint:   "Verify the cohort filename exists under PULSE_DATA_DIR (or the configured DataDir) and the process has read access.",
+				Hint:   "Check the path in the message (details.path when present) exists and is readable: the CLI resolves a relative path against the working directory, `pulse mcp` and a library instance against the data directory (PULSE_DATA_DIR, --data-dir or Options.DataDir).",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a failed write or rename, check the target directory is writable and has free space.",
 			},
 		},
 	},
 	SERVICE_REGISTRY: {
-		Message: "The request named an operator that is not registered (typo in type field, deprecated identifier).",
+		Message: "The request named an operator this instance does not register (a misspelt type, or one its feature profile hides).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Hint:   "Check the operator name against pulse manifest --json (Components section); spelling and casing must match exactly.",
+				Hint:   "Check the name against the manifest (pulse_manifest, or pulse --json: its `components`); spelling and case must match exactly.",
 			},
 		},
 	},
@@ -299,20 +313,20 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- DATA ----------
 	DATA_FILE: {
-		Message: "A data file could not be opened or its layout is invalid.",
+		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, a docs export directory) could not be read, or its layout is invalid.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Verify the input file exists, is non-empty, and matches the declared format (CSV / TSV / NDJSON / Parquet / Excel).",
+				Hint:   "Check the path in the message (details.path when present) exists, is readable and is in the format its command expects; an import source must match its `pulse import <format>` leaf.",
 			},
 		},
 	},
 	DATA_PARSE: {
-		Message: "Tabular input (CSV / TSV / JSON / Parquet) failed to parse at a row boundary.",
+		Message: "A tabular import source (CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel) failed to parse.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Inspect the offending row with pulse sample --rows N; common causes are inconsistent column counts, stray quotes, or wrong delimiter.",
+				Hint:   "Open the source at the row or offset the message names; common causes are an inconsistent column count, a stray quote or a file in another format than its import leaf.",
 			},
 		},
 	},
@@ -321,7 +335,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Re-run with --help; check that the format flag matches the file extension and the schema template names existing columns.",
+				Hint:   "Re-run the leaf with --help: the message names the conflicting flag, the unknown format or the bad target path.",
 			},
 		},
 	},
@@ -330,7 +344,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Verify every field reference in the request appears in pulse inspect --json output for the cohort.",
+				Hint:   "Verify every field reference in the request appears in pulse cohort inspect --json output for the cohort.",
 			},
 		},
 	},
@@ -350,11 +364,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	CLI_OUTPUT: {
-		Message: "Output generation failed (file write error, terminal too narrow, format unsupported).",
+		Message: "Output generation failed (a file that cannot be written, an unsupported output format).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Pick a writable output path with free disk space, or omit --output to stream to stdout.",
+				Hint:   "Pick a writable output path with free disk space.",
 			},
 		},
 	},
@@ -363,7 +377,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Check the wrapped error in the envelope details; for processing leaves, run pulse predict --json on the request first.",
+				Hint:   "Read the message for the underlying failure; for a request, run predict on it first (pulse api predict --json).",
 			},
 		},
 	},
@@ -371,14 +385,23 @@ var codeMetadata = map[Code]Metadata{
 		Message:            "Internal invariant violated inside the CLI binary; report with reproducer.",
 		FixupNotApplicable: true,
 	},
+	CLI_ERROR: {
+		Message: "A CLI command failed with an error that carries no Pulse code of its own; the message is the underlying error (most often a file that cannot be read or written).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Read errors[0].message: check the path or argument it names exists and is readable (or writable), then re-run. A message that names no input is a Pulse bug: report it with the command line.",
+			},
+		},
+	},
 
 	// ---------- PULSE ----------
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS: {
-		Message: "Schema inference observed conflicting types in the same column across the sample window.",
+		Message: "Schema inference has nothing to infer from: the source header has no columns, or the source has no data row to sample.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Increase --sample-rows so the inference window sees a representative subset, or supply --schema with an explicit type for the offending column.",
+				Hint:   "Check the source is the file you meant and carries a header row and at least one data row; to import a header-only source, supply --schema with an explicit type for every column.",
 			},
 		},
 	},
@@ -490,7 +513,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN: {
-		Message: "An explicit import schema file declares a field whose `type` is not a registered field type, so the schema is refused before any row is read. The name is matched exactly (lower case, as `pulse import schema-template` emits it) and never coerced — an unknown name no longer falls back to f64. Details carry `field`, `type` (the name as written) and `valid` (every registered type name). Raised by every schema-file loader: `import <format> --schema`, `import predict --schema` and `convert --schema`.",
+		Message: "An explicit import schema file declares a field whose `type` is not a registered field type, so the schema is refused before any row is read. The name is matched exactly (lower case, as `pulse import schema-template` emits it) and never coerced. Details carry `field`, `type` (the name as written) and `valid` (every registered type name). Raised by every schema-file loader: `import <format> --schema`, `import predict --schema` and `convert --schema`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -574,7 +597,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-import the source data to regenerate the .pulse file; the dictionary or encoding state is inconsistent. When every row failed, suspect the TARGET rather than the cohort — `first_error` is the writer's own refusal, and a column type the format cannot represent rejects every row identically.",
+				Hint:   "A per-row failure names the row: the stored value cannot be written in the target format (export to one that holds it), or the cohort is corrupt (re-import its source). When every row failed, suspect the TARGET rather than the cohort — `first_error` is the writer's own refusal, and a column type the format cannot represent rejects every row identically.",
 			},
 		},
 	},
@@ -584,7 +607,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Includes", "*"},
-				Hint:   "Run pulse inspect on the source .pulse file to list valid field names, then correct or drop the offending --include entry. Pass no --include flags to export every field.",
+				Hint:   "Run pulse cohort inspect on the source .pulse file to list valid field names, then correct or drop the offending --include entry. Pass no --include flags to export every field.",
 			},
 		},
 	},
@@ -612,16 +635,16 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Widen the set type up the ladder (set_u64 -> set_u128 -> set_u256) and re-import; above 256 entries, denormalize to one row per (record, element) pair. If the dictionary is actually bounded, raise --sample-rows or supply a force_type schema hint.",
+				Hint:   "Widen the set type up the ladder (set_u64 -> set_u128 -> set_u256) and re-import; above 256 entries, denormalize to one row per (record, element) pair. If the dictionary is actually bounded, raise --sample-rows or pin the column with column_type_overrides.",
 			},
 		},
 	},
 	PULSE_IMPORT_CATEGORICAL_UNBOUNDED: {
-		Message: "The categorical inference heuristic believes the column has unbounded cardinality and should be modeled as a string.",
+		Message: "Every sampled value of a text column is distinct (an identifier or free text), so inference will not make it a categorical; the import is refused. details carry column, unique and sampled.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-import with the column declared as a non-categorical type; if cardinality is truly bounded, raise --sample-rows to confirm.",
+				Hint:   "Drop the column from the source, or type it with --schema or column_type_overrides (a numeric identifier as u32 / u64); if its values truly repeat, raise --sample-rows so the sample sees the repeats.",
 			},
 		},
 	},
@@ -639,7 +662,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Pass an explicit format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) on the import call, or rename the source file with a supported extension.",
+				Hint:   "Import through the format's own leaf (pulse import csv / tsv / ndjson / jsonarray / parquet / arrow / excel / spss) or pass the format explicitly, or rename the source with a supported extension.",
 			},
 		},
 	},
@@ -670,7 +693,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Pass overwrite=true to replace the existing handle, choose a different name, or drop the existing handle first.",
+				Hint:   "Pass overwrite (--overwrite on pulse import auto) to replace the existing handle, choose a different name, or drop the existing handle first.",
 			},
 		},
 	},
@@ -784,7 +807,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"*"},
-				Hint:   "Remove the slot named in details.slot, or run the request through Process instead; a materialized cohort can then be processed with that slot as an ordinary request.",
+				Hint:   "Remove the slot named in details.slot, or run the request with process instead; a materialized cohort can then be processed with that slot as an ordinary request.",
 			},
 		},
 	},
@@ -794,7 +817,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Features"},
-				Hint:   "Add at least one feature, attribute or window slot; to copy filtered records without new columns, write the filtered cohort instead.",
+				Hint:   "Add at least one feature, attribute or window slot; to copy filtered records without new fields, use pulse cohort filter.",
 			},
 		},
 	},
@@ -859,7 +882,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Output", "Columns", "*", "From"},
-				Hint:   "Name a source field (pulse inspect lists them) or a feature / attribute / window label of the same request; details.suggestion names the closest match when there is one.",
+				Hint:   "Name a source field (pulse cohort inspect lists them) or a feature / attribute / window label of the same request; details.suggestion names the closest match when there is one.",
 			},
 		},
 	},
@@ -919,7 +942,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Output", "Columns", "*", "Recode", "Map"},
-				Hint:   "Rename or drop the recode.map key details.label (details.suggestion names the closest source label when there is one); pulse inspect --full-dict lists the dictionary of the column named by details.from.",
+				Hint:   "Rename or drop the recode.map key details.label (details.suggestion names the closest source label when there is one); pulse cohort inspect --full-dict lists the dictionary of the column named by details.from.",
 			},
 		},
 	},
@@ -954,7 +977,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"margins", "*", "targets"},
-				Hint:   "Key every target by the field's stored category spelling (pulse inspect --full-dict lists a categorical's entries).",
+				Hint:   "Key every target by the field's stored category spelling (pulse cohort inspect --full-dict lists a categorical's entries).",
 			},
 		},
 	},
@@ -1088,17 +1111,17 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Windows", "*", "Type"},
-				Hint:   "A retired window type (renamed before v1.0.0, no alias) is refused with details.renamed_to naming its replacement — WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG: set Type to the details.renamed_to value; the params are unchanged.",
+				Hint:   "A retired window type is refused with details.renamed_to naming its replacement (WIN_ADSTOCK → WIN_DISTRIBUTED_LAG): set type to that value; the params are unchanged.",
 			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Windows", "*", "OrderBy"},
-				Hint:   "Every WIN_* operator requires at least one OrderBy key (WIN_SHARE / WIN_LIFT only when params.cumulative is true); supply a date or numeric field.",
+				Hint:   "Every WIN_* operator requires at least one order_by key (WIN_SHARE / WIN_LIFT only when params.cumulative is true); supply a date or numeric field.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
-				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
+				Hint:   "Drop frame on WIN_ROW_NUMBER, WIN_RANK, WIN_DENSE_RANK, WIN_LAG, WIN_LEAD, WIN_PCT_CHANGE, WIN_DELTA, WIN_SHARE, WIN_LIFT; supply frame (mode \"rows\") on WIN_MOVING_AVG (both bounds), WIN_EWMA and WIN_RUNNING_*.",
 			},
 			{
 				Action:   FixupReplaceField,
@@ -1114,7 +1137,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Windows", "*", "Params"},
-				Hint:   "details.reason default_not_a_label: a WIN_LAG / WIN_LEAD over a categorical fills a missing neighbour with params.default, a cell of the lagged category — set it to one of details.field's dictionary labels exactly (pulse inspect lists them), or drop it for null.",
+				Hint:   "details.reason default_not_a_label: a WIN_LAG / WIN_LEAD over a categorical fills a missing neighbour with params.default, a cell of the lagged category — set it to one of details.field's dictionary labels exactly (pulse cohort inspect lists them), or drop it for null.",
 			},
 		},
 	},
@@ -1144,7 +1167,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE without params.fit_on averages every record's outcome, the validation/test records' included (and, without folds, the record's own): features run before filters, so a preceding train/test split changes no value. With folds but no fit_on the warning is reworded — no record sees its own outcome, every record still sees the holdout's. Only fit_on silences it. Predict decides from the request alone and warns; Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index} (+ folds); under strict both refuse — predict as an error, Process before any record is read.",
+		Message: "FEAT_TARGET_ENCODE without params.fit_on averages every record's outcome, the validation/test records' included (and, without folds, the record's own): features run before filters, so a preceding train/test split changes no value. With folds but no fit_on the warning is reworded — no record sees its own outcome, every record still sees the holdout's. Only fit_on silences it. Predict decides from the request alone and warns; the run (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index} (+ folds); under strict both refuse — predict as an error, the run before any record is read.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -1192,7 +1215,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: {
-		Message: "A built-in aggregation with no decimal128 implementation (e.g., median or percentile in v1) names a decimal128 field; predict and the runtime refuse it.",
+		Message: "A built-in aggregation with no decimal128 implementation (e.g., median or percentile) names a decimal128 field; predict and the runtime refuse it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -1208,7 +1231,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Attributes", "*", "Params", "codes"},
-				Hint:   "Codes on a categorical field are dictionary LABELS, matched exactly (case included); check them against pulse inspect --full-dict and correct or drop each one listed in details.missing_codes.",
+				Hint:   "Codes on a categorical field are dictionary LABELS, matched exactly (case included); check them against pulse cohort inspect --full-dict and correct or drop each one listed in details.missing_codes.",
 			},
 		},
 	},
@@ -1373,7 +1396,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups"},
-				Hint:   "Put the date grouper (details.date_axis, when present) last in Request.Groups so the series runs through time within each segment.",
+				Hint:   "Put the date grouper (details.date_axis, when present) last in groups so the series runs through time within each segment.",
 			},
 			{
 				Action:   FixupReplaceField,
@@ -1438,7 +1461,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Hint:   "Check the distribution name against synth.AllDistributions(); common typos: gaussian -> normal, power_law -> pareto.",
+				Hint:   "Check the name against the manifest's synth_distributions (synth.AllDistributions() in Go); common typos: gaussian -> normal, power_law -> pareto.",
 			},
 		},
 	},
@@ -1470,19 +1493,29 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SYNTH_OUTPUT_COLLISION: {
-		Message:            "The output path resolves to the same file as the source cohort; refused so the source is never opened for write or mutated.",
-		FixupNotApplicable: true,
+		Message: "The output path resolves to the same file as the source cohort; refused so the source is never opened for write or mutated.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Pass an output path (--output) that is not the source cohort.",
+			},
+		},
 	},
 	PULSE_SYNTH_ALREADY_TAGGED: {
-		Message:            "The source cohort already declares a _synthetic field, so a tagged top-up run would produce an ambiguous second provenance column.",
-		FixupNotApplicable: true,
+		Message: "The source cohort already declares a _synthetic field, so a tagged top-up run would produce an ambiguous second provenance column.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Top up the original untagged cohort instead, or pass --synthetic-only (SynthOptions.SyntheticOnly) to write only the generated rows, with no _synthetic column.",
+			},
+		},
 	},
 	PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH: {
 		Message: "The profile-derived spec's fields don't line up (name/type/decimal precision-scale, in order) with the source cohort's own schema.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-run `profile create` against the exact source cohort being topped up, then retry synth from-profile with the fresh profile.",
+				Hint:   "Re-run `pulse profile create` against the exact source cohort being topped up, then retry `pulse synth from-profile` with the fresh profile.",
 			},
 		},
 	},
@@ -1672,7 +1705,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Regressions"},
-				Hint:   "Give the request at least one regression (the same `regressions` array `pulse process` reads); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
+				Hint:   "Give the request at least one regression (the same `regressions` array a request carries); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
 			},
 			{
 				Action: FixupSetDefault,
@@ -1690,12 +1723,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_UNKNOWN_TYPE: {
-		Message: "The request referenced a TestType not registered in either the row-test or post-test registry.",
+		Message: "The request names a test type registered as neither a test nor a post-test.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Tests", "*", "Type"},
-				Hint:   "Check the test name against types.AllTestTypes(); confirm the test is registered for the intended tier (Tests vs PostTests).",
+				Hint:   "Check the name against the manifest's tests and post_tests lists, and put it in the slot of its tier (tests or post_tests).",
 			},
 		},
 	},
@@ -1705,17 +1738,17 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "Field"},
-				Hint:   "Pick a numeric field (u*, f*, nullable_u*, decimal128) or use TEST_CHISQ with Rows/Cols for categorical association.",
+				Hint:   "Pick a numeric field (u*, f*, decimal128), or use TEST_CHISQ with rows / cols for a categorical association.",
 			},
 		},
 	},
 	PULSE_TEST_INVALID_ALPHA: {
-		Message: "The request's Alpha value lies outside (0, 1).",
+		Message: "The test's alpha lies outside (0, 1).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"Tests", "*", "Alpha"},
-				Hint:     "Pick a value in (0, 1); common choices are 0.10, 0.05, 0.01. Omit Alpha to accept the 0.05 default.",
+				Hint:     "Pick a value in (0, 1); common choices are 0.10, 0.05, 0.01. Omit alpha to accept the 0.05 default.",
 				Examples: []any{0.05, 0.01, 0.10},
 			},
 		},
@@ -1725,7 +1758,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Widen upstream filters so >= 30 non-null rows remain per group, or pick a test that tolerates small samples (Fisher exact for 2x2 instead of chi-square).",
+				Hint:   "Widen the filters so each group keeps more non-null rows, or pick a test that tolerates small samples (TEST_FISHER_EXACT instead of TEST_CHISQ on a 2x2 table).",
 			},
 		},
 	},
@@ -1740,7 +1773,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_PARTITION_INVALID: {
-		Message: "A post-test's partition on a grouped request cannot be read. With two or more groupers every post_tests entry runs once per partition — the result rows sharing the leading group keys, every key but the last by default — so a trend runs down the last grouper within each segment. params.partition_by must be a leading prefix of the group key columns ([] means no partition: one run over every row), and every post-test of one request must partition alike, because Response.PostTests is one flat post-tests x partitions list. Raised at predict and at runtime with the same Details {index, type, partition_by, groups, reason, field, depths}: reason is not_string_list, unknown_field, not_prefix or mixed_depth.",
+		Message: "A post-test's partition on a grouped request cannot be read. With two or more groupers every post_tests entry runs once per partition — the result rows sharing the leading group keys, every key but the last by default — so a trend runs down the last grouper within each segment. params.partition_by must be a leading prefix of the group key columns ([] means no partition: one run over every row), and every post-test of one request must partition alike, because the response's post_tests is one flat post-tests x partitions list. Raised at predict and at runtime with the same Details {index, type, partition_by, groups, reason, field, depths}: reason is not_string_list, unknown_field, not_prefix or mixed_depth.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -1756,37 +1789,37 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_SPLIT_GROUPS_LT_2: {
-		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in the SplitBy field. On a grouped request it is also raised at predict and runtime when SplitBy names a grouper field (details.reason split_is_grouper: every group holds one level) or a post-test's SplitBy names one of its partition key columns (details.reason split_is_partition_key: every partition holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
+		Message: "A two-sample or ANOVA test observed fewer than the required number of distinct groups in its split_by field. On a grouped request it is also raised at predict and runtime when split_by names a grouper field (details.reason split_is_grouper: every group holds one level) or a post-test's split_by names one of its partition key columns (details.reason split_is_partition_key: every partition holds one level), and it rides a warning naming details.group_key when one group is too sparse (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "SplitBy"},
-				Hint:   "Pick a SplitBy field that resolves to >= 2 distinct categories after filtering, or relax upstream filters.",
+				Hint:   "Pick a split_by field with at least two distinct categories after filtering, or relax the filters.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups", "*", "Field"},
-				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the SplitBy field from groups, or run the across-groups test as its own ungrouped request.",
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the split_by field from groups, or run the across-groups test as its own ungrouped request.",
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"PostTests", "*", "Params", "partition_by"},
-				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder Request.Groups so the split key comes last.",
+				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder groups so the split key comes last.",
 				Examples: []any{map[string]any{"partition_by": []any{}}},
 			},
 		},
 	},
 	PULSE_TEST_CONTINGENCY_DEGENERATE: {
-		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when Rows or Cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
+		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when rows or cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Verify both Rows and Cols resolve to fields with more than one observed level; aggregate rare levels into an \"other\" bucket if needed.",
+				Hint:   "Check rows and cols each name a field with more than one observed level; merge rare levels into an \"other\" bucket if needed.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups", "*", "Field"},
-				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the Rows / Cols field from groups.",
+				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the rows / cols field from groups.",
 			},
 		},
 	},
@@ -1802,22 +1835,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_FIELD2_NOT_NUMERIC: {
-		Message: "Field2 for a paired or bivariate test (PEARSON_R, PAIRED_T) resolves to a non-numeric schema type.",
+		Message: "The field2 of a paired or bivariate test (a correlation or a paired t) is not numeric.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Tests", "*", "Field2"},
-				Hint:   "Pick a numeric field (u*, f*, nullable_u*, decimal128), or cast the column via ATTR_FORMULA before running the test.",
+				Hint:   "Pick a numeric field (u*, f*, decimal128), or derive one with ATTR_FORMULA and name its label.",
 			},
 		},
 	},
 	PULSE_TEST_SUCCESS_VALUE_MISSING: {
-		Message: "TEST_PROP_Z did not supply a usable Params.success; the test cannot decide which category counts as a positive outcome.",
+		Message: "TEST_PROP_Z has no usable params.success; the test cannot decide which category counts as a positive outcome.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "success"},
-				Hint:   "Supply the dictionary value that represents success, spelt exactly as the outcome's dictionary holds it (e.g. {\"success\": \"yes\"}); a categorical success no entry matches is refused — use pulse inspect to list the dictionary values.",
+				Hint:   "Supply the dictionary value that represents success, spelt exactly as the outcome's dictionary holds it (e.g. {\"success\": \"yes\"}); a categorical success no entry matches is refused — use pulse cohort inspect to list the dictionary values.",
 			},
 			{
 				Action: FixupSetDefault,
@@ -1848,7 +1881,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Tests", "*", "Params", "expected"},
-				Hint:   "Add each missing label with its expected share (re-balancing the others so the total stays 1), or filter those rows out before the test; check the spelling against pulse inspect's dictionary.",
+				Hint:   "Add each missing label with its expected share (re-balancing the others so the total stays 1), or filter those rows out before the test; check the spelling against pulse cohort inspect's dictionary.",
 			},
 		},
 	},
@@ -1858,7 +1891,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"Tests", "*", "Params", "reference"},
-				Hint:     "Name the control arm exactly as the split_by dictionary spells it (pulse inspect lists the levels); on a packed_bool use \"1\" or \"0\". Omit it for alphabetical order.",
+				Hint:     "Name the control arm exactly as the split_by dictionary spells it (pulse cohort inspect lists the levels); on a packed_bool use \"1\" or \"0\". Omit it for alphabetical order.",
 				Examples: []any{map[string]any{"reference": "control"}},
 			},
 			{
@@ -1927,7 +1960,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Filterers"},
-				Hint:   "Pre-filter rows where either paired column is null with FILTER_EXCLUDE so the effective pair count is explicit; or ignore the warning if the mismatch count is small.",
+				Hint:   "Filter out the rows where either paired field is null (FILTER_NULL) so the pair count is explicit, or accept the warning when the dropped count is small.",
 			},
 		},
 	},
@@ -1988,16 +2021,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEST_SHAPIRO_N_BOUND: {
-		Message: "A Shapiro-Wilk request observed n above the supported limit (5000); use an asymptotic normality test instead.",
+		Message: "A Shapiro-Wilk test observed n above its supported limit (5000).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Sample <= 5000 rows before running TEST_SHAPIRO_WILK, or use an asymptotic normality test (Anderson-Darling, D'Agostino K2) when registered.",
+				Hint:   "Sample at most 5000 rows before TEST_SHAPIRO_WILK, or compare the distribution with TEST_KS.",
 			},
 		},
 	},
 	PULSE_TEST_FISHER_R_OR_C_GT_2: {
-		Message: "Fisher exact requires a 2x2 table; rxc support lands separately.",
+		Message: "TEST_FISHER_EXACT requires a 2x2 table.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
@@ -2013,7 +2046,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_, Regressions: REG_), e.g. AGG_ACME_BRAND_SCORE.",
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG|OVERLAY|POSTFIT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_, Regressions: REG_), e.g. AGG_ACME_BRAND_SCORE.",
 				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER", "REG_ACME_HILL"},
 			},
 		},
@@ -2089,7 +2122,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Ship only top-level .md files: op-<category>-<kebab>.md documenting a registered extension operator (stem = op- + the operator name lowercased, _ to -; kind: operator; category: and operator: matching it) or ext-<kebab>.md (kind: design). Keep frontmatter name equal to the stem, carry the family's required ## sections, stay within the budget (op-* 1200 bytes, ext-* 6000 bytes of body), close every <!-- feature: … --> fence and name only features or registered operators in it, fence every other operator, <kind>:<name> feature or feature-owned pulse_* tool the body names, and point ## See only at skills the instance carries.",
+				Hint:   "Ship only top-level .md files: op-<kebab>.md documenting a registered extension operator (stem = op- + the operator name lowercased, _ to -; kind: operator; category: and operator: matching it) or ext-<kebab>.md (kind: design). Keep frontmatter name equal to the stem, carry the family's required ## sections, stay within the family's body budget (details name it), close every <!-- feature: … --> fence and name only features or registered operators in it, fence every other operator, <kind>:<name> feature or feature-owned pulse_* tool the body names, and point ## See only at skills the instance carries.",
 			},
 		},
 	},
@@ -2251,11 +2284,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LOOKUP_TABLE_UNKNOWN: {
-		Message: "An expression's lookup(table, ...) named a lookup table that is not registered on the Service. A literal table name is refused before any record is read — by predict and by the run's entry check alike; a computed one when the call evaluates.",
+		Message: "An expression's lookup(table, ...) named a lookup table this instance does not register. A literal table name is refused before any record is read — by predict and by the run's entry check alike; a computed one when the call evaluates.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Register the table in pulse.Options.Extensions.LookupTables before calling pulse.New, or correct the table name in the expression.",
+				Hint:   "Register the table before pulse.New (pulse.Options.Extensions.LookupTables, or a file under PULSE_LOOKUP_TABLES_DIR), or correct the table name in the expression.",
 			},
 		},
 	},
@@ -2406,7 +2439,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-import the source data using the same schema as the canonical archive (run `pulse inspect <archive>` to view the canonical fields), or rebuild the archive against the new schema via `pulse shard create`.",
+				Hint:   "Re-import the source data using the same schema as the canonical archive (run `pulse cohort inspect <archive>` to view the canonical fields), or rebuild the archive against the new schema via `pulse shard create`.",
 			},
 			{
 				Action: FixupRequiresReschema,
@@ -2428,7 +2461,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Rebuild the archive with a wider categorical type for the affected field (categorical_u8 -> categorical_u16, or categorical_u16 -> categorical_u32). The width is fixed at folder creation; pick growth headroom up front next time.",
+				Hint:   "Rebuild the archive with a wider categorical type for the affected field (categorical_u8 -> categorical_u16, or categorical_u16 -> categorical_u32). The width is fixed when the archive is created; pick growth headroom up front.",
 			},
 		},
 	},
@@ -2439,6 +2472,15 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "Fields", "*", "Description"},
 				Hint:   "Update the source data's per-field description (or the vector's labels / kind / scale range) to match the canonical archive's, or accept the warning (downstream consumers see the canonical metadata).",
+			},
+		},
+	},
+	PULSE_SHARD_AGGREGATE_DRIFT: {
+		Message: "`shard verify` found the canonical schema's cached aggregate record count (details.canonical_aggregate) differs from the sum of the shards' own counts (details.live_aggregate); the per-shard counts are authoritative and every read uses them.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Run `pulse shard compact ARCHIVE` to rewrite the cached count; the archive was edited outside Pulse or a rewrite was interrupted.",
 			},
 		},
 	},
@@ -2561,52 +2603,52 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
-		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
+		Message: "A process chain stage uses an operator a chain stage cannot run (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper / aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
-				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (any but GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS).",
+				Hint:   "Run the offending stage as its own process request (details name the stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (any but GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS).",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Stages", "*", "Request", "Crosstab"},
-				Hint:   "A crosstab cannot run as a chain stage (the message reason names it): run it as its own Process request, over the cohort or over a cohort materialised from the chain's rows.",
+				Hint:   "A crosstab cannot run as a chain stage (the message reason names it): run it as its own process request, over the cohort or over a cohort materialised from the chain's rows.",
 			},
 		},
 	},
 	PULSE_CHAIN_STAGE_JOIN: {
-		Message: "Only ProcessChain stage 0 may carry Joins: a later stage reads the previous stage's output rows, not a cohort, so there is no left side to join.",
+		Message: "Only chain stage 0 may carry joins: a later stage reads the previous stage's output rows, not a cohort, so there is no left side to join.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Stages", "*", "Request", "Joins"},
-				Hint:   "Move the JoinSpec onto stage 0 (the details name the offending stage), or run the joined step as a standalone Process call and chain from its output.",
+				Hint:   "Move the joins entry onto stage 0 (details name the offending stage), or run the joined step as its own process request and chain from its output.",
 			},
 		},
 	},
 	PULSE_CHAIN_EMPTY: {
-		Message: "A ProcessChain request must carry at least one stage with a non-nil Request.",
+		Message: "A process chain request must carry at least one stage with a request.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Stages"},
-				Hint:   "Add at least one ChainStage with a real Request, or call Process directly when only a single stage is needed.",
+				Hint:   "Add at least one stage with a request, or run a single stage as a plain process request.",
 			},
 		},
 	},
 	PULSE_COMPOSE_LABEL_COLLISION: {
-		Message: "Two slots in the ComposedRequest resolve to the same final Label after auto-default synthesis. Compose-only overlay kinds resolve sibling references by label, so names must be unique across slots.",
+		Message: "Two slots of the compose request resolve to the same label after defaults are applied. Compose-only overlay kinds resolve sibling references by label, so names must be unique across slots.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Label"},
-				Hint:   "Rename one of the colliding slots, or clear a caller-supplied Label that matches the auto-default (`request_<index+1>`) of another slot. The error details carry the offending label string and the colliding slot indices.",
+				Hint:   "Rename one of the colliding slots, or clear a label that matches another slot's default (`request_<index+1>`). The error details carry the offending label string and the colliding slot indices.",
 			},
 		},
 	},
 	PULSE_COMPOSE_BASE_COLLISION: {
-		Message: "The ComposedRequest `base` cannot be merged into an explicit slot, so nothing runs — predict refuses it identically. The base is merged into every `requests` entry (never the sweep body, banner slots or fit requests): a scalar or pointer the slot leaves unset takes the base's, `params` merge key-wise with the slot's key winning, and every list carries the base items first, then the slot's own. Reason `label_collision`: a base item's label or name equals one of the slot's own items in the same list, so two items would answer to one label — the slot index is under `request`, its label under `slot`, the list key under `list` and the label under `label`. Reason `base_label`: the base sets `label`, which names no slot (the base label is under `label`). Items with no label are not compared here; a duplicate default label is refused later by that list's own rule.",
+		Message: "The compose `base` cannot be merged into an explicit slot, so nothing runs — predict refuses it identically. The base is merged into every `requests` entry (never the sweep body, banner slots or fit requests): a scalar or pointer the slot leaves unset takes the base's, `params` merge key-wise with the slot's key winning, and every list carries the base items first, then the slot's own. Reason `label_collision`: a base item's label or name equals one of the slot's own items in the same list, so two items would answer to one label — the slot index is under `request`, its label under `slot`, the list key under `list` and the label under `label`. Reason `base_label`: the base sets `label`, which names no slot (the base label is under `label`). Items with no label are not compared here; a duplicate default label is refused later by that list's own rule.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2621,7 +2663,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_INVALID: {
-		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, a `top` of at least 1 when set, and a `profile_bins` of at least 1 set only beside `profile: true` (`rank_profile_bins_invalid`, `rank_profile_bins_without_profile`). Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays — or carry a `target` — and every placeholder must name an axis. An axis `target` is `params.<name>` (`<name>` an identifier; reason `target_invalid`) that no other axis targets (`target_duplicate`); it writes the slot's axis value into the request's params, so a `{\"$var\"}` marker naming that axis, or one standing as the body's own value at that param, is refused (`axis_target_conflict`). Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "The compose `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, a `top` of at least 1 when set, and a `profile_bins` of at least 1 set only beside `profile: true` (`rank_profile_bins_invalid`, `rank_profile_bins_without_profile`). Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays — or carry a `target` — and every placeholder must name an axis. An axis `target` is `params.<name>` (`<name>` an identifier; reason `target_invalid`) that no other axis targets (`target_duplicate`); it writes the slot's axis value into the request's params, so a `{\"$var\"}` marker naming that axis, or one standing as the body's own value at that param, is refused (`axis_target_conflict`). Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2642,7 +2684,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_BANNER_INVALID: {
-		Message: "The ComposedRequest `banner` block is malformed, so nothing runs — predict refuses it identically. A banner needs a base `request` (the cohort, weight, filterers and the shared crosstab rows / cell / margins / normalize) that sets no `label` (reason `request_label_set`: slots are labelled `<section>:<group>`), no crosstab `columns` (reason `columns_set`: the groups own the columns) and no crosstab shape `long` (reason `shape_long`: the stitch reads the matrix). It needs at least one section (`sections_empty`) and at least one group or `total: true` (`groups_empty`). Every section and group label is non-empty (`label_empty`) and unique among its kind (`label_duplicate`); with the Total block no group may be labelled `Total` (`label_reserved`). Every group needs at least one column grouper (`columns_empty`). The offending path is under `field`, the rule under `reason` and the label under `label` where one applies.",
+		Message: "The compose `banner` block is malformed, so nothing runs — predict refuses it identically. A banner needs a base `request` (the cohort, weight, filterers and the shared crosstab rows / cell / margins / normalize) that sets no `label` (reason `request_label_set`: slots are labelled `<section>:<group>`), no crosstab `columns` (reason `columns_set`: the groups own the columns) and no crosstab shape `long` (reason `shape_long`: the stitch reads the matrix). It needs at least one section (`sections_empty`) and at least one group or `total: true` (`groups_empty`). Every section and group label is non-empty (`label_empty`) and unique among its kind (`label_duplicate`); with the Total block no group may be labelled `Total` (`label_reserved`). Every group needs at least one column grouper (`columns_empty`). The offending path is under `field`, the rule under `reason` and the label under `label` where one applies.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
@@ -2657,7 +2699,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FIT_INVALID: {
-		Message: "A ComposedRequest `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
+		Message: "A compose `fits` entry is malformed, so nothing runs — predict refuses it identically. Every fit needs a non-empty `name` and a `request` holding exactly ONE regression (reason `regression_count`, the count under `count`) and no `groups` or `crosstab` (reason `grouped`): a fit is one model over one row set, fit once before any slot. A missing name is `name_missing`, a missing request `request_missing`. The entry index is under `fit`, its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2682,7 +2724,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_COMPARISON_INVALID: {
-		Message: "A ComposedRequest `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression and SEM fits under `available`), each a regression or SEM fit — or both vector fits (a vector fit beside any other kind is `fit_kind`, the vector fits under `available` when the restricted fit is one); a `from_sweep` fit is judged against every sweep slot that could win (refused only when every slot refuses), and the run judges the winning slot again, a refusal there failing the comparison alone with this code (`sweep_slot` / `sweep_label` name the winner). Both fits are one regression type (`type_mismatch`): ordinary least squares, a generalized linear model, the multinomial logit, or a model whose declaration carries comparisons — the ordinal regression, an embedder model registered with Compare (`type_unsupported`, the accepted types under `requires`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one; a declared model's predictors alone) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`); two declared fits whose `params.levels` differ are `levels_differ` (`restricted_levels` / `full_levels`: their thresholds are other terms), and two multinomial fits whose `reference` differs are `reference_differs` (`restricted_reference` / `full_reference`: their coefficients are other contrasts). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated — never a declared model's nor the multinomial logit's), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). Two vector fits compare member-wise — each restricted member regressed on the other restricted members against the other full members, one test row each: both batteries must list their members (`fields`, or a `vectors` entry with `fields`; a `pattern` or a vector field is `members_unlisted`, `field` / `value` / `slot`), every restricted member (label and column) must be a full member (`not_nested`) and the full battery add one (`no_extra_terms`), the requests equal but for the member lists and the battery's name, encoding, multiplicity or label (`request_mismatch`), and no probability weight in force (`requires` `no_probability_weight`, no alternative). Two SEM fits compare by the chi-square difference (lrt; the Satorra-Bentler 2001 scaled difference under wlsmv), their nesting declared by the restricted model's constraints, never proven: both sides SEM fits (`kind_mismatch`, `restricted_kind` / `full_kind`), test lrt (`test_unsupported` for f or wald, `valid`), the fit requests equal but for params.model, group_equal, group_partial and the reporting and solver knobs (`request_mismatch`) — one members list, group, estimator, ordered set and mean structure — the model knobs differing (`same_model`) and both written models over the same observed variables (`observed_differ`, `restricted_only` / `full_only`). Once run, two SEM fits fail the comparison alone with this code when one follows lavaan's conventions or models the means and the other does not (`conventions_differ`) or the restricted fit's degrees of freedom do not exceed the full fit's (`df_not_positive`, `restricted_df` / `full_df`). The entry index is under `compare`, its name under `name`.",
+		Message: "A compose `compare` entry (a nested-model comparison) cannot run, so nothing runs — predict refuses it identically. Every comparison needs a `name` unique among the comparisons (reason `name_missing`, `name_duplicate`) and names two different (`same_fit`) `fits` entries by `restricted` and `full` (`fit_missing`, `fit_unknown` with the regression and SEM fits under `available`), each a regression or SEM fit — or both vector fits (a vector fit beside any other kind is `fit_kind`, the vector fits under `available` when the restricted fit is one); a `from_sweep` fit is judged against every sweep slot that could win (refused only when every slot refuses), and the run judges the winning slot again, a refusal there failing the comparison alone with this code (`sweep_slot` / `sweep_label` name the winner). Both fits are one regression type (`type_mismatch`): ordinary least squares, a generalized linear model, the multinomial logit, or a model whose declaration carries comparisons — the ordinal regression, an embedder model registered with Compare (`type_unsupported`, the accepted types under `requires`); `test` is f, lrt or wald (`test_unknown`, under `valid`). The restricted fit's terms (its predictors, and its intercept when it fits one; a declared model's predictors alone) must all be terms of the full fit (`not_nested`, the strays under `missing`), which must add at least one (`no_extra_terms`); two declared fits whose `params.levels` differ are `levels_differ` (`restricted_levels` / `full_levels`: their thresholds are other terms), and two multinomial fits whose `reference` differs are `reference_differs` (`restricted_reference` / `full_reference`: their coefficients are other contrasts). The two fit requests must be the same rows: equal but for the regression's predictors, intercept and reporting knobs (name, vcov, conf_level, margins, collinearity, save, multiplicity) and the request's label, return, disable_components and multiplicity (`request_mismatch`, the differing keys under `keys`) — so one family and link, one weight, filters, features and covariance. Reason `requires` names the unsupported condition under `requires`: `unpenalized` (a penalty), `no_selection`, `unbounded` (bounds), `estimated_dispersion` (an F test needs a dispersion the fit estimates: least squares, gamma, a fixed-θ negative binomial under dispersion estimated — never a declared model's nor the multinomial logit's), `no_probability_weight` (an F or likelihood-ratio test under a probability weight compares pseudo-likelihoods; `alternative` wald). Two vector fits compare member-wise — each restricted member regressed on the other restricted members against the other full members, one test row each: both batteries must list their members (`fields`, or a `vectors` entry with `fields`; a `pattern` or a vector field is `members_unlisted`, `field` / `value` / `slot`), every restricted member (label and column) must be a full member (`not_nested`) and the full battery add one (`no_extra_terms`), the requests equal but for the member lists and the battery's name, encoding, multiplicity or label (`request_mismatch`), and no probability weight in force (`requires` `no_probability_weight`, no alternative). Two SEM fits compare by the chi-square difference (lrt; the Satorra-Bentler 2001 scaled difference under wlsmv), their nesting declared by the restricted model's constraints, never proven: both sides SEM fits (`kind_mismatch`, `restricted_kind` / `full_kind`), test lrt (`test_unsupported` for f or wald, `valid`), the fit requests equal but for params.model, group_equal, group_partial and the reporting and solver knobs (`request_mismatch`) — one members list, group, estimator, ordered set and mean structure — the model knobs differing (`same_model`) and both written models over the same observed variables (`observed_differ`, `restricted_only` / `full_only`). Once run, two SEM fits fail the comparison alone with this code when one follows lavaan's conventions or models the means and the other does not (`conventions_differ`) or the restricted fit's degrees of freedom do not exceed the full fit's (`df_not_positive`, `restricted_df` / `full_df`). The entry index is under `compare`, its name under `name`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2719,7 +2761,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_POSTFIT_INVALID: {
-		Message: "A ComposedRequest `post_fit` entry (a run of an embedder-registered post-fit operator) cannot run, so nothing runs. Every entry needs a `label` unique among the entries (reason `label_missing`, `label_duplicate`) and a `type` naming a registered POSTFIT_<NAMESPACE>_<NAME> operator (`type_missing`, `type_unknown` with the registered operators under `available`). Each `fits` name must be non-empty (`fit_missing`), listed once (`fit_duplicate`) and name a regression `fits` entry (`fit_unknown`, `fit_kind`, the regression fits under `available`). The entry index is under `post_fit`, its label under `label`.",
+		Message: "A compose `post_fit` entry (a run of an embedder-registered post-fit operator) cannot run, so nothing runs. Every entry needs a `label` unique among the entries (reason `label_missing`, `label_duplicate`) and a `type` naming a registered POSTFIT_<NAMESPACE>_<NAME> operator (`type_missing`, `type_unknown` with the registered operators under `available`). Each `fits` name must be non-empty (`fit_missing`), listed once (`fit_duplicate`) and name a regression `fits` entry (`fit_unknown`, `fit_kind`, the regression fits under `available`). The entry index is under `post_fit`, its label under `label`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -2793,7 +2835,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_UNKNOWN: {
-		Message: "A reference names a model nothing binds in this request. Names resolve against the ComposedRequest `fits` entries, the request's `models` and `populations` entries and the instance's registered populations (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
+		Message: "A reference names a model nothing binds in this request. Names resolve against the compose `fits` entries, the request's `models` and `populations` entries and the instance's registered populations (one namespace). The unknown name is under `name`, the bound names of the kind the reference reads under `available`: a vector-fit reference (a fitted vector attribute's or a matrix slot's `params.fit`) lists the bound vector fits, a regression reference (a regression score or coef()) the bound regressions.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2818,7 +2860,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?, output?, level?, category?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear, ordinal or multinomial fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. An ordinal fit scores one column per slot: `output` `expected` (the default), `class`, or `probability` / `cumulative` of one `level` (`outcome_required` without it, `outcome_unused` beside `expected` / `class`, `outcome_unknown` for a level the fit does not carry, `output_unknown`, and `output_scale` beside `scale: link`); A multinomial fit scores `probability` of one `category` (the default output, and the only reading of `scale: link`, that category's log-odds against the reference — `outcome_required` without it) or `class` (`outcome_unused` beside a category); `level`, `terms` and a `lower` / `upper` bound do not apply to it. `level` on any fit but an ordinal one, `category` on any but a multinomial one, and `output` on any other fit are `outcome_unsupported`. A fitted-value or leverage attribute's `params.fit` takes `{fit, carryover, order}`, a residual's `{fit, kind, residual_type, carryover, order}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure, carryover, order}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unpenalized least-squares, generalized-linear or nonlinear least-squares media-mix (read on its tangent plane; no `prior`) fit with `vcov: true` and the classical covariance, no selection, resample or bounds, unweighted or frequency-weighted (each figure then one copy's of the `rep()` expansion) — a probability weight is refused permanently, since a design-based fit has no model-based influence (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported` — the Bayesian media-mix fit by design, since a posterior has no hat matrix, not a gap a later build fills). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear, Bayesian-linear or multinomial fit scores (`type_unsupported`; the regression type is under `type`; a fitted-value, residual, leverage or influence `params.fit` slot cannot bind a multinomial fit, whose score names a category), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. A fit that adstocks raw spend in-model (the media-mix models) carries its adstock into the scored rows by default, which needs `order {field, partition?}` ordering the frame's raw spend (`order_required`; `order_field_missing`; a field the frame lacks or of a type that cannot order rows, `order_field_invalid`) and a model holding its adstock state (`carryover_state_missing`: a file saved before carry-over); `carryover: false` scores pre-adstocked columns as given, and `order` beside it, or `order` / `carryover` on a fit that adstocks nothing in-model, is refused (`order_unused`, `carryover_unused`). The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?, output?, level?, category?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear, ordinal or multinomial fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. An ordinal fit scores one column per slot: `output` `expected` (the default), `class`, or `probability` / `cumulative` of one `level` (`outcome_required` without it, `outcome_unused` beside `expected` / `class`, `outcome_unknown` for a level the fit does not carry, `output_unknown`, and `output_scale` beside `scale: link`); a multinomial fit scores `probability` of one `category` (the default output, and the only reading of `scale: link`, that category's log-odds against the reference — `outcome_required` without it) or `class` (`outcome_unused` beside a category); `level`, `terms` and a `lower` / `upper` bound do not apply to it. `level` on any fit but an ordinal one, `category` on any but a multinomial one, and `output` on any other fit are `outcome_unsupported`. A fitted-value or leverage attribute's `params.fit` takes `{fit, carryover, order}`, a residual's `{fit, kind, residual_type, carryover, order}` (`residual_type` beside kind `standardized` only), an influence attribute's `{fit, measure, carryover, order}`; a leverage, influence or standardized / studentized residual slot reads the bound fit's design, so the fit must be an unpenalized least-squares, generalized-linear or nonlinear least-squares media-mix (read on its tangent plane; no `prior`) fit with `vcov: true` and the classical covariance, no selection, resample or bounds, unweighted or frequency-weighted (each figure then one copy's of the `rep()` expansion) — a probability weight is refused permanently, since a design-based fit has no model-based influence (`params_invalid`, what is missing under `requires`; any other type is `type_unsupported` — the Bayesian media-mix fit by design, since a posterior has no hat matrix). Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear, Bayesian-linear or multinomial fit scores (`type_unsupported`; the regression type is under `type`; a fitted-value, residual, leverage or influence `params.fit` slot cannot bind a multinomial fit, whose score names a category), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`); a `models` entry declared inline carries coefficients only and never scores (`inline_not_scorable`, `inline: true`). Any other params shape is `params_invalid`. A fit that adstocks raw spend in-model (the media-mix models) carries its adstock into the scored rows by default, which needs `order {field, partition?}` ordering the frame's raw spend (`order_required`; `order_field_missing`; a field the frame lacks or of a type that cannot order rows, `order_field_invalid`) and a model holding its adstock state (`carryover_state_missing`: a file saved before carry-over); `carryover: false` scores pre-adstocked columns as given, and `order` beside it, or `order` / `carryover` on a fit that adstocks nothing in-model, is refused (`order_unused`, `carryover_unused`). The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3061,11 +3103,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_VERSION_UNSUPPORTED: {
-		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads, or a model file lists a feature this build does not know (the file under `path`, its version under `version`, the readable ones under `supported`; an unknown feature under `unknown_features`, the known ones under `supported_features`; a registered population's name under `registered`). Model files read version 1 only: the retired versions 2 to 6 are refused, never aliased.",
+		Message: "A model file's `model_format_version` (or a population file's `population_format_version`) is not one this build reads, or a model file lists a feature this build does not know (the file under `path`, its version under `version`, the readable ones under `supported`; an unknown feature under `unknown_features`, the known ones under `supported_features`; a registered population's name under `registered`). Model files read version 1 only; any other version is refused, never aliased.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Re-save the fit with this build (rerun it with `save`) — a model file of version 2 to 6 must be re-saved — or, for a newer file or an unknown feature, load it with the Pulse version that wrote it.",
+				Hint:   "Re-save the fit with this build (rerun it with `save`); for a newer file or an unknown feature, load it with the Pulse version that wrote it.",
 			},
 		},
 	},
@@ -3140,7 +3182,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_EXPR_SPLICE: {
-		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param — any key a visible extension flags when the object's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Message: "The compose `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula, an embedder extension's expression-capable param — any key a visible extension flags when the object's `type` is itself a placeholder, `details.type_templated`), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3176,7 +3218,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_MODE_MISMATCH: {
-		Message: "The ComposedRequest `sweep` mixes enumeration and sampling, so nothing runs — predict refuses it identically. Modes `grid` and `zip` walk each axis's explicit `values` list; modes `random` and `lhs` draw `samples` slots, each axis from a continuous `range` {min, max, scale}. An axis never mixes the two: a `range` axis under grid / zip (reason `range_under_enumeration`), a `values` axis under random / lhs (`values_under_sampling`), or an axis setting both (`values_and_range`) is refused, and so are `samples` / `rng_seed` under grid / zip (`samples_under_enumeration` / `seed_under_enumeration`). The offending path is under `field`, the rule under `reason`, the mode under `mode` and the axis under `axis` where one is involved.",
+		Message: "The compose `sweep` mixes enumeration and sampling, so nothing runs — predict refuses it identically. Modes `grid` and `zip` walk each axis's explicit `values` list; modes `random` and `lhs` draw `samples` slots, each axis from a continuous `range` {min, max, scale}. An axis never mixes the two: a `range` axis under grid / zip (reason `range_under_enumeration`), a `values` axis under random / lhs (`values_under_sampling`), or an axis setting both (`values_and_range`) is refused, and so are `samples` / `rng_seed` under grid / zip (`samples_under_enumeration` / `seed_under_enumeration`). The offending path is under `field`, the rule under `reason`, the mode under `mode` and the axis under `axis` where one is involved.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3230,12 +3272,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_JOIN_TYPE_MISMATCH: {
-		Message: "A join key pair pairs fields whose schema types differ. Hash join keys must compare equal byte-for-byte after normalisation; type mismatches block this.",
+		Message: "A join key pair pairs fields whose schema types differ. Join keys compare byte for byte, so both sides of a pair need one type.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "On"},
-				Hint:   "Re-import the right cohort with a matching type for the key field (e.g. cast u32 → u64 to align with the left side), or pre-aggregate one side to expose a compatible key column.",
+				Hint:   "Re-import one cohort with the key field's type matching the other side (e.g. u64 on both), so on[].left_field and on[].right_field share a type.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -3245,12 +3287,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED: {
-		Message: "The requested join Kind is reserved but not implemented yet. v1 supports \"inner\" (and empty == \"inner\"); \"left\", \"outer\", \"anti\" land in a follow-up.",
+		Message: "The join's kind is not \"inner\", the only kind a join runs (an empty kind is inner).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "Kind"},
-				Hint:   "Set Kind to \"inner\" (or leave it empty) for this Pulse version. Track upstream for outer/left/anti support.",
+				Hint:   "Set kind to \"inner\" or drop it.",
 			},
 		},
 	},
@@ -3344,42 +3386,42 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_JOIN_FIELD_UNKNOWN: {
-		Message: "A JoinSpec.On entry references a field not present in either the left or right cohort's schema.",
+		Message: "A joins[].on entry names a field the left or right cohort's schema does not hold.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "On"},
-				Hint:   "Verify the field exists in the corresponding cohort via pulse_inspect (left side) or pulse_inspect of the JoinSpec.Right path.",
+				Hint:   "Check the name against the left cohort's fields and the right cohort's (pulse_inspect or `pulse cohort inspect` on the joins[].right path).",
 			},
 		},
 	},
 	PULSE_JOIN_KEYS_EMPTY: {
-		Message: "A JoinSpec must carry at least one equi-join key pair under On.",
+		Message: "A joins entry must carry at least one key pair under on.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "On"},
-				Hint:   "Add at least one OnPair {LeftField, RightField} naming the schema columns to equate.",
+				Hint:   "Add at least one {left_field, right_field} pair to on, naming the columns to equate.",
 			},
 		},
 	},
 	PULSE_JOIN_TOO_MANY: {
-		Message: "v1 supports exactly one JoinSpec per Request. Multi-join chains land in a follow-up.",
+		Message: "A request takes at most one joins entry.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins"},
-				Hint:   "Split into multiple Process calls — pipe the first join's output through pulse_import or an intermediate .pulse handle, then attach the second join to a fresh Request.",
+				Hint:   "Join in steps: materialize the first join's output to a cohort (pulse_materialize), then join that cohort in a second request.",
 			},
 		},
 	},
 	PULSE_JOIN_FIELD_COLLISION: {
-		Message: "The joined schema would carry two fields with the same name. Set JoinSpec.As to prefix the right-side fields, or rename one side at import.",
+		Message: "The joined schema would carry two fields with the same name. Set the join's as to prefix the right-side fields, or rename one side at import.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Joins", "*", "As"},
-				Hint:   "Set As to a short identifier (e.g. \"r_\") so right-side columns become r_<name> in the joined record.",
+				Hint:   "Set as to a short prefix (e.g. \"r_\") so right-side columns become r_<name> in the joined record.",
 			},
 		},
 	},
@@ -3388,7 +3430,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Supply at least one {label, start, end} range in the operator's Params (or the referenced range table). Each range needs a label; start/end may be omitted for an open bound.",
+				Hint:   "Supply at least one {label, start, end} range in the operator's params.ranges (or the referenced range table). Each range needs a label; start/end may be omitted for an open bound.",
 			},
 		},
 	},
@@ -3402,7 +3444,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_DUPLICATE_LABEL: {
-		Message: "Two ranges in the same labeled-range set share a Label; labels are bucket keys and must be unique within a set.",
+		Message: "Two ranges in the same labeled-range set share a label; labels are bucket keys and must be unique within a set.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3424,7 +3466,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "In the operator's Params, provide exactly one of: an inline `ranges` array of {label, start, end} entries, or a `table` naming a registered range table. Remove one when both are present, or add one when neither is.",
+				Hint:   "In the operator's params, provide exactly one of: an inline `ranges` array of {label, start, end} entries, or a `table` naming a registered range table. Remove one when both are present, or add one when neither is.",
 			},
 		},
 	},
@@ -3433,7 +3475,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Set Params.table (or range_label's first argument) to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+				Hint:   "Set params.table (or range_label's first argument) to a table registered via Options.Extensions.RangeTables or PULSE_RANGE_TABLES_DIR, or register the referenced table before running the request.",
 			},
 		},
 	},
@@ -3442,7 +3484,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point Params.table at a table of the operator's kind, or author the ranges inline.",
+				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point params.table at a table of the operator's kind, or author the ranges inline.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -3451,7 +3493,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_UNKNOWN: {
-		Message: "A LabelBinding references a field name not present in the cohort schema (on a convert, the schema convert resolves from the source). Every export format and convert refuse it before writing, rather than labelling nothing.",
+		Message: "A labels entry names a field the cohort schema does not hold (on a convert, the schema convert resolves from the source). Every export format and convert refuse it before writing, rather than labelling nothing.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3461,7 +3503,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a field that is neither categorical nor integer-coded. Labels translate dictionary string values, or the decimal spellings of an integer-coded u4 / u8 / u16 / u32 field's codes; floats, u64, dates and the other types have no stable key to translate.",
+		Message: "A labels entry names a field that is neither categorical nor integer-coded. Labels translate dictionary string values, or the decimal spellings of an integer-coded u4 / u8 / u16 / u32 field's codes; floats, u64, dates and the other types have no stable key to translate.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3471,17 +3513,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_TABLE_UNKNOWN: {
-		Message: "A LabelBinding references a label-table name that is not registered on the Service.",
+		Message: "A labels entry names a label table this instance does not register.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Table"},
-				Hint:   "Register the table in pulse.Options.Extensions.LabelTables before calling pulse.New, or correct the table name in the binding.",
+				Hint:   "Register the table before pulse.New (pulse.Options.Extensions.LabelTables, or a file under PULSE_LABEL_TABLES_DIR), or correct the table name in the binding.",
 			},
 		},
 	},
 	PULSE_LABEL_FIELD_COLLISION: {
-		Message: "A LabelBinding in augment mode would emit a sibling \"<field>_label\" column whose name already exists in the request's output schema.",
+		Message: "A labels entry in augment mode would emit a sibling \"<field>_label\" column whose name already exists in the request's output schema.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3492,7 +3534,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_DUPLICATE_BINDING: {
-		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request, export or convert.",
+		Message: "Two labels entries name the same field. Each field may carry at most one binding per request, export or convert.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -3565,129 +3607,129 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_ROWS: {
-		Message: "The Crosstab section has no row-axis groupers. A crosstab requires at least one row grouper; the column axis is optional (absent columns yield one implicit \"Total\" column).",
+		Message: "The crosstab has no row-axis groupers. A crosstab requires at least one row grouper; the column axis is optional (absent columns yield one implicit \"Total\" column).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Crosstab", "Rows"},
-				Hint:   "Add at least one Group entry to Crosstab.Rows; for a single-axis aggregation use a plain Process request with Groups + Aggregations instead.",
+				Hint:   "Add at least one grouper to crosstab.rows; for a single-axis aggregation use a plain request with groups and aggregations instead.",
 			},
 		},
 	},
 	PULSE_CROSSTAB_EMPTY_COLUMNS: {
-		Message: "No longer raised: a Crosstab section with no column-axis groupers runs with one implicit \"Total\" column (U47). The code is retained so lookups of it keep resolving.",
+		Message: "Not raised: a crosstab with no column-axis groupers runs with one implicit \"Total\" column. The code is kept so lookups of it resolve.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Crosstab", "Columns"},
-				Hint:   "Omit Crosstab.Columns for a single Total column holding every record whose row key resolved, or add Group entries for a real column axis.",
+				Hint:   "Omit crosstab.columns for a single Total column holding every record whose row key resolved, or add groupers for a real column axis.",
 			},
 		},
 	},
 	PULSE_CROSSTAB_MISSING_CELL: {
-		Message: "The Crosstab section has no Cell aggregation. The cell aggregation is the value emitted per (row-tuple, column-tuple) intersection and is required.",
+		Message: "The crosstab has no cell aggregation. The cell is the value emitted per (row key, column key) intersection and is required.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Cell"},
-				Hint:     "Set Crosstab.Cell to an Aggregation with Type + Field; AGG_COUNT is the classic count crosstab cell, AGG_AVERAGE / AGG_SUM the typical numeric cells.",
+				Hint:     "Set crosstab.cell to an aggregation with type and field; AGG_COUNT is the classic count cell, AGG_AVERAGE / AGG_SUM the typical numeric cells.",
 				Examples: []any{"AGG_COUNT", "AGG_AVERAGE", "AGG_SUM"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS: {
-		Message: "A Crosstab section was supplied alongside top-level Groups or Aggregations on the same Request. The two surfaces are mutually exclusive.",
+		Message: "A crosstab was supplied beside top-level groups or aggregations on the same request. The two are mutually exclusive.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Groups"},
-				Hint:   "Remove top-level Groups + Aggregations from the Request; the Crosstab section already lowers to a grouped request internally. If both shapes are needed, split into two Compose requests.",
+				Hint:   "Remove top-level groups and aggregations; the crosstab already runs as a grouped request. If both shapes are needed, put each in its own Compose slot.",
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE: {
-		Message: "The Crosstab section requested a normalization mode whose required margin cannot be computed (e.g. an aggregator whose margin is undefined on an empty axis).",
+		Message: "The crosstab requested a normalize mode whose required margin cannot be computed (e.g. an aggregator whose margin is undefined on an empty axis).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Switch Normalize to \"none\" to leave cells un-normalized, or pick a cell aggregator whose margin is defined under the chosen normalization direction.",
+				Hint:     "Set normalize to \"none\" to leave cells un-normalized, or pick a cell aggregator whose margin is defined under the chosen normalization direction.",
 				Examples: []any{"none", "row", "column", "total"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_AGG_UNCLASSIFIED: {
-		Message:            "Internal guard: the margin pass encountered an aggregator with no MarginReducibility classification. Adding a new aggregator without updating AggregationType.MarginReducibility is the only way to reach this code.",
+		Message:            "Internal guard: the margin pass met an aggregator with no margin-reducibility class. Only a built-in aggregator added without its class reaches this code; report it as a bug.",
 		FixupNotApplicable: true,
 	},
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE: {
-		Message: "The Crosstab section's normalize_level falls outside the valid range for the targeted axis. Valid depths are zero-indexed from the top of the axis: 0 for the first grouper, len(axis)-1 for the leaf.",
+		Message: "The crosstab's normalize_level falls outside the targeted axis. Depths count from the top of the axis: 0 for the first grouper, len(axis)-1 for the leaf.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "NormalizeLevel"},
-				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows when Normalize=row and Crosstab.Columns when Normalize=column. Omit the field entirely to default to the leaf (the original per-leaf-tuple normalization).",
+				Hint:     "Pick a depth in [0, len(axis)-1], where the axis is crosstab.rows under normalize row and crosstab.columns under normalize column. Omit normalize_level for the leaf.",
 				Examples: []any{0, 1, 2},
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS: {
-		Message: "The Crosstab section set normalize_level without selecting a normalization direction. The level selector only has meaning when Normalize is row or column.",
+		Message: "The crosstab sets normalize_level without a normalize direction. The level applies only when normalize is row or column.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Set Crosstab.Normalize to \"row\" or \"column\" to choose which axis the level descends, or drop the normalize_level field to keep raw cell values.",
+				Hint:     "Set crosstab.normalize to \"row\" or \"column\" to choose which axis the level descends, or drop the normalize_level field to keep raw cell values.",
 				Examples: []any{"row", "column"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE: {
-		Message: "The Crosstab section set normalize_level alongside Normalize=total. Total normalization uses a scalar grand-total denominator with no axis to descend; the level selector applies only to Normalize=row or Normalize=column.",
+		Message: "The crosstab sets normalize_level beside normalize total. Total normalization divides by the grand total, with no axis to descend; the level applies only under normalize row or column.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Switch Normalize to \"row\" or \"column\" if a partial-depth denominator is intended, or drop normalize_level to keep the scalar grand-total denominator.",
+				Hint:     "Set normalize to \"row\" or \"column\" if a partial-depth denominator is intended, or drop normalize_level to keep the scalar grand-total denominator.",
 				Examples: []any{"row", "column"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE: {
-		Message: "The Crosstab section's normalize_within falls outside the valid range for the OPPOSITE axis. Valid depths are zero-indexed from the top of the other axis: 0 for the first grouper, len(other-axis)-1 for the leaf. The other axis is Crosstab.Columns when Normalize=row and Crosstab.Rows when Normalize=column.",
+		Message: "The crosstab's normalize_within falls outside the OPPOSITE axis. Depths count from the top of the other axis: 0 for the first grouper, len(other-axis)-1 for the leaf. The other axis is crosstab.columns under normalize row and crosstab.rows under normalize column.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "NormalizeWithin"},
-				Hint:     "Pick a depth in [0, len(other-axis)-1] where the other axis is Crosstab.Columns when Normalize=row and Crosstab.Rows when Normalize=column. Omit the field entirely to keep the full row / column marginal denominator (the original behavior).",
+				Hint:     "Pick a depth in [0, len(other-axis)-1], where the other axis is crosstab.columns under normalize row and crosstab.rows under normalize column. Omit normalize_within to keep the full row / column margin as the denominator.",
 				Examples: []any{0, 1},
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS: {
-		Message: "The Crosstab section set normalize_within without selecting a normalization direction. The cross-axis partition selector only has meaning when Normalize is row or column.",
+		Message: "The crosstab sets normalize_within without a normalize direction. It applies only when normalize is row or column.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Set Crosstab.Normalize to \"row\" or \"column\" to choose which axis hosts the cell-marginal numerator, or drop the normalize_within field to keep raw cell values.",
+				Hint:     "Set crosstab.normalize to \"row\" or \"column\" to choose which axis hosts the cell-marginal numerator, or drop the normalize_within field to keep raw cell values.",
 				Examples: []any{"row", "column"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE: {
-		Message: "The Crosstab section set normalize_within alongside Normalize=total. Total normalization uses a scalar grand-total denominator with no other axis to partition; normalize_within applies only to Normalize=row or Normalize=column.",
+		Message: "The crosstab sets normalize_within beside normalize total. Total normalization divides by the grand total, with no other axis to partition; normalize_within applies only under normalize row or column.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Normalize"},
-				Hint:     "Switch Normalize to \"row\" or \"column\" if a cross-axis partitioned denominator is intended, or drop normalize_within to keep the scalar grand-total denominator.",
+				Hint:     "Set normalize to \"row\" or \"column\" if a cross-axis partitioned denominator is intended, or drop normalize_within to keep the scalar grand-total denominator.",
 				Examples: []any{"row", "column"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_MARGIN_AGG_INVALID: {
-		Message: "An entry in the Crosstab section's margin_aggregations slot is structurally malformed: either a null element or an entry with no aggregation type. Auxiliary margin aggregations carry the same shape as the cell aggregation (type + field, optional label + params).",
+		Message: "An entry of the crosstab's margin_aggregations is malformed: either a null element or an entry with no aggregation type. Auxiliary margin aggregations carry the same shape as the cell aggregation (type + field, optional label + params).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3698,40 +3740,40 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL: {
-		Message: "Two margin_aggregations entries resolve to the same effective label, or one collides with the cell aggregation's label. The effective label is Label when set and TYPE_field otherwise; margin components are keyed by it, so the duplicate would overwrite the figure beside it.",
+		Message: "Two margin_aggregations entries resolve to the same effective label, or one collides with the cell aggregation's label. The effective label is its label when set and TYPE_field otherwise; margin components are keyed by it, so the duplicate would overwrite the figure beside it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "MarginAggregations", "*", "Label"},
-				Hint:     "Set an explicit, distinct Label on each margin_aggregations entry. Two entries of the same type over the same field are indistinguishable without one, and the cell aggregation's own label is already taken.",
+				Hint:     "Set an explicit, distinct label on each margin_aggregations entry. Two entries of the same type over the same field are indistinguishable without one, and the cell aggregation's own label is already taken.",
 				Examples: []any{"unweighted_base", "weighted_base"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_CELLS_INVALID: {
-		Message: "The Crosstab.Cells slot is malformed: Cell and Cells are both set, an entry is null, or an entry has no aggregation type and smart defaults could not infer one from its field. Cells is the multi-measure form of Cell — each entry is one measure, rendered as a stub row.",
+		Message: "The crosstab's cells is malformed: cell and cells are both set, an entry is null, or an entry has no type and smart defaults could not infer one from its field. cells is the multi-measure form of cell — each entry is one measure, rendered as a stub row.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Cells", "*", "Type"},
-				Hint:     "Give every Cells entry an aggregation Type (or a field whose schema type infers one), drop null entries, and set either Cell (one measure) or Cells (several), never both.",
+				Hint:     "Give every cells entry a type (or a field whose schema type infers one), drop null entries, and set either cell (one measure) or cells (several), never both.",
 				Examples: []any{"AGG_AVERAGE", "AGG_COUNT", "AGG_SUM"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL: {
-		Message: "Two Crosstab.Cells entries resolve to the same effective label (Label when set, otherwise TYPE_field). Each measure is addressed by its label on every row key, so the two stub rows would be indistinguishable.",
+		Message: "Two crosstab cells entries resolve to the same effective label (its label when set, otherwise TYPE_field). Each measure is addressed by its label on every row key, so the two stub rows would be indistinguishable.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Crosstab", "Cells", "*", "Label"},
-				Hint:     "Set an explicit, distinct Label on each Cells entry; two entries of the same type over the same field need one.",
+				Hint:     "Set an explicit, distinct label on each cells entry; two entries of the same type over the same field need one.",
 				Examples: []any{"mean_score", "top2_share"},
 			},
 		},
 	},
 	PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED: {
-		Message: "margin_aggregations were declared on a Crosstab section that displays no margin (margins.rows / margins.columns / margins.grand are all false). Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, and are emitted only where that margin is displayed, so nothing carries them back. A normalize direction does not carry them either: the margin it requires is a normalization denominator, and an auxiliary is never a denominator. The request is legal and runs; the figures are accumulated and then discarded.",
+		Message: "margin_aggregations were declared on a crosstab that displays no margin (margins.rows / margins.columns / margins.grand are all false). Auxiliary aggregations are evaluated into the row / column / grand margin accumulators only, and are emitted only where that margin is displayed, so nothing carries them back. A normalize direction does not carry them either: the margin it requires is a normalization denominator, and an auxiliary is never a denominator. The request is legal and runs; the figures are accumulated and then discarded.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3742,7 +3784,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_CROSSTAB_NORMALIZE_MAP_VALUED: {
-		Message: "The Crosstab section requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell) or is a constant of a non-numeric params.type (a decimal string, a label, a label list, a number array). Dividing such values is undefined; the normalize directive cannot be applied.",
+		Message: "The crosstab requested a normalize mode (row / column / total) on a cell aggregator whose output is map-valued (a set-frequency aggregator emits map[string]int per cell) or is a constant of a non-numeric params.type (a decimal string, a label, a label list, a number array). Dividing such values is undefined; the normalize directive cannot be applied.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -3790,23 +3832,23 @@ var codeMetadata = map[Code]Metadata{
 	},
 	// ---------- PULSE — OVERLAYS ----------
 	PULSE_OVERLAY_KIND_UNKNOWN: {
-		Message: "A Request.Overlays entry references an OverlayKind that is not in the catalog (types.AllOverlayKinds()). The validator rejects unknown kinds at predict time; reaching this code at runtime means the request bypassed validation.",
+		Message: "An overlays entry names a kind this instance does not register. Predict and the run refuse it alike.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Kind"},
-				Hint:     "Pick a registered OverlayKind. Check the overlay catalog via pulse manifest --json (overlay-kinds section); spelling and casing must match exactly.",
+				Hint:     "Pick a registered kind from the manifest's overlays list (pulse --json, or pulse_manifest); spelling and casing must match exactly.",
 				Examples: []any{"OVERLAY_INDEX_VS_MARGIN"},
 			},
 		},
 	},
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE: {
-		Message: "An OverlaySpec's Ref does not match the host shape required by the chosen Kind. The index-vs-margin overlay, for example, requires a Ref.Margin pointer with a known MarginAxis (row / column / grand) AND a MATRIX-shaped host (Request.Crosstab non-nil).",
+		Message: "An overlay's ref does not match the host shape its kind requires. The index-vs-margin overlay, for example, needs a ref.margin with a known axis (row / column / grand) AND a matrix host (a request with a crosstab).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Ref", "Margin"},
-				Hint:     "Set Ref.Margin = {Axis: \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN; add Request.Crosstab to provide a MATRIX host so the margin slot has a denominator.",
+				Hint:     "Set ref.margin to {\"axis\": \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN, and give the request a crosstab so the margin has a denominator.",
 				Examples: []any{"row", "column", "grand"},
 			},
 			{
@@ -3817,13 +3859,13 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Kind"},
-				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes on ComposedRequest.Overlays, comparing two slots; a stage kind on ChainRequest.Overlays; a population kind on FacetRequest.Overlays), or pick a kind this slot runs.",
+				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes in the compose request's overlays, comparing two slots; a stage kind in the chain request's overlays; a population kind in the facet request's overlays), or pick a kind this slot runs.",
 				Examples: []any{"compose", "chain", "facet", "request"},
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Kind"},
-				Hint:     "When details.shapes is present the kind runs on Request.Overlays but not over this Process host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs on ComposedRequest.Overlays. On ComposedRequest.Overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
+				Hint:     "When details.shapes is present the kind runs in a request's overlays but not over this host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs in compose overlays. In compose overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
 				Examples: []any{"matrix", "series"},
 			},
 			{
@@ -3835,44 +3877,44 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_COMPONENTS_REQUIRED: {
-		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size, so predict reports it too (Options.DisableComponents, or the request's disable_components: true; Details {index, kind}); a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
+		Message: "An overlay kind that reads per-cell components (n / weight sums / Welford triples / margin counts) ran against a host built with components disabled. The OVERLAY_PAIRWISE_* family needs the components block to resolve each pair leg's sample size, so predict reports it too (Options.DisableComponents, or the request's disable_components: true; details {index, kind}); a Compose two-sample vs-ref overlay scoring a grouped slot's moment aggregation reads each group's mean / variance / n from that slot's per-group components (details.reason components_disabled, details.slot the slot).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"DisableComponents"},
-				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so Response.Components.Crosstab carries the cell n / Welford triples the pairwise overlay divides by. On Compose the override is per slot: set disable_components: false on the slot details.slot names (it re-opens an engine-off gate), or score a scalar mean with the params triple instead.",
+				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so the response's components carry the cell n / Welford triples the pairwise overlay divides by. On Compose the override is per slot: set disable_components: false on the slot details.slot names (it re-opens an engine-off gate), or score a scalar mean with the params triple instead.",
 				Examples: []any{false},
 			},
 		},
 	},
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED: {
-		Message: "An OverlaySpec named a Scope that is not supported for the chosen Kind. The index-vs-margin overlay, for example, currently supports Scope=cell only; row / column / total / matrix / group land in later releases alongside the matching payload shapes.",
+		Message: "An overlay's scope is not one its kind runs at: the index-vs-margin overlay, for example, runs at scope cell only, and a KS overlay is undefined on a categorical field.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Scope"},
-				Hint:     "Set Scope to \"cell\" for OVERLAY_INDEX_VS_MARGIN; the wider projection scopes land in later releases.",
+				Hint:     "Set scope to one the kind runs at (its op-overlay skill lists them) — \"cell\" for OVERLAY_INDEX_VS_MARGIN.",
 				Examples: []any{"cell"},
 			},
 		},
 	},
 	PULSE_OVERLAY_REF_ZERO: {
-		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. A transition-chain overlay also raises it, details `reason` zero_row_absorbing / absorbing_row_synthesized, for a state with no observed move out that it makes absorbing (the unit row). Warning-class — surfaced as a Response.Warning, never as an envelope error.",
+		Message: "An overlay handler observed a zero, missing, or non-finite margin denominator. The affected cell stays absent on the overlay payload; the warning carries the row / column index and margin axis so callers can audit the failing cells. A transition-chain overlay also raises it, details `reason` zero_row_absorbing / absorbing_row_synthesized, for a state with no observed move out that it makes absorbing (the unit row). A warning, never an envelope error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Filterers"},
-				Hint:   "Pre-filter rows that contribute zero margin sums (e.g. FILTER_EXCLUDE on the empty / null axis), or pick a cell aggregator whose denominator is bounded away from zero (AGG_COUNT margins are non-negative integers; AGG_SUM on signed numeric fields may legitimately produce zero).",
+				Hint:   "Filter out rows that contribute zero margin sums (e.g. FILTER_EXCLUDE on the empty / null axis value), or pick a cell aggregator whose denominator is bounded away from zero (AGG_COUNT margins are non-negative integers; AGG_SUM on signed numeric fields may legitimately produce zero).",
 			},
 		},
 	},
 	PULSE_OVERLAY_EXPECTED_LOW: {
-		Message: "An inferential overlay (the chi-square matrix / row / column, standardized residual, symmetry, Fisher exact cell or chi-square-vs-population overlay) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; the symmetry test: any state pair whose expected count under symmetry, (n_ij + n_ji) / 2, is below 5, details low_expected_pairs / zero_pairs; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted alongside; the warning flags rows / columns / cells / categories where the approximation may be unreliable. Warning-class — surfaced as a Response.Warning, never as an envelope error. PRD FR-J1 shares the code across the χ² / Fisher overlay surfaces — Crosstab MATRIX-host kinds and Facet GROUP-host CHISQ_VS_POP emit the same warning shape so renderers can lift it into a single \"approximation may be unreliable\" surface regardless of host shape.",
+		Message: "An inferential overlay (the chi-square matrix / row / column, standardized residual, symmetry, Fisher exact cell or chi-square-vs-population overlay) observed an expected count below the χ² approximation's reliability threshold (canonical rule: any expected cell below 5; the symmetry test: any state pair whose expected count under symmetry, (n_ij + n_ji) / 2, is below 5, details low_expected_pairs / zero_pairs; Fisher's 2×2 rule: any cell < 1 OR ≥ 20% cells < 5). The statistic is still emitted; the warning flags the rows / columns / cells / categories where the approximation may be unreliable. A warning, never an envelope error; the crosstab kinds and the facet chi-square-vs-population overlay share its shape, so one renderer covers both.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Crosstab", "Rows"},
-				Hint:   "Lower the nested-axis Level (collapse a finer grouper) or widen the cells (raise observed counts) so the contingency margins reach the χ² reliability threshold — coarsen GROUP_DATE buckets, widen GROUP_RANGE intervals, or drop a deep grouper on the row axis. Alternatively, switch to OVERLAY_FISHER_EXACT_CELL (exact 2×2 p-values) which stays exact in the low-count regime.",
+				Hint:   "Lower the overlay's level (collapse a finer grouper) or widen the cells (raise observed counts) so the contingency margins reach the χ² reliability threshold — coarsen GROUP_DATE buckets, widen GROUP_RANGE intervals, or drop a deep grouper on the row axis. Alternatively, switch to OVERLAY_FISHER_EXACT_CELL (exact 2×2 p-values) which stays exact in the low-count regime.",
 			},
 			{
 				Action: FixupReplaceOperator,
@@ -3882,7 +3924,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"FacetRequest", "DiscreteTopK"},
-				Hint:   "OVERLAY_CHISQ_VS_POP fix: raise the subset record count by widening the FacetRequest filter (drop a restrictive Filterer) OR coarsen the facet's discrete dictionary (the host's DiscreteTopK ceiling) so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
+				Hint:   "OVERLAY_CHISQ_VS_POP: raise the subset record count by widening the facet request's filterers (drop a restrictive one), or lower its discrete_top_k so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
 			},
 			{
 				Action:   FixupReplaceField,
@@ -3893,12 +3935,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE: {
-		Message: "An OverlaySpec's Level selector exceeds the nested-axis depth of the relevant host axis. Valid depths are zero-indexed from the top of the axis: Row axis depth = len(Crosstab.Rows), Column axis depth = len(Crosstab.Columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface. The same code refuses an out-of-range overlay Params value, at predict and at runtime alike: a rolling-window Params[\"window\"] that is not a positive integer or sits below the kind's floor (details.min: 1 for the rolling-mean index, 2 for the rolling z-score, whose sample SD is undefined over one point), and a series formula overlay's Params[\"baseline_position\"] that is not a non-negative integer.",
+		Message: "An overlay's level exceeds the depth of its host axis. Depths count from the top of the axis: the row axis has len(crosstab.rows) levels, the column axis len(crosstab.columns). Mirrors PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab normalize_level surface. The same code refuses an out-of-range overlay params value, at predict and at runtime alike: a rolling-window params.window that is not a positive integer or sits below the kind's floor (details.min: 1 for the rolling-mean index, 2 for the rolling z-score, whose sample SD is undefined over one point), and a series formula overlay's params.baseline_position that is not a non-negative integer.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Level"},
-				Hint:     "Pick a depth in [0, len(axis)-1] where axis = Crosstab.Rows for row-axis overlays and Crosstab.Columns for column-axis overlays. Omit the field entirely to default to the leaf (the deepest grouper on the axis).",
+				Hint:     "Pick a depth in [0, len(axis)-1], where the axis is crosstab.rows for a row-axis overlay and crosstab.columns for a column-axis one. Omit level for the leaf (the deepest grouper on the axis).",
 				Examples: []any{0, 1, 2},
 			},
 			{
@@ -3910,12 +3952,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_PARAM_MISSING: {
-		Message: "An OverlaySpec did not supply a Params entry that the chosen Kind requires. The rolling-mean index overlay requires Params[\"window\"] (positive integer) per the WIN_* operator convention; the window width lives on Params, not on Ref. Surfaced at both predict (descriptor.validateOverlayIndexVsRollingMean) and runtime (processing.applyIndexVsRollingMean) with Details carrying the kind and the missing param name. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — Params absent or not an object, the key absent, an empty or non-string value — is this code on every host (Request crosstab / grouped, Compose), predict and runtime alike, Details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, Details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is). The paired-change test of symmetry refuses two exact k x k requests at runtime only (the state count and counts are data): an explicit params.conf_level with exact on more than 2 states (details.reason needs_2x2 — the k x k exact Bowker test has no odds ratio to cover) and an exact Bowker test whose convolution would enumerate more than 2^20 terms (details.reason exact_too_large, details.terms / limit) — never a silent fall back to the chi-square.",
+		Message: "An overlay lacks a params entry its kind requires. The rolling-mean index overlay requires params.window (a positive integer; the width lives in params, not in ref), refused at predict and at runtime with details naming the kind and the missing param. A Compose two-sample t / z overlay (vs-ref or per-cell) scoring a bare scalar mean on a side needs that side's variance and sample size — there is no default (details.reason params_missing; details.side reference | target, details.params the missing keys, details.slot the slot). A formula overlay with no usable params.formula — params absent or not an object, the key absent, an empty or non-string value — is this code on every host (a crosstab or grouped request, Compose), predict and runtime alike, details {index, kind, param: \"formula\", reason}; a formula that is present but does not parse is PULSE_OVERLAY_FORMULA_PARSE_ERROR. A pairwise proportion overlay with an EXPLICIT params.p_source cell_value_pct on a crosstab whose normalize is not none is this code too, predict and runtime alike, details {kind, param: \"p_source\", p_source, normalize}: every normalised cell is already a 0..1 share, so dividing it by 100 would score each pair silently wrong (the omitted p_source reads the share as is). The paired-change test of symmetry refuses two exact k x k requests at runtime only (the state count and counts are data): an explicit params.conf_level with exact on more than 2 states (details.reason needs_2x2 — the k x k exact Bowker test has no odds ratio to cover) and an exact Bowker test whose convolution would enumerate more than 2^22 terms (details.reason exact_too_large, details.terms / limit) — never a silent fall back to the chi-square.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Set Params on the OverlaySpec to a JSON object containing the required keys for the chosen Kind. For OVERLAY_INDEX_VS_ROLLING_MEAN populate `{\"window\": N}` where N is a positive integer naming the rolling-window width (e.g. {\"window\": 3} for a 3-point rolling mean). Per the WIN_* operator convention, the window width is the only required param today.",
+				Hint:     "Set the overlay's params to an object holding the keys its kind requires. For OVERLAY_INDEX_VS_ROLLING_MEAN that is `{\"window\": N}`, N a positive integer (e.g. {\"window\": 3} for a 3-point rolling mean).",
 				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
 			},
 			{
@@ -3943,177 +3985,177 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_FORMULA_PARSE_ERROR: {
-		Message: "An OVERLAY_FORMULA spec's Params[\"formula\"] string failed to parse as an expr-lang expression. The formula was syntactically invalid — typically unbalanced parentheses, a stray operator, an unterminated string literal, or a typo on a keyword. A formula that parses but names an unknown variable or function is PULSE_OVERLAY_FORMULA_INVALID_IDENT instead, on every host — the identifier gate runs before the compile. Surfaced at both predict (descriptor.validateFormulaOverlay) and runtime (processing.compileFormulaProgram) so authors catch the failure before evaluation begins. Details carry {formula, parse_error, kind, index} — the parser's own position-aware error string is preserved verbatim under Details.parse_error so renderers can surface the offending column / token alongside the offending input.",
+		Message: "An OVERLAY_FORMULA overlay's params.formula does not parse — typically unbalanced parentheses, a stray operator, an unterminated string literal or a misspelt keyword. A formula that parses but names an unknown variable or function is PULSE_OVERLAY_FORMULA_INVALID_IDENT instead, on every host. Raised at predict and at runtime alike, details {formula, parse_error, kind, index}; details.parse_error is the parser's own message, with the offending position.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Re-read the formula string with the parser message in mind (Details.parse_error names the offending position or token). Common fixes: balance every '(' with a matching ')', terminate every '\"' string literal, and confirm operators are valid expr-lang operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). The expr-lang grammar is documented under docs/src/internals/extension-points.md (the same evaluator backs ATTR_FORMULA and FILTER_EXPRESSION, so any expression that parses there parses here).",
+				Hint:     "Fix the formula at the position details.parse_error names: balance every '(' with a ')', close every '\"' string, and use only the expression operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). ATTR_FORMULA and FILTER_EXPRESSION share the grammar (skills/expression-language.md), so a formula that parses there parses here.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FORMULA_TYPE_MISMATCH: {
-		Message: "An OVERLAY_FORMULA expression returned a value whose Go type cannot be coerced to a numeric Statistic (float64). The runtime accepts float64 / float32 / int / int64 natively, widens bool to 0.0 / 1.0, and rejects everything else (strings, maps, slices, nil, etc.) — overlays must emit numeric statistics so the renderer can plot them. Surfaced at runtime by processing.applyFormula after expr.Run returns. Details carry {returned_type, formula, kind, index} so the renderer can surface both the offending Go type and the offending input.",
+		Message: "An OVERLAY_FORMULA expression returned a value that is not a number. A number is kept, a bool widens to 0 / 1, and anything else (a string, map, list or nil) is refused at runtime, because an overlay statistic is numeric. Details carry {returned_type, formula, kind, index}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Ensure the formula's top-level expression evaluates to a numeric value (float64 / float32 / int / int64) or a bool (bool widens to 0.0 / 1.0). If the formula uses a custom function registered via pulse.Options.Extensions.ExprFunctions, verify the function returns a numeric Go type rather than a string, slice, or composite type — see docs/src/internals/extension-points.md for the ExprFunctions contract. If the formula uses lookup() against a LookupTables registration, verify the row value column is numeric.",
+				Hint:     "Make the formula's top-level expression yield a number or a bool. An embedder function it calls (pulse.Options.Extensions.ExprFunctions) must return a number, not a string, slice or composite (docs/src/internals/extension-points.md).",
 				Examples: []any{map[string]any{"formula": "cell / margin_row"}, map[string]any{"formula": "(value - prior) / prior"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FORMULA_INVALID_IDENT: {
-		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when Params[\"baseline_position\"] is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Surfaced by predict (descriptor.validateFormulaOverlay) and by the runtime BEFORE it compiles (Request host: processing.requestFormulaIdentRefusal; Compose host: the dispatcher), both through the one AST walk in internal/formulaident, so code, message and Details match. A vector built-in (vsum ... vnormalize) carries {unknown_identifier, allowed_builtins, formula, kind, index} instead. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers on a Request host additionally carry {reason: \"slot namespace is Compose-only\"}.",
+		Message: "An OVERLAY_FORMULA expression references an identifier (variable or function) that is not allowed for the resolved host shape. The per-shape variable namespace is fixed: MATRIX hosts expose `cell, margin_row, margin_col, margin_grand, sd_row, sd_col, sd_grand` (plus `ref_cell` and the dotted `slot.<label>.cell` namespace on Compose hosts); SERIES hosts expose `value, total, prior` (plus opt-in `baseline` when params.baseline_position is set, plus `ref_value` on Compose hosts); SCALAR hosts expose `value` (plus `ref` on Compose hosts). The function namespace is the expr-lang stdlib plus every pulse.Options.Extensions.ExprFunctions registration and (when LookupTables are registered) the auto-injected lookup() builtin. Raised at predict and at runtime before the formula compiles, by one shared check, so code, message and details match. A vector built-in (vsum ... vnormalize) carries {unknown_identifier, allowed_builtins, formula, kind, index} instead. Details carry {unknown_identifier, host_shape, allowed | allowed_funcs, formula, kind, index}; Compose-only `slot.<label>.<field>` identifiers in a request's overlays also carry {reason: \"slot namespace is Compose-only\"}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "formula"},
-				Hint:     "Check the allowed identifier set for shape Details.host_shape against Details.allowed (variables) or Details.allowed_funcs (functions) — the per-shape namespace table lives in the FORMULA section of skills/overlay-system.md. If the identifier was meant to be a custom function, register it via pulse.Options.Extensions.ExprFunctions before calling pulse.New (see docs/src/internals/extension-points.md for the registration recipe — naming policy ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_*$ applies to operators, not to expr functions; expr function names are free-form). If the identifier was meant to be a variable not in the per-shape table, register a custom kind via pulse.Options.Extensions.OverlayKinds — FORMULA cannot widen its variable namespace from outside. Compose `slot.<label>.<field>` identifiers only resolve on Compose-host overlays (FacetRequest.Overlays / ComposedRequest.Overlays), not on Request.Overlays.",
+				Hint:     "Use an identifier from details.allowed (variables) or details.allowed_funcs (functions) for shape details.host_shape; skills/overlay-system.md tables each shape's namespace. A custom function is registered through pulse.Options.Extensions.ExprFunctions before pulse.New (docs/src/internals/extension-points.md; function names are free-form). A variable outside the shape's table needs a custom overlay kind (pulse.Options.Extensions.OverlayKinds) — OVERLAY_FORMULA cannot widen its namespace. `slot.<label>.<field>` resolves only in compose overlays, not in a request's overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_FIELD_UNKNOWN: {
-		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one Request.Aggregations entry — its explicit Label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. It may instead name one expanded element column \"<label>[<element label>]\" of a params.expand vector aggregation; an element that aggregation does not write is refused too. Raised at predict and at runtime with the same Details {index, kind, field, available}, where available lists the request's aggregation labels in order, each expanded aggregation's element columns after its label. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds Details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds Details.which (target | ref) and Details.stage_index.",
+		Message: "A series overlay's params.field does not name a request aggregation. The param takes the OUTPUT LABEL of one aggregations entry — its explicit label, else its TYPE_field default — and the overlay scores that aggregation; absent, it scores the first aggregation. It may instead name one expanded element column \"<label>[<element label>]\" of a params.expand vector aggregation; an element that aggregation does not write is refused too. Raised at predict and at runtime with the same details {index, kind, field, available}, where available lists the request's aggregation labels in order, each expanded aggregation's element columns after its label. A Compose overlay (INDEX_VS_REF, DELTA_VS_REF, T_VS_REF, Z_VS_REF, PANEL_INDEX_VS_REF) resolves the label on every non-crosstab slot it reads, reference first, and adds details.slot naming the slot that lacks it. A whole-chain overlay (INDEX_VS_STAGE, DELTA_VS_STAGE) resolves it on the target, then the reference non-crosstab stage, and adds details.which (target | ref) and details.stage_index.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "field"},
-				Hint:     "Set params.field to one of the labels in Details.available, or give the aggregation you mean an explicit Label and name that. Two aggregations over one input field (AGG_SUM and AGG_MEAN of spend) differ by label, not by field. Omit params.field to score the first aggregation.",
+				Hint:     "Set params.field to one of the labels in details.available, or give the aggregation you mean an explicit label and name that. Two aggregations over one input field (AGG_SUM and AGG_MEAN of spend) differ by label, not by field. Omit params.field to score the first aggregation.",
 				Examples: []any{map[string]any{"field": "orders"}, map[string]any{"field": "AGG_SUM_spend"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_PARTITION_INVALID: {
-		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same Details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order. An extension kind declaring HonoursPartitionBy partitions the Request SERIES host only: on ComposedRequest.Overlays its partition_by is refused with Details {index, kind, partition_by, reason: compose_host}.",
+		Message: "A series overlay's params.partition_by is not a leading prefix of the request's group key columns. With two or more groupers a prior, rolling, baseline, sibling or _TOTAL overlay runs once per partition — the rows sharing the leading keys — so a series never crosses a segment and a total is the partition's own. Absent, it partitions by every key but the last (the series runs down the last grouper); [] means no partition. The year-over-year overlay instead partitions by every non-date key, so its partition_by must name exactly those columns (any order). Raised at predict and at runtime with the same details {index, kind, partition_by, groups, reason, field}: reason is not_string_list, unknown_field, not_prefix or (year-over-year) not_non_date_keys, groups lists the key columns in order. An extension kind declaring HonoursPartitionBy partitions a grouped request's series only: in compose overlays its partition_by is refused with details {index, kind, partition_by, reason: compose_host}.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
-				Hint:     "Name the first k entries of Details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder Request.Groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
+				Hint:     "Name the first k entries of details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
 				Examples: []any{map[string]any{"partition_by": []any{"region"}}, map[string]any{"partition_by": []any{}}},
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "partition_by"},
-				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of Details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
+				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
 				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Overlays", "*", "Params", "partition_by"},
-				Hint:   "reason compose_host: drop partition_by from the ComposedRequest.Overlays spec — the extension kind's Compose handler reads every slot whole; partition on a grouped request's Request.Overlays instead.",
+				Hint:   "reason compose_host: drop partition_by from the compose overlay — the extension kind's Compose handler reads every slot whole; partition in a grouped request's own overlays instead.",
 			},
 		},
 	},
 	PULSE_OVERLAY_REF_UNKNOWN: {
-		Message: "An overlay handler named a reference that does not resolve to a known slot on the host. Three arms today: (1) sibling-reference overlays (delta- and index-vs-sibling) name a Sibling (Field, Value) pair that does not match any observed axis-key value on the SERIES host; (2) baseline-index overlays (index- and delta-vs-baseline, rolling-mean index, year-over-year) name a Position ordinal outside [0, host.GroupCount()) — Details carry {baseline_index, series_length}; a grouped formula overlay's params.baseline_position at or past its partition's length is the same arm with {index, kind, baseline_position, series_length}, which predict raises too when every in-partition grouper is a category grouper over a categorical field (series_length then the dictionary bound); (3) Facet-host population overlays (index, z-score, chi-square and KS vs population) name a population field absent from the host FacetResult — Details carry {field, available_fields}. The affected layer surfaces NaN statistics across every present entry (arms 1–2) or fails fast (arm 3). Warning-class for arms 1–2, runtime error for arm 3 — surfaced as a Response.Warning or envelope error depending on arm.",
+		Message: "An overlay names a reference that does not resolve on its host, in three cases: (1) a sibling-reference overlay (delta- and index-vs-sibling) names a ref.sibling {field, value} pair that does not match any observed axis-key value on the SERIES host; (2) a baseline-index overlay (index- and delta-vs-baseline, rolling-mean index, year-over-year) names a ref.baseline_index.position outside [0, series length) — details {baseline_index, series_length}; a grouped formula overlay's params.baseline_position at or past its partition's length is the same arm with {index, kind, baseline_position, series_length}, which predict raises too when every in-partition grouper is a category grouper over a categorical field (series_length then the dictionary bound); (3) a facet population overlay (index, z-score, chi-square and KS vs population) names a field the facet result does not hold — details {field, available_fields}. Cases 1 and 2 are warnings and the layer's statistics are null; case 3 is an error.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Field"},
-				Hint:   "Set Ref.Sibling.Field to one of the Request.Groups[*].Field names. Run pulse predict --json on the request to confirm the grouper fields the request lowers to; categorical grouper Fields are the typical match.",
+				Hint:   "Set ref.sibling.field to the field of one of the request's groups (usually a categorical grouper); pulse api predict --json shows the grouper fields.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Value"},
-				Hint:   "Set Ref.Sibling.Value to an observed axis-key value for the named Field. Run pulse inspect --json on the cohort to enumerate the field's dictionary values, or pulse facet --field <name> to confirm the post-filter observed set.",
+				Hint:   "Set ref.sibling.value to an observed key of that field: pulse cohort inspect --json lists its dictionary, pulse api facet the values left after filtering.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "BaselineIndex", "Position"},
-				Hint:   "Set Ref.BaselineIndex.Position to a 0-based ordinal in [0, host series length). Run pulse predict --json or process --json with no overlay to confirm the series length the host produces (or process the host first and count Response.Data groups).",
+				Hint:   "Set ref.baseline_index.position to a 0-based ordinal below the series length (run the request without the overlay and count its data rows).",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Population", "Cohort"},
-				Hint:   "Population overlays resolve against a FacetResult — ensure the named field is present in FacetRequest.Fields so the host pass computes per-value counts / Welford state for it. The error Details carry available_fields enumerating the host's resolved slots; pick one of those, or extend FacetRequest.Fields with the missing field name.",
+				Hint:   "A population overlay reads the facet result: name a field in details.available_fields, or add the field to the facet request's fields.",
 			},
 		},
 	},
 	PULSE_OVERLAY_YOY_FREQUENCY_MISSING: {
-		Message: "An OVERLAY_YOY spec did not supply a `frequency` Param either on the OverlaySpec or on the host's GROUP_DATE grouper. The YoY kind cannot infer the correct prior-period stride from the GROUP_DATE `component` slot alone because the per-component stride for 'one year prior' varies by component (annual ⇒ 1 ordinal, quarterly ⇒ 4 ordinals, monthly ⇒ 12 ordinals, weekly ⇒ 52 ordinals, daily ⇒ 365-day calendar arithmetic, hourly ⇒ 365×24-hour arithmetic). The handler reads the explicit `frequency` value from `spec.Params[\"frequency\"]` first (the YoY's own override) and falls back to `req.Groups[0].Params[\"frequency\"]` (the canonical GROUP_DATE authoring slot). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY).",
+		Message: "An OVERLAY_YOY overlay has no `frequency`, neither in its own params nor in its GROUP_DATE grouper's params. The stride to \"one year prior\" depends on the frequency (annual 1 period, quarterly 4, monthly 12, weekly 52, daily and hourly by calendar arithmetic), so it is never guessed. The overlay's params.frequency wins over the grouper's. Raised at predict and at runtime alike.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Groups", "0", "Params"},
-				Hint:     "Set the host GROUP_DATE grouper's Params to a JSON object carrying `\"frequency\": \"<freq>\"` where <freq> is one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` and matches the GROUP_DATE `component` slot (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). This is the canonical authoring slot — every OVERLAY_YOY spec sharing the same Request will pick the value up via the fallback read at processing.applyYoY.",
+				Hint:     "Set `\"frequency\": \"<freq>\"` in the GROUP_DATE grouper's params, <freq> one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`, matching its component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Every OVERLAY_YOY on the request reads it.",
 				Examples: []any{map[string]any{"component": "month", "frequency": "monthly"}, map[string]any{"component": "year", "frequency": "annual"}, map[string]any{"component": "quarter", "frequency": "quarterly"}},
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Populate `OverlaySpec.Params[\"frequency\"]` directly on the YoY overlay if the host GROUP_DATE config is owned by other code (e.g. a shared chain stage). The handler reads this slot first and treats it as a per-overlay override of the grouper's `frequency` Param, so you can ship the YoY decoration without touching the request's grouper config. Allowed values: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly` (must match the host's GROUP_DATE `component`: annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour).",
+				Hint:     "Or set params.frequency on the OVERLAY_YOY overlay itself, which overrides the grouper's — useful when the grouper is not yours to change. Same values, matching the grouper's component.",
 				Examples: []any{map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
 			},
 		},
 	},
 	PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT: {
-		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a Target stage and a Ref stage whose host result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). A stage's shape is its authored request's — a crosstab is matrix, groups plus aggregations is series, an ungrouped stage is scalar — so a grouped stage against an ungrouped one lands here, never as per-row reference misses. It is warning-class on both sides: predict-chain warns and the chain stays valid, the runtime runs the chain and attaches the warning to the overlay layer; Strict escalates it on neither side. The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
+		Message: "A whole-chain overlay spec (the index-vs-stage or delta-vs-stage overlay) resolved a target stage and a ref stage whose result shapes disagree (one is matrix, the other series; one is scalar, the other series; etc.). A stage's shape is its authored request's — a crosstab is matrix, groups plus aggregations is series, an ungrouped stage is scalar — so a grouped stage against an ungrouped one lands here, never as per-row reference misses. It is warning-class on both sides: predict-chain warns and the chain stays valid, the runtime runs the chain and attaches the warning to the overlay layer; Strict escalates it on neither side. The handler cannot fold per-coordinate arithmetic when target and reference do not share a coordinate grid; the layer surfaces an empty payload that inherits the target stage's shape and the warning carries the offending pair of shapes plus the originating (target_index, ref_index) so callers can audit the chain and collapse one stage so both produce the same shape, or remove the overlay.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages"},
-				Hint:   "Collapse one stage so both Target and Ref produce the same host shape — switch the Crosstab stage to a Process stage with the same Groups + Aggregations (matrix → series) OR drop the Groups slot from the series-producing stage to fold to a scalar (series → scalar). Both stages must produce matrix-shaped OR both series-shaped OR both scalar-shaped Response objects for the per-coordinate arithmetic to align.",
+				Hint:   "Make both stages produce one shape: replace a crosstab stage's crosstab with the same groups and aggregations (matrix → series), or drop groups from the series stage (series → scalar).",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Target"},
-				Hint:   "Repoint the OverlaySpec's Target StageRef at a stage whose shape matches the Ref stage. Run pulse predict --json on the chain request to confirm each stage's predicted output shape; ChainResponse.NormalizedRequest echoes the per-stage normalized form for the same purpose.",
+				Hint:   "Point the overlay's target at a stage whose shape matches the ref stage; pulse api predict-chain --json reports each stage's shape.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref"},
-				Hint:   "Repoint the OverlaySpec's Ref StageRef at a stage whose shape matches the Target stage. Same fix as the Target arm; pick whichever stage is the more authoritative baseline for the renderer's framing.",
+				Hint:   "Or point the overlay's ref at a stage whose shape matches the target stage.",
 			},
 		},
 	},
 	PULSE_OVERLAY_TARGET_UNKNOWN: {
-		Message: "An overlay spec named a Target that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"target\"` Detail: (1) Compose overlay spec — a `ComposeOverlaySpec.Targets[j]` entry names a slot label that does not appear in `ComposedRequest.Requests[].Label` (or the slot resolved to nil because that slot failed under FailFast=false); Details carry `slot_label`, the spec `index`, and the offending `target_index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Target` StageRef whose `Index` lands outside `[0, len(Stages))` or whose `Name` does not match any `ChainStage.Name`; Details carry the offending `stage_index` / `stage_name`. In both arms the handler returns the coded error without producing an overlay layer. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN.",
+		Message: "An overlay names a target that resolves to no slot or stage (details.which \"target\"), and no layer is produced: (1) a compose overlay's `targets[j]` names no slot label of `requests[].label` (or a slot that failed under fail_fast false) — details `slot_label`, the spec `index` and `target_index`; (2) a chain overlay's `target` has an `index` outside the stage list or a `name` no stage carries — details `stage_index` / `stage_name`. Sibling of PULSE_OVERLAY_REFERENCE_UNKNOWN.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Targets"},
-				Hint:   "Set `Targets` entries to labels declared in `ComposedRequest.Requests[].Label`. The resolver decodes each Targets[j] string against the slot-label map built once per Compose call; unknown labels (or labels naming a slot that failed under FailFast=false) fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+				Hint:   "Set each `targets` entry to a slot label of `requests[].label`; pulse api predict-compose --json lists the resolved labels.",
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Target", "Index"},
-				Hint:     "Chain-overlay arm: set Target.Index to a 0-based ordinal in [0, len(Stages)). Run pulse predict --json on the chain request to confirm the stage count; omit Target entirely to default to the latest stage (len(Stages) - 1).",
+				Hint:     "Chain overlay: set target.index to a 0-based stage ordinal below the stage count, or omit target for the last stage.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Target", "Name"},
-				Hint:   "Chain-overlay arm: set Target.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+				Hint:   "Chain overlay: set target.name to a stage's name, matching exactly (case-sensitive).",
 			},
 		},
 	},
 	PULSE_OVERLAY_REFERENCE_UNKNOWN: {
-		Message: "An overlay spec named a Reference that does not resolve to a known slot or stage. Two host families share this code distinguished by the `which: \"reference\"` Detail: (1) Compose overlay spec — `ComposeOverlaySpec.Reference` is empty, names a slot label absent from `ComposedRequest.Requests[].Label`, or resolved to nil because that slot failed under FailFast=false; Details carry `slot_label` and the spec `index`. (2) Chain overlay spec — a whole-chain `ChainOverlaySpec.Ref` StageRef whose `Index` is out of range OR `Name` is unmatched, or the spec did not populate Ref at all (Ref has no default unlike Target). The code also covers the missing-reference-cell / missing-reference-row warning on the CHAIN-host DELTA family (the delta-vs-stage overlay) with `ref_missing: true` (handler folds against an implicit zero reference). (3) MATRIX_RESULT overlay — `Ref.Matrix.Name` names no `Request.Matrices` spec by its effective name (`MatrixSpec.Name`, else `<TYPE>_<vector>` / `<TYPE>`); Details carry `which: \"matrix\"`, `name`, the request's effective names under `matrices`, the spec `index` and `kind`.",
+		Message: "An overlay names a reference that resolves to no slot, stage or matrix: (1) a compose overlay's `reference` is empty, names no slot label of `requests[].label`, or names a slot that failed under fail_fast false — details `which: \"reference\"`, `slot_label` and the spec `index`; (2) a chain overlay's `ref` has an out-of-range `index` or an unmatched `name`, or is absent (ref has no default, unlike target); the delta-vs-stage overlay also warns with this code and `ref_missing: true` for a reference cell or row it lacks, folding against zero; (3) an OVERLAY_MATRIX_RESULT's `ref.matrix.name` names no `matrices` entry by its effective name (its `name`, else `<TYPE>_<vector>` / `<TYPE>`) — details `which: \"matrix\"`, `name`, the request's effective names under `matrices`, the spec `index` and `kind`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Reference"},
-				Hint:   "Set `Reference` to one of the labels in `ComposedRequest.Requests[].Label`. The resolver decodes the Reference string against the slot-label map built once per Compose call; empty, unknown, or failed-slot labels fail loud. Run pulse predict --json on the ComposedRequest to confirm the resolved slot label set.",
+				Hint:   "Set `reference` to a slot label of `requests[].label`; pulse api predict-compose --json lists the resolved labels.",
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Ref", "Index"},
-				Hint:     "Chain-overlay arm: set Ref.Index to a 0-based ordinal in [0, len(Stages)). Every whole-chain ChainOverlaySpec MUST name a baseline — Ref has no default (unlike Target which defaults to the latest stage). Run pulse predict --json on the chain request to confirm the stage count.",
+				Hint:     "Chain overlay: set ref.index to a 0-based stage ordinal below the stage count. Every chain overlay must name its baseline — ref has no default.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Ref", "Name"},
-				Hint:   "Chain-overlay arm: set Ref.Name to the Name of an existing ChainStage on the request. Names must match exactly (case-sensitive). Run pulse predict --json on the chain request to confirm the stage names the chain executor sees.",
+				Hint:   "Chain overlay: set ref.name to a stage's name, matching exactly (case-sensitive).",
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Ref", "Matrix", "Name"},
-				Hint:     "MATRIX_RESULT arm: set Ref.Matrix.Name to one of the names under details.matrices — a matrix spec's `name`, or for an unnamed spec its default `<TYPE>_<vector>` (vector spec) / `<TYPE>` (inline fields).",
+				Hint:     "OVERLAY_MATRIX_RESULT: set ref.matrix.name to one of the names under details.matrices — a matrix spec's `name`, or for an unnamed spec its default `<TYPE>_<vector>` (vector spec) / `<TYPE>` (inline fields).",
 				Examples: []any{"MAT_CORRELATION_scores"},
 			},
 		},
@@ -4121,12 +4163,12 @@ var codeMetadata = map[Code]Metadata{
 	PULSE_OVERLAY_KEY_SET_DIVERGENT: {
 		// Minimal entry — full polish (richer Message + per-shape Fixup
 		// hints) is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose-only overlays require strict cross-Request key alignment so the renderer can fold target values against the reference at byte-equal coordinates; tolerant alignment is an explicit non-goal for v1. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, Details {index, reference, target, reference_fields, target_fields}. Only slots of the same shape are compared: a grouped slot against an ungrouped one is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose per-coordinate key sets disagree — matrix (row × column) tuples present on one slot but absent on another, or series group-keys diverging across slots. Compose overlays fold target values against the reference at equal coordinates, so the key sets must match exactly. Details carry the reference slot label, the offending target slot label, and the symmetric difference of the two key sets (`missing` keys present on reference but absent from target; `extra` keys present on target but absent from reference). A SERIES slot keys on its group columns alone, so predict-compose refuses two SERIES slots whose group key columns differ by name, details {index, reference, target, reference_fields, target_fields}. Only slots of the same shape are compared: a grouped slot against an ungrouped one is PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests"},
-				Hint:   "Re-issue the diverging slot Requests against pre-aligned cohorts so every slot produces the same per-coordinate key set — same Groups slot, same FILTER_* pipeline, same shape-affecting parameters. Compose-only overlays compare slots cell-for-cell at matching coordinates; divergent key sets cannot be folded byte-equal.",
+				Hint:   "Make every slot produce the same key set: the same groups, the same filterers and the same shape-affecting params, over cohorts that hold the same keys.",
 			},
 		},
 	},
@@ -4134,17 +4176,17 @@ var codeMetadata = map[Code]Metadata{
 		// Prose points at the predict-side SlotPair surface so MCP
 		// planners can fan the per-divergence repair without parsing
 		// envelope Details.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. A two-sample vs-ref kind also raises it, details.reason mixed_measure_read, when one slot's measure is a bare mean and the other's carries the moments. Runtime Details carry the `reference` slot label, the offending `target_label`, and canonical `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); the no-execute predict surface (`descriptor.ValidateCompose`) mirrors the same information via `ComposeValidationResult.OverlaysSchemaDivergence []SlotPair` (one entry per offending (reference, target) pair, Reason = `schema-divergent`). Predict consumers should branch on `Reason` for the divergence class and read `ReferenceLabel` / `TargetLabel` for the offending slots without re-parsing envelope details.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose row / column axis schemas disagree in grouper kind, type, or nested depth. Compose-only overlays require structurally identical axis schemas across slots — field names may differ (two slots can rename the same column) but grouper kinds + types + depth must match. A two-sample vs-ref kind also raises it, details.reason mixed_measure_read, when one slot's measure is a bare mean and the other's carries the moments. Runtime details carry the `reference` slot label, the offending `target_label`, and `reference_schema` / `target_schema` strings (per-axis kind tuples joined `|`, axes joined `/`); predict-compose reports each offending pair under the result's overlays_schema_divergence (reason `schema-divergent`, with reference_label / target_label).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Crosstab", "Rows"},
-				Hint:   "Re-issue the diverging slot Request with the same row-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+				Hint:   "Give the diverging slot the same row-axis groupers (kind, type and depth) as the reference slot; field names may differ.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
-				Hint:   "Re-issue the diverging slot Request with the same column-axis Groups slot (kind + type + depth) as the reference slot. Field names may differ across slots; grouper kinds + types + nested depth must match.",
+				Hint:   "Give the diverging slot the same column-axis groupers (kind, type and depth) as the reference slot; field names may differ.",
 			},
 			{
 				Action:   FixupReplaceOperator,
@@ -4156,29 +4198,29 @@ var codeMetadata = map[Code]Metadata{
 	},
 	PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT: {
 		// Minimal entry — full polish is deferred.
-		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). A slot's shape is its authored request's: a crosstab is MATRIX, groups plus aggregations is SERIES, anything else (an ungrouped request) is SCALAR — so a grouped slot paired with an ungrouped one lands here on predict-compose and runtime alike, not under PULSE_OVERLAY_KEY_SET_DIVERGENT. Compose overlays fold target values against the reference at byte-equal coordinates; without a shared shape there is no coordinate grid. Details carry the spec `index` and `kind`, the `reference` slot label, the offending `target_label`, the `reference_shape`, and the `target_shape`.",
+		Message: "A Compose overlay spec resolved a reference slot and one or more target slots whose host result shapes disagree (one is MATRIX while the other is SERIES, or one is SCALAR while the other is non-SCALAR). A slot's shape is its authored request's: a crosstab is MATRIX, groups plus aggregations is SERIES, anything else (an ungrouped request) is SCALAR — so a grouped slot paired with an ungrouped one lands here on predict-compose and runtime alike, not under PULSE_OVERLAY_KEY_SET_DIVERGENT. Compose overlays fold target values against the reference at equal coordinates; without a shared shape there is no coordinate grid. Details carry the spec `index` and `kind`, the `reference` slot label, the offending `target_label`, the `reference_shape`, and the `target_shape`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests"},
-				Hint:   "Re-issue the diverging slot Request so its host result shape matches the reference slot's — either both crosstabs (set Crosstab on both), both grouped Process results (set Groups + Aggregations on both, no Crosstab on either), or both ungrouped (drop Groups from both).",
+				Hint:   "Give the diverging slot the reference slot's shape: both crosstabs, both grouped (groups and aggregations, no crosstab), or both ungrouped (no groups).",
 			},
 		},
 	},
 	PULSE_OVERLAY_DICT_PREFIX_DRIFT: {
 		// Minimal entry — full polish (richer Message + per-field Fixup
 		// hints) is deferred.
-		Message: "A Compose overlay spec opted into ComposeOverlaySpec.Options.DictPrefixFast but the reference slot and one or more target slots carry categorical dictionaries that do not share a byte-equal common prefix. The fast path engages direct-index comparison across slots; divergent dictionaries silently produce incorrect cell alignment under that mode so the runtime fails loud. Default behaviour is the safe by-label join (decode each key via the slot dictionary before comparison) and tolerates arbitrary dict reordering. Details carry the offending `reference` slot label, the `target_label`, the `field` whose dictionaries disagree, and the canonical `reference_dict_prefix` / `target_dict_prefix` strings (entries joined `|`).",
+		Message: "A compose overlay sets options.dict_prefix_fast but the reference and a target slot carry categorical dictionaries without a byte-equal common prefix. The fast path compares dictionary indexes directly, so diverging dictionaries would misalign cells; the run refuses instead. The default by-label join tolerates any dictionary order. Details carry the offending `reference` slot label, the `target_label`, the `field` whose dictionaries disagree, and the canonical `reference_dict_prefix` / `target_dict_prefix` strings (entries joined `|`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Options"},
-				Hint:   "Drop ComposeOverlaySpec.Options.DictPrefixFast (or set it to false) to fall back to the safe by-label join, which tolerates arbitrary dictionary reordering across slots. The fast path is an opt-in optimization for cohorts whose per-slot dictionaries are known to share a byte-equal prefix.",
+				Hint:   "Drop options.dict_prefix_fast (or set it false) for the by-label join, which tolerates any dictionary order.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests"},
-				Hint:   "Re-issue the diverging slot Requests against cohorts whose categorical dictionaries share a byte-equal common prefix on the overlay's keying field — typically by importing both cohorts from the same canonical source or by aligning dictionaries upstream via the sharding append-only prefix rule (see encoding.ValidateDictPrefixRule).",
+				Hint:   "Or run the slots over cohorts whose dictionaries on the keying field share a common prefix — imported from one source, or shards of one archive.",
 			},
 		},
 	},
@@ -4186,48 +4228,48 @@ var codeMetadata = map[Code]Metadata{
 		// Minimal entry — full polish (kind-aware Fixup catalogue) is
 		// deferred alongside the per-kind matrix-required catalog
 		// finalisation.
-		Message: "A Compose overlay spec whose Kind requires a MATRIX-shaped (crosstab) host resolved at least one slot — reference or target — that is not a crosstab result. The matrix-required Compose kinds have not yet registered their per-kind shape requirements, so this code is unreachable at runtime. Details carry the `required_shape: \"MATRIX\"`, the offending `target_label`, and the `observed_shape` (`series` / `scalar`).",
+		Message: "A compose overlay whose kind needs crosstab slots (the panel proportion-z overlay) resolved a reference or target slot that is not a crosstab. Details carry the `kind` and the offending slot's index.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Requests", "*", "Crosstab"},
-				Hint:   "Set Crosstab (Rows + Columns + Cell) on the offending slot Request so it produces a MATRIX host result. Alternatively switch the Overlay Kind to one that supports the slot's current host shape (SERIES / SCALAR) — check the manifest Overlays capability block for the supported shapes per kind.",
+				Hint:   "Give the offending slot a crosstab (rows, columns and cell), or pick a kind that runs on the slot's shape (the manifest's overlays entries list each kind's shapes).",
 			},
 		},
 	},
 	PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP: {
-		Message: "A multi-target COMPOSE-host overlay spec (the panel proportion-z and panel index-vs-ref overlays, and the fan-out kinds index-vs-ref, delta-vs-ref, t-vs-ref, z-vs-ref, t-cell, z-cell, prop-z-cell, chisq-vs-ref and rank, which emit one layer per target) named more target slots than `OverlayOptions.MaxPanelTargets` allows. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold, or adds one more layer, so the cap is the explicit knob. Per the interview risk paragraph \"Multi-reference combinatorics\", the default cap is 16 and bumping the default requires an interview update; per-request override lives on `ComposeOverlaySpec.Options.MaxPanelTargets`. Details carry the offending `kind`, the `observed` target count, and the active `cap` (a fan-out kind also the spec `index`, identically at predict and run time).",
+		Message: "A multi-target COMPOSE-host overlay spec (the panel proportion-z and panel index-vs-ref overlays, and the fan-out kinds index-vs-ref, delta-vs-ref, t-vs-ref, z-vs-ref, t-cell, z-cell, prop-z-cell, chisq-vs-ref and rank, which emit one layer per target) named more target slots than `options.max_panel_targets` allows (default 16). Every added target enlarges the O(N²) per-cell pairwise fold, or adds one more layer, so the cap bounds it; the overlay's `options.max_panel_targets` raises it per spec. Details carry the offending `kind`, the `observed` target count, and the active `cap` (a fan-out kind also the spec `index`, identically at predict and run time).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Targets"},
-				Hint:   "Reduce `Targets` to ≤ `OverlayOptions.MaxPanelTargets` (currently the active cap reported in Details, default 16) or raise the cap via Options. Multi-reference overlays bound combinatorial explosion — every additional target enlarges the O(N²) per-cell pairwise fold so dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer; a fan-out spec splits into several specs the same way.",
+				Hint:   "Reduce `targets` to at most details.cap, or raise the cap. Dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer; a fan-out spec splits into several specs the same way.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
-				Hint:   "Raise `ComposeOverlaySpec.Options.MaxPanelTargets` to a value ≥ the observed target count if your environment can absorb the O(N²) per-cell pairwise z-test cost. Per the interview risk paragraph the default 16 is the explicit upper bound; raising it without an interview update is a deliberate caller-attested decision.",
+				Hint:   "Raise `options.max_panel_targets` to at least the observed target count when the O(N²) per-cell pairwise cost is acceptable.",
 			},
 		},
 	},
 	PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED: {
-		Message: "An OVERLAY_PAIRWISE_* spec asked for a distinct-key slab sample size (`params.n_source = \"n_within_distinct\"`) over a pair axis whose summed-across dims include a fan-out grouper (`types.GroupType.FansOut()` — today the per-element set grouper). The slab fixes the first `n_within_depth + 1` pair-axis dims and sums the cells after them; summing per-cell DISTINCT cardinalities equals the slab's true distinct count only when those cells PARTITION the key set. Under a fan-out grouper one key lands in two summed cells, so the n over-states the sample size — silently, and liberally, which is the exact failure the distinct mode exists to remove. A fan-out grouper at depth <= n_within_depth is fine (it sits inside the FIXED prefix and multiplies slabs, not cells), as is one on the opposite axis at any depth. Plain `n_within` is never refused: record counts are additive. Details carry the offending `dim_index`, `group_type`, `field` and `axis` alongside `index`, `kind`, `n_source` and `n_within_depth`. THE COMPOSE-HOST PANEL RAISES THE SAME CODE for the same condition on its own host. The panel proportion-z overlay with `params.n_source = \"row_margin_value_within\"` AND an explicit `n_within_depth` sums each SLOT's row margins over a row-key prefix, so the summed-across dims must partition too. Three differences from the axis-pairing arm, all in the Details: `axis` is always `row` (the panel pairs across SLOTS, so no mode name ever refers to a pair axis); the offending slot is named by BOTH `panel_index` (0 = the reference) and the authored `slot_index`, plus `slot_label`; and every slot is walked, so one offending slot refuses the WHOLE spec rather than dropping out — dropping it would change M, and M sets the length and the pair ordering of every cell's flattened upper-triangular vector. Unlike the axis-pairing arm the panel gates its RECORD-COUNTED-looking mode too, because a panel row margin is whatever that slot's cell aggregator emitted (a count, a distinct cardinality, a weighted sum, a percentage) and the host cannot claim additivity for it. OMITTING `n_within_depth` is always a valid fix on the panel: that form reads the exact per-slot row margin and sums nothing.",
+		Message: "An OVERLAY_PAIRWISE_* spec asked for a distinct-key slab sample size (`params.n_source = \"n_within_distinct\"`) over a pair axis whose summed-across dims include a fan-out grouper (one that puts a record in several buckets, such as the per-element set grouper). The slab fixes the first `n_within_depth + 1` pair-axis dims and sums the cells after them; summing per-cell DISTINCT cardinalities equals the slab's true distinct count only when those cells PARTITION the key set. Under a fan-out grouper one key lands in two summed cells, so the n over-states the sample size — silently, and liberally, which is the exact failure the distinct mode exists to remove. A fan-out grouper at depth <= n_within_depth is fine (it sits inside the FIXED prefix and multiplies slabs, not cells), as is one on the opposite axis at any depth. Plain `n_within` is never refused: record counts are additive. Details carry the offending `dim_index`, `group_type`, `field` and `axis` alongside `index`, `kind`, `n_source` and `n_within_depth`. The compose panel proportion-z overlay raises the same code for the same condition on its own host. The panel proportion-z overlay with `params.n_source = \"row_margin_value_within\"` AND an explicit `n_within_depth` sums each SLOT's row margins over a row-key prefix, so the summed-across dims must partition too. It differs from the axis-pairing case in three ways, all in the details: `axis` is always `row` (the panel pairs across SLOTS, so no mode name ever refers to a pair axis); the offending slot is named by BOTH `panel_index` (0 = the reference) and the authored `slot_index`, plus `slot_label`; and every slot is walked, so one offending slot refuses the WHOLE spec rather than dropping out — dropping it would change M, and M sets the length and the pair ordering of every cell's flattened upper-triangular vector. Unlike the axis-pairing case the panel gates its RECORD-COUNTED-looking mode too, because a panel row margin is whatever that slot's cell aggregator emitted (a count, a distinct cardinality, a weighted sum, a percentage) and the host cannot claim additivity for it. OMITTING `n_within_depth` is always a valid fix on the panel: that form reads the exact per-slot row margin and sums nothing.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params", "n_within_depth"},
-				Hint:     "Raise `n_within_depth` so the fan-out dim named in Details (`dim_index`) falls INSIDE the fixed prefix rather than being summed across. The prefix covers dim positions 0..n_within_depth, so `n_within_depth >= dim_index` makes each fan-out bucket its own slab — every slab then partitions its own keys and the distinct sum is exact. It must stay strictly below the pair-axis dim count.",
+				Hint:     "Raise `n_within_depth` so the fan-out dim named in details (`dim_index`) falls INSIDE the fixed prefix rather than being summed across. The prefix covers dim positions 0..n_within_depth, so `n_within_depth >= dim_index` makes each fan-out bucket its own slab — every slab then partitions its own keys and the distinct sum is exact. It must stay strictly below the pair-axis dim count.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Crosstab", "Rows"},
-				Hint:   "Move the fan-out grouper (today only GROUP_SET_PER_ELEMENT) to an OUTER position on the pair axis so the fixed prefix can cover it, or replace it with GROUP_SET_VALUE, which maps each record to exactly one composite bucket and therefore partitions. The same applies to Crosstab.Columns when the overlay Scope is `column`.",
+				Hint:   "Move the fan-out grouper (such as GROUP_SET_PER_ELEMENT) to an OUTER position on the pair axis so the fixed prefix can cover it, or replace it with GROUP_SET_VALUE, which maps each record to exactly one bucket and so partitions. The same applies to crosstab.columns when the overlay's scope is `column`.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Overlays", "*", "Params", "n_within_depth"},
-				Hint:   "COMPOSE-host OVERLAY_PROP_Z_PANEL only: remove `n_within_depth` entirely. The omitted-depth form of `row_margin_value_within` reads the EXACT per-slot row margin and sums nothing at all, so no key can land in two summed rows however the row axis fans out — it is never gated, and it is byte-identical to the panel's legacy `row_margin_value` leg wherever that margin is present. Use this when you wanted a per-row denominator rather than a within-prefix one.",
+				Hint:   "Compose OVERLAY_PROP_Z_PANEL only: remove `n_within_depth`. Without a depth `row_margin_value_within` reads the EXACT per-slot row margin and sums nothing, so no key can land in two summed rows — it is never gated, and equals `row_margin_value` wherever that margin is present. Use this when you wanted a per-row denominator rather than a within-prefix one.",
 			},
 			{
 				Action:   FixupReplaceField,
@@ -4238,34 +4280,34 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED: {
-		Message: "CSV export does not support overlay embedding; %d overlay layer(s) dropped. Warning-class — the host CSV body is written verbatim (byte-identical to a pre-overlay export) and the dropped overlay layers are reported via this warning so callers can audit which layers fell off. CSV is the LCD of tabular formats and consumer tools (Excel, R, pandas, awk) cannot uniformly parse any overlay convention — research/export-embedding-shape.md § 7 locks the warn-and-skip semantic. The TSV adapter shares the CSV writer surface and inherits the same warn-and-skip behaviour; the warning code stays CSV-flavoured. Details carry `layer_count`, `layer_names`, and `layer_kinds` so a renderer can surface the dropped layer slate without re-reading the source Response.",
+		Message: "CSV export does not support overlay embedding; %d overlay layer(s) dropped. Warning-class — the CSV body is written as without overlays, and the dropped layers are reported here: CSV has no overlay convention its readers (Excel, R, pandas, awk) agree on. TSV shares the CSV writer and this code. Details carry `layer_count`, `layer_names` and `layer_kinds`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"ExportJob", "Target"},
-				Hint:     "To preserve overlays in cross-format export, target an overlay-aware writer instead of CSV / TSV. Arrow (--format arrow) carries overlays as a top-level LIST<STRUCT> column family; Parquet (--format parquet) rides the same Arrow schema through the pqarrow bridge; Excel (--format excel) emits one sheet per layer named `__overlay_<layer_name>`; NDJSON (--format ndjson) appends a single trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry every layer; Arrow, Parquet and NDJSON also carry a layer's named parts, while Excel writes the primary payload only (PULSE_OVERLAY_EXPORT_PARTS_DROPPED).",
+				Hint:     "To keep overlays, export with an overlay-aware writer instead of CSV / TSV: Arrow carries them as a top-level LIST<STRUCT> column family, Parquet as the same Arrow schema, Excel as one sheet per layer named `__overlay_<layer_name>`, NDJSON as one trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry every layer; Arrow, Parquet and NDJSON also carry a layer's named parts, while Excel writes the primary payload only (PULSE_OVERLAY_EXPORT_PARTS_DROPPED).",
 				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"ExportJob", "IncludeOverlays"},
-				Hint:     "To suppress this warning while keeping CSV output, set ExportJob.IncludeOverlays=false (or --include-overlays=false on the CLI). The CSV body is byte-identical with or without the opt-out — the toggle only controls whether the warning fires. Same applies to ConvertJob.IncludeOverlays when the CSV target is the export half of a convert chain.",
+				Hint:     "To silence this warning and keep CSV, set ExportJob.IncludeOverlays (or ConvertJob.IncludeOverlays) to false; the CSV body is the same either way.",
 				Examples: []any{false},
 			},
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Request"},
-				Hint:   "To inspect overlay results without exporting, use `pulse api process` with --echo-request and read the JSON envelope's `data.overlays` slot. The envelope renders the full OverlayLayer slate inline so callers can audit the payload before deciding which export format preserves the layers they care about.",
+				Hint:   "To read overlay results without exporting, run `pulse api process --json` and read `data.overlays`.",
 			},
 		},
 	},
 	PULSE_OVERLAY_EXPORT_PARTS_DROPPED: {
-		Message: "Export embeds the primary payload only; %d overlay layer(s) lost their named parts. Warning-class — each layer's primary payload is written as usual and its `parts` (the secondary payloads of a multi-output kind, OverlayPayload.Parts) are dropped because the target's per-layer layout has no slot for them (Excel: one sheet per layer). Details carry `layer_count`, `layer_names` and `parts` (layer name → part names) so callers can audit what fell off.",
+		Message: "Export embeds the primary payload only; %d overlay layer(s) lost their named parts. Warning-class — each layer's primary payload is written as usual and its `parts` (the secondary payloads of a multi-output kind) are dropped because the target's per-layer layout has no slot for them (Excel: one sheet per layer). Details carry `layer_count`, `layer_names` and `parts` (layer name → part names) so callers can audit what fell off.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"ExportJob", "Target"},
-				Hint:     "To keep the parts, export to a format that writes each overlay layer as JSON: NDJSON (--format ndjson, a trailing `_overlays` line), Arrow (--format arrow) or Parquet (--format parquet). Each carries the layer's `payload.parts` byte-for-byte as the JSON envelope does.",
+				Hint:     "To keep the parts, export to a format that writes each overlay layer as JSON: NDJSON (a trailing `_overlays` line), Arrow or Parquet. Each carries the layer's `payload.parts` byte-for-byte as the JSON envelope does.",
 				Examples: []any{"ndjson", "arrow", "parquet"},
 			},
 			{
@@ -4340,7 +4382,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_GROUPS_REQUIRED: {
-		Message: "The overlay summarizes a result across its group buckets, but the request carries no Request.Groups: an ungrouped matrix spec has one result, so there is nothing to summarize across. OVERLAY_MATRIX_GROUP_SUMMARY needs the matrix spec computed once per group bucket.",
+		Message: "The overlay summarizes a result across its group buckets, but the request has no groups: an ungrouped matrix spec has one result, so there is nothing to summarize across. OVERLAY_MATRIX_GROUP_SUMMARY needs the matrix spec computed once per group bucket.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
@@ -4351,7 +4393,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Overlays", "*"},
-				Hint:   "On an ungrouped request the matrix result already is the whole-cohort figure: drop the group-summary overlay and read Response.Matrices directly.",
+				Hint:   "On an ungrouped request the matrix result already is the whole-cohort figure: drop the group-summary overlay and read the response's matrices directly.",
 			},
 		},
 	},
@@ -4372,18 +4414,18 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY: {
-		Message: "An OVERLAY_YOY spec named a `frequency` Param outside the supported set (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`). The supported set is the minimum frequency catalog needed to cover the GROUP_DATE component family — finer-than-hourly or coarser-than-annual frequencies are explicit non-goals in v1. Calendar-week / day-of-week realignment is also an explicit non-goal: weekly frequency uses calendar-week-aligned `i - 52` arithmetic and daily frequency uses exact-key lookup against the host key index (Feb 29 in a non-leap prior year emits NaN). Surfaced at both predict (descriptor.validateOverlayYoY) and runtime (processing.applyYoY) with Details carrying the offending `frequency` value plus the supported list.",
+		Message: "An OVERLAY_YOY overlay names a `frequency` outside `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`. Weekly compares `i - 52`, with no day-of-week realignment; daily looks up the same calendar key (Feb 29 against a non-leap prior year is null). Raised at predict and at runtime alike, details carrying the `frequency` and the supported list.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Overlays", "*", "Params"},
-				Hint:     "Replace the OverlaySpec.Params[\"frequency\"] value with one of the six supported frequencies: `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`. The frequency must match the host GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Alternatively move the frequency slot onto `Groups[0].Params[\"frequency\"]` so the YoY handler reads it from the canonical GROUP_DATE config.",
+				Hint:     "Set params.frequency to one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`, matching the GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour), or set it in the grouper's params instead.",
 				Examples: []any{map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
 			},
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Groups", "0"},
-				Hint:     "If your data is at a finer granularity than the supported frequency set, switch the host GROUP_DATE grouper to a coarser component+frequency pair before the YoY overlay sees it. Worked example: hourly raw rows aggregated to a daily YoY trend ⇒ set `Groups[0]` to `{\"Type\": \"GROUP_DATE\", \"Field\": \"<date_field>\", \"Params\": {\"component\": \"day\", \"frequency\": \"daily\"}}` and drop the overlay-level frequency override. The same pattern lifts daily raw rows to monthly (`component: month, frequency: monthly`), monthly to quarterly, or quarterly to annual. GROUP_DATE will do the coarser bucketing; the YoY handler then computes prior-period diffs on the coarser key stride.",
+				Hint:     "For a frequency outside the set, group coarser: e.g. hourly rows to a daily trend with `{\"type\": \"GROUP_DATE\", \"field\": \"<date_field>\", \"params\": {\"component\": \"day\", \"frequency\": \"daily\"}}` and no overlay-level frequency; the same lifts daily to monthly, monthly to quarterly or quarterly to annual.",
 				Examples: []any{map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "day", "frequency": "daily"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "month", "frequency": "monthly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "quarter", "frequency": "quarterly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "year", "frequency": "annual"}}},
 			},
 		},
@@ -4391,21 +4433,21 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- PULSE: point-lookup index (E1) ----------
 	PULSE_INDEX_MISSING: {
-		Message: "No sidecar point-lookup index was found on disk for the requested LookupRequest.Field. Point lookups probe a prebuilt sidecar index (encoding.SidecarIndexPath derives its path from the cohort file and key field) rather than scanning the cohort — the index must be built once before any Lookup call against that field can succeed. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "No point-lookup index is built for the lookup's key field. A lookup reads a prebuilt sidecar index beside the cohort rather than scanning it, so the index must be built before any lookup on that field. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Build the sidecar index for this field first: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, []string{field}) library call). Re-run the lookup once the sidecar file exists at the derived `<cohort>.<keyhash>.idx` path.",
+				Hint:   "Build the index first — `pulse index build <cohort> --key <field>` (library: Pulse.BuildIndex) — then re-run the lookup.",
 			},
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Field"},
-				Hint:   "Alternatively, point the lookup at a field that already has a built sidecar index. `pulse index list <cohort>` (or Service.ListIndexes) reports every built index with its ordered key tuple — read that rather than globbing `.idx` files beside the cohort, which is unavailable on object storage: it is served from the keyless manifest `<cohort>.indexes.json`, needs no directory listing, and a sidecar's own filename is a hash OF its key tuple and so cannot be interpreted without the manifest.",
+				Hint:   "Or look up on a field that already has an index: `pulse index list <cohort>` (Pulse.ListIndexes) reports every built index with its key tuple. Read that rather than globbing `.idx` files — a sidecar's file name is a hash of its keys.",
 			},
 		},
 	},
 	PULSE_LOOKUP_NOT_FOUND: {
-		Message: "The sidecar point-lookup index was found and read successfully, but LookupRequest.Value has no matching entry in the resolved hash bucket — no record in the cohort carries that key value for LookupRequest.Field. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "The point-lookup index was read, but no record in the cohort carries the lookup's value for its field. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4415,12 +4457,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Value"},
-				Hint:   "Verify the literal Value is spelled/typed exactly as it appears in the source data (categorical values are case-sensitive dictionary lookups; numeric values must parse to the same on-wire representation as the indexed field). If the cohort was re-imported or the key column's data changed since the index was built, rebuild the sidecar via `pulse index build` — a stale index silently returns not-found for keys added after the last build.",
+				Hint:   "Spell value exactly as the data holds it (categorical values are case-sensitive; a number must parse to the indexed field's value).",
 			},
 		},
 	},
 	PULSE_LOOKUP_AMBIGUOUS: {
-		Message: "The requested key matched more than one row in the cohort, but LookupRequest.Multiplicity is (or defaults to) \"assert_unique\", which fails rather than silently picking one match. This is the default mode precisely so a duplicate-key surprise never returns a single, arbitrary row without the caller knowing more than one candidate exists. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). A {record} reference is always assert-unique.",
+		Message: "The key matched more than one row, and the lookup's multiplicity is (or defaults to) \"assert_unique\", which refuses rather than silently picking one match. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). A {record} reference is always assert-unique.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -4430,13 +4472,13 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"Keys"},
-				Hint:     "Add another key column (or a composite Keys tuple) that uniquely identifies the record you want — e.g. combine the ambiguous field with an id/timestamp column and rebuild the sidecar index for that composite key via `pulse index build <cohort> --key <field1> --key <field2>`.",
+				Hint:     "Add another key column (a composite keys tuple) that uniquely identifies the record you want — e.g. combine the ambiguous field with an id/timestamp column and rebuild the sidecar index for that composite key via `pulse index build <cohort> --key <field1> --key <field2>`.",
 				Examples: []any{[]any{map[string]any{"field": "region", "value": "east"}, map[string]any{"field": "id", "value": "4"}}},
 			},
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"Multiplicity"},
-				Hint:     "If duplicate matches are expected and acceptable, opt into a non-failing mode explicitly: set Multiplicity to \"first\" to take the lowest row-id deterministically, or \"all\" to get every matching row back in LookupResult.Rows.",
+				Hint:     "If duplicate matches are expected, set multiplicity to \"first\" for the lowest row id, or \"all\" for every matching row (the result's rows).",
 				Examples: []any{"first", "all"},
 			},
 		},
@@ -4446,7 +4488,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Rebuild the sidecar index against the current cohort content: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, keyFields) library call, or a quick freshness check first via `pulse index verify <cohort> --key <field>` / Service.VerifyIndex). Re-run the lookup once the rebuild completes.",
+				Hint:   "Rebuild the index against the current cohort: `pulse index build <cohort> --key <field>` (Pulse.BuildIndex); `pulse index verify <cohort> --key <field>` (Pulse.VerifyIndex) checks freshness first. Re-run the lookup once the rebuild completes.",
 			},
 			{
 				Action: FixupRequiresReschema,
@@ -4455,7 +4497,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "No longer raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards (U51). The code is retained so lookups of it keep resolving.",
+		Message: "Not raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards. The code is kept so lookups of it resolve.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -4464,7 +4506,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_MANIFEST_INVALID: {
-		Message: "The sidecar index manifest beside this cohort (\"cohort.pulse.indexes.json\") exists but is not a readable manifest document — malformed JSON, a foreign \"kind\", an unrecognised \"format_version\", or an entry naming no index file. That manifest is the keyless catalog that makes each sidecar index's ordered key tuple discoverable without a directory listing (a sidecar's own filename is a 16-hex-digit HASH of its key tuple, so it cannot be opened without already knowing the tuple). A manifest that cannot be parsed is refused rather than silently ignored: falling back to a directory listing succeeds on a local disk and answers \"this cohort has no indexes\" on object storage, which is precisely the backend-dependent divergence the manifest exists to remove. An ABSENT manifest is NOT this error — that is the ordinary state of a corpus indexed before the manifest existed, and the directory-listing fallback covers it.",
+		Message: "The sidecar index manifest beside this cohort (\"cohort.pulse.indexes.json\") exists but is not a readable manifest document — malformed JSON, a foreign \"kind\", an unrecognised \"format_version\", or an entry naming no index file. That manifest is the keyless catalog that makes each sidecar index's ordered key tuple discoverable without a directory listing (a sidecar's own filename is a 16-hex-digit HASH of its key tuple, so it cannot be opened without already knowing the tuple). A manifest that cannot be parsed is refused rather than silently ignored: falling back to a directory listing succeeds on a local disk and answers \"this cohort has no indexes\" on object storage, which is precisely the backend-dependent divergence the manifest exists to remove. An ABSENT manifest is NOT this error: listing then falls back to the directory.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -4487,7 +4529,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Template"},
-				Hint:   "List the registered template names and re-issue the render with one of them; if the template is meant to come from disk, confirm the file sits in the configured template directory with a .json extension and that the directory is actually being loaded.",
+				Hint:   "List the registered template names (Pulse.ListTemplates) and re-issue the render with one of them; if the template is meant to come from disk, confirm the file sits in the configured template directory with a .json extension and that the directory is actually being loaded.",
 			},
 		},
 	},
@@ -4662,7 +4704,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels"},
-				Hint:   "Supply the labels yourself if they matter: register a label table (Options.Extensions.LabelTables or PULSE_LABEL_TABLES_DIR) and reference it from the request's LabelBinding.Table.",
+				Hint:   "Supply the labels yourself if they matter: register a label table (Options.Extensions.LabelTables or PULSE_LABEL_TABLES_DIR) and name it in a labels entry's table.",
 			},
 		},
 	},
@@ -4787,7 +4829,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
-				Hint:   "If the variable named in the details is free text rather than a coded category, consider excluding it from the import, or raise the reader's cardinality warning fraction if a near-unique categorical is expected for this source.",
+				Hint:   "If the variable named in the details is free text rather than a coded category, exclude it from the import; if a near-unique categorical is expected, accept the warning.",
 			},
 		},
 	},
@@ -4867,7 +4909,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "Re-save the file from SPSS or PSPP with a Unicode encoding (`SET UNICODE ON` before `SAVE`, or `pspp-convert` with `--encoding=UTF-8`), which writes record 7/20 as UTF-8. If you know the real charset and the file mislabels it, pass spss.WithCharset(\"windows-1252\") to the reader to override the declaration.",
+				Hint:   "Re-save the file from SPSS or PSPP with a Unicode encoding (`SET UNICODE ON` before `SAVE`, or `pspp-convert` with `--encoding=UTF-8`), which writes record 7/20 as UTF-8. If you know the real charset and the file mislabels it, import with --charset windows-1252 (pio.SPSSReaderOptions.Charset) to override the declaration.",
 			},
 		},
 	},
@@ -4877,7 +4919,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "The file's declared charset is usually wrong rather than the bytes. Pass spss.WithCharset(\"<charset>\") to the reader with the encoding the data is really in, or re-save the file from SPSS or PSPP as UTF-8 so the declaration and the bytes agree.",
+				Hint:   "The file's declared charset is usually wrong rather than the bytes. Import with --charset <charset> (pio.SPSSReaderOptions.Charset) naming the encoding the data is really in, or re-save the file from SPSS or PSPP as UTF-8 so the declaration and the bytes agree.",
 			},
 		},
 	},
@@ -4887,7 +4929,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "No action is needed if the text imported correctly. If it did not, the 7/3 code may be the accurate one: pass spss.WithCharset with that charset to override the name the file declares.",
+				Hint:   "No action is needed if the text imported correctly. If it did not, the 7/3 code may be the accurate one: import with --charset naming that charset (pio.SPSSReaderOptions.Charset) to override the name the file declares.",
 			},
 		},
 	},
@@ -4897,7 +4939,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Charset"},
-				Hint:   "Write the file in a charset that can carry the text. Set spss.WriterOptions.Charset to \"UTF-8\" — modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 .sav — and the emitted record 7/20 declares it, so the file stays self-describing.",
+				Hint:   "Write the file in a charset that can carry the text. Export with --charset UTF-8 (pio.SPSSWriterOptions.Charset) — modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 .sav — and the emitted record 7/20 declares it, so the file stays self-describing.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -4912,12 +4954,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "Rename the cohort field named in `cohort_field` to a legal SPSS identifier before exporting — letters, digits and '.', '_', '$', '#', '@', opening with a letter, 64 bytes or fewer. `pulse inspect` lists the cohort's field names.",
+				Hint:   "Rename the cohort field named in `cohort_field` to a legal SPSS identifier before exporting — letters, digits and '.', '_', '$', '#', '@', opening with a letter, 64 bytes or fewer. `pulse cohort inspect` lists the cohort's field names.",
 			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Charset"},
-				Hint:   "If the fault is the 64-BYTE ceiling on a name that is 64 characters or fewer, the name is overflowing because of the charset it is being encoded into. Set spss.WriterOptions.Charset to a single-byte codepage that covers the text, or shorten the name.",
+				Hint:   "If the fault is the 64-BYTE ceiling on a name that is 64 characters or fewer, the name is overflowing because of the charset it is being encoded into. Export with --charset naming a single-byte codepage that covers the text (pio.SPSSWriterOptions.Charset), or shorten the name.",
 			},
 		},
 	},
@@ -4937,7 +4979,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Source"},
-				Hint:   "The usual cause is a sidecar that describes an older shape of the cohort. Re-import the source .sav so the sidecar and the cohort are written together, or export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone, which emits every column as its own variable and drops nothing.",
+				Hint:   "The usual cause is a sidecar that describes an older shape of the cohort. Re-import the source .sav so the sidecar and the cohort are written together, or export with pio.SPSSWriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone, which emits every column as its own variable and drops nothing.",
 			},
 		},
 	},
@@ -4947,7 +4989,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"IgnoreSidecar"},
-				Hint:   "Export with spss.WriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone. Nothing is folded, so nothing can fail to fold — every cohort column becomes its own SPSS variable, including the derived ones, at the cost of the source's recorded metadata.",
+				Hint:   "Export with pio.SPSSWriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone. Nothing is folded, so nothing can fail to fold — every cohort column becomes its own SPSS variable, including the derived ones, at the cost of the source's recorded metadata.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -4962,7 +5004,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Charset"},
-				Hint:   "If the text is ASCII-compatible but the target charset is multi-byte, a different charset may fit: set spss.WriterOptions.Charset to \"UTF-8\" or to the single-byte codepage the text belongs to and the byte count drops.",
+				Hint:   "If the text is ASCII-compatible but the target charset is multi-byte, a different charset may fit: export with --charset UTF-8 or the single-byte codepage the text belongs to (pio.SPSSWriterOptions.Charset) and the byte count drops.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -4977,7 +5019,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"spss-missing"},
-				Hint:   "Import with --spss-missing=null (io.SPSSReaderOptions.MissingMode = io.SPSSMissingNull, spss.WithMissingMode(spss.MissingNull)). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
+				Hint:   "Import with --spss-missing=null (pio.SPSSReaderOptions.MissingMode = pio.SPSSMissingNull). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -5045,7 +5087,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"IgnoreSidecar"},
-				Hint:     "To export anyway WITHOUT the sidecar's metadata, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). It downgrades this error to a PULSE_SPSS_SIDECAR_IGNORED warning and takes the synthesised-default-dictionary path — the same output an absent sidecar would give. It does NOT apply the stale dictionary; there is no option that does.",
+				Hint:     "To export anyway WITHOUT the sidecar's metadata, pass --ignore-sidecar (pio.SPSSWriterOptions.IgnoreSidecar). It downgrades this error to a PULSE_SPSS_SIDECAR_IGNORED warning and takes the synthesised-default-dictionary path — the same output an absent sidecar would give. It does NOT apply the stale dictionary; there is no option that does.",
 				Examples: []any{true},
 			},
 		},
@@ -5060,13 +5102,13 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"IgnoreSidecar"},
-				Hint:     "To export without it, pass --ignore-sidecar (spss.WriterOptions.IgnoreSidecar). The flag suppresses the sidecar READ entirely, so an unreadable file cannot block the export; it downgrades this to a PULSE_SPSS_SIDECAR_IGNORED warning and synthesises a default dictionary.",
+				Hint:     "To export without it, pass --ignore-sidecar (pio.SPSSWriterOptions.IgnoreSidecar). The flag suppresses the sidecar READ entirely, so an unreadable file cannot block the export; it downgrades this to a PULSE_SPSS_SIDECAR_IGNORED warning and synthesises a default dictionary.",
 				Examples: []any{true},
 			},
 		},
 	},
 	PULSE_SPSS_SIDECAR_IGNORED: {
-		Message: "An SPSS metadata sidecar exists beside this cohort and --ignore-sidecar (spss.WriterOptions.IgnoreSidecar) was set, so it was not read: the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is an explicit instruction being honoured, not a fault. It is reported as its own code rather than as PULSE_SPSS_SIDECAR_ABSENT because a diagnostic saying \"no sidecar found\" about a file sitting right there would be false. It does not say whether the file it skipped was stale, invalid or perfectly healthy: the flag suppresses the READ, so nothing on this path knows.",
+		Message: "An SPSS metadata sidecar exists beside this cohort and --ignore-sidecar (pio.SPSSWriterOptions.IgnoreSidecar) was set, so it was not read: the export is synthesising a default SPSS dictionary from the .pulse schema alone. This is an explicit instruction being honoured, not a fault. It is reported as its own code rather than as PULSE_SPSS_SIDECAR_ABSENT because a diagnostic saying \"no sidecar found\" about a file sitting right there would be false. It does not say whether the file it skipped was stale, invalid or perfectly healthy: the flag suppresses the READ, so nothing on this path knows.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
@@ -5162,7 +5204,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action:   FixupReplaceField,
 				Path:     []string{"features"},
-				Hint:     "Replace each entry under `unknown` with an exact feature name: use `did_you_mean` for a `wrong_kind` entry, list the concrete names instead of a pattern, and drop core surfaces, which need no listing. `pulse manifest --json` lists the operator names this build registers.",
+				Hint:     "Replace each entry under `unknown` with an exact feature name: use `did_you_mean` for a `wrong_kind` entry, list the concrete names instead of a pattern, and drop core surfaces, which need no listing. `pulse --json` lists the operator names this build registers.",
 				Examples: []any{"AGG_SUM", "capability:process", "io_format:csv"},
 			},
 			{
@@ -5223,7 +5265,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WEIGHT_UNSUPPORTED: {
-		Message: "A row weight is in force on a slot whose operator cannot honour it, so the request is refused rather than answered unweighted or wrongly weighted. Three cases: the operator has a weighted form only under weight kind `frequency` (integer replication counts) and the weight in force is kind `probability` — `kind` names the kind in force and `supported_kinds` the kinds the operator accepts; the operator has no standard weighted form at all — a post-test (it reads aggregated rows), a regression resample or selection modifier, certain tests, attributes and overlays — and `reason` says why (`alternative` names a weighted twin where one exists); or the operator's weighted form has not landed yet. An aggregation over a decimal128 field is refused too, with the decimal column under `value_field`: the decimal path has no weighted form. An instance default weight refuses these slots exactly like an explicit one: each must opt out. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
+		Message: "A row weight is in force on a slot whose operator cannot honour it, so the request is refused rather than answered unweighted or wrongly weighted. Three cases: the operator has a weighted form only under weight kind `frequency` (integer replication counts) and the weight in force is kind `probability` — `kind` names the kind in force and `supported_kinds` the kinds the operator accepts; the operator has no standard weighted form at all — a post-test (it reads aggregated rows), a regression resample or selection modifier, certain tests, attributes and overlays — and `reason` says why (`alternative` names a weighted twin where one exists); or the operator has no weighted form in this build. An aggregation over a decimal128 field is refused too, with the decimal column under `value_field`: the decimal path has no weighted form. An instance default weight refuses these slots exactly like an explicit one: each must opt out. The slot is under `slot`, its operator under `operator` and the weight column under `field`; the weight may come from the slot, the request or the instance default.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
@@ -5404,7 +5446,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_SPEC_INVALID: {
-		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100); `gradient`, when set, is `analytic` (the default) or `fd` (`gradient_unknown`). A `posterior` takes `objective` mean or quantile (`posterior_objective_unknown`), `q` in (0, 1) with quantile only (`posterior_q_invalid`) and `draws` >= 0 (`posterior_draws_invalid`); its objective and constraints must read exactly one fit by a literal coef() / response() fit name (`posterior_fit_missing`, `posterior_fits_multiple`, `details.fits`), a Bayesian media-mix fit (`posterior_fit_not_bayes`, `details.fit` / `type`) carrying its posterior draws — a Compose fit with params.return_draws true, or a saved file that kept them (`draws_required`). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
+		Message: "A compose `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100); `gradient`, when set, is `analytic` (the default) or `fd` (`gradient_unknown`). A `posterior` takes `objective` mean or quantile (`posterior_objective_unknown`), `q` in (0, 1) with quantile only (`posterior_q_invalid`) and `draws` >= 0 (`posterior_draws_invalid`); its objective and constraints must read exactly one fit by a literal coef() / response() fit name (`posterior_fit_missing`, `posterior_fits_multiple`, `details.fits`), a Bayesian media-mix fit (`posterior_fit_not_bayes`, `details.fit` / `type`) carrying its posterior draws — a Compose fit with params.return_draws true, or a saved file that kept them (`draws_required`). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
@@ -5433,7 +5475,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_VARIABLE_INVALID: {
-		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() / response() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), response(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
+		Message: "A decision variable of a compose `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number, or a scalar expression over literals, `params.<name>`, coef() / sweep_axis() / response() over the batch fits and the block's `models`, lookup() and the built-ins — `\"params.<name>\"` the simplest. An expression that does not compile or reads any other identifier (a decision variable, a field) is `bound_invalid` (`compile_error` / `identifier`); one yielding a string, a bool or null is `bound_not_numeric` (`result_type`); a NaN or infinite value is `bound_not_finite` (`value`). An undeclared param is PULSE_PARAMS_UNDECLARED, an unknown fit, term or axis PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN, located at the bound. `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). A bound over literals and params is judged by predict; one calling coef(), sweep_axis(), response(), lookup() or an embedder function is listed by predict under `unresolved_scalars` and its value, finiteness and range are judged by the runtime after the fits, with the same code. The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `expression`, `param`, `lower`, `upper` and `value`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5704,7 +5746,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"expression"},
-				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (Request `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
+				Hint:   "For `unlabeled_partner`, compare ref() with a named vector (the request's `vectors`), another ref(), or vcenter / vzscore / vnormalize of one, not a literal array.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -5714,27 +5756,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_UNSUPPORTED_SOURCE: {
-		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a Request that also carries `joins` (details `source` = `join`) and a ProcessChain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
+		Message: "A `matrices` slot sits on a request whose rows the matrix operators cannot fold, so the request is refused before any record is read — predict refuses it identically. Matrices read cohort rows directly: a request that also carries `joins` (details `source` = `join`) and a process chain stage after stage 0 (details `source` = `chain_stage`, which reads the previous stage's output rows; the stage is under `stage` / `stage_name`) are not supported. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"matrices"},
-				Hint:   "Move the `matrices` slot into its own Request over the cohort, without `joins`; Compose can run it beside the joined request.",
+				Hint:   "Move the `matrices` slot into its own request over the cohort, without `joins`; Compose can run it beside the joined request.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"stages", "*", "request", "matrices"},
-				Hint:   "Put the matrices on chain stage 0, which reads the cohort, or run them as a separate Process request.",
+				Hint:   "Put the matrices on chain stage 0, which reads the cohort, or run them as a separate request.",
 			},
 		},
 	},
 	PULSE_MATRIX_HOST_CONFLICT: {
-		Message: "A `matrices` slot sits on a Request whose host cannot carry it: a Request with a `crosstab` (details `host` = `crosstab`) does not compute matrices. The request is refused before the crosstab dispatch — predict refuses it identically. The number of matrix slots is under `matrices`.",
+		Message: "A `matrices` slot sits on a request whose host cannot carry it: a request with a `crosstab` (details `host` = `crosstab`) does not compute matrices. The request is refused before the crosstab dispatch — predict refuses it identically. The number of matrix slots is under `matrices`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"matrices"},
-				Hint:   "Run the matrices as a separate Request without `crosstab`; Compose can carry both requests in one call.",
+				Hint:   "Run the matrices as a separate request without `crosstab`; Compose can carry both requests in one call.",
 			},
 		},
 	},
@@ -5992,7 +6034,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RETURN_PATH_UNKNOWN: {
-		Message: "A `return` include / exclude path names nothing in this instance's Response, so the request is refused before any record is read — predict refuses it identically. Paths use the payload schema's JSON names (`pulse schema`); an object takes a key, an array takes `[*]`, a `*` glob applies only to map keys, and `data[*].<column>` must be a column the request produces (a group field, an aggregation, attribute, window or feature label, a schema field on an ungrouped run, or a `<field>_label` sibling). The path is under `path`, its position under `key` / `index`, the failing segment under `at`, the rule under `reason`, the keys available there under `valid` and the nearest one, when close, under `suggestion`.",
+		Message: "A `return` include / exclude path names nothing in this instance's response, so the request is refused before any record is read — predict refuses it identically. Paths use the payload schema's JSON names (`pulse schema`); an object takes a key, an array takes `[*]`, a `*` glob applies only to map keys, and `data[*].<column>` must be a column the request produces (a group field, an aggregation, attribute, window or feature label, a schema field on an ungrouped run, or a `<field>_label` sibling). The path is under `path`, its position under `key` / `index`, the failing segment under `at`, the rule under `reason`, the keys available there under `valid` and the nearest one, when close, under `suggestion`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -6007,7 +6049,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RETURN_PATH_UNMATCHED: {
-		Message: "Warning-class — a `return` include path reaching into an open map (an operator component map, test details, data rows under a join or crosstab) matched nothing in the executed Response. The response was shaped; the path simply selected nothing. The path is under `path`.",
+		Message: "Warning-class — a `return` include path reaching into an open map (an operator component map, test details, data rows under a join or crosstab) matched nothing in the executed response. The response was shaped; the path simply selected nothing. The path is under `path`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

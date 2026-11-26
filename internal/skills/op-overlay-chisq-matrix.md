@@ -15,20 +15,20 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
+`scope` (enum, required) — must be `matrix`. `ref` (object, empty) — implicit-margin — leave empty. `level`/`within` must be `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `correct` | bool | `false` | Yates' correction on a 2 × 2 host (the χ² test's rule); `Summary.Parameters` adds `continuity_correction`. Inert on larger tables. |
+| `correct` | bool | `false` | Yates' correction on a 2 × 2 host (the χ² test's rule); `summary.parameters` adds `continuity_correction`. Inert on larger tables. |
 
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). SCALAR-payload pattern shared by sibling χ² / post-test overlays.
+MATRIX crosstab (`crosstab.matrix`), any cell aggregator.
 
 ## Output
 
-SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Parameters["df"]}` where `df = (rows-1)*(cols-1)`. Layer `Baseline` unset (inferential — no ratio centerpoint).
+SCALAR — `payload.shape` `"scalar"`. `payload.scalar` carries χ²; the layer `summary` holds `statistic`, `p_value`, `parameters.df` = `(rows-1)*(cols-1)` (+ `min` / `max` / `count` of the cells). `summary.baseline` unset (inferential).
 
 <!-- generated: reading-the-output -->
 
@@ -37,12 +37,10 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: read as an absent cell (an observation of 0), never into a total.
-- Weighted host (both kinds, any source): cells are Σw. Frequency: Pearson on the Σw table. Probability: the table scaled to its Kish `n_eff` first (`PULSE_OVERLAY_EXPECTED_LOW` on the scaled expected) — a first-order Kish approximation, not Rao-Scott. `Summary.Parameters` adds `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
-- Expected cell formula: `row_margin × col_margin / grand_total`. p-value via `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
+- Weighted host (both kinds, any source): cells are Σw. Frequency: Pearson on the Σw table. Probability: the table scaled to its Kish `n_eff` first (`PULSE_OVERLAY_EXPECTED_LOW` on the scaled expected) — a first-order Kish approximation, not Rao-Scott. `summary.parameters` adds `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
+- Expected cell formula: `row_margin × col_margin / grand_total`. p-value equals the χ² test's on the same contingency.
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer.
-- Absent host cell treated as observed count of 0.
-- Scope MUST be `matrix`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- Buffered (inherent — margins recomputed from raw rows).
+- A populated `ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 <!-- feature: AGG_MODE -->
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 <!-- /feature -->

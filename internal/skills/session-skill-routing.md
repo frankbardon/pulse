@@ -1,6 +1,6 @@
 ---
 name: session-skill-routing
-description: Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight.
+description: Which skill to fetch for a given trigger — operator family prefixes, manifest entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
@@ -13,7 +13,7 @@ Step 5 of `session-bootstrap` (`pulse_skills_get` on demand). Skills carry no ru
 
 ## Skill-name derivation
 
-Lowercase the operator family prefix and map through this table.
+Map the operator family prefix through this table for the design skill. The operator's own atomic skill is `op-<kebab>`: lowercased, `_` → `-`<!-- feature: AGG_SET_UNION --> (`AGG_SET_UNION` → `op-agg-set-union`)<!-- /feature -->.
 
 | Trigger | Skill to fetch |
 |---|---|
@@ -26,6 +26,9 @@ Lowercase the operator family prefix and map through this table.
 | `TEST_*` (tier-1 or tier-2) | `statistical-testing` |
 | `REG_*` | `regression-modeling` |
 | `OVERLAY_*` | `overlay-system` |
+<!-- feature: capability:matrices -->
+| `MAT_*` | `multivariate-design`, `matrix-results` |
+<!-- /feature -->
 <!-- feature: capability:synth -->
 | `synth_distributions[i].kind` | `synthetic-data` |
 <!-- /feature -->
@@ -41,13 +44,13 @@ Lowercase the operator family prefix and map through this table.
 | a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | `tool-dedup`, `cohort-parent-groups` |
 <!-- /feature -->
 <!-- feature: capability:materialize -->
-| a window, feature or attribute column a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | `tool-materialize`, `derived-cohorts` |
+| a window, feature or attribute output a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | `tool-materialize`, `derived-cohorts` |
 <!-- /feature -->
 <!-- feature: capability:rake -->
-| survey weights to census targets — `pulse_rake` / `pulse rake COHORT -o OUT --margins JSON [--by F] [--max-weight X]` writes a weight column into a new cohort | `tool-rake`, `survey-weights` |
+| survey weights to census targets — `pulse_rake` / `pulse rake COHORT -o OUT --margins JSON [--by F] [--max-weight X]` writes a weight field into a new cohort | `tool-rake`, `survey-weights` |
 <!-- /feature -->
 <!-- feature: capability:widen -->
-| a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs), `cohort-sharding` (archives auto-widen) |
+| a set field out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | `cohort-schema-design` (set rungs), `cohort-sharding` (archives auto-widen) |
 <!-- /feature -->
 | a plain-language question with no operator in mind | `intents` (`pulse-skill://intents`) — question kinds, then the manifest entries whose `intents` match |
 <!-- feature: capability:recommend -->

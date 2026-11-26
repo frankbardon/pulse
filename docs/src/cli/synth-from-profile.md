@@ -34,23 +34,9 @@ pulse synth from-profile --profile FILE --source FILE --output FILE --rows N
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--profile` | `-p` | string | (required) | Profile JSON path |
-| `--source`  |      | string | (required) | Source `.pulse` cohort the profile was captured from — copied into the output unless `--synthetic-only`, never opened for write |
-| `--output`  | `-o` | string | (required) | Output `.pulse` file path — must be a distinct path from `--source` |
-| `--rows`    |      | int    | (required) | Number of **new** rows to generate |
-| `--seed`    |      | int    | 0          | Deterministic RNG seed |
-| `--fidelity-report` | | string | (none) | Write a JSON fidelity report to this path after generation completes |
-| `--fidelity-model` | | string | (none) | A `pulse process` request whose `regressions` are refit on the source and on the generated rows into the report's `utility.model_fits`; needs `--fidelity-report` |
-| `--synthetic-only` | | bool | false | Write only the generated rows: no source row, no `_synthetic` column |
-| `--constraints` | | string | (none) | Load row constraints from a standalone JSON file (a bare `constraints` array) and apply them to the derived spec |
-| `--max-rejection-rate` | | float | 0 (= 0.5) | Ceiling on the fraction of rows the constraints may reject, in [0, 1) |
-| `--disclosure-sample` | | int | 0 (= 10000) | Cap on the generated rows the report's `disclosure` section measures the distance to closest record over |
-| `--no-disclosure` | | bool | false | Leave the `disclosure` section out of the fidelity report |
-| `--rules`   |      | string | (none) | Load structural rules from a standalone JSON file and apply them to the derived spec |
-| `--emit-spec` |    | string | (none) | Write the derived spec (after any `--rules` merge) to this path as indented JSON |
-| `--json`    |      | bool   | false      | Emit the standard envelope |
+Each flag's help text is in the
+[Command & flag reference](reference.md#pulse-synth-from-profile); the
+sections below explain them.
 
 `--rows` is required (unlike `from-schema`, which can pull it from
 the spec) because the profile does not carry a generation count of
@@ -125,8 +111,8 @@ reader can see:
   profiler could not summarise),
 - which conditional pairs were retired, and which survived.
 
-Each of those has been lost silently in this package before, every time
-leaving a plausible-looking cohort behind. The spec is written **before**
+A loss there leaves a plausible-looking cohort behind and nothing else
+shows it. The spec is written **before**
 generation runs, so a run that then fails still leaves the document.
 
 ### `--rules <path>`
@@ -182,9 +168,9 @@ document is wrong:
 | The file is not readable | `DATA_FILE` |
 | The file is not a JSON array of rule objects | `SERVICE_VALIDATION` |
 
-The rule-specific codes are E1's own, not a leaf placeholder, so
-`pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN` carries the recovery
-prose. A refused file generates nothing.
+The rule-specific codes are the spec parser's own, not a leaf
+placeholder, so `pulse errors lookup PULSE_SYNTH_RULE_FIELD_UNKNOWN`
+carries the recovery prose. A refused file generates nothing.
 
 ### `--constraints <path>` and `--max-rejection-rate`
 
@@ -305,13 +291,10 @@ that fires on every row, and one that fires on some, are silent.
 ### The message names the cause that applies to THAT rule
 
 There are three arms, and the line picks between them from what the
-compiled spec says about the fields the predicate reads. A single message
-naming one cause was wrong for most rules once the `discrete` and
-`bernoulli` marginals shipped — measured on the 381,324-row survey
-profile, **103 of its 123 fields** round on the way to the file *and*
-draw exact values, so a dead rule gating on any one of them was told to
-fix a gate that was already exact. Only three genuinely carry the
-hazard.
+compiled spec says about the fields the predicate reads — on a survey
+cohort most fields round on write *and* draw exact values, so
+pre-rounding is rarely the cause
+([figures](synth-calibration.md#pre-rounding)).
 
 | Arm | Reached when | What it says |
 |---|---|---|
@@ -342,7 +325,7 @@ An integer field is stored as `floor(v+0.5)`, so `round(v)` is the one
 expression that reproduces the value the file holds, and `int(v)` widens
 the gate by moving VALUES down instead.
 
-Measured on the current tree, at 20,000 rows and `--seed 7`, against the
+Measured at 20,000 rows and `--seed 7`, against the
 smallest spec that still carries the hazard — a hand-authored continuous
 distribution on an integer field, which is one of the three live cases
 listed below:
@@ -377,12 +360,9 @@ three matching the wire count exactly. The three cases where it bites are
 an `f32`/`f64` column, a NARROW integer column drawn from a continuous
 distribution, and any gate whose threshold sits where the density is high.
 
-The original worked example for this section used `familiarity` from the
-381,324-row survey profile; it is now a no-op there, because a
-small-integer column reconstructs as `discrete` and its row value already
-IS the stored level. `round(familiarity)` changes nothing, which is the
-outcome the [`discrete` marginal](profile-create.md#small-integer-fields)
-was added to produce.
+A small-integer column reconstructs as `discrete`, whose row value
+already IS the stored level, so `round()` over it changes nothing (see
+the [`discrete` marginal](profile-create.md#small-integer-fields)).
 
 If many rules never fire the listing is capped at 20 with a counted
 `+N further rule(s) never fired` line, the same bound the thin-level and
@@ -516,7 +496,7 @@ the never-fired warning's job. A spec without rules never carries it.
 `pairwise` reports, for every numeric-numeric correlation the profile
 captured (`--conditional`'s `Conditional.NumericPairs`, or the plain
 `--include-correlations` stats as a fallback — whichever
-`SpecFromProfile` used to populate `spec.Correlations`), the delta
+`SpecFromProfile` populated into `spec.Correlations`), the delta
 between that pair's captured/target correlation (`source_rho` — the
 same figure the copula reconstruction targeted) and its REALIZED
 Pearson correlation over just the newly generated rows
@@ -602,10 +582,7 @@ has no point latent inverse, so its entry carries
 `"scale": "probit_score"` and was recovered through a calibrated score
 rather than a direct inversion. That calibration is exact in
 expectation, so a flag on such an entry is a statement about the rows,
-not about the instrument. (Before that score existed the section
-reported only **2** comparable targets of the same 53, and
-`model_residual_correlations` only 1 pair; the instrument had stopped
-covering the field types the feature mostly applies to.)
+not about the instrument.
 
 The rows do carry slightly less conditioning than the captured model
 asked for, for two reasons that compose. **Quantization attenuation**: a
@@ -704,8 +681,7 @@ comparison is still a real check, since a drifted intercept there means
 the marginal itself did not survive.
 
 `models` is entirely absent when the profile carried no `models`
-section, so a report for a profile captured without `--fit-models` is
-unchanged.
+section (captured without `--fit-models`).
 
 `models` and the two **numeric-target** pair sections
 (`categorical_numeric_pairwise`, `set_numeric_pairwise`) cover disjoint
@@ -806,8 +782,7 @@ correlation between them as well, compute it over the output cohort's
 working as intended.
 
 `model_residual_correlations` is entirely absent when the profile
-carried no `residual_correlations` section, so a report for a profile
-captured without that flag is unchanged.
+carried no `residual_correlations` section.
 
 `warnings` mirrors any thin-pair warnings the source profile carried
 (`Profile.Warnings` — see [`pulse profile
@@ -1018,8 +993,7 @@ Generated 1000 rows -> sales.synth.pulse (rejected 0)
 Fidelity report -> sales.fidelity.json
 ```
 
-Those lines are the whole of **stdout**, so a redirect stays exactly the
-bytes it was.
+Those lines are the whole of **stdout**; warnings go to stderr.
 
 ### Warning summary and recovery headline (stderr)
 
@@ -1049,8 +1023,8 @@ Warnings: 3846 in 6 kind(s) — 1 needing attention, 3845 expected
 The recovery lines exist because the sections they summarise live inside
 a document that is 1.65 MB on the motivating cohort — a reader has to
 learn that flags are there before deciding to open it. Both lines are
-omitted when the report carries no such section, which is every spec
-predating `profile create --fit-models`.
+omitted when the report carries no such section (a profile captured
+without `--fit-models`).
 
 The summary spans **all three** warning channels this command touches,
 because each carries findings the others do not:
@@ -1062,25 +1036,19 @@ because each carries findings the others do not:
 | Generation | `generate()` — the post-`--rules` arbitration, rule compilation, rules that never fired, correlation completion, model compilation | `--json`'s `data.warnings` **and** `--fidelity-report`'s `warnings` |
 
 The middle channel is the one that carries `model for numeric field "x"
-not applied: …`, and until the summary existed it reached no terminal at
-all: a spec that silently applied a fraction of its captured models
-generated a plausible cohort and printed `Generated 50000 rows`.
+not applied: …` — the line that says a spec applied only a fraction of
+its captured models.
 
 Translation and generation both derive their conflict lines from the
 same arbitration, so byte-identical duplicates are dropped before
 counting — 791 conflicts are reported as 791, not 1,582.
 
 The generation channel reaches the **report** as well as the terminal,
-and that is what makes the summary's `Full list:` footer true. Until it
-did, the report held the two channels computed *before* the run, so a
-`--rules` run's post-merge arbitration — precisely the record of which
-captured relationships the rules retired — existed only on a terminal
-nobody keeps. Measured on the 381,324-row profile with
-`{"set_expr": {"promoter": "nps >= 9"}}` plus one never-firing rule: the
-report went from 3,846 warnings that mentioned neither fact to 3,849
-carrying the retired model, the dropped residual participant, and the
-dead rule. The overlap with the translation channel is deduped at the
-fold, so 791 shared lines are written once.
+which is what makes the summary's `Full list:` footer true: a `--rules`
+run's post-merge arbitration — the record of which captured
+relationships the rules retired, and which rules never fired — is in
+the report. The overlap with the translation channel is deduped at the
+fold, so shared lines are written once.
 
 Without `--fidelity-report` no document holds the merged list, so the
 footer names the flag that would produce one rather than a path that
@@ -1091,9 +1059,8 @@ does not exist.
 Same envelope shape as
 [`synth from-schema`](synth-from-schema.md#output). The stderr summary is
 not printed on this path — `data.warnings` already carries the
-generation channel, and the report carries every channel. The envelope
-shape is unchanged: `warnings` is the same `[]string` slot it has always
-been.
+generation channel (a `[]string`), and the report carries every
+channel.
 
 ## Exit codes
 
@@ -1253,14 +1220,14 @@ stderr summary marks `!` and lists first, so it does not need finding.
   is recovered through the calibrated probit score rather than a direct
   latent inverse, because a level pins the latent to an interval. On the
   survey cohort the `models` section reports **53 comparable targets of
-  53 entries** (it reported 2 before that score existed) and **2,343 of
+  53 entries** and **2,343 of
   2,499** predictor terms compared. `model_residual_correlations` still
   reports **1** compared pair with 1,377 unmeasured: a coefficient can be
   calibrated because least squares is linear in its response, a
   correlation cannot, so a staircase endpoint stays in the unmeasured
   list under `no_model_fit` rather than shipping an attenuated rho that
   looks measured.
-- Decimal and geo fields: regenerated within the same type family
+- Decimal fields: regenerated within the same type family
   but with synthetic value distributions; downstream uses that
   depend on exact field values (e.g. joinable identifiers) need
   the schema-driven path instead.

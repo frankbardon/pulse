@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means, reading ms_within / df_within from a one-way TEST_ANOVA_F run ungrouped (a grouped request runs tier-1 tests once per group, so the ANOVA across regions is its own call).",
+    "description": "Tier-2 Tukey HSD pairwise comparisons over per-region means, with params.ms_within / df_within copied from an ungrouped one-way TEST_ANOVA_F on the same split (05_anova_f_streaming.json: ms_within about 7098.4, df_within 396; a grouped request runs tier-1 tests once per group, so the ANOVA across regions is its own call). The omnibus F only just rejects (p about 0.049) and no pair clears 0.05 after Tukey's adjustment (north against west comes closest, p_adj about 0.07).",
     "intents": [
       "compare_groups"
     ],
@@ -52,7 +52,7 @@
       "alpha": 0.05,
       "label": "regional_tukey",
       "params": {
-        "ms_within": 6000.0,
+        "ms_within": 7098.431,
         "df_within": 396.0
       }
     }

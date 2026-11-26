@@ -111,10 +111,10 @@ Checks whether the average differs across conditions when every subject is measu
 
 **Assumptions:**
 
-- The same subjects (SubjectField) are measured once under every condition; subjects missing a condition are dropped.
+- The same subjects (subject_field) are measured once under every condition; subjects missing a condition are dropped, unless params.incomplete is mixed, which keeps every observed cell in a mixed model.
 - Subjects are independent of each other.
 - The measure is roughly normally distributed within each condition.
-- Sphericity: differences between each pair of conditions are about equally variable. No correction is applied, so violations make the p-value too small.
+- Sphericity: differences between each pair of conditions are about equally variable. No correction is applied, so violations make the complete-case p-value too small.
 
 **Use something else:**
 
@@ -343,7 +343,7 @@ Checks whether two categorical fields are associated, or whether one categorical
 - Each row is counted once and rows are independent of each other.
 - It works on raw counts, never on percentages or averages.
 - Expected counts should mostly be 5 or more (Cochran's rule: none below 1 and no more than a fifth below 5); below that the p-value is unreliable, and Pulse warns when any cell is under 5.
-- No continuity correction is applied.
+- No continuity correction is applied unless params.correct is set (a 2x2 independence table only).
 
 **Use something else:**
 
@@ -440,7 +440,7 @@ Checks whether several numeric fields, taken together as one profile, differ fro
 
 - Rows are independent of each other, within and across the groups.
 - The fields are roughly jointly normal; with many rows the test tolerates departures.
-- The two-sample form assumes both groups share one covariance across the fields unless variance is set to unequal.
+- The two-sample form assumes both groups share one covariance across the fields unless params.variance is unequal.
 - A row with any field missing is dropped from the test (listwise).
 - There are more complete rows than fields.
 
@@ -584,7 +584,7 @@ Checks whether a numeric field's values follow the same distribution in two grou
 - Rows are independent of each other, within and across the two groups.
 - It compares two observed groups; it is not a normality test with parameters estimated from the data (that needs the Lilliefors correction).
 - With few rows per group it has low power; with very large groups even trivial differences in shape are flagged.
-- The p-value is a two-sided large-sample approximation; many tied values make it conservative.
+- The p-value is two-sided: exact, as R's ks.test gives it, when the two group sizes multiplied stay under 10,000, otherwise a large-sample approximation that many tied values make conservative.
 
 **Use something else:**
 
@@ -628,7 +628,7 @@ Rank-based check of whether values in one of two groups tend to be larger than i
 
 - Rows are independent of each other, within and across the two groups.
 - It tests whether a value from one group tends to exceed one from the other; it reads as a difference in medians only when both groups have the same shape.
-- The p-value is a two-sided large-sample approximation with tie and continuity corrections, not an exact value.
+- The p-value is two-sided: a large-sample approximation with tie and continuity corrections, or the exact value for smaller groups under params.exact.
 
 **Use something else:**
 
@@ -763,7 +763,7 @@ Checks whether the average change between two measurements of the same rows, suc
 
 **Assumptions:**
 
-- Each row pairs two measurements of the same subject, held side by side in Field and Field2.
+- Each row pairs two measurements of the same subject, held side by side in field and field2.
 - Pairs are independent of each other.
 - The per-row differences are roughly normally distributed; the two fields themselves need not be.
 - Rows missing either value are dropped. The p-value is two-sided.
@@ -862,7 +862,8 @@ Checks whether the rate of one outcome, such as conversion, differs between two 
 
 - Rows are independent of each other, within and across the two groups.
 - Each group needs at least 10 successes and 10 failures for the normal approximation.
-- The p-value is two-sided; the confidence interval on the rate difference is the simple Wald interval, which is rough near 0% or 100%.
+- The p-value is two-sided; the confidence interval is the simple Wald interval, which is rough near 0% or 100% (params.interval wilson gives a score interval for one rate against a planned one; params.correct applies a continuity correction).
+- params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome.
 
 **Use something else:**
 
@@ -907,9 +908,9 @@ Checks whether a numeric field looks normally distributed, overall or within eac
 **Assumptions:**
 
 - Rows are independent of each other.
-- Needs at least 3 values per group; the p-value is only calibrated for 5 to 5000 values, so treat it as advisory below 5 or above 5000 (Pulse warns).
+- Needs at least 5 values per group (fewer is refused); the p-value is only calibrated up to 5000 values, so treat it as advisory above that (Pulse warns).
 - With few rows it has low power and can miss real departures; with very large samples even trivial departures are flagged, so look at the shape too.
-- Pulse computes the Shapiro-Francia form, a close approximation to Shapiro-Wilk; with SplitBy the headline is the group that departs most.
+- Pulse computes the Shapiro-Francia form, a close approximation to Shapiro-Wilk; with split_by the headline is the group that departs most.
 
 **Use something else:**
 
@@ -1005,7 +1006,8 @@ Checks whether a numeric field's average differs from a target value, or between
 **Assumptions:**
 
 - Rows are independent of each other, within and across groups.
-- The two-group version uses Welch's correction, so the groups need not have equal variances.
+- The two-group version uses Welch's correction, so the groups need not have equal variances; params.variance pooled runs Student's equal-variance form.
+- params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.
 - The average is roughly normally distributed: safe for large groups, risky for small skewed ones.
 - The p-value is two-sided: it looks for a difference in either direction.
 
@@ -1053,7 +1055,7 @@ Checks whether an ordered series, such as monthly totals, tends to keep rising o
 
 **Assumptions:**
 
-- It runs on result rows (a post-test) in OrderBy order, such as a grouped or windowed series.
+- It runs on result rows (a post-test) in order_by order, such as a grouped or windowed series.
 - Successive points are independent; seasonality or autocorrelation makes the p-value too small.
 - It detects a monotonic trend, not a straight-line slope and not which periods differ.
 - The p-value is a two-sided normal approximation; treat it as advisory below about 10 points (Pulse warns below 8).
@@ -1146,6 +1148,7 @@ Checks whether the average of a numeric field differs between two groups, withou
 - Rows are independent of each other, within and across the two groups.
 - Each group's average is roughly normally distributed; large groups make this safe.
 - Unequal variances are allowed: the degrees of freedom are adjusted (Welch-Satterthwaite).
+- params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.
 - The p-value is two-sided.
 
 **Use something else:**
@@ -1190,7 +1193,7 @@ Rank-based check of whether paired before/after values tend to shift in one dire
 
 **Assumptions:**
 
-- Each row pairs two measurements of the same subject, held side by side in Field and Field2.
+- Each row pairs two measurements of the same subject, held side by side in field and field2.
 - Pairs are independent of each other.
 - The differences are roughly symmetric around their centre; the test asks whether that centre is zero.
 - Pairs whose values are equal are dropped; the p-value is a two-sided large-sample approximation and needs at least 6 pairs that differ.
@@ -1237,6 +1240,7 @@ Large-sample check of whether two groups differ in average, with the p-value rea
 - Rows are independent of each other, within and across the two groups.
 - Both groups are large; with small groups the normal p-value comes out too small.
 - Unequal variances are allowed: the standard error is the same as Welch's t-test.
+- params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.
 - The p-value is two-sided.
 
 **Use something else:**

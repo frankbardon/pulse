@@ -1,6 +1,6 @@
 ---
 name: synth-rule-validation
-description: Synth rule validation and diagnostics — the eight eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms.
+description: Synth rule validation and diagnostics — the eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
@@ -12,7 +12,7 @@ requires: [capability:synth]
 
 ### Eager validation
 
-**At spec parse, never at row time.** A rule naming a mistyped field, or carrying an uncompilable expression, is invisible at run time: the run succeeds and the gate is simply absent. Eight codes, each naming the rule INDEX (`rule_index` — a rule has no name) plus slot and field where one exists:
+**At spec parse, never at row time.** A rule naming a mistyped field, or carrying an uncompilable expression, is invisible at run time: the run succeeds and the gate is simply absent. Each code names the rule INDEX (`rule_index` — a rule has no name) plus slot and field where one exists:
 
 | Code | Fires on |
 |---|---|
@@ -24,6 +24,7 @@ requires: [capability:synth]
 | `_CONFLICT` | one rule naming a field in two slots that DISAGREE (`set_null` + `null_together` do not disagree and are ordered instead) |
 | `_BLOCK_INVALID` | `null_together` naming fewer than two DISTINCT fields |
 | `_OWNERSHIP_INVALID` | `owns_nulls` with an empty `set_null` |
+| `_DRAW_INVALID` | `uniform()` / `bernoulli()` in a constraint, wrong arguments, or a literal `p` outside [0, 1] (a computed one at row time; `synth-rule-draws`) |
 
 Faults report in a fixed slot order with SORTED map keys, so a rule with two faults refuses the same one every run. A `when` failing at RUN time stays `PROCESSING_RUNTIME` — the remaining causes are generic expr faults (a dynamic `isnull` argument, `int()` of a non-numeric string), not "a malformed rule", and the coded error already carries rule index, slot and expression. `pulse errors lookup CODE` is authoritative.
 
@@ -54,7 +55,7 @@ Eager validation cannot catch a `when` that is simply NEVER TRUE: the rule valid
 2. **PRE-ROUNDING** — the predicate reads a field that rounds on write AND draws continuous values; remedy `round(field)` in an earlier rule, never `int()`.
 3. **NEUTRAL** — neither. Names each field the predicate reads with its type and distribution, and RULES PRE-ROUNDING OUT for a field whose row value already IS the stored value.
 
-Arm 3 is why the split exists: a field that rounds on write still draws exact values under `discrete`, `bernoulli`, `uniform_date`, `poisson` or `monotonic_from`, and a small integer reconstructs as `discrete` automatically — so on a survey cohort the pre-rounding advice is wrong for most columns, and sending an author to normalise an already-exact gate is worse than saying nothing.
+Arm 3 is why the split exists: a field that rounds on write still draws exact values under `discrete`, `bernoulli`, `uniform_date`, `poisson` or `monotonic_from`, and a small integer reconstructs as `discrete` automatically — so on a survey cohort the pre-rounding advice is wrong for most fields, and sending an author to normalise an already-exact gate is worse than saying nothing.
 
 ## See
 

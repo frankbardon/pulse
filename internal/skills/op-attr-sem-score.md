@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, comparison]
 ---
 
-Row scalars; no `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params

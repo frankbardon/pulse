@@ -1,6 +1,6 @@
 ```yaml
 name: session-skill-routing
-description: Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight.
+description: Which skill to fetch for a given trigger — operator family prefixes, manifest entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight.
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
@@ -13,7 +13,7 @@ Step 5 of [`session-bootstrap`](session-bootstrap.md) (`pulse_skills_get` on dem
 
 ## Skill-name derivation
 
-Lowercase the operator family prefix and map through this table.
+Map the operator family prefix through this table for the design skill. The operator's own atomic skill is `op-<kebab>`: lowercased, `_` → `-` (`AGG_SET_UNION` → [`op-agg-set-union`](op-agg-set-union.md)).
 
 | Trigger | Skill to fetch |
 |---|---|
@@ -26,15 +26,16 @@ Lowercase the operator family prefix and map through this table.
 | `TEST_*` (tier-1 or tier-2) | [`statistical-testing`](statistical-testing.md) |
 | `REG_*` | [`regression-modeling`](regression-modeling.md) |
 | `OVERLAY_*` | [`overlay-system`](overlay-system.md) |
+| `MAT_*` | [`multivariate-design`](multivariate-design.md), [`matrix-results`](matrix-results.md) |
 | `synth_distributions[i].kind` | [`synthetic-data`](synthetic-data.md) |
 | `cohort_types[i].name` (field type) | [`cohort-schema-design`](cohort-schema-design.md) |
 | a `.sav` / `.zsav` source, or a cohort carrying a `.spss.json` sidecar | [`spss-cohorts`](spss-cohorts.md) |
 | `mcp_tools[i].name` | `tool-<name minus `pulse_`>` — one atomic skill per tool |
 | `pulse_lookup` / `pulse index build` / `pulse index list` / `pulse index verify` / `pulse index drop` / `pulse api lookup` | [`tool-lookup`](tool-lookup.md) (MCP surface), [`cohort-sidecar-index`](cohort-sidecar-index.md) (sidecar format) |
 | a join-shaped cohort already on disk — `pulse_dedup` (`suggest_groups` alone is read-only; `groups` + `out` converts without touching the original) / `pulse dedup COHORT --group KEY:MEMBER,… [--out P] [--suggest-groups]` | [`tool-dedup`](tool-dedup.md), [`cohort-parent-groups`](cohort-parent-groups.md) |
-| a window, feature or attribute column a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | [`tool-materialize`](tool-materialize.md), [`derived-cohorts`](derived-cohorts.md) |
-| survey weights to census targets — `pulse_rake` / `pulse rake COHORT -o OUT --margins JSON [--by F] [--max-weight X]` writes a weight column into a new cohort | [`tool-rake`](tool-rake.md), [`survey-weights`](survey-weights.md) |
-| a set column out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | [`cohort-schema-design`](cohort-schema-design.md) (set rungs), [`cohort-sharding`](cohort-sharding.md) (archives auto-widen) |
+| a window, feature or attribute output a later request must regress, group, filter or join on — `pulse_materialize` / `pulse api materialize -r REQ -o OUT [--overwrite]` writes it as a field of a new cohort | [`tool-materialize`](tool-materialize.md), [`derived-cohorts`](derived-cohorts.md) |
+| survey weights to census targets — `pulse_rake` / `pulse rake COHORT -o OUT --margins JSON [--by F] [--max-weight X]` writes a weight field into a new cohort | [`tool-rake`](tool-rake.md), [`survey-weights`](survey-weights.md) |
+| a set field out of option headroom — `pulse widen COHORT --field F --to set_u128\|set_u256` rewrites it in place (single-file cohorts only; no MCP tool) | [`cohort-schema-design`](cohort-schema-design.md) (set rungs), [`cohort-sharding`](cohort-sharding.md) (archives auto-widen) |
 | a plain-language question with no operator in mind | [`intents`](intents.md) (`pulse-skill://intents`) — question kinds, then the manifest entries whose [`intents`](intents.md) match |
 | a question kind known, request not — `pulse_recommend` / `pulse recommend --intent ID [--cohort C --field F …]` returns ranked drafts (bound to the cohort's fields and predict-checked when given one) | [`tool-recommend`](tool-recommend.md) |
 | what a request will do, or what a result found, in plain words — `pulse_explain` / `pulse explain --request F \| --response F [--request F]` returns findings with verdicts and caveats | [`tool-explain`](tool-explain.md) |

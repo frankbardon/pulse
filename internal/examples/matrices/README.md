@@ -1,16 +1,16 @@
 # Matrices
 
-Whole-set matrix operators (`MAT_*`) over virtual vectors
-(`Request.Vectors`). Each spec in `matrices` returns one entry in
-`Response.Matrices`.
+Whole-set matrix operators (`MAT_*`) over virtual vectors (the
+request's `vectors`). Each spec in `matrices` returns one entry in the
+response's `matrices` (one per bucket under `groups`).
 
 | File | Operator | What it shows |
 |---|---|---|
-| `01_covariance.json` | `MAT_COVARIANCE` | A vector over three numeric columns and its sample covariance matrix + determinant. |
+| `01_covariance.json` | `MAT_COVARIANCE` | A vector over three numeric fields and its sample covariance matrix + determinant. |
 | `02_correlation.json` | `MAT_CORRELATION` | The same vector's Pearson correlation matrix in upper-triangle encoding + determinant + the two strongest pairs (`top_pairs`). |
 | `03_grouped_correlation.json` | `MAT_CORRELATION` + `GROUP_CATEGORY` | One correlation matrix per treatment arm (matrices follow `groups`), each with `group_key` / `group_header`; predict reports the estimated buckets, cells and bytes. |
-| `04_pairwise_correlation.json` | `MAT_CORRELATION` | Pairwise deletion (`params.missing: "pairwise"`): each cell over its own rows, plus `auxiliary.n`. |
-| `05_weighted_covariance.json` | `MAT_COVARIANCE` | A per-slot probability weight; the weighted floor (`sum_weights`, `n_eff`) in `Components.Matrices`. |
+| `04_pairwise_correlation.json` | `MAT_CORRELATION` | Pairwise deletion (`params.missing: "pairwise"`) over `intake.pulse`'s nulls: each cell over its own rows, plus `auxiliary.n`. |
+| `05_weighted_covariance.json` | `MAT_COVARIANCE` | A per-slot probability weight; the weighted floor (`sum_weights`, `n_eff`) in `components.matrices`. |
 | `06_rank_correlation.json` | `MAT_CORRELATION` | `params.method` `spearman` and `kendall` (tau-b): rank correlation matrices, buffered and serial, equal to the per-pair rank tests. |
 | `07_partial_correlation.json` | `MAT_PARTIAL_CORRELATION` | Partial correlations: every pair held fixed for the other members (`control: "all"`), and one pair held fixed for an outside field through a `control` list. |
 | `08_reliability.json` | `MAT_RELIABILITY` | Scale reliability of a battery: alpha, standardized alpha, omega, the mean inter-item r and per-item diagnostics (`reverse` + `scale_min` / `scale_max` key reverse-worded items). |
@@ -26,6 +26,7 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `18_sem_ordinal.json` | `MAT_SEM` | The `brand_survey.pulse` CFA with its 1-5 ratings read two ways: lavaan ML with a mean structure (continuous, with a log-likelihood) beside `estimator: "wlsmv"` with every rating `ordered` (two-step thresholds and polychorics, `x \| tk` threshold rows, robust SEs, the scaled-shifted test and `_scaled` indices), then the ordinal model across the two waves with thresholds, loadings and intercepts equal, whose wave2 latent means recover the planted shift. Buffered. |
 | `19_sem_wave_pair.json` | `MAT_SEM` | A wave pair chosen by request `params` (`from_wave`, `to_wave`) fitted as one two-group SEM on `brand_survey.pulse`: an `ATTR_FORMULA` `period` maps the two waves to 1 / 2 (every other wave to 0, so its rows drop), `MAT_SEM` groups by `period` with declared `group_levels` `from` / `to`, and `shift := bto - bfrom` is a path's change between them. Buffered. |
 | `20_sem_ladder_for_each.json` | `MAT_SEM` | The invariance ladder as ONE request: a single multi-group `MAT_SEM` spec whose `for_each` zips the step name with the parameters held equal (`group_equal` spliced by a `$var` marker), expanding in place into the `configural`, `metric` and `scalar` results on `brand_survey.pulse`. |
+| `21_perceptual_map.json` | `ATTR_PC_SCORE` + `MAT_PCA` + `MAT_DISTANCE` | A perceptual map of five brands on `brand_ratings.pulse` (story `perceptual_map`): two self-fitted `ATTR_PC_SCORE` attributes give each row its map coordinates, `MAT_PCA` names the axes (loadings, `cumulative`), and `MAT_DISTANCE` with `between: GROUP_CATEGORY brand` returns the brand distance grid and, in `auxiliary.centroids`, each brand's map position; a second `MAT_DISTANCE` over the standardized ratings checks what the flat picture loses. Buffered. |
 
 Run every example:
 

@@ -32,7 +32,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 - Every aggregator/attribute/filterer/grouper/window/feature/test/synth/regression must appear by name in its target skill. Coverage gates enforce.
 - `applies_to` takes only the leaves in `TestSkillsManifestConsistent`'s `validLeaves`; anything else fails the test.
 - New env var → the "Environment variables" table in `docs/src/library/options.md` (`TestEnvVarsDocumented`).
-- New CLI leaf → the command index in `docs/src/cli/flags.md` (this is what `TestSkillsCoverAllCliLeaves` actually checks — that the leaf path is named under `skills/` or `docs/src/`), plus `skills/session-bootstrap.md` when the leaf carries a flag an agent must know about.
+- New CLI leaf → `make docs` regenerates its section in `docs/src/cli/reference.md` (`TestSkillsCoverAllCliLeaves`, `TestCLIReferenceCurrent`); a shared flag's semantics go in `docs/src/cli/flags.md`, plus `skills/session-bootstrap.md` when the leaf carries a flag an agent must know about.
 - New structural gate → the gate table in `docs/src/contributing/testing.md`.
 
 ## Same-PR rules

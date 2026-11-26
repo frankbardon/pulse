@@ -1,6 +1,6 @@
 ---
 name: op-attr-percentile
-description: Per-row percentile rank column against the post-filter value set; requires sorting.
+description: Per-row percentile rank against the post-filter value set; requires sorting.
 kind: operator
 category: ATTR
 operator: ATTR_PERCENTILE
@@ -8,8 +8,6 @@ type: reference
 applies_to: process, compose, predict
 examples_tags: [cohort-analysis, distribution-shape, buffered-pipeline]
 ---
-
-Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -19,9 +17,9 @@ None.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
-- `Label` — required — new column name
+- `label` — derived field name; default `<TYPE>_<field>`
 
 ## Output
 

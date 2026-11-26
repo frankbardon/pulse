@@ -46,17 +46,18 @@ const (
 	Facet Host = "facet"
 )
 
-// Slot returns the request field the host's overlay specs live on.
+// Slot names, in wire terms, the `overlays` slot the host's specs live
+// on (refusal prose).
 func (h Host) Slot() string {
 	switch h {
 	case Request:
-		return "Request.Overlays"
+		return "request overlays"
 	case Compose:
-		return "ComposedRequest.Overlays"
+		return "Compose overlays"
 	case Chain:
-		return "ChainRequest.Overlays"
+		return "process chain overlays"
 	case Facet:
-		return "FacetRequest.Overlays"
+		return "facet overlays"
 	}
 	return string(h)
 }
@@ -318,11 +319,11 @@ func JudgedShape(authored types.OverlayShape, matrices bool, route types.Overlay
 func shapeHost(shape types.OverlayShape) string {
 	switch shape {
 	case types.OverlayShapeMatrix:
-		return "a matrix host (Request.Crosstab)"
+		return "a matrix host (crosstab)"
 	case ShapeMatrixResult:
-		return "a matrix-result host (Request.Matrices, no Request.Crosstab)"
+		return "a matrix-result host (matrices, no crosstab)"
 	}
-	return "a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)"
+	return "a series host (groups + aggregations, no crosstab)"
 }
 
 // ShapeRefusal returns the wrong-shape refusal for the Request.Overlays
@@ -347,7 +348,7 @@ func ShapeRefusal(shape types.OverlayShape, kind, route types.OverlayKind, index
 		runs += shapeHost(s)
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-		"overlay "+string(kind)+" does not run on a "+string(shape)+"-shape Request.Overlays host; it runs on "+runs,
+		"overlay "+string(kind)+" does not run on a "+string(shape)+"-shape overlays host; it runs on "+runs,
 		map[string]any{
 			"index":  index,
 			"kind":   string(kind),

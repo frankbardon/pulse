@@ -17,11 +17,11 @@ None.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Rich `[]string` — resolved dictionary labels. Scalar fallback = popcount of the union mask.
+JSON array of resolved dictionary labels. Scalar fallback = popcount of the union mask.
 
 ## Components
 

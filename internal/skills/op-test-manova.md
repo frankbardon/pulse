@@ -1,6 +1,6 @@
 ---
 name: op-test-manova
-description: One-way MANOVA of a mean vector of p numeric members across a SplitBy of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
+description: One-way MANOVA of a mean vector of p numeric members across a split_by of 2+ levels; Pillai's trace headline, with Wilks, Hotelling–Lawley and Roy in details.
 kind: operator
 category: TEST
 operator: TEST_MANOVA
@@ -17,20 +17,20 @@ No `Response.Components`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `missing` | enum | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`), ≥ 2 levels.
-- `weight` — both kinds (`Details` add `sum_weights`).
+- `weight` — both kinds (`details` add `sum_weights`).
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`.
+Members: numeric (`## Contract`).
 
 ## Output
 
-`Statistic` = Pillai's V, `DF` = its df1, `PValue` its p. `Details`: Pillai's `f`, `df1`, `df2`, `members`, `groups`, `n`, `means`, `eigenvalues`, and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}` (`multivariate-outputs`). `Variant`: `one_way`.
+`statistic` = Pillai's V, `df` = its df1, `p_value` its p. `details`: Pillai's `f`, `df1`, `df2`, `members`, `groups`, `n`, `means`, `eigenvalues`, and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}` (`multivariate-outputs`). `variant`: `one_way`.
 
 <!-- generated: reading-the-output -->
 

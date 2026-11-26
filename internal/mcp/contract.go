@@ -58,9 +58,9 @@ type SampleIn struct {
 	Count int    `json:"count,omitempty" jsonschema:"Maximum rows to return (default 10)"`
 	// Union samples several labelled cohorts read as one record stream
 	// in place of path (types.SampleRequest.Union).
-	Union []types.UnionMember `json:"union,omitempty" jsonschema:"Several labelled cohorts ({cohort, label}) sampled as one record stream in place of path, rows in member order, each carrying its member label in the virtual union_source_field column."`
+	Union []types.UnionMember `json:"union,omitempty" jsonschema:"Several labelled cohorts ({cohort, label}) sampled as one record stream in place of path, rows in member order, each carrying its member label in the virtual union_source_field field."`
 	// UnionSourceField names the union's virtual source field.
-	UnionSourceField string `json:"union_source_field,omitempty" jsonschema:"Name of the virtual source column a union adds (default _source); only with union, and never a member's own field name."`
+	UnionSourceField string `json:"union_source_field,omitempty" jsonschema:"Name of the virtual source field a union adds (default _source); only with union, and never a member's own field name."`
 }
 
 // FacetIn is the input contract for pulse_facet.
@@ -91,7 +91,7 @@ type ManifestIn struct {
 type ExamplesSearchIn struct {
 	Query    string   `json:"query,omitempty" jsonschema:"Plain words or a name. One word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags. Known operator aliases (anova, chisq.test, pearson) and phrases from an intent's sounds (move together) also match; failing those, near-miss spellings (regon finds region)"`
 	Tags     []string `json:"tags,omitempty" jsonschema:"Canonical taxonomy tags; results must carry every tag (AND)"`
-	Category string   `json:"category,omitempty" jsonschema:"Exact directory: aggregations, attributes, compose, crosstab, facet, features, filterers, groupers, materialize, matrices, overlays, regression, tests, windows"`
+	Category string   `json:"category,omitempty" jsonschema:"Exact example category; the manifest's example_categories lists this server's. Shipped categories: aggregations, attributes, compose, crosstab, facet, features, filterers, groupers, materialize, matrices, overlays, regression, tests, windows."`
 	Intent   string   `json:"intent,omitempty" jsonschema:"Intent-taxonomy ID (e.g. compare_groups, relationship); results must declare it. Unknown: PULSE_RECOMMEND_INTENT_UNKNOWN"`
 }
 
@@ -139,7 +139,7 @@ type ImportIn struct {
 	// Schema / IgnoreExtra / Float are io.ImportJob's explicit-schema and
 	// float-width options, the CLI's --schema / --ignore-extra / --float.
 	// None is persisted on the sidecar (see imports.Spec.Schema).
-	Schema      []ImportSchemaField `json:"schema,omitempty" jsonschema:"Explicit schema: an array of field objects {name, type, nullable, description} (precision / scale for decimal128) — the same document pulse import --schema reads. Omit it to infer the schema (unchanged behaviour). Fields are matched to source columns BY NAME (exact spelling), never position; the array order is the cohort's field order. Refused before any row is read: a field with no column PULSE_IMPORT_SCHEMA_FIELD_MISSING, a column no field names PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED (unless ignore_extra), a repeated name PULSE_IMPORT_SCHEMA_DUPLICATE, an NDJSON / JSON-array key first seen after the first object PULSE_IMPORT_SCHEMA_KEY_LATE, an unknown type name PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, an unknown entry key, an empty array or a schema on a .pulse source PULSE_IMPORT_SCHEMA_INVALID. A null in a non-nullable field is PULSE_IMPORT_ROW_ERROR."`
+	Schema      []ImportSchemaField `json:"schema,omitempty" jsonschema:"Explicit schema: an array of field objects {name, type, nullable, description} (precision / scale for decimal128) — the same document pulse import --schema reads. Omit it to infer the schema. Fields are matched to source columns BY NAME (exact spelling), never position; the array order is the cohort's field order. Refused before any row is read: a field with no column PULSE_IMPORT_SCHEMA_FIELD_MISSING, a column no field names PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED (unless ignore_extra), a repeated name PULSE_IMPORT_SCHEMA_DUPLICATE, an NDJSON / JSON-array key first seen after the first object PULSE_IMPORT_SCHEMA_KEY_LATE, an unknown type name PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN, an unknown entry key, an empty array or a schema on a .pulse source PULSE_IMPORT_SCHEMA_INVALID. A null in a non-nullable field is PULSE_IMPORT_ROW_ERROR."`
 	IgnoreExtra bool                `json:"ignore_extra,omitempty" jsonschema:"With schema: drop source columns (and late NDJSON / JSON-array keys) the schema does not name instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. A schema field with no column is still refused. Inert without schema. Default false."`
 	Float       string              `json:"float,omitempty" jsonschema:"Width an inferred all-float column takes: 'f64' (default; exact decimals) or 'f32' (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Steers inference only: inert for fields an explicit schema types."`
 }
@@ -205,7 +205,7 @@ type DedupIn struct {
 	Path          string          `json:"path" jsonschema:"Path to the existing single-file .pulse cohort to deduplicate (relative to PULSE_DATA_DIR). Shard archives are refused with SERVICE_VALIDATION."`
 	Groups        []pio.GroupDecl `json:"groups,omitempty" jsonschema:"Parent-group declarations, one object per group: {key: [fields...], members: [fields...]} — the same shape pulse_import takes. Each distinct member tuple is stored ONCE and every row carries a 4-byte index. FAILS with PULSE_GROUP_MEMBER_NOT_CONSTANT (cohort untouched) if a member varies within its key. Take declarations from suggest_groups candidates rather than guessing. An already-grouped cohort is regrouped from scratch. Unknown keys inside an entry are rejected with PULSE_GROUP_DECLARATION_INVALID."`
 	SuggestGroups bool            `json:"suggest_groups,omitempty" jsonschema:"Detect candidate parent groups over the cohort's records and return them as group_candidates (ratio, resident dictionary bytes, projected size, verdict), each with key/members ready to pass back as a groups entry. With no groups this call is READ-ONLY. The loop is: call with suggest_groups only, read group_candidates.suggested, call again with those as groups."`
-	Out           string          `json:"out,omitempty" jsonschema:"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it byte-identical). Prefer out unless the user asked for an in-place conversion."`
+	Out           string          `json:"out,omitempty" jsonschema:"Write the deduplicated cohort to this NEW path (must not exist) and leave the original untouched. Omit to rewrite the cohort IN PLACE (destructive, atomic: a failure leaves it unchanged). Prefer out unless the user asked for an in-place conversion."`
 }
 
 // MaterializeIn is the input contract for pulse_materialize. The request
@@ -216,7 +216,7 @@ type DedupIn struct {
 // as pulse_dedup's: it changes no byte written, and the warnings it
 // would escalate are returned either way.
 type MaterializeIn struct {
-	Request   *types.Request `json:"request" jsonschema:"The request whose derived columns to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone, output (the written cohort's columns: columns XOR exclude, each {from, as, description, nullable, type, precision, scale, on_cast_error, recode, bucket}, applied last; recode {map, order} rewrites a categorical's labels before type, a map key the source dictionary lacks refused with PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL; bucket {ranges XOR range_table} writes a numeric or date column as the categorical of its range labels, a value outside every range failing like a cast; type casts exactly or fails PULSE_MATERIALIZE_CAST_FAILED unless on_cast_error is null; with it no derived column is required) and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD. A union in place of cohort writes several labelled cohorts read as one, each record's member label written as the union_source_field column (default _source)."`
+	Request   *types.Request `json:"request" jsonschema:"The request whose derived fields to write: a pulse_process body (cohort required) carrying only cohort, label, features, filterers, attributes, windows, sort (the output row order), weight, time_zone, output (the written cohort's columns: columns XOR exclude, each {from, as, description, nullable, type, precision, scale, on_cast_error, recode, bucket}, applied last; recode {map, order} rewrites a categorical's labels before type, a map key the source dictionary lacks refused with PULSE_MATERIALIZE_RECODE_UNKNOWN_LABEL; bucket {ranges XOR range_table} writes a numeric or date column as the categorical of its range labels, a value outside every range failing like a cast; type casts exactly or fails PULSE_MATERIALIZE_CAST_FAILED unless on_cast_error is null; with it no derived field is required) and disable_components. Any other slot is refused with PULSE_MATERIALIZE_SLOT_UNSUPPORTED (details.slot); an unknown key with PULSE_REQUEST_UNKNOWN_FIELD. A union in place of cohort writes several labelled cohorts read as one, each record's member label written as the union_source_field column (default _source)."`
 	Out       string         `json:"out,omitempty" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR). Required unless predict is set. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
 	Overwrite bool           `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic: a failure leaves it as it was). Sidecars beside it become stale and are listed under invalidated_sidecars, each with its rebuild command; nothing is rebuilt."`
 	Predict   bool           `json:"predict,omitempty" jsonschema:"Validate without executing: answer under predict with the output schema the run would write (columns: name, type, nullable, description, from, derived, dictionary), the derived column names and the data-dependent risks, every static refusal as a coded errors entry (valid false). Reads the source's header and schema only; nothing is written and out is not needed."`
@@ -231,8 +231,8 @@ type MaterializeIn struct {
 // fails to compile. Every judgement on it is pulse.Rake's.
 type RakeIn struct {
 	Cohort      string             `json:"cohort" jsonschema:"Source cohort path (relative to PULSE_DATA_DIR): a single file, a shard archive or an archive#shard anchor. Required."`
-	Out         string             `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR): every source column verbatim plus the weight column. Required. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
-	WeightField string             `json:"weight_field,omitempty" jsonschema:"Name of the output weight column (nullable f64). Default rake_weight. A name the source already carries is refused (PULSE_RAKE_INVALID reason weight_field_exists) unless overwrite is set, which replaces that column in place."`
+	Out         string             `json:"out" jsonschema:"Path of the NEW single-file .pulse cohort to write (relative to PULSE_DATA_DIR): every source field verbatim plus the weight field. Required. An existing file is refused with SERVICE_VALIDATION unless overwrite is set; an archive#shard target is refused."`
+	WeightField string             `json:"weight_field,omitempty" jsonschema:"Name of the output weight field (nullable f64). Default rake_weight. A name the source already carries is refused (PULSE_RAKE_INVALID reason weight_field_exists) unless overwrite is set, which replaces that field in place."`
 	Margins     []pulse.RakeMargin `json:"margins" jsonschema:"The target distributions the weights must reproduce, applied in order each sweep. A rim margin is {field, targets: {category: target}}; a joint margin (cell weighting) is {fields: [two or more], cells: [{values: [one category per field], target}]}. Categories are dictionary labels, decimal integers or true/false. targets_as is shares (default; the targets sum to 1 or 100) or counts (any positive total). Every category a record holds needs a target (PULSE_RAKE_UNTARGETED_CATEGORY); a target the field cannot hold is PULSE_RAKE_UNKNOWN_CATEGORY."`
 	By          string             `json:"by,omitempty" jsonschema:"Rake every group of this field (e.g. a survey wave) separately to the SAME targets; each group is normalised on its own. A null by value is PULSE_RAKE_MISSING_VALUE."`
 	BaseWeight  string             `json:"base_weight,omitempty" jsonschema:"A design-weight field the raking starts from: the output is that weight times the raking adjustment. Null, negative or non-finite values are PULSE_RAKE_INVALID (reason base_weight_invalid)."`
@@ -242,7 +242,7 @@ type RakeIn struct {
 	MaxIter     int                `json:"max_iter,omitempty" jsonschema:"Sweep ceiling (0 = 100). A run that stops there still writes the cohort, with a PULSE_RAKE_NOT_CONVERGED warning."`
 	Tol         float64            `json:"tol,omitempty" jsonschema:"Convergence tolerance: the largest absolute achieved-vs-target share gap over every margin category (0 = 1e-6)."`
 	Total       float64            `json:"total,omitempty" jsonschema:"Normalise every group's weights to sum to this value (0 = the group's record count, so the mean weight is 1)."`
-	Overwrite   bool               `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic) and an existing source column named weight_field. Sidecars beside an overwritten cohort become stale and are listed under invalidated_sidecars with a PULSE_RAKE_SIDECARS_INVALIDATED warning; nothing is rebuilt."`
+	Overwrite   bool               `json:"overwrite,omitempty" jsonschema:"Replace an existing cohort at out (atomic) and an existing source field named weight_field. Sidecars beside an overwritten cohort become stale and are listed under invalidated_sidecars with a PULSE_RAKE_SIDECARS_INVALIDATED warning; nothing is rebuilt."`
 }
 
 // DropIn is the input contract for pulse_drop.
@@ -487,7 +487,7 @@ type LabelResolveOut struct {
 
 // RangeTablesOut is the output contract for pulse_range_tables.
 type RangeTablesOut struct {
-	Tables []pulse.RangeTableInfo `json:"tables" jsonschema:"Registered range tables (name, range count, ordered labeled date ranges)"`
+	Tables []pulse.RangeTableInfo `json:"tables" jsonschema:"Registered range tables (name, kind, range count, ordered labeled ranges)"`
 }
 
 // LookupTablesOut is the output contract for pulse_lookup_tables.

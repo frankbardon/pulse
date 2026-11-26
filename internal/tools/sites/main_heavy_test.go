@@ -750,3 +750,115 @@ func TestPrecision_RealTree(t *testing.T) {
 		t.Error("MAT_FACTOR: a shared oracle file read whole (normal_cdf.json attributed)")
 	}
 }
+
+// TestReports_WholeRepoSites pins the sites no operator or slot name
+// reaches, on the real tree: the every-example runners for a change with
+// an example site (op and new-op), the per-case attribution inside a
+// shared generator, and the ReadSchema call-site floor for a slot whose
+// site files call it.
+func TestReports_WholeRepoSites(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	gateTests := func(rep *Report, why string) map[string]bool {
+		out := map[string]bool{}
+		for _, g := range rep.Gates {
+			if strings.HasPrefix(g.Why, why) {
+				for _, n := range g.Tests {
+					out[g.Package+" "+n] = true
+				}
+			}
+		}
+		return out
+	}
+	runners := []string{"internal/integration TestLimitsDefaultsNeverTripGoldens", "internal/integration TestExamples_RunEndToEnd"}
+
+	op, err := opReport(r, "OVERLAY_SYMMETRY", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	newOp, err := newOpReport(r, "overlay", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, rep := range map[string]*Report{"op": op, "new-op": newOp} {
+		got := gateTests(rep, "whole-repo runners")
+		for _, w := range runners {
+			if !got[w] {
+				t.Errorf("%s report: whole-repo runner %s missing (have %v)", name, w, got)
+			}
+		}
+	}
+	var gen *Site
+	for i := range op.Sections {
+		if op.Sections[i].Class != "generator-cases" {
+			continue
+		}
+		for j := range op.Sections[i].Sites {
+			if op.Sections[i].Sites[j].Path == "internal/service/testdata/weight_reference/gen_weight_reference.py" {
+				gen = &op.Sections[i].Sites[j]
+			}
+		}
+	}
+	if !hasSymbol(gen, "ov_request › case ov_symmetry") {
+		t.Errorf("weighted reference generator: OVERLAY_SYMMETRY not attributed to its case (site %+v)", gen)
+	}
+
+	slot, err := slotReport(r, "request", "cohort", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !gateTests(slot, "call-site floors")[". TestReadSchemaCallersThreadHeaderVersion"] {
+		t.Errorf("slot request cohort: the ReadSchema call-site floor is not a gate (gates %+v)", slot.Gates)
+	}
+	floorSite := false
+	for _, sec := range slot.Sections {
+		if sec.Class == "floors" {
+			for _, s := range sec.Sites {
+				floorSite = floorSite || s.Path == "internal/service/service.go"
+			}
+		}
+	}
+	if !floorSite {
+		t.Error("slot request cohort: internal/service/service.go's ReadSchema call is not listed under the floors")
+	}
+}
+
+// TestFixtureReport_KnownSites pins the real tree's fixture-cohort
+// registration lists: a new cohort must reach every one of them.
+func TestFixtureReport_KnownSites(t *testing.T) {
+	t.Parallel()
+
+	rep, err := fixtureReport(sharedRepo(t), "new_cohort", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, sec := range rep.Sections {
+		if sec.Class == "fixture-lists" {
+			for _, s := range sec.Sites {
+				got[s.Path+" "+s.Symbols[0].Name] = s.Coverage
+			}
+		}
+	}
+	for k, cov := range map[string]string{
+		"internal/integration/examples_test.go func buildExampleFixtures": "complete",
+		"internal/examples/README.md ## Available cohorts":                "complete",
+		"internal/examples/README.md ## One-time setup":                   "complete",
+		"internal/examples/fixtures/gen.go func Generate":                 "subset",
+		"request_fuzz_test.go var requestFuzzCohorts":                     "subset",
+	} {
+		if got[k] != cov {
+			t.Errorf("%s: coverage %q, want %q (lists: %v)", k, got[k], cov, got)
+		}
+	}
+	shell := false
+	for k, cov := range got {
+		if strings.HasPrefix(k, "internal/examples/fixtures/build.sh ") && cov == "complete" {
+			shell = true
+		}
+	}
+	if !shell {
+		t.Errorf("fixtures/build.sh's cohort loop not listed: %v", got)
+	}
+}

@@ -41,14 +41,14 @@ Step 1 — materialise (the request carries only derived columns and filters):
 }
 ```
 
-Step 2 — point the next request at `out`, reference the column by its label: a regression with `"predictors": ["spend_lag1"]`, a grouper on it, a filter on it.
+Step 2 — point the next request at `out`, reference the new field by its label: a regression with `"predictors": ["spend_lag1"]`, a grouper on it, a filter on it.
 
 Label every output you will reference; unlabelled, a column takes the operator's default name (`derived_columns`).
 
 ## What the output holds
 
 - **Rows:** one per filter-passing source record, in source order (an archive's shards in archive order) — or in `sort` order (source fields or derived columns, `pulse_process`'s comparator). `sort` moves rows, never values: each window ran under its own `order_by`. Features see every record; attributes and windows the survivors, as `pulse_process` computes them.
-- **Columns:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows<!-- feature: ATTR_PREVIOUS_STATE -->; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels)<!-- /feature -->. Each gets a generated description (operator, field, params, partition / order, frame if read, source cohort; a formula by its expression).
+- **Fields:** the source fields verbatim (types, nullability, dictionaries, descriptions), then one nullable `f64` per derived output in pipeline order — feature outputs (every output of a multi-output feature), attributes, windows<!-- feature: ATTR_PREVIOUS_STATE -->; an `ATTR_PREVIOUS_STATE` output keeps its state field's `categorical_*` / `packed_bool` type and dictionary (nullable; the carried SPSS sidecar copies the state's value labels)<!-- /feature -->. Each gets a generated description (operator, field, params, partition / order, frame if read, source cohort; a formula by its expression).
 - Integer window outputs (row number, rank) are `f64`; a non-numeric one (a lag over a categorical) is `PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC`.
 - The source's SPSS sidecar is carried (rewritten for the new columns, so value labels survive a `.sav` export; a stale one warns with its own code and is dropped); no other sidecar is — rebuild an index on the new cohort.
 

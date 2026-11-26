@@ -43,7 +43,7 @@ A predictor named `(intercept)` / `sigma` or starting with the kernel's or curve
 
 ## Geo panels (`params.geo`)
 
-`params.geo` names the market field (a categorical, or an unsigned integer code). Each geo is its own series: contiguous `order.field` (ragged ends fine; an inner gap is `geo_time_gap`, a repeat `duplicate_time`), at most `Limits.MaxMMMGeos` geos (default 50, else `PULSE_LIMIT_EXCEEDED`). A channel that never spends in some geo is refused.
+`params.geo` names the market field (a categorical, or an unsigned integer code). Each geo is its own series: contiguous `order.field` (ragged ends fine; an inner gap is `geo_time_gap`, a repeat `duplicate_time`), at most `Limits.MaxMMMGeos` geos (else `PULSE_LIMIT_EXCEEDED`). A channel that never spends in some geo is refused.
 
 The model pools each channel's effect (ROI, or β) and every kernel parameter across geos, non-centred on the prior's unconstrained scale: `geo value = T(μ + τ·η)`, η ~ Normal(0, 1), τ ~ HalfNormal(0.5). The channel's prior is μ's. Controls and σ are shared, and so are curves unless `params.per_geo_curves: true` pools them too (panel only, else `per_geo_curves_without_geo`); each geo has its own intercept. Panels default `target_accept` to 0.95 (one market 0.8).
 

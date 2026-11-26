@@ -28,17 +28,17 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. `u64` for pr
 
 ## Output
 
-Per-row `float64` `start + i * step` for ACCEPTED row `i` (the ordinal `row()` reads). RNG state untouched, so seeded streams stay independent of monotonic columns.
+Per-row `float64` `start + i * step` for ACCEPTED row `i` (the ordinal `row()` reads). Consumes no randomness.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- `step == 0` → `SERVICE_VALIDATION` at spec parse.
+- `step == 0` → `SERVICE_VALIDATION` before any row is written.
 - Consumes NO RNG — adding / removing a `monotonic_from` field is the only spec edit preserving byte-equality of every other field's stream.
-- A constraint-rejected attempt redraws the SAME value, so the column has no gaps (before U58 it did).
-- Casting overflow is SILENT — `start=250, step=10, row_count=10` overflows `u8` after row 1. Declare wide enough, or use `u64`.
-- Pairs with `pulse synth from-schema` for fixtures; `Seed` is irrelevant here.
+- A constraint-rejected attempt redraws the SAME value, so the field has no gaps.
+- Out-of-range values saturate SILENTLY — `start=250, step=10` over `u8` writes 255 from row 1 on (a negative run stops at 0). Declare wide enough, or use `u64`.
+- The seed does not affect it.
 
 ## See
 

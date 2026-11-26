@@ -33,11 +33,11 @@ func TestErrorsLookup_OverlayReferenceUnknown_MessageMentionsComposeAndChain(t *
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_REFERENCE_UNKNOWN")
 	}
-	if !strings.Contains(r.Message, "ComposedRequest") {
-		t.Errorf("Message does not mention ComposedRequest: %q", r.Message)
+	if !strings.Contains(r.Message, "compose overlay") {
+		t.Errorf("Message does not mention the compose overlay: %q", r.Message)
 	}
-	if !strings.Contains(r.Message, "ChainOverlaySpec") {
-		t.Errorf("Message does not mention ChainOverlaySpec: %q", r.Message)
+	if !strings.Contains(r.Message, "chain overlay") {
+		t.Errorf("Message does not mention the chain overlay: %q", r.Message)
 	}
 }
 
@@ -86,11 +86,11 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupHintMentionsRequestsLabel(t *
 		if strings.Join(f.Path, "/") != "Overlays/*/Reference" {
 			continue
 		}
-		if strings.Contains(f.Hint, "ComposedRequest.Requests[].Label") {
+		if strings.Contains(f.Hint, "requests[].label") {
 			return
 		}
 	}
-	t.Errorf("Compose-arm fixup hint does not mention ComposedRequest.Requests[].Label")
+	t.Errorf("Compose-arm fixup hint does not mention requests[].label")
 }
 
 // TestErrorsLookup_OverlayTargetUnknown_FixupCount asserts the
@@ -121,11 +121,11 @@ func TestErrorsLookup_OverlayTargetUnknown_MessageMentionsComposeAndChain(t *tes
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_TARGET_UNKNOWN")
 	}
-	if !strings.Contains(r.Message, "ComposedRequest") {
-		t.Errorf("Message does not mention ComposedRequest: %q", r.Message)
+	if !strings.Contains(r.Message, "compose overlay") {
+		t.Errorf("Message does not mention the compose overlay: %q", r.Message)
 	}
-	if !strings.Contains(r.Message, "ChainOverlaySpec") {
-		t.Errorf("Message does not mention ChainOverlaySpec: %q", r.Message)
+	if !strings.Contains(r.Message, "chain overlay") {
+		t.Errorf("Message does not mention the chain overlay: %q", r.Message)
 	}
 }
 
@@ -169,11 +169,11 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupHintMentionsRequestsLabel(t *tes
 		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {
 			continue
 		}
-		if strings.Contains(f.Hint, "ComposedRequest.Requests[].Label") {
+		if strings.Contains(f.Hint, "requests[].label") {
 			return
 		}
 	}
-	t.Errorf("Compose-arm fixup hint does not mention ComposedRequest.Requests[].Label")
+	t.Errorf("Compose-arm fixup hint does not mention requests[].label")
 }
 
 func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupCount(t *testing.T) {
@@ -202,11 +202,11 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_MessageMentionsMaxPanelTargets(
 	if !ok {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP")
 	}
-	if !strings.Contains(r.Message, "MaxPanelTargets") {
-		t.Errorf("Message does not mention MaxPanelTargets: %q", r.Message)
+	if !strings.Contains(r.Message, "options.max_panel_targets") {
+		t.Errorf("Message does not mention options.max_panel_targets: %q", r.Message)
 	}
-	if !strings.Contains(strings.ToLower(r.Message), "combinatorial") {
-		t.Errorf("Message does not mention combinatorial explosion motivation: %q", r.Message)
+	if !strings.Contains(r.Message, "pairwise fold") {
+		t.Errorf("Message does not give the pairwise-fold cost motivation: %q", r.Message)
 	}
 }
 
@@ -251,9 +251,9 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_TargetsFixupMentionsCap(t *test
 		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {
 			continue
 		}
-		if strings.Contains(f.Hint, "MaxPanelTargets") {
+		if strings.Contains(f.Hint, "details.cap") {
 			return
 		}
 	}
-	t.Errorf("Targets-side fixup hint does not name OverlayOptions.MaxPanelTargets")
+	t.Errorf("Targets-side fixup hint does not name details.cap")
 }

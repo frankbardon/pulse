@@ -21,7 +21,7 @@ Weighted: Σw of matches (a float); `share` = Σw_match/Σw.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

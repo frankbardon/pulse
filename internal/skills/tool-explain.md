@@ -10,7 +10,7 @@ applies_to: mcp
 
 CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself.
 Or how an operator is validated.
-CLI twin: `pulse explain OPERATOR | --request F | --response F [--request F] [--root R] [--detail full] [--json]`.
+CLI twin: `pulse explain OPERATOR | --request F [--response F] [--root R]`.
 
 ## Input
 
@@ -23,7 +23,7 @@ Exactly ONE root, as an object:
 
 ## Output
 
-`mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`, `warnings` (predict's coded warnings, each once; `details.slot` names a Compose slot). `full` adds `sentences`, `glossary_refs`, `follow_ups`. Operator mode adds `validation`: `references[]` (`against`, `tolerance`, `tests`), `gap`, `weight_refusal`, `certification[]` (NIST digits).
+No envelope: `mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`, `warnings` (predict's coded warnings, each once; `details.slot` names a Compose slot). `full` adds `sentences`, `glossary_refs`, `follow_ups`. Operator mode adds `validation`: `references[]` (`against`, `tolerance`, `tests`), `gap`, `weight_refusal`, `certification[]` (NIST digits).
 
 ## Gotchas
 
@@ -34,7 +34,7 @@ Exactly ONE root, as an object:
 - A `composed` root is judged as `pulse_predict` judges it: its `fits` and each slot's `models` bind every slot; `details.slot` names `requests[i]`, `fits[k]`, `optimize[i]` (a step per expanded block, gradient mode named; results `optimizations[i]`) or `post_fit[i]` (results too).
 - A selection regression (and a Compose regression fit, read at `fits.<name>`) is named by the predictors it KEPT; its sentence names the dropped ones.
 - Relay `validation.gap`; no `validation` means no record, not unchecked.
-- Zero or several roots, an operator beside a root or one this instance does not offer, or an unknown `detail` → `SERVICE_VALIDATION`; unreadable cohort → `DATA_FILE`.
+- Zero or several roots, an operator beside a root or one this instance does not offer, or an unknown `detail` → `SERVICE_VALIDATION`; unreadable cohort → `SERVICE_RESOURCE`.
 
 ## See
 

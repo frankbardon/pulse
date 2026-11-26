@@ -1,16 +1,15 @@
 # Deployment
 
-**Audience:** operators standing up Pulse as a CLI server, an MCP
-process under an AI client, or an embedded Go library inside a larger
-binary.
+**Audience:** operators running Pulse as a CLI, as an MCP process under
+an AI client, or as a library inside a larger binary.
 
-Pulse is a single static Go binary. There is no install command, no
-config file, and no daemon — every deployment story is some shape of
-"put the binary somewhere, set `PULSE_DATA_DIR`, run it".
+Pulse is one Go binary with no installer, config file or daemon. Every
+deployment is some shape of "put the binary somewhere, set
+`PULSE_DATA_DIR`, run it" ([Installation](../getting-started/installation.md)).
 
-> **LLM agents using MCP:** see the `session-bootstrap` skill via
-> `pulse_skills_get` for the MCP-side wiring details. This page covers
-> the operator side.
+> **LLM agents using MCP:** the `session-bootstrap` skill (via
+> `pulse_skills_get`) covers the session. This page covers the operator
+> side.
 
 ## Mode 1: Standalone CLI
 
@@ -20,45 +19,24 @@ export PULSE_DATA_DIR=/var/data/pulse
 pulse --version
 ```
 
-That's the full install. The CLI tree is mapped in the
-[CLI Tour](../getting-started/cli-tour.md).
+The CLI tree is mapped in the [CLI Tour](../getting-started/cli-tour.md).
 
-## Mode 2: MCP stdio server (Claude Desktop, Claude Code, generic MCP clients)
+## Mode 2: MCP stdio server
 
-`pulse mcp` runs the Model Context Protocol over stdio. AI clients
-launch the process, speak MCP over its standard streams, and shut it
-down on session close.
+`pulse mcp` serves MCP over stdio: the AI client launches it, speaks
+JSON-RPC over its standard streams and stops it when the session ends.
+Client configuration (Claude Desktop, Claude Code, other stdio hosts) is
+on [MCP Integration](../mcp/index.md#wiring-into-a-host); every flag is
+on [`pulse mcp`](../cli/mcp.md). The ones an operator sets most:
 
-The full wiring guide is in the `session-bootstrap` skill. Quick
-reference for Claude Desktop:
-
-```jsonc
-// ~/Library/Application Support/Claude/claude_desktop_config.json
-{
-  "mcpServers": {
-    "pulse": {
-      "command": "/usr/local/bin/pulse",
-      "args": ["mcp"],
-      "env": {
-        "PULSE_DATA_DIR": "/var/data/pulse"
-      }
-    }
-  }
-}
-```
-
-For Claude Code (`~/.claude.json`) and other clients the shape is the
-same — see the `session-bootstrap` skill (`pulse skills show
-session-bootstrap`) for the canonical recipes.
-
-Flags worth knowing:
-
-| Flag | Default | Purpose |
-|---|---|---|
-| `--data-dir`        | from `PULSE_DATA_DIR` | Override the cohort base directory |
-| `--bind-on-open`    | `true` | Register session-scoped JSON-schema-bound tool variants on successful `pulse_inspect`. Disable for clients that bind tool schemas themselves. |
-
-See [`pulse mcp`](../cli/mcp.md) for the full command page.
+| Flag | Purpose |
+|---|---|
+| `--data-dir` | The cohort base directory (default `PULSE_DATA_DIR`) |
+| `--feature-profile` | Mount only the operators, tools and capabilities a [feature profile](../library/feature-profiles.md) lists |
+| `--limit name=value`, `--memory-limit` | Resource ceilings ([Tuning Limits](../library/tuning-limits.md)) |
+| `--return` | Response preset for a tool call without its own `return` block |
+| `--metrics-addr` | Prometheus `/metrics` endpoint ([Observability](../library/observability.md)) |
+| `--bind-on-open=false` | Turn off schema binding after `pulse_inspect` / `pulse_import` |
 
 ## Mode 3: Embedded Go library
 
@@ -70,40 +48,45 @@ p, err := pulse.New(pulse.Options{
 })
 ```
 
-When embedding, you can bypass `PULSE_DATA_DIR` entirely by passing
-`DataDir` (as above) or a custom `afero.Fs`. See [Library
-Embedding](../library/overview.md) for the full surface.
+`pulse.Options` always overrides the environment: set `DataDir` or a
+custom `afero.Fs` and `PULSE_DATA_DIR` is not read. Start at the
+[Embedder Walkthrough](../library/embedder-walkthrough.md); serving MCP
+from your own binary is [Serving MCP](../library/mcp-serving.md).
 
 ## Production hardening
 
-- **Filesystem permissions.** `pulse mcp` reads everything under
-  `PULSE_DATA_DIR`. Treat the directory as the trust boundary — run
-  the process as a user that can only read what it should serve.
-- **Stdio plumbing.** MCP transports stderr too. Pulse writes a
-  one-line startup notice (`pulse mcp: serving over stdio...`) on
-  stderr and never logs request/response payloads, so MCP clients can
-  surface stderr without leaking data. `--log-level` records also go
-  to stderr only and carry no row data; stdout stays pure JSON-RPC.
+- **Filesystem.** `pulse mcp` reads every cohort under the data
+  directory and writes there too: managed imports (`imports/`) and the
+  outputs of `pulse_materialize`, `pulse_rake` and `pulse_dedup`. Run it
+  as a user that can touch only what it should serve, and hide the
+  writing tools with a feature profile where agents must not write.
+  `pulse_import` reads absolute source paths only inside its jail
+  (the server's working directory by default).
+- **Stdio plumbing.** Stdout is pure JSON-RPC. Pulse writes one startup
+  line (`pulse mcp: serving over stdio ...`) to stderr; `--log-level`
+  records also go to stderr and never carry request, response or row
+  data.
 - **Metrics port.** `--metrics-addr host:port` is the only way
-  `pulse mcp` opens a port; the `/metrics` endpoint is unauthenticated,
-  so bind loopback or a private interface.
-- **Resource limits.** Streaming aggregations stay memory-bounded;
-  buffered request shapes (window operators, median/percentile,
-  decimal/geo paths) can materialise large intermediate row sets.
-  Use `pulse api predict` to check `Streamable` before running an
-  unfamiliar request — see [Performance Notes](performance.md).
-- **No mutating background state.** Pulse never writes to a cohort
-  during `process`/`compose`. The only write paths are `import`,
-  `export`, `synth`, `profile`, and `cohort filter` — explicit by
-  flag.
+  `pulse mcp` opens a port. `/metrics` is unauthenticated, so bind
+  loopback or a private interface.
+- **Resource limits.** Streaming requests stay memory-bounded; buffered
+  shapes (windows, medians and percentiles, rank statistics) hold rows in
+  memory. `pulse api predict` reports streamability and the memory
+  estimate before a run, and `--limit` / `--memory-limit` cap what one
+  request may use ([Performance Notes](performance.md),
+  [Tuning Limits](../library/tuning-limits.md)).
+- **Reads never write a cohort.** `process`, `compose`, `predict`,
+  `sample` and `facet` never change a cohort; a read of a managed import
+  only slides its TTL sidecar. Cohorts change only through commands that
+  say so (`import`, `cohort filter` / `zone`, `api materialize`, `rake`,
+  `dedup`, `widen`, `shard`, `index`, `synth`), and every rewrite is
+  atomic.
 
 ## Upgrades
 
-Drop in a new binary and restart the MCP process (or the calling
-client). The `.pulse` file format carries a one-byte version field
-(`0x01` or `0x02`; every current writer still emits `0x01` unless a
-schema needs a `0x02` feature). Old files stay readable forever; files
-written by a newer binary that introduces a version this one does not
-know are rejected loud at parse time, not silent at row decode — so a
-binary that predates `0x02` refuses `0x02` cohorts, and must be upgraded
-before it reads cohorts written by a `0x02`-writing release. See [Header Layout](../format/header.md).
+Drop in the new binary and restart the MCP process (or the client that
+launches it). Every `.pulse` file carries a format version byte (`0x01`,
+or `0x02` when the schema needs it). Old files stay readable; a file in
+a version the binary does not know is refused at header parse, never
+misread, so a binary must be at least as new as the release that wrote
+the cohorts it reads. See [Header Layout](../format/header.md).

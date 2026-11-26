@@ -38,7 +38,7 @@ func examplesSearchCmd() *cli.Command {
 			&cli.StringFlag{Name: "intent", Usage: "Intent-taxonomy ID the examples must declare (pulse skills show intents lists them); an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN"},
 			&cli.StringSliceFlag{Name: "tag", Usage: "Filter by canonical taxonomy tag (repeatable; results must carry every tag)"},
 			&cli.StringFlag{Name: "category", Usage: "Exact directory match: " + strings.Join(examples.AllCategories(), ", ")},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -61,7 +61,7 @@ func examplesSearchCmd() *cli.Command {
 			})
 			if err != nil {
 				// PULSE_RECOMMEND_INTENT_UNKNOWN keeps its own code.
-				return cliCodedError(cmd, jsonOut, "EXAMPLES_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			if jsonOut {

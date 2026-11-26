@@ -239,7 +239,7 @@ func TestFusedCrosstab_AuxMarginNoAllocationWhenAbsent(t *testing.T) {
 
 // TestCanFuseCrosstab_MarginAggregationsStayFusable is the performance
 // premise of the whole effort: declaring an auxiliary margin
-// aggregation must not push a Visa-shaped crosstab onto the buffered
+// aggregation must not push a wide production crosstab onto the buffered
 // path, where the same numbers cost roughly six times the memory and
 // nothing says so.
 func TestCanFuseCrosstab_MarginAggregationsStayFusable(t *testing.T) {

@@ -92,7 +92,7 @@ func TestValidateOverlay_RefIncompatibleShape(t *testing.T) {
 		req  *types.Request
 	}{
 		{
-			name: "Ref.Margin nil",
+			name: "ref.margin nil",
 			req: &types.Request{
 				Crosstab: crosstabHostSpec(),
 				Overlays: []types.OverlaySpec{
@@ -748,7 +748,7 @@ func TestValidateOverlay_ChiSqMatrix_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_MATRIX populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_MATRIX populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -895,7 +895,7 @@ func TestValidateOverlay_ChiSqRow_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_ROW populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_ROW populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -1042,7 +1042,7 @@ func TestValidateOverlay_ChiSqCol_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_COL populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when CHISQ_COL populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -1150,7 +1150,7 @@ func TestValidateOverlay_FisherExactCell_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when FISHER_EXACT_CELL populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when FISHER_EXACT_CELL populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -1416,7 +1416,7 @@ func TestValidateOverlay_IndexVsTotal_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when INDEX_VS_TOTAL populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when INDEX_VS_TOTAL populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -1624,7 +1624,7 @@ func TestValidateOverlay_ShareOfTotal_Series_RefRejected(t *testing.T) {
 		for _, e := range env.Errors {
 			codes = append(codes, e.Code)
 		}
-		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when SERIES SHARE_OF_TOTAL populates Ref.Margin; got %v",
+		t.Fatalf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE when SERIES SHARE_OF_TOTAL populates ref.margin; got %v",
 			codes)
 	}
 }
@@ -1698,7 +1698,7 @@ func TestValidateOverlay_EmptySliceNoop(t *testing.T) {
 		errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
 	} {
 		if hasErrorCode(env, code) {
-			t.Errorf("unexpected overlay error %s when Request.Overlays is empty", code)
+			t.Errorf("unexpected overlay error %s when overlays is empty", code)
 		}
 	}
 }

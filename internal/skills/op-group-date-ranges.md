@@ -17,15 +17,15 @@ One source — `ranges` XOR `table` (`ranges` declared required as the common ca
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `ranges` | array | (required) | Ordered `[]{label,start,end}`; ISO, omitted = open, inclusive. |
+| `ranges` | array | (required) | Ordered array of `{label, start, end}`; ISO, omitted = open, inclusive. |
 | `unmatched_label` | string | `unmatched` | Bucket for rows outside every range; not a range label. |
 | `table` | string | — | A DATE `RangeTable` (ISO bounds; Extensions or `PULSE_RANGE_TABLES_DIR`), in place of `ranges`. |
 
-`tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
+`tz` (IANA) / `tz_field` (per-row zone field) — slot keys.
 
 ## Inputs
 
-`Field` — `date` or `datetime`, floored to its local day in the resolved zone (UTC default). Range bounds (inline or `table`; tables carry no zone) are local days.
+`field` — `date` or `datetime`, floored to its local day in the resolved zone (UTC default). Range bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 

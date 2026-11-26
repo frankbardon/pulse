@@ -27,7 +27,7 @@ examples_tags: [matrix, multivariate]
 | `group_levels` | array | — | `sem-groups`. |
 <!-- /feature -->
 <!-- feature: capability:sem_bootstrap -->
-| `resample` | `bootstrap` | — | SE, p, CI. |
+| `resample` | enum | — | `bootstrap`: SE, p, CI. |
 | `bootstrap_iters` | int | 1000 | B. |
 | `rng_seed` | int | 0 | — |
 | `ci_level` | float | 0.95 | — |
@@ -44,7 +44,7 @@ examples_tags: [matrix, multivariate]
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
 | `missing` | enum | `listwise` | — |
-| `max_drop_share` | 0–1 | — | Warn. |
+| `max_drop_share` | float | — | Warn. |
 | `fit` | string | — | Bound fit. |
 
 ## Inputs

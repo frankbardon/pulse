@@ -22,13 +22,8 @@ pulse synth from-schema --spec FILE --output FILE
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--spec`   | `-s` | string | (required) | Synth spec JSON path |
-| `--output` | `-o` | string | (required) | Output `.pulse` file path |
-| `--rows`   |      | int    | from spec | Override `row_count` in the spec |
-| `--seed`   |      | int    | 0         | Deterministic RNG seed |
-| `--json`   |      | bool   | false     | Emit the standard envelope |
+See the [Command & flag reference](reference.md#pulse-synth-from-schema).
+`--rows` overrides the spec's `row_count`; `--seed` defaults to `0`.
 
 ## Spec shape (sketch)
 
@@ -52,8 +47,8 @@ The spec decodes **strictly**: an unknown key at any depth — and a
 `params` key the distribution does not read (`exponential` takes `lambda`,
 not `rate`) — is refused `PULSE_REQUEST_UNKNOWN_FIELD` with
 `details.path` (`fields[0].params.rate`) and a suggestion, never ignored.
-Correlation entries are `{a, b, rho}`; the pre-rename `correlation` key is
-refused with "did you mean `rho`". Each distribution's accepted params are
+Correlation entries are `{a, b, rho}`; a `correlation` key is refused
+with "did you mean `rho`". Each distribution's accepted params are
 the manifest's `synth_distributions[].params`.
 
 Full spec grammar (correlations, regex, …) lives in
@@ -92,8 +87,7 @@ first. Like `weekday_weights` it is a per-DAY intensity, and the two are
 separable — a day's weight is its weekday weight times its month weight —
 so `[1, 1.1, 1.2, …]` is a trend and a summer-high series a season. A
 spec with it draws a `uniform_datetime` row in three RNG draws (day,
-hour, second) instead of four; a spec without it draws exactly as
-before. `synth from-profile` rebuilds the captured month counts as
+hour, second) instead of four. `synth from-profile` rebuilds the captured month counts as
 `month_weights`.
 
 ### Trends, seasons and planted windows
@@ -212,8 +206,7 @@ correlator — the field still needs its own `distribution` declared (a
 `categorical_pairs` entry's `b` still needs `weighted_categorical`, a
 `categorical_numeric_pairs` entry's `b` still needs `normal`); the
 pair only overrides the drawn VALUE, never the field's declared shape.
-Omitting all five keys reproduces plain independent-marginal generation
-exactly, unchanged from a spec that never mentions them.
+Omitting all five keys gives plain independent-marginal generation.
 
 Two further keys are hand-authorable on the same terms. `models` (the
 `Spec.Models` slot `profile create --fit-models` populates) declares one
@@ -224,7 +217,7 @@ from that model rather than from its own marginal, and any pair or
 fields' residuals, `{a, b, rho}` exactly like `correlations` but
 read on the residual scale; both endpoints must carry a `models` entry
 or the spec is refused. Omitting either key is the zero state — every
-residual is drawn independently, exactly as before they existed. The
+residual is drawn independently. The
 construction and the latent-scale caveat for non-`normal` targets are in
 `skills/synth-model-draw.md`; the determinism rules in
 `skills/synth-determinism.md`.
@@ -342,9 +335,7 @@ rule stating a field's value is stating the field has one. So `set_null`
 then `set` yields the value, and `set` then `set_null` yields the null.
 
 The pass consumes no randomness: a spec carrying rules draws exactly the
-same per-row sequence as the same spec without them, and a spec
-declaring no rules generates byte-identical output to one written before
-the slot existed.
+same per-row sequence as the same spec without them.
 
 A `categorical_*` field that an unconditional rule writes on every row
 needs **no distribution**. Declare it with `name` and `type` only (no
@@ -364,10 +355,9 @@ the one that writes it reads an empty string. Any other empty
 `set_null`, a `set_expr` reading its own target, or a field that is not
 categorical all leave rows the field's own generation has to fill.
 
-<!-- ANCHOR-PINNED: two pages link to this heading by its generated anchor
-     (#owns_nulls-the-rule-owns-the-fields-absence) — profile-create.md and
-     synth-from-profile.md. No link checker runs in CI, so a rename here breaks
-     both links SILENTLY. Rename only together with those two references. -->
+<!-- ANCHOR-PINNED: profile-create.md and synth-from-profile.md link to this
+     heading's generated anchor (#owns_nulls-the-rule-owns-the-fields-absence);
+     rename it together with those two references. -->
 ### `owns_nulls`: the rule owns the field's absence
 
 `set_null` states **which rows** a field is absent on. It says nothing
@@ -520,8 +510,8 @@ into one unconditional rule:
 
 It writes the value and clears the null flag exactly as `set` does.
 
-An expression returns a Go value and the target field is one of the
-seventeen declarable types, so the interesting surface is **which
+An expression returns a Go value and the target field has a declared
+type, so the interesting surface is **which
 results can land on which targets**. Getting a cell of that wrong is a
 silent wrong value — a `true` reaching a `u8` as a formatted string
 would encode as `0` — so the whole matrix is written down:
@@ -534,7 +524,7 @@ would encode as `0` — so the whole matrix is written down:
 | a selection (another `set_*` field, a list of option names, `split()`) | refused | refused | the selection |
 
 *Scalar* means `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date`
-`packed_bool` `decimal128`. The range is the same one a `set` literal
+`datetime` `packed_bool` `decimal128`. The range is the same one a `set` literal
 obeys — `u4` is 0–15, `packed_bool` is 0–1 — because both go through one
 implementation; `NaN` and infinities are refused. *Declared* means an
 entry in a `weighted_categorical`'s `params.values`, or in a `set_*`'s
@@ -567,8 +557,8 @@ the same rule is **not** visible to a sibling `set_expr`. Reading the
 target's own drawn value (`{"set_expr": {"nps": "nps + 1"}}`) works.
 The alternative would have been alphabetical key order, which is not
 something you can read off a JSON document and which would make renaming
-a column change a number. *Across* rules nothing changed: an expression
-sees what an earlier rule wrote and not what a later one will.
+a column change a number. *Across* rules, an expression sees what an
+earlier rule wrote and not what a later one will.
 
 Expressions are the same `expr-lang` environment `constraints[]` uses —
 every scalar including a boolean is a number (`flag == 1`, never bare
@@ -745,7 +735,9 @@ no rule ever rewrites one of those rows.
 
 `bernoulli`, `constant`, `discrete`, `exponential`, `lognormal`,
 `mixture`, `monotonic_from`, `normal`, `pareto`, `poisson`, `regex`,
-`set_bernoulli`, `uniform`, `uniform_date`, `weighted_categorical`.
+`set_bernoulli`, `uniform`, `uniform_date`, `uniform_datetime`,
+`weighted_categorical` — `pulse --json | jq '.data.synth_distributions'`
+carries each one's params.
 
 `discrete` takes `values` (strictly ascending) plus optional `weights` and
 emits one declared level per row at its own share — the exact marginal of a
@@ -756,7 +748,7 @@ latent-scale effects: ordering holds, magnitude in scale points does not.
 
 The full catalog is listed in `skills/synthetic-data.md` (Distribution
 registry), with parameters per kind in the atomic `skills/op-synth-<kind>.md`
-skills, and `pulse manifest --json | jq '.data.synth_distributions'`.
+skills.
 
 ## Determinism
 
@@ -791,8 +783,7 @@ the `--json` path, where `data.warnings` carries them in full.
   "data": {
     "output_path": "sales.pulse",
     "rows_generated": 10000,
-    "rows_rejected": 0,
-    "seed": 0
+    "rows_rejected": 0
   },
   "errors": [],
   "warnings": []

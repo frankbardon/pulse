@@ -310,7 +310,7 @@
         "operator": "ATTR_DATE_PART",
         "category": "attribute",
         "level": "basic",
-        "why": "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. Fill in each placeholder in the draft before you run it.",
+        "why": "Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "attributes": [
@@ -337,7 +337,7 @@
             "use": "GROUP_DATE"
           },
           {
-            "when": "you want several calendar columns at once, including weekday",
+            "when": "you want several calendar fields at once, including weekday",
             "use": "FEAT_DATE_FEATURES"
           }
         ]
@@ -346,7 +346,7 @@
         "operator": "FEAT_DATE_FEATURES",
         "category": "feature",
         "level": "basic",
-        "why": "Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled. Fill in each placeholder in the draft before you run it.",
+        "why": "Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -417,4 +417,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9e397bcf0b4b2b5bffe7c7f21a3a9db28268d43e33ea0647878e35d97d945e59
+// golden-hash: 8b214ee626ba460af11c5df5872cc8d7bc3afd6aabf0800075ce2859e20ad355

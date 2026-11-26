@@ -283,14 +283,14 @@
         {
           "name": "GROUP_RANGE",
           "category": "grouper",
-          "description": "Partition numeric records into half-open ranges [a, b); Interval controls the bucket width.",
+          "description": "Partition numeric records into half-open ranges [a, b); the slot's interval sets the bucket width.",
           "params": [
             {
               "name": "interval",
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
+              "description": "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -324,7 +324,7 @@
               {
                 "name": "interval",
                 "type": "float64",
-                "description": "Bucket width on the value axis (Group.Interval)."
+                "description": "Bucket width on the value axis (the slot's interval)."
               },
               {
                 "name": "range_min",
@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 116,
+    "error_codes_count": 117,
     "error_domains": [
       "CLI",
       "DATA",
@@ -389,6 +389,7 @@
     ],
     "error_codes": [
       "CLI_COMMAND",
+      "CLI_ERROR",
       "CLI_INPUT",
       "CLI_INTERNAL",
       "CLI_OUTPUT",
@@ -512,7 +513,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -524,7 +525,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -540,7 +541,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -808,7 +809,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the field-type matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -836,7 +837,7 @@
       },
       {
         "name": "financial-cohorts",
-        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
+        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, the decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_DECIMAL_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
         "name": "glossary",
@@ -876,7 +877,7 @@
       },
       {
         "name": "op-group-range",
-        "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
+        "description": "Partition numeric records into half-open ranges [a, b); `interval` sets the bucket width."
       },
       {
         "name": "overlay-reference-tests",
@@ -932,7 +933,7 @@
       },
       {
         "name": "response-components",
-        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
+        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, attribute, matrix and crosstab cell"
       },
       {
         "name": "response-shaping",
@@ -944,11 +945,11 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
-        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
       },
       {
         "name": "statistical-testing",
@@ -1036,7 +1037,7 @@
       },
       {
         "name": "type-packed-bool",
-        "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
+        "description": "1-bit boolean; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-set-u128",
@@ -1072,11 +1073,11 @@
       },
       {
         "name": "type-u4",
-        "description": "4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields."
+        "description": "4-bit unsigned integer; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-u64",
-        "description": "8-byte unsigned integer; for sub-day timestamps and very wide cardinals."
+        "description": "8-byte unsigned integer; for very wide keys and sub-second timestamps."
       },
       {
         "name": "type-u8",
@@ -1219,7 +1220,7 @@
             {
               "name": "interval",
               "type": "float64",
-              "description": "Bucket width on the value axis (Group.Interval)."
+              "description": "Bucket width on the value axis (the slot's interval)."
             },
             {
               "name": "range_min",
@@ -1465,4 +1466,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3f6235ec8e3cf9815842c10303663168d0e4efe7ab80e0a9908fb2ca4b0712a9
+// golden-hash: 0751345f5a0a639d6cdf26c82023f1514abd9c184a16fb2010b466a2c2e1f5cc

@@ -26,15 +26,15 @@ Use something else:
 
 ## Params
 
-`Scope` must be `cell`. `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Any other `Ref` arm beside `Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
+`scope` must be `cell`. `ref.margin.axis` (enum, required) — `row` / `column` / `grand`. `level`/`within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Any other `ref` arm beside `margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Subtractive sibling of the margin index (ratio) and the margin z-score (standardized). Compatible with any cell aggregator.
+MATRIX crosstab (`crosstab.matrix`). Use a mean-like cell (mean, rate): its margin is the slice's own mean, so the delta is the cell's lead or lag on it. On a count or sum cell the margin is the slice TOTAL and every delta is negative (minus the rest of the slice); take the margin index (a share) instead. Subtractive sibling of the margin index and margin z-score.
 
 ## Output
 
-MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mirrors host RowKeys / ColumnKeys / headers. Absent host cells stay absent on the overlay. Layer `Baseline = 0` (delta family centerpoint).
+MATRIX — `payload.matrix.cells[r][c].value` = `cell − margin`, on the host's keys and headers; absent host cells stay absent. Layer `summary.baseline` = `0`.
 
 ## Contract
 
@@ -44,11 +44,9 @@ MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mi
 ## Gotchas
 
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`.
-- Preserves host cell's units — a $-valued summed cell minus a $-valued row margin yields a $-valued deviation in the same currency.
-- No division — never raises `PULSE_OVERLAY_REF_ZERO`. Unlike the margin index and the share overlays.
-- `Axis = grand` is supported (all three axes).
-- Buffered (inherent — host crosstab path always recomputes margins from raw rows).
-- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- Keeps the cell's units: a mean revenue cell minus its row margin is a revenue deviation.
+- No division — never raises `PULSE_OVERLAY_REF_ZERO`.
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a mean cell.
 
 ## See
 

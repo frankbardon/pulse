@@ -12,26 +12,39 @@ described further down.
 
 ## Read records by index
 
-```go
-c, err := p.Open(ctx, "survey.pulse")
-if err != nil {
-    log.Fatal(err)
-}
-r, err := c.Reader()
-if err != nil {
-    log.Fatal(err)
-}
-defer r.Close()
+```go compile
+package dump
 
-fields := r.Schema().Fields
-for i := int64(0); i < r.Len(); i++ {
-    row, err := r.RecordAt(i) // pulse.CohortRow, one slot per field
-    if err != nil {
-        log.Fatal(err)
-    }
-    for f, v := range row {
-        fmt.Println(fields[f].Name, v)
-    }
+import (
+	"context"
+	"fmt"
+
+	"github.com/frankbardon/pulse"
+)
+
+// Dump prints every stored value of a cohort, field by field.
+func Dump(ctx context.Context, p *pulse.Pulse, path string) error {
+	c, err := p.Open(ctx, path)
+	if err != nil {
+		return err
+	}
+	r, err := c.Reader()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	fields := r.Schema().Fields
+	for i := int64(0); i < r.Len(); i++ {
+		row, err := r.RecordAt(i) // pulse.CohortRow, one slot per field
+		if err != nil {
+			return err
+		}
+		for f, v := range row {
+			fmt.Println(fields[f].Name, v)
+		}
+	}
+	return nil
 }
 ```
 
@@ -60,6 +73,7 @@ for i := int64(0); i < r.Len(); i++ {
 | `categorical_*` | `string` (the dictionary label) |
 | `set_*` (every rung, `set_u128` / `set_u256` included) | `[]string` labels in dictionary order; an empty non-nil slice is "no selection" |
 | `packed_bool` | `bool` |
+| `vec_f32` / `vec_f64` | `[]float32` / `[]float64` of the field's dimension; a NaN element is a stored value |
 | null (any type) | `nil` |
 
 ## Shard archives and anchors
@@ -111,26 +125,45 @@ mutex.
 a time — the write half of the round trip. The schema is the contract,
 exactly as an explicit-schema import's is.
 
-```go
-schema := encoding.Schema{Fields: []encoding.Field{
-    {Name: "order", Type: encoding.FieldTypeU32, Description: "Order number."},
-    {Name: "cust", Type: encoding.FieldTypeU32, Description: "Customer number."},
-    {Name: "tier", Type: encoding.FieldTypeCategoricalU8, Description: "Customer tier."},
-    {Name: "amount", Type: encoding.FieldTypeF64, Nullable: true, Description: "Order value."},
-}}
-b, err := p.NewCohortBuilder(ctx, "orders.pulse", schema, pulse.CohortBuilderOptions{
-    Groups:         []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"tier"}}}, // optional
-    ElideConstants: true,                                                                // optional
-})
-if err != nil {
-    log.Fatal(err)
+```go compile
+package build
+
+import (
+	"context"
+	"log"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/encoding"
+	pio "github.com/frankbardon/pulse/io"
+)
+
+type Order struct {
+	ID, Cust uint64
+	Tier     string
+	Amount   any // float64, or nil for null
 }
-for _, o := range orders {
-    if err := b.Append(pulse.CohortRow{o.ID, o.Cust, o.Tier, o.Amount}); err != nil {
-        log.Println(err) // PULSE_IMPORT_ROW_ERROR: the row is skipped, the builder stays usable
-    }
+
+func Build(ctx context.Context, p *pulse.Pulse, orders []Order) (*pulse.CohortBuildResult, error) {
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "order", Type: encoding.FieldTypeU32, Description: "Order number."},
+		{Name: "cust", Type: encoding.FieldTypeU32, Description: "Customer number."},
+		{Name: "tier", Type: encoding.FieldTypeCategoricalU8, Description: "Customer tier."},
+		{Name: "amount", Type: encoding.FieldTypeF64, Nullable: true, Description: "Order value."},
+	}}
+	b, err := p.NewCohortBuilder(ctx, "orders.pulse", schema, pulse.CohortBuilderOptions{
+		Groups:         []pio.GroupDecl{{Key: []string{"cust"}, Members: []string{"tier"}}}, // optional
+		ElideConstants: true,                                                                // optional
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range orders {
+		if err := b.Append(pulse.CohortRow{o.ID, o.Cust, o.Tier, o.Amount}); err != nil {
+			log.Println(err) // PULSE_IMPORT_ROW_ERROR: the row is skipped, the builder stays usable
+		}
+	}
+	return b.Close() // or b.Abort() to discard
 }
-res, err := b.Close() // or b.Abort() to discard
 ```
 
 - **Rows** use the same Go types `RecordAt` returns (table above), so

@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ---
 
-Row-level scalars; no `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -33,7 +31,7 @@ Slot: `vector` or `fields`, no `field` (`vector-row-scores`). Default label `ATT
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Adstock-style grid from ONE window item: a for_each zips an integer label axis with a decay axis, so a single WIN_EWMA item expands in place into three exponentially weighted revenue columns (revenue_ad30 at decay 0.3, revenue_ad50 at 0.5, revenue_ad70 at 0.7). The label axis carries the label text because a placeholder cannot compute it from the decay. Predict reports the fan-out and counts the expanded items against MaxDerivedColumns.",
+    "description": "Adstock-style grid from ONE window item: a for_each zips an integer label axis with a decay axis, so a single WIN_EWMA item expands in place into three exponentially weighted revenue outputs (revenue_ad30 at decay 0.3, revenue_ad50 at 0.5, revenue_ad70 at 0.7). The label axis carries the label text because a placeholder cannot compute it from the decay. Predict reports the fan-out and counts the expanded items against the max_derived_columns limit.",
     "capabilities": [
       "capability:for_each"
     ],

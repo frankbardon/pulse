@@ -1,6 +1,6 @@
 ```yaml
 name: panel-n-sources
-description: The sample-size modes of the Compose-host proportion-z panel — the four n_source modes, the load-bearing n_within_depth pointer, the row partition gate, the distinct-key admission and its wholesale refusals, and why the pairwise spellings are not aliases.
+description: The sample-size modes of the Compose-host proportion-z panel — the n_source modes, the load-bearing n_within_depth pointer, the row partition gate, the distinct-key admission and its wholesale refusals, and why the pairwise spellings are not aliases.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -10,9 +10,9 @@ requires: [OVERLAY_PROP_Z_PANEL]
 
 # Panel sample-size sources
 
-`OVERLAY_PROP_Z_PANEL` tests every pair of N+1 Compose slots per cell. `params` decode into `PanelOverlayParams`; absent, `{}` and the explicit default stay byte-identical to the pre-params baseline. This file is the panel's n vocabulary; the test, its output and its warnings: [`op-overlay-prop-z-panel`](op-overlay-prop-z-panel.md). The intra-crosstab pairwise kinds have their own vocabulary: [`pairwise-n-sources`](pairwise-n-sources.md).
+`OVERLAY_PROP_Z_PANEL` tests every pair of N+1 Compose slots per cell. `params` decode into `PanelOverlayParams`; absent, `{}` and the explicit default read the same. This file is the panel's n vocabulary; the test, its output and its warnings: [`op-overlay-prop-z-panel`](op-overlay-prop-z-panel.md). The intra-crosstab pairwise kinds have their own vocabulary: [`pairwise-n-sources`](pairwise-n-sources.md).
 
-## The four `n_source` modes
+## The `n_source` modes
 
 `n_source` picks each SLOT's n at the tested coordinate. "Row" is that slot's own row axis, never a pair axis.
 

@@ -58,7 +58,7 @@ A moving average requires BOTH bounds; an unbounded frame degenerates to the run
 - **Compare with a neighbour** — its raw value (an offset), or the change from it (difference or ratio, below)?
 - **Accumulate** — everything so far (running), a fixed recent span (moving), or recent rows weighted more (exponential)?
 - **Position** — do ties share a rank, and does the rank skip past them?
-- **Share** — of the partition's total, running down an order (a capture curve), or over another column's share (lift)? A zero total reads `null`.
+- **Share** — of the partition's total, running down an order (a capture curve), or over another field's share (lift)? A zero total reads `null`.
 - **A column or a decoration?** A window adds a per-record column; a renderer-keyed comparison against the prior period is an overlay (Components, below).
 
 ## Shared conceptual shape
@@ -94,7 +94,7 @@ Windowed-Process overlays (index vs prior, year-over-year) DO produce typed payl
 
 ## Gotchas
 
-- A weekday STRING column (not a grouper key) sorts byte-wise. Order on epoch days or a year-bearing key.
+- A weekday STRING field (not a grouper key) sorts byte-wise. Order on epoch days or a year-bearing key.
 - Partitioning by the raw `date` field puts every row in its own partition: partition by a coarser key (region, product), order by the date.
 
 ## See

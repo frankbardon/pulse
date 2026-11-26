@@ -208,7 +208,7 @@ without a standard error gets a `null` interval. The complete slot table is in
 [Extension Points](extension-points.md#regression-model-regressions).
 
 **Refuse at predict with `Validate`.** A check your factory makes on the
-spec alone belongs in `Validate` instead, so `pulse predict` reports it:
+spec alone belongs in `Validate` instead, so predict reports it:
 
 ```go
 Validate: func(spec *types.RegressionSpec) error {
@@ -277,7 +277,7 @@ instead.
 ## 7. The registration probe
 
 `pulse.New` builds the factory against a synthetic schema (`probe_y` ~
-`probe_x1` + `probe_x2`, plus a weight column), hands it params satisfying
+`probe_x1` + `probe_x2`, plus a weight field), hands it params satisfying
 your declaration (every `Required` param, and the first member of each
 `ExactlyOneOf` group, gets its `ParamMeta.Example` when you declare one,
 else a placeholder of its `JSONType`; a `Required` array gets the probe's

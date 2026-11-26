@@ -21,7 +21,7 @@ package types
 // requests and nested terms make the full fit's rows a subset of the
 // restricted fit's, so an equal count is the same rows.
 //
-// Two vector fits compare member-wise (U69 #643): the Restricted
+// Two vector fits compare member-wise: the Restricted
 // battery's members (each listed — `fields`, or a `vectors` entry with
 // `fields`) a strict subset of the Full battery's, the requests equal
 // but for the member lists and the battery's reporting knobs, no
@@ -29,7 +29,7 @@ package types
 // Gaussian lm(j ~ restricted others) against lm(j ~ full others), read
 // exactly off the full fit's co-moment (FitComparisonResult.Members).
 //
-// Two SEM fits (a MAT_SEM fit request each, U69 #643) compare by the
+// Two SEM fits (a MAT_SEM fit request each) compare by the
 // chi-square difference — lavaan's lavTestLRT: the plain difference of
 // the fits' model χ² under ml / dwls, the Satorra–Bentler (2001) scaled
 // difference under wlsmv. Their nesting is declared, never proven: the
@@ -225,8 +225,8 @@ type FitComparisonResult struct {
 	SignificantAdjusted *bool                `json:"significant_adjusted,omitempty"`
 	Multiplicity        *AppliedMultiplicity `json:"multiplicity,omitempty"`
 
-	// Members are a comparison of two vector fits' per-member tests
-	// (U69 #643): one row per restricted battery member j, in the
+	// Members are a comparison of two vector fits' per-member tests:
+	// one row per restricted battery member j, in the
 	// restricted battery's order — the Gaussian linear model of j on
 	// the other restricted members against j on the other full members,
 	// both from the full fit's co-moment. Terms are then the tested

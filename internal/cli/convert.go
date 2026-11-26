@@ -32,7 +32,7 @@ func ConvertCommand() *cli.Command {
 			&cli.StringFlag{Name: "keep-pulse", Usage: "Also write intermediate .pulse file at this path"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat dropped rows (PULSE_IMPORT_ROWS_DROPPED: rows the target refused, or rows the --keep-pulse import skipped), and a value the target cannot store exactly (PULSE_SPSS_INTEGER_INEXACT), as an error: the convert fails and writes no target or intermediate"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage + ". A zoned naive value is written to the target as its UTC instant (…Z)"},
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
@@ -153,7 +153,7 @@ func ConvertCommand() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -161,7 +161,7 @@ func ConvertCommand() *cli.Command {
 			emitted = true
 			if err := writer.Close(); err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -206,8 +206,8 @@ func convertPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.BoolFlag{Name: "sanitize-names", Usage: sanitizeNamesFlagUsage},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
 			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
@@ -283,7 +283,7 @@ func convertPredictCmd() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}

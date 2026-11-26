@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "compose",
-    "description": "Compose batch with one explicit baseline slot plus a two-axis grid sweep: the average revenue of each treatment arm over each region is expanded from ONE request body into ordinary compose slots labelled arm_region. The explicit slot keeps index 0, the sweep slots follow in grid order (first axis slowest). The sweep ranks its slots by sample size (components.aggregations.rev.n), largest first, keeping the top 3. Predict reports the sweep summary and counts the expanded slots against MaxComposeSlots.",
+    "description": "Compose batch with one explicit baseline slot plus a two-axis grid sweep: the average revenue of each treatment arm over each region is expanded from ONE request body into ordinary compose slots labelled arm_region. The explicit slot keeps index 0, the sweep slots follow in grid order (first axis slowest). Every slot runs and is returned; the response's `ranking` lists the top 3 sweep slots by sample size (components.aggregations.rev.n), largest first. Predict reports the sweep summary and counts the expanded slots against the max_compose_slots limit.",
     "capabilities": [
       "capability:compose_sweep"
     ],

@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, glm, logistic, buffered-pipeline]
 ---
 
-Fits ride `Response.Regressions[i]`; no `Response.Components`.
+Fits ride `regressions[i]`; no `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -39,7 +39,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `selection` | enum | — | `backward`, `forward`, `stepwise`. |
 | `criterion` | enum | — | `aic`, `bic`. |
 | `conf_level` | float | `0.95` | CI level. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | Adds `vcov` + `correlation`. |
 | `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | AME / MEM (`regression-margins`). |
 | `collinearity` | object | — | VIFs (`regression-collinearity`). |
@@ -48,7 +48,7 @@ Flat keys (`params` is refused); shared: `regression-spec`.
 | `multiplicity` | object | — | p-values join a family. |
 <!-- /feature -->
 <!-- feature: capability:regression_holdout -->
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `holdout`. |
 <!-- /feature -->
 <!-- feature: capability:model_save -->
 | `save` | string | — | Writes a model file. |
@@ -62,7 +62,7 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; `regression-spec`); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr` (null: l1/enet).
+`coefficients` (`(intercept)` + βs, link scale), `std_errors`, `p_values`, `ci_lower` / `ci_upper` — Wald z, no `df`, or t on `df` (gamma; `regression-spec`); `conf_level`, `deviance`, `null_deviance`, `pseudo_r2`, `converged_iters`, `n_obs`, `two_log_lik`, `aic`; `family` / `link` echoed. NB: `theta`, `theta_std_err` (null: l1/enet).
 
 <!-- generated: reading-the-output -->
 

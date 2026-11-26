@@ -70,8 +70,8 @@ const (
 		"turn up by luck, so before flagging pairs adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted."
 	overlayGroupMultiComp = "Every group is a separate test and Pulse reports the p-values raw: with many groups some small ones turn up by luck, " +
 		"so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted."
-	overlayPlaceholderP = "Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder " +
-		"inputs (variance 1, n 2), and it then describes those placeholders, not your data."
+	overlayPlaceholderP = "Without a mean and a variance in the components (AGG_WELFORD or another moment-carrying measure) the overlay needs the " +
+		"variance and sample-size params, and is refused without them; the p-value then describes those values, not each cell's own spread."
 	overlayNoEffectSize = "The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is."
 	overlayPairNoEffect = "The layer does not report an effect size: read the two cell values for how big each gap is."
 	overlayChiSqScale   = "Chi-square grows with the counts and with the number of cells, so it does not measure how strongly the categories are associated; " +
@@ -111,7 +111,7 @@ var (
 				"pattern exactly; how far above 0 is unusual depends on summary.parameters.df, so read summary.p_value rather than the raw value.",
 			Caveats: []string{
 				overlayChiSqScale,
-				"No continuity (Yates) correction is applied.",
+				"No continuity (Yates) correction is applied unless params.correct is set (a 2x2 host only).",
 			},
 		},
 		{

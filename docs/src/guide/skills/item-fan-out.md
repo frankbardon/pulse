@@ -59,9 +59,9 @@ A Compose `optimize` block fans out too, right after the `base` merge: its `name
 
 ## Limits, predict, hashing
 
-- Checked before any item renders, over is `PULSE_LIMIT_EXCEEDED`: `Limits.MaxDerivedColumns` (default 1,000) counts plain plus expanded window, feature and attribute items; `Limits.MaxExpandedItems` (default 1,000) counts the aggregations and matrices a `for_each` adds (plain ones never count).
+- Checked before any item renders, over is `PULSE_LIMIT_EXCEEDED`: `Limits.MaxDerivedColumns` counts plain plus expanded window, feature and attribute items; `Limits.MaxExpandedItems` counts the aggregations and matrices a `for_each` adds (plain ones never count).
 - Predict expands exactly as the runtime does and reports each fan-out under `for_each` `[{path, axes, mode, expanded_count}]`; its other answers judge the expanded items. Predict before running a large grid.
-- Every request host expands: a process run, each compose slot, each chain stage, and a materialize run (every expanded item becomes a column). The echoed request carries the expanded items; its canonical hash equals the hand-written twin's.
+- Every request host expands: a process run, each compose slot, each chain stage, a materialize run (every expanded item becomes a field). The echoed request carries the expanded items; its canonical hash equals the hand-written twin's.
 
 ## Templates, MCP and Explain
 

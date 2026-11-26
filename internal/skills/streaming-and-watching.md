@@ -11,15 +11,9 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 ## `Request.Hash()`
 
-`Hash()` is a 32-char hex digest of canonical JSON. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
+`Hash()` is a 32-char hex digest of canonical JSON. Supported: `Request`<!-- feature: capability:compose -->, `ComposedRequest`<!-- /feature --><!-- feature: capability:facet -->, `FacetRequest`<!-- /feature --><!-- feature: capability:process_chain -->, `ChainRequest`<!-- /feature --><!-- feature: capability:synth -->, `synth.Spec`<!-- /feature -->. Lower-level: `types.CanonicalHash(tag, v)`.
 
-Guarantees: stable across processes/versions; field-order invariant; `null` / zero ≡ omitted, but `"disable_components": false` is not; `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash.
-
-```go
-key := req.Hash()
-if v, ok := cache.Get(key); ok { return v }
-resp, _ := p.Process(ctx, req); cache.Set(key, resp)
-```
+Guarantees: stable across processes, and across versions while the request's meaning is unchanged; field-order invariant; `null` / zero ≡ omitted, but `"disable_components": false` is not; `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash. Use it as a cache key.
 
 ## `StreamResult[T]`
 
@@ -31,11 +25,11 @@ type StreamResult[T any] struct {
 }
 type StreamChunk[T any] struct {
     Sequence int; Data T; Progress float64
-    Components *types.ResponseComponents
+    Components *types.ResponseComponents; Returned *types.ReturnedMarker
 }
 ```
 
-Variants: `ProcessStreamResult` wraps `ProcessStream`; `SynthStream` wraps `synth.SynthBytes`. Run-time warnings: iterator `Warnings()` when drained; CLI `--stream` ends with one `{"warnings":[...]}` line.
+Variants: `ProcessStreamResult` wraps `ProcessStream`<!-- feature: capability:synth -->; `SynthStream` wraps `synth.SynthBytes`<!-- /feature -->. Run-time warnings: iterator `Warnings()` when drained; CLI `--stream` ends with one `{"warnings":[...]}` line.
 
 **Grouped output arrives at terminal flush:** a group exists only once every record is read, so a grouped request's rows arrive after the scan on every arm (serial, `ShardWorkers`, `DecodeWorkers`).
 
@@ -67,6 +61,7 @@ for chunk := range res.Chunks {
 
 Attributes needing a whole-cohort statistic (z-score, regression fit, two-pass extension) stream in two passes in declared order; each dependent layer adds a scan.
 
+<!-- feature: capability:watch -->
 ## `Watch` / `WatchDir`
 
 `ChangeEvent{Path, Kind, Hash, Timestamp}` — `Kind` is `Created|Modified|Removed|Renamed`; `Hash` is empty for `Removed`.
@@ -77,10 +72,12 @@ for ev := range p.WatchDir(ctx, "cohorts/", true) { handle(ev.Kind, ev.Path, ev.
 
 No pre-seed: existing files surface as `ChangeCreated` on the first tick.
 
-`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network FS: ~30s.
+`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `< 0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems: `PollInterval` ~30 s.
 
 Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp has an editor/atomic-write name, and both fall inside `CoalesceWindow`.
+<!-- /feature -->
 
+<!-- feature: capability:filter_to_file -->
 ## `FilterToFileWithRequest`
 
 ```go
@@ -93,23 +90,26 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 
 Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write (`.<name>.partial` + rename); dedup by pre-existence (`Reused: true`).
 
-Predicates: `Expression` (`expression-language`) or structured `Filterers` (AND, as in `Process`) — exactly one. `TimeZone` is the zone `to_day()` and a zone-capable filterer read (over the instance default); applied zones join the hash, as does each referenced range / lookup table's content. Embedder code (extension filterer, expr fn, `Lookup` table) never reuses.
+Predicates: `Expression` (`expression-language`) or structured `Filterers` (AND, as in `Process`) — exactly one. `TimeZone` is the zone `to_day()` and a zone-capable filterer read (over the instance default); applied zones join the hash, as does each referenced named table's content. Embedder code (extension filterer, expr fn, `Lookup` table) never reuses.
+<!-- /feature -->
 
-<!-- feature: capability:models -->
+<!-- feature: capability:filter_to_file, capability:models -->
 `Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash.
 <!-- /feature -->
 
 ## Manifest `CommandAnnotations`
 
-Every `Manifest.Commands` (CLI leaves) and `Manifest.Operations` (library-only: `filter_to_file`, `process_stream`, `synth_stream`, `watch`) carries `annotations: {streamable, deterministic, expensive}` — `process_stream` all true; `synth_stream` not deterministic; `watch` neither deterministic nor expensive.
+Every `Manifest.Commands` (CLI leaves) and `Manifest.Operations` (library-only: <!-- feature: capability:filter_to_file -->`filter_to_file`, <!-- /feature -->`process_stream`<!-- feature: capability:synth -->, `synth_stream`<!-- /feature --><!-- feature: capability:watch -->, `watch`<!-- /feature -->) carries `annotations: {streamable, deterministic, expensive}` — `process_stream` all true<!-- feature: capability:synth -->; `synth_stream` not deterministic<!-- /feature --><!-- feature: capability:watch -->; `watch` neither deterministic nor expensive<!-- /feature -->.
 
 `streamable` — has a `*Stream` variant. `deterministic` — same inputs ⇒ byte-identical output; cache by `req.Hash()` + source hash. Non-deterministic entries MUST NOT be cached as stable. `expensive`: a hint.
 
 A buffered overlay makes a streamable Process buffered — price it so.
 
+<!-- feature: capability:compose -->
 ## Compose streaming vs. overlays
 
 `pulse api compose --stream` emits per-row NDJSON `{index, row}` and bypasses the envelope. The Compose-host overlay fold runs only at terminal flush — `ComposedResponse.Overlays[i]` + per-layer `Warnings` appear under `--json` (`data.overlays`) but are absent under `--stream`. Consumers needing Compose overlays MUST run buffered (`Pulse.Compose` / `ComposeParallel`).
+<!-- /feature -->
 
 ## See
 

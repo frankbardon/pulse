@@ -1,6 +1,6 @@
 ---
 name: op-group-range
-description: Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
+description: Partition numeric records into half-open ranges [a, b); `interval` sets the bucket width.
 kind: operator
 category: GROUP
 operator: GROUP_RANGE
@@ -15,11 +15,11 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | `1` | Bucket width on value axis; set on `Group.Interval`. ≤ 0 is treated as 1. |
+| `interval` | float | `1` | Bucket width; the slot's top-level `interval`, not `params`. ≤ 0 is treated as 1. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -36,7 +36,7 @@ String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Rows emit by num
 - `underflow_count` — Below low
 - `overflow_count` — At/above high
 - Fans out whatever the bucket count; at very high cardinality (buckets ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see.
-- `StreamableGrouper`: eligible for fused crosstab.
+- Eligible for the fused crosstab.
 
 <!-- generated: contract -->
 
@@ -44,7 +44,7 @@ String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Rows emit by num
 
 - Half-open `[low, high)` — upper edge belongs to next bucket.
 - Explicit `"type":"GROUP_RANGE"` without `interval` buckets at width 1; a numeric slot with no `type` gets the smart default GROUP_RANGE with `interval` 10 (`defaults_applied`).
-- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`); a crosstab axis keeps it for order.
+- `include` on `groups` is refused (`PROCESSING_CONFIG`); a crosstab axis keeps it for order.
 
 ## See
 

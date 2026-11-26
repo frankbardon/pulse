@@ -1732,7 +1732,7 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 	// (CrosstabSpec.HasImplicitTotalColumn), not a refusal.
 	if spec.Cell == nil && !spec.HasMeasures() {
 		return errors.NewCodedError(errors.PULSE_CROSSTAB_MISSING_CELL,
-			"crosstab requires a Cell aggregation")
+			"crosstab requires a cell aggregation")
 	}
 	// The multi-measure Cells slot. Detection is shared with predict via
 	// types.CrosstabSpec.CellsFaults; first fault wins here.
@@ -1764,11 +1764,11 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 		switch spec.NormalizeOrDefault() {
 		case types.CrosstabNormalizeNone:
 			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS,
-				"crosstab normalize_level requires Normalize to be row or column",
+				"crosstab normalize_level requires normalize to be row or column",
 				map[string]any{"normalize_level": *spec.NormalizeLevel})
 		case types.CrosstabNormalizeTotal:
 			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE,
-				"crosstab normalize_level cannot be combined with Normalize=total",
+				"crosstab normalize_level cannot be combined with normalize total",
 				map[string]any{"normalize_level": *spec.NormalizeLevel})
 		case types.CrosstabNormalizeRow:
 			if lvl := *spec.NormalizeLevel; lvl < 0 || lvl >= len(spec.Rows) {
@@ -1788,11 +1788,11 @@ func validateCrosstabSpec(spec *types.CrosstabSpec, req *types.Request, ext *Ext
 		switch spec.NormalizeOrDefault() {
 		case types.CrosstabNormalizeNone:
 			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS,
-				"crosstab normalize_within requires Normalize to be row or column",
+				"crosstab normalize_within requires normalize to be row or column",
 				map[string]any{"normalize_within": *spec.NormalizeWithin})
 		case types.CrosstabNormalizeTotal:
 			return errors.NewCodedErrorWithDetails(errors.PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE,
-				"crosstab normalize_within cannot be combined with Normalize=total",
+				"crosstab normalize_within cannot be combined with normalize total",
 				map[string]any{"normalize_within": *spec.NormalizeWithin})
 		case types.CrosstabNormalizeRow:
 			if w := *spec.NormalizeWithin; w < 0 || w >= len(spec.Columns) {

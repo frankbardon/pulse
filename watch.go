@@ -68,8 +68,9 @@ type WatchOptions struct {
 	PollInterval time.Duration
 
 	// CoalesceWindow caps how long the watcher waits for a quick
-	// follow-up modify before emitting a single event. Defaults to
-	// 100ms; pass 0 to disable coalescing entirely.
+	// follow-up modify before emitting a single event. Zero means the
+	// 100ms default; pass a negative value to disable coalescing
+	// entirely.
 	CoalesceWindow time.Duration
 
 	// HashPrefixBytes caps how many leading bytes the hash digest
@@ -83,9 +84,9 @@ type WatchOptions struct {
 	Recursive bool
 
 	// Suffix narrows the watched fileset by suffix (case-sensitive).
-	// Empty matches every file. WatchDir defaults this to ".pulse"
-	// to keep traffic focused on cohort files; callers can override
-	// with an empty string to watch every file.
+	// WatchDir and WatchDirWithOptions treat an empty Suffix as
+	// ".pulse", so a directory watch always filters by suffix; there is
+	// no value that watches every file. Ignored by Watch.
 	Suffix string
 }
 

@@ -12,7 +12,7 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Ridge regression (Indeed #6): REG_OLS with l2 penalty (alpha=0.1) shrinking coefficients via a Cholesky solve on the augmented Gram.",
+    "description": "Ridge regression: REG_OLS with penalty l2 (alpha 0.1) shrinks the coefficients toward zero (label about -1490 against OLS's -2313, 03_multiple_linear.json) and keeps analytical standard errors. Streamable.",
     "intents": [
       "drivers"
     ]

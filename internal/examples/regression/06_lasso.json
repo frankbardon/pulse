@@ -12,7 +12,7 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Lasso regression (Indeed #7): REG_OLS with l1 penalty (alpha=0.05); coordinate descent on the streaming Gram with soft-thresholding.",
+    "description": "Lasso regression: REG_OLS with penalty l1 and alpha 500 (coordinate descent with soft-thresholding on the streaming Gram); alpha is on the scale of the squared-error loss, so it needs to be large here, and at 500 it sets label's coefficient to exactly 0 and keeps price, a selected model. A penalty that selects predictors from the data has no analytical standard errors: they, the p-values and the intervals are null with advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED; set resample bootstrap or jackknife for replicate ones. Streamable.",
     "intents": [
       "drivers"
     ]
@@ -26,9 +26,12 @@
       "type": "REG_OLS",
       "name": "income_lasso",
       "target": "income",
-      "predictors": ["price", "label"],
+      "predictors": [
+        "price",
+        "label"
+      ],
       "penalty": "l1",
-      "alpha": 0.05
+      "alpha": 500
     }
   ]
 }

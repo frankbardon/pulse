@@ -147,7 +147,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.ATTR_REG_FITTED),
 			Category:      "attribute",
-			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
+			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own regression keys (target, predictors, penalty, alpha, l1_ratio); each ATTR_REG_* attribute refits independently. Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
 			Params:        append(regAttributeParams(true), fitCarryParams...),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_FITTED), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
@@ -183,12 +183,12 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
 			Streamable:     true,
-			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+			StreamableHint: "Requires unpenalized OLS only; any non-empty penalty is PROCESSING_CONFIG.",
 		},
 		{
 			Name:        string(types.ATTR_REG_PREDICT),
 			Category:    "attribute",
-			Description: "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
+			Description: "Per-row score from a BOUND model (a compose request's `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
 			Params: []descriptor.Param{
 				{
 					Name:        "fit",

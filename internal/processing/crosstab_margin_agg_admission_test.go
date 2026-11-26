@@ -286,7 +286,7 @@ func assertAuxBases(t *testing.T, path string, slots []auxAdmissionSlot, got map
 // the shared fixture produces. That claim is only worth something while
 // the fixture is built so the RIGHT rule and the WRONG rules give
 // DIFFERENT answers. A fixture on which they agree — which is exactly
-// what the live Visa data looks like, since the metric fields are
+// what typical production data looks like, since the metric fields are
 // non-nullable there — proves nothing at all, and it would still pass
 // every existing test.
 //

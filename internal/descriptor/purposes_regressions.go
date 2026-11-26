@@ -6,9 +6,10 @@ import "github.com/frankbardon/pulse/descriptor"
 // by type. builtinPurposes assembles it with the other category maps.
 //
 // Each Purpose states the model as Pulse fits it (see
-// internal/processing/regression): classic (not robust) OLS standard
-// errors with Student-t p-values on n - p - 1 degrees of freedom; GLM
-// on the canonical link only, with Wald-z p-values at a dispersion
+// internal/processing/regression): classic OLS standard
+// errors by default (params.covariance for robust ones) with Student-t
+// p-values on n - p - 1 degrees of freedom; GLM
+// on any link its family takes, with Wald-z p-values at a dispersion
 // fixed to 1 (binomial / poisson) or Student-t p-values on the residual
 // df under gamma's estimated dispersion; a conjugate Normal-Inverse-Gamma Bayesian fit with one
 // scalar prior precision on every coefficient, intercept included, and
@@ -37,8 +38,8 @@ const (
 	regCollinearity = "Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; " +
 		"Pulse refuses an exactly collinear set."
 	regNullsDropped = "Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used."
-	regNumericOnly  = "Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, " +
-		"or the columns are collinear with the intercept."
+	regNumericOnly  = "Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, " +
+		"or the fields are collinear with the intercept."
 )
 
 var (
@@ -66,7 +67,8 @@ var (
 		Assumptions: []string{
 			regIndependentRows,
 			"The outcome changes linearly with each predictor; model a curve by adding transformed predictors (FEAT_POLY, FEAT_LOG).",
-			"Residuals have roughly constant spread: Pulse reports classic standard errors, not heteroscedasticity-robust ones. " +
+			"Residuals have roughly constant spread for the default classic standard errors; params.covariance swaps in heteroscedasticity-robust (hc0 to hc3), " +
+				"clustered (repeated rows per unit) or autocorrelation-robust (hac, values over time) ones. " +
 				"With few rows the residuals should also be roughly normal for the p-values to hold.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, " +
 				"on a t distribution with n - p - 1 degrees of freedom (p predictors).",
@@ -87,7 +89,7 @@ var (
 	}
 
 	purposeRegGLM = descriptor.Purpose{
-		Plain:   "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts.",
+		Plain:   "Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts.",
 		KnownAs: []string{"generalized linear model", "logistic regression", "poisson regression", "glm"},
 		Intents: []string{IntentDrivers, IntentRelationship},
 		Questions: []string{
@@ -106,12 +108,13 @@ var (
 		},
 		Assumptions: []string{
 			regIndependentRows,
-			"The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson non-negative counts, gamma positive values.",
+			"The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson and negative binomial non-negative counts, gamma positive values.",
 			"The link must suit the outcome (each family takes its own: logit, probit or cloglog for binomial; log, identity or sqrt for counts; inverse, log or identity for gamma); " +
 				"the predictors act linearly on that link scale, and margins converts the effects to the outcome's units.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion " +
-				"fixed at 1 for binomial and Poisson, where overdispersed counts (variance above the mean) make Poisson p-values too small; " +
+				"fixed at 1 for binomial, Poisson and negative binomial, where overdispersed counts (variance above the mean) make Poisson p-values too small and negative binomial models that extra spread; " +
 				"a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.",
+			"params.covariance swaps in robust (hc0 to hc3), clustered or hac standard errors behind the p-values.",
 			"If a predictor separates the 0s from the 1s perfectly in a logistic model, the fit cannot converge and Pulse refuses it.",
 			regAssociationOnly,
 			regCollinearity,
@@ -194,6 +197,7 @@ var (
 			"Each category other than the reference has its own coefficients: the change in the log odds of that category against the reference per unit of the predictor, holding the others fixed.",
 			"The odds between any two categories do not depend on the other categories offered (independence of irrelevant alternatives).",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, as a Wald z.",
+			"params.covariance swaps in robust (hc0, hc1) or clustered standard errors behind the p-values.",
 			"If a predictor separates a category from the reference perfectly, the fit cannot converge and Pulse refuses it.",
 			regAssociationOnly,
 			regCollinearity,
@@ -266,6 +270,7 @@ var (
 			"The link sets the shape of the scale's steps: logit (default) reads coefficients as log odds ratios, probit as shifts of a normal latent score, " +
 				"cloglog as log hazard ratios.",
 			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, a Wald z on the fitted information.",
+			"params.covariance swaps in robust (hc0, hc1) or clustered standard errors behind the p-values.",
 			"A predictor that separates the levels perfectly makes the fit unable to converge, and Pulse refuses it.",
 			regAssociationOnly,
 			regCollinearity,

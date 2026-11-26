@@ -9,7 +9,7 @@ covers: [decimal128, expression, formula, float, PULSE_DECIMAL_DIVIDE_BY_ZERO, P
 
 # Decimal formulas
 
-Part of the expression surface; entry skills `expression-language` (the environment) and `financial-cohorts` (money fields). In the formula attribute and the expression filter a `decimal128` field binds exactly — its digits plus its field's scale — and stays exact through every operator and numeric built-in below. A number joins as written (`1.2` is exactly 1.2), so `0.1 + 0.2 == 0.3` holds and `price / cost > 1.2` is decided exactly.
+Part of the expression surface; entry skills `expression-language` (the environment) and `financial-cohorts` (money fields). In the formula attribute and the expression filter a `decimal128` field binds exactly — its digits plus its field's scale — and stays exact through every operator and numeric built-in below. A number meeting a decimal joins as written (`1.2` is exactly 1.2), so `price / cost > 1.2` is decided exactly; literals alone stay float (`0.1 + 0.2 == 0.3` is false).
 
 ## Operators
 

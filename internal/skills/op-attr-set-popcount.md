@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, cardinality-analysis, streaming-friendly]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -19,9 +17,9 @@ None.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
-- `Label` — required — new column name
+- `label` — derived field name; default `<TYPE>_<field>`
 
 ## Output
 
@@ -32,7 +30,7 @@ One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hen
 ## Gotchas
 
 - Row-local one-pass — streams cleanly; merges (shards, parallel decode, chain stages).
-- Use as a downstream filterable signal ("respondents who selected ≥ 3 issues") — pair with `FILTER_GTE` after this attribute, or precompute as `FEAT` if you need it before the filterers slot.
+- Filters run before attributes, so none reads this label: to keep "respondents who selected ≥ 3", filter on `popcount(issuers) >= 3`<!-- feature: FILTER_EXPRESSION --> with `FILTER_EXPRESSION`<!-- /feature -->.
 - A fully-selected `set_u256` gives 256, one past a `u8`'s 255 — size any destination column from `emits_type`, not from the rung's byte width.
 
 ## See

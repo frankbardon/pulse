@@ -13,12 +13,12 @@ identifier and a 1-byte format version.
 
 ## Constants
 
-These live in [`encoding/header.go`](https://github.com/frankbardon/pulse/blob/main/encoding/header.go):
+These live in [`encoding/header.go`](https://github.com/frankbardon/pulse/blob/main/encoding/header.go) (`MaxFormatVersion` in `internal/encoding/preamble.go`):
 
 | Name | Value | Purpose |
 |---|---|---|
-| `MagicBytes`     | `[]byte{'P','U','L','S','E', 0x00, 0x00, 0x00}` | 8-byte identifier; rejects non-Pulse files |
-| `FormatVersionV1` | `0x01` | Original layout — every file written before `0x02` existed |
+| `MagicBytes`     | `[8]byte{'P','U','L','S','E', 0x00, 0x00, 0x00}` | 8-byte identifier; rejects non-Pulse files |
+| `FormatVersionV1` | `0x01` | Field descriptors (with inline dictionaries), then records |
 | `FormatVersionV2` | `0x02` | Adds a length-prefixed schema extension block carrying [parent groups](parent-groups.md), [vector dims](field-types.md#vector-fields) and the [cohort default zone](schema-block.md#cohort-default-zone-zone-tag-3) (see [Schema Block](schema-block.md)) |
 | `FormatVersion`  | `0x01` | Baseline: what writers emit for a schema that uses no `0x02` feature |
 | `MaxFormatVersion` | `0x02` | Newest version this binary reads and writes |
@@ -56,15 +56,15 @@ by a newer binary. A forward-incompatible change bumps the version; the
 older reader stops at header parse instead of producing wrong rows. A
 binary that predates `0x02` refuses every `0x02` file this way.
 
-**Old cohorts stay readable forever.** A `0x01` file parses exactly as it
-always has, and a checked-in `0x01` golden (`encoding/testdata/format_v1.pulse`)
-is read by every build in CI.
+**Every supported version stays readable.** A checked-in `0x01` golden
+(`encoding/testdata/format_v1.pulse`) and a `0x02` one
+(`format_v2_grouped.pulse`) are read by every build in CI.
 
 **The version written is a function of schema content, never a global
 flag** (`Schema.RequiredFormatVersion`, `internal/encoding.WritePreamble`). A schema
-that uses no `0x02` feature is written at `0x01`, byte-identical to
-every file written before `0x02` existed. Only a schema that declares a
-[parent group](parent-groups.md) or contains a [vector field](field-types.md#vector-fields)
+that uses no `0x02` feature is written at `0x01`. Only a schema that declares a
+[parent group](parent-groups.md), contains a [vector field](field-types.md#vector-fields)
+or declares a [default zone field](schema-block.md#cohort-default-zone-zone-tag-3)
 is written at `0x02`.
 
 The envelope `format_version` (`"1.1"`) that all CLI `--json` output
@@ -80,14 +80,17 @@ A freshly-written `.pulse` file starts with:
           |P  U  L  S  E  \0 \0 \0|ver| schema starts here (ver 01 or 02)
 ```
 
-If `file path/to/data.pulse` reports "data" (rather than something
-plausible) and the first nine bytes don't match the above, the file is
-either truncated or corrupted — see
+Two other openings are not this header. `PK\x03\x04` is a
+[shard archive](../internals/managing-shard-archives.md) (a Zip64 whose
+`_schema.pulse` member carries the header). `28 b5 2f fd` is a zstd
+[transfer artifact](transfer.md), refused with `PULSE_COHORT_COMPRESSED`
+until `pulse import transfer` decompresses it. Anything else is not a
+cohort, or is truncated or corrupted; see
 [Troubleshooting](../ops/troubleshooting.md).
 
 ## What comes next
 
 The schema block follows the header. Read it as documented in
 [Schema Block](schema-block.md); it carries per-field descriptors,
-inline categorical dictionaries, and decimal/H3 metadata. After the
+inline categorical and set dictionaries, and decimal precision and scale. After the
 schema, fixed-width records start — see [Record Layout](records.md).

@@ -1,10 +1,10 @@
 # Debugging a Predict Mismatch
 
 **Audience:** Pulse internals contributors and embedders triaging a
-case where `pulse predict` says a request is valid but execution
-fails, or vice versa.
+case where predict (`pulse api predict`, `Pulse.Predict`, `pulse_predict`)
+says a request is valid but execution fails, or vice versa.
 
-`pulse predict` reads only the `.pulse` header and schema; it never
+Predict reads only the `.pulse` header and schema; it never
 touches record data. That makes the predict path fast and safe to
 call from an LLM agent, but it also means predict can only catch
 structural and shape errors — type mismatches, unknown field names,
@@ -17,7 +17,7 @@ depends on the actual record values (e.g. a divide-by-zero in
 Run predict against the request first:
 
 ```bash
-pulse predict --json < request.json
+pulse api predict --json -r request.json
 ```
 
 Read the envelope's `errors` and `warnings` arrays — predict returns
@@ -41,10 +41,10 @@ Resolve the typo / mismatch and re-run predict.
 ## Cross-check against the actual schema
 
 If predict's error mentions a field that you believe should exist,
-read the schema with `pulse inspect`:
+read the schema with `pulse cohort inspect`:
 
 ```bash
-pulse inspect --json <file.pulse>
+pulse cohort inspect --json <file.pulse>
 ```
 
 The inspect output lists every field's name, type, nullability flag,

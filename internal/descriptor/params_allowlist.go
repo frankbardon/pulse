@@ -34,8 +34,11 @@ import (
 // says so with PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED.
 //
 // An extension operator that declares params also has each declared
-// value checked against its ParamMeta (U53 E1-S3), in every one of the
-// nine extension categories: a value whose JSON type is not the
+// value checked against its ParamMeta (U53 E1-S3) in every extension
+// category that declares params — the nine operator categories
+// (aggregator, attribute, filterer, grouper, window, feature, test,
+// regression, matrix), overlay kinds, and post-fits through
+// DeclaredParamsRefusal: a value whose JSON type is not the
 // declared JSONType, or a Required key the params object omits, is
 // refused PULSE_REQUEST_PARAM_INVALID (details.reason wrong_type /
 // missing_required, details.path `<slot>.params.<key>`), and so is a

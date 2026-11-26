@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "groupers",
-    "description": "Bucket orders into named fiscal phases using GROUP_DATE_RANGES inline labeled ranges; out-of-range rows land in the unmatched bucket.",
+    "description": "Bucket orders into named phases using GROUP_DATE_RANGES inline labelled ranges (launch from 2025-02-01, growth, then an open-ended steady phase); January orders, before every range, land in the unmatched bucket named by unmatched_label (pre_launch).",
     "intents": [
       "change_over_time",
       "composition"
@@ -39,9 +39,9 @@
       "field": "order_date",
       "params": {
         "ranges": [
-          { "label": "launch", "start": "2024-01-01", "end": "2024-03-31" },
-          { "label": "growth", "start": "2024-04-01", "end": "2024-09-30" },
-          { "label": "steady", "start": "2024-10-01" }
+          { "label": "launch", "start": "2025-02-01", "end": "2025-04-30" },
+          { "label": "growth", "start": "2025-05-01", "end": "2025-09-30" },
+          { "label": "steady", "start": "2025-10-01" }
         ],
         "unmatched_label": "pre_launch"
       }

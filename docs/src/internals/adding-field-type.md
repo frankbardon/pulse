@@ -4,7 +4,8 @@
 type — a new on-wire encoding the schema block can describe, the
 record codec can read / write, and the operator surface can accept.
 
-Adding a field type touches more layers than any other recipe — the
+Load `.claude/reference/byte-layout.md` first: most of its rules fail
+silently. Adding a field type touches more layers than any other recipe — the
 binary format, the schema reader, the operator-accept tables, the
 predict routing layer, and the cohort-schema skill. It is also one of
 the highest-impact extensions: every operator that touches the new
@@ -13,7 +14,8 @@ from it explicitly.
 
 ## 1. Declare the FieldType constant
 
-Add the `FieldType` constant and its `ByteSize()` method. The byte
+Add the `FieldType` constant in `encoding/field_type.go` and its
+`ByteSize()` case. The byte
 size is the wire footprint per record; bit-packed types
 (`packed_bool`, `u4`) return `0` and signal sharing via
 `FieldType.IsBitPacked()`.
@@ -37,18 +39,22 @@ unknown-type-byte branch in the reader is what surfaces
 add the corresponding decode arm.
 
 If the new type carries a dictionary block (categoricals, sets),
-follow the inline-dictionary contract documented in CLAUDE.md's
-"Byte-layout invariants" — the dictionary lives between the schema
-block and the record data, keyed by the position of the bearing field.
+follow the dictionary contract in `.claude/reference/byte-layout.md`:
+the dictionary lives between the schema block and the record data,
+keyed by the position of the bearing field. A type whose schema needs
+an extension section makes the file version `0x02`; the version is a
+function of schema content, never a flag.
 
 ## 3. Update the operator accept tables
 
 Every operator that should accept the new field type needs its row in
 `internal/descriptor/capabilities_*.go` extended. The accept tables are shared
 slices declared near the top of `capabilities_aggregators.go`
-(`numericFieldTypes`, `numericFieldTypesAnalytics`, `allCohortFieldTypes`,
-`setFieldTypes`, …) — extend the right slice rather than adding the
-new type to each operator individually.
+(`numericFieldTypesAnalytics`, `numericFieldTypesAnalyticsNoDecimal`,
+`allCohortFieldTypes`, `nonSetFieldTypes`, …) and the per-operator
+classes of `internal/fieldaccept` (read through `tableAcceptsTypes`) —
+extend the right slice or class rather than adding the new type to each
+operator individually.
 
 ## 4. Predict-side routing
 
@@ -57,24 +63,26 @@ routing, nullable-vs-non-nullable handling), update
 the accepted-types table (`internal/fieldaccept`) classes that judge it —
 predict and the runtime both read that table.
 
-## 5. Update the cohort-schema-design skill
+## 5. Skills and the byte-layout contract
 
-Add the new type to the "All field types" table in
-`skills/cohort-schema-design.md`. `TestSkillsCoverAllFieldTypes`
-enforces presence by name.
+- Write the atomic skill `skills/type-<kebab>.md`
+  (`.claude/reference/skill-pack.md`; copy a sibling such as
+  `skills/type-u16.md`).
+- Add the type to the field-types table in
+  `skills/cohort-schema-design.md` (`TestSkillsCoverAllFieldTypes`).
+- Record its width, null and dictionary rules in
+  `.claude/reference/byte-layout.md`.
 
-## 6. Update CLAUDE.md
+CLAUDE.md is not a companion and carries no field-type count.
 
-The CLAUDE.md "Byte-layout invariants" section enumerates the
-canonical field-type count and the bit-packed vs dictionary-bearing
-distinctions. Update it to reflect the new type.
-
-## 7. Run the gates
+## 6. Run the gates
 
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllFieldTypes
-go test ./encoding/... ./internal/encoding/...
-go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestAtomicSkillHasRequiredSections|TestSkillsCoverAllFieldTypes'
+go test -count=1 ./encoding/... ./internal/encoding/... ./internal/fieldaccept/
+go test -count=1 ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
 The Update Demand row for `.pulse` format changes (header / field

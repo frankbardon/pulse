@@ -12,15 +12,15 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
-// fieldClauseEnds are the markers that close an atomic skill's `Field`
+// fieldClauseEnds are the markers that close an atomic skill's `field`
 // clause: the next slot it names, a newline, or the `;` that opens the
 // refusal prose (which names the types it does NOT accept).
-var fieldClauseEnds = []string{"\n", ";", "`SplitBy`", "`Field2`", "`SubjectField`"}
+var fieldClauseEnds = []string{"\n", ";", "`split_by`", "`field2`", "`subject_field`"}
 
 var backticked = regexp.MustCompile("`([a-z0-9_]+)`")
 
 // skillFieldTypes returns the registered field-type names an atomic
-// skill's `## Inputs` section lists for its `Field`: the backticked type
+// skill's `## Inputs` section lists for its `field`: the backticked type
 // names after the clause's first `:` (before it, a qualifier such as
 // "numeric (no `decimal128`)" may name an excluded type).
 func skillFieldTypes(t *testing.T, stem string) []string {
@@ -34,9 +34,9 @@ func skillFieldTypes(t *testing.T, stem string) []string {
 		t.Fatalf("%s: no ## Inputs section", stem)
 	}
 	inputs, _, _ = strings.Cut(inputs, "\n## ")
-	_, clause, ok := strings.Cut(inputs, "`Field`")
+	_, clause, ok := strings.Cut(inputs, "`field`")
 	if !ok {
-		t.Fatalf("%s: ## Inputs names no `Field`", stem)
+		t.Fatalf("%s: ## Inputs names no `field`", stem)
 	}
 	for _, end := range fieldClauseEnds {
 		clause, _, _ = strings.Cut(clause, end)

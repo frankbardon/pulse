@@ -13,15 +13,15 @@ Collapses N round-trips into one open + N stage validations. Common: "group-then
 
 ## Input
 
-`request` (string): JSON-encoded `pulse.ChainRequest`. Fields: `cohort.filename` (source for stage 0), `stages` ([]ChainStage with `name` + `request`). Stage 0 supplies the source cohort; later stages ignore their inner cohort field. A stage's `request.return` shapes that stage only after the whole chain ran (the next stage still reads full rows); `final` follows the last stage's.
+The chain's keys at top level (no wrapper): `cohort` (`{filename}`, the source<!-- feature: capability:union -->, or `union`<!-- /feature -->), `stages` (`[{name, request}]`; a slot placed directly on a stage is `PULSE_REQUEST_UNKNOWN_FIELD`), optional `overlays` (CHAIN-host)<!-- feature: capability:params -->, `params`<!-- /feature -->. Every stage reads the one before; a `cohort` inside a stage's `request` is ignored. A stage's `request.return` shapes that stage only after the whole chain ran (the next stage still reads full rows); `final` follows the last stage's.
 
 ## Output
 
-`descriptor.Envelope` wrapping per-stage `Response`s plus a whole-chain summary. Chain-host overlays fold at the post-chain barrier.
+`{stages: [...], final, overlays}` (no envelope): one response per stage in order (a process response), `final` = the last stage's, `overlays` = the CHAIN-host layers folded after the last stage.
 
 ## Gotchas
 
-- MERGEABLE-ONLY at v1. Permitted: exactly the manifest `process_chain` block's `mergeable_aggregators`, `mergeable_groupers` and `row_local_attributes`. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers → `PULSE_CHAIN_NOT_MERGEABLE`. Fall back to per-stage requests<!-- feature: capability:compose --> (batched by `pulse_compose`)<!-- /feature -->.
+- MERGEABLE-ONLY. Permitted: exactly the manifest `process_chain` block's `mergeable_aggregators`, `mergeable_groupers` and `row_local_attributes`. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers → `PULSE_CHAIN_NOT_MERGEABLE` (`details.stage_index`, `stage_name`); the stage count is capped by `process_chain.max_stages`. Fall back to per-stage requests<!-- feature: capability:compose --> (batched by `pulse_compose`)<!-- /feature -->.
 - Synthesized schema between stages: grouper keys → `categorical_u32` columns; aggregator outputs → `f64` (an expanded `AGG_VEC_*`: one per element column `<label>[<elem>]`); a NaN cell → null.
 
 ## See

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "compose",
-    "description": "Train and holdout model error side by side in ONE slot: a compose `fits` entry fits income ~ age by OLS on customers 1-149, once; the slot scores every customer with ATTR_REG_PREDICT and groups by id with GROUP_RANGE interval 150, so bucket 0-150 is the training rows and 150-300 the held-out rows. AGG_MAPE (a fraction, 0.12 = 12%; zero actuals excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with the prediction column named by params.prediction_field. The same shape splits a weekly series with GROUP_RANGE over week_index (interval 91: weeks 0-90 train, 91-103 holdout).",
+    "description": "Train and holdout model error side by side in ONE slot: a compose `fits` entry fits income ~ age by OLS on customers 1-149, once; the slot scores every customer with ATTR_REG_PREDICT and groups by id with GROUP_RANGE interval 150, so bucket 0-150 is the training rows and 150-300 the held-out rows. AGG_MAPE (a fraction, 0.12 = 12%; zero actuals excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with the prediction, the derived field named by params.prediction_field. The same shape splits a weekly series with GROUP_RANGE over its week field (interval 91: weeks 0-90 train, 91 and later holdout).",
     "capabilities": [
       "capability:compose_fits"
     ],

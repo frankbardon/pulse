@@ -29,17 +29,17 @@ Refit keys top-level, not `params`; `field` unread.
 | `fit` | string | — | `params.fit`: a bound fit's leverage. |
 | `carryover` | bool | `true` | Carry adstock (`regression-order`). |
 | `order` | object | — | `{field, partition?}`; needed to carry. |
-| `weight` | slot weight | inherited | `null` opts out; excluded row: 0. Ignored with `fit`. |
+| `weight` | slot weight | inherited | `null` opts out; ignored with `fit`. |
 
 ## Inputs
 
 `target` / `predictors`: see `## Contract`.
 
-- `Label` — required — new column name
+- `label` — default `<TYPE>_<target>` (`<TYPE>_<fit>` with `fit`)
 
 ## Output
 
-One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀM2_xx⁻¹(xᵢ − μ_x)`. In `[1/n, 1]` over the fit's rows, summing to `p + 1`; a row outside the fit can exceed 1. Penalized: the ridge or active-set hat; `family`: the GLM hat; `fit`: the bound fit's design (all `regression-influence`). **Null (never 0) when any predictor is null, NaN or ±Inf**; a row the weighted refit excludes stays 0.
+One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀM2_xx⁻¹(xᵢ − μ_x)`. In `[1/n, 1]` over the fit's rows, summing to `p + 1`; a row outside the fit can exceed 1. Penalized: the ridge or active-set hat; `family`: the GLM hat; `fit`: the bound fit's design (all `regression-influence`). **Null (never 0) on a null, NaN or ±Inf predictor**; a row the weighted refit excludes stays 0.
 
 <!-- generated: reading-the-output -->
 

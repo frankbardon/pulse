@@ -10,7 +10,7 @@ import (
 // probeParams synthesizes the params object the registration-time probe
 // hands a factory (on the spec's Params, and on extend.MatrixInput.Params
 // for a matrix operator), so a factory that validates its own declared
-// contract passes the probe. Since U53 E1-S3 a request can only reach a
+// contract passes the probe. A request can only reach a
 // factory carrying every Required param and exactly one member of every
 // ExactlyOneOf group (predict and runtime refuse the rest), so the probe
 // hands the factory an object that satisfies the same declaration:

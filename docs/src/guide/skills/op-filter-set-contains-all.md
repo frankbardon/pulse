@@ -26,11 +26,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND-eq. |
+| `values` | array | — | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND-eq. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -45,8 +45,8 @@ Row-level predicate. Pass when `row & query == query`. No emitted column.
 
 ## Gotchas
 
-- Empty `Values` resolves to query=0 — every row passes (trivially "contains all of nothing").
-- Unknown label in `Values` → `PROCESSING_CONFIG`.
+- Empty `values` resolves to query=0 — every row passes (trivially "contains all of nothing").
+- Unknown label in `values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
 - Null rows DROP. Use this for AND-of-features survey logic ("respondents who picked X and Y").
 

@@ -13,7 +13,7 @@ What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`;
 
 ## Slot keys
 
-Every param is a FLAT top-level key of the regression entry (manifest `slot: true`); a `params` key on a built-in `REG_*` is `PULSE_REQUEST_UNKNOWN_FIELD` (only a registered regression takes `params`).
+Every param is a FLAT top-level key of the regression entry (manifest `slot: true`); a `params` key on the OLS, GLM, Bayesian-linear or multinomial fit is `PULSE_REQUEST_UNKNOWN_FIELD` (the ordinal, media-mix and registered regressions take `params`).
 
 Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at predict and at runtime alike:
 
@@ -30,7 +30,7 @@ Shared keys:
 - `save` — writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`).
 <!-- /feature -->
 <!-- feature: capability:multiplicity -->
-- `multiplicity` `{method, family, alpha, coefficients}` (OLS, GLM) — the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + an echo beside the raw `PValues`, which never move (`multiplicity-correction`). The Bayesian fit has no p-values: any method but `none` is `PULSE_MULTIPLICITY_INVALID`, predict too.
+- `multiplicity` `{method, family, alpha, coefficients}` (OLS, GLM) — the member coefficients' p-values join a request-wide or batch-wide family; adds `PAdjusted` / `SignificantAdjusted` + an echo beside the raw `PValues`, which never move (`multiplicity-correction`). The Bayesian fit has no p-values: any method but `none` is `PULSE_MULTIPLICITY_INVALID`, predict too.
 <!-- /feature -->
 
 ## Penalty
@@ -45,12 +45,13 @@ Shared keys:
 
 ## OLS solver and intercept
 
-- `solver`: `qr` (default) solves a streaming QR of the design at κ(X); `normal` solves the normal equations at κ(X)² (pre-alpha.35 bits). Unpenalized, unbounded fits only.
+- `solver`: `qr` (default) solves a streaming QR of the design at κ(X); `normal` solves the normal equations at κ(X)². Unpenalized, unbounded fits only.
 - `intercept: false` fits through the origin: `(intercept)` stays 0 with null SE / p / CI, R² is uncentred Σŷ²/Σy², `DF` = N* − p (R `lm(y ~ 0 + x)`). Refused with a penalty, bounds, a modifier, a robust `covariance` or `normal`.
 
+<!-- feature: capability:weighting -->
 ## Weighted fits
 
-`weight: null` opts a slot out<!-- feature: capability:weighting --> (`weighting`)<!-- /feature -->. `NObs` stays the raw row count; a weighted fit adds `SumWeights` (+ `NEff` under a probability weight).
+`weight: null` opts a slot out (`weighting`). `NObs` stays the raw row count; a weighted fit adds `SumWeights` (+ `NEff` under a probability weight).
 
 | Fit | Kinds | What the weight does |
 |---|---|---|
@@ -60,6 +61,7 @@ Shared keys:
 
 - `resample: bootstrap` or `selection` under a weight → `PULSE_WEIGHT_UNSUPPORTED`; a jackknife is weighted (JK1, each replicate keeps its rows' weights).
 - n_eff ≤ p + 1 (OLS, gamma GLM) or < p + 1 (binomial / poisson GLM) → `PULSE_WEIGHT_LOW_NEFF`.
+<!-- /feature -->
 - OLS residual df ≤ 0 makes `StdErrors`, `PValues`, `CILower` / `CIUpper`, `DF`, `AdjR2` and `ResidualStdErr` null.
 
 ## GLM details

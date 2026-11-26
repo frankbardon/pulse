@@ -35,7 +35,7 @@ Read-only decorations of a DERIVED figure. Specs ride `Request.Overlays`, one la
 
 ## OverlaySpec composition
 
-`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`; Compose-only `reference` / `targets`. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
+`kind`, `scope`, `ref`, optional `name` / `level` / `within` / `params`<!-- feature: capability:compose -->; Compose-only `reference` / `targets`<!-- /feature -->. `scope` ∈ `cell|row|column|group|matrix|total`. `level` / `within` mirror the crosstab's `normalize_level` / `normalize_within`.
 
 Predict and runtime refuse a misshapen or off-host spec with the SAME `errors[0].code` (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, …).
 
@@ -45,13 +45,23 @@ Predict and runtime refuse a misshapen or off-host spec with the SAME `errors[0]
 
 | Family | Compares against | Host |
 |---|---|---|
+<!-- feature: capability:crosstab -->
 | `margin{axis}` | the row / column / grand margin | crosstab |
+<!-- /feature -->
 | `sibling{field, value}` | another group's value | grouped Process |
 | `baseline_index{position}`, `prior`, `rolling_mean`, `yoy` | an earlier point in the same series | grouped Process |
+<!-- feature: capability:facet -->
 | `population{cohort}` | a reference cohort | facet |
+<!-- /feature -->
+<!-- feature: capability:process_chain -->
 | `stage{index or name}` | an earlier chain stage | process chain |
+<!-- /feature -->
+<!-- feature: capability:matrices -->
 | `matrix{name}` | one matrix spec's result, every group bucket | matrix result |
+<!-- /feature -->
+<!-- feature: capability:compose -->
 | `reference` + `targets` (spec top level) | another Compose slot | compose |
+<!-- /feature -->
 
 Implicit-margin kinds (χ² / Fisher cell tests) leave `ref` empty.
 
@@ -67,21 +77,29 @@ A multi-output kind (pairwise under `params.letters`) adds `payload.parts`: name
 
 The carrying request decides the host, the host the legal kinds (an ungrouped or aggregation-free request runs none):
 
+<!-- feature: capability:crosstab -->
 - **MATRIX** — a crosstab (`Request.Crosstab`): share, margin compare, cell tests, intra-matrix pairwise.
-- **SERIES** — a grouped Process with no crosstab: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
+<!-- /feature -->
+- **SERIES** — the SERIES host, a grouped Process<!-- feature: capability:crosstab --> with no crosstab<!-- /feature -->: per-group self-compare (sibling, baseline, prior, rolling, year-over-year). Over N ≥ 2 `groups` it runs per partition (`params.partition_by`, a key prefix; default all but the last). Scores `params.field`, else `aggregations[0]`.
 <!-- feature: capability:matrices -->- **MATRIX_RESULT** — `Request.Matrices` with no crosstab, on a process request or Compose slot (not chain, facet or Compose-host slots): reads every group bucket of the spec `ref.matrix` names. Crosstab + `matrices` is refused.<!-- /feature -->
-- **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays`<!-- feature: capability:facet --> (`facet-design`)<!-- /feature -->.
-- **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT`<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->.
-- **FORMULA** — expression over a crosstab, grouped Process or any Compose shape (SERIES partitioned, `field` per slot).
-- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `ComposedResponse.Overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`)<!-- feature: capability:compose --> (`compose-requests`)<!-- /feature -->.
+<!-- feature: capability:facet -->
+- **FACET** — `FacetRequest.Overlays`: population comparisons, never weighted (a set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED`), layers on `FacetResult.Overlays` (`facet-design`).
+<!-- /feature -->
+<!-- feature: capability:process_chain -->
+- **CHAIN** — whole-chain `ChainRequest.Overlays` against an earlier stage; layers on the chain response, per-stage overlays untouched. Stages of divergent shape ⇒ `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` (`process-chain`).
+<!-- /feature -->
+- **FORMULA** — expression over a<!-- feature: capability:crosstab --> crosstab,<!-- /feature --> grouped Process<!-- feature: capability:compose --> or any Compose shape (SERIES partitioned, `field` per slot)<!-- /feature -->.
+<!-- feature: capability:compose -->
+- **COMPOSE** — the post-slot fold compares slots (`reference` vs `targets`); slots must align on schema, keys and dictionaries. Layers on `overlays` (top-level `return` prunes post-fold), buffered; single-target kinds fan out per target (`<name>__<target>`) (`compose-requests`).
+<!-- /feature -->
 
-A cell-VALUE reader (MATRIX, Compose slot) over a code cell<!-- feature: AGG_MODE --> (`AGG_MODE` of a categorical)<!-- /feature --> ⇒ `PROCESSING_CONFIG` `categorical_code`.
+A cell-VALUE reader (MATRIX<!-- feature: capability:compose -->, Compose slot<!-- /feature -->) over a code cell<!-- feature: AGG_MODE --> (`AGG_MODE` of a categorical)<!-- /feature --> ⇒ `PROCESSING_CONFIG` `categorical_code`.
 
-Extension kinds (`extensions.overlays`): a handler per host (Matrix, Series, Compose), buffered, never chain or facet<!-- feature: capability:weighting -->; weighted only if `weight_aware`<!-- /feature -->.
+Extension kinds (`extensions.overlays`): a handler per host (<!-- feature: capability:crosstab -->Matrix, <!-- /feature -->Series<!-- feature: capability:compose -->, Compose<!-- /feature -->), buffered<!-- feature: capability:process_chain -->, not chain<!-- /feature --><!-- feature: capability:facet -->, not facet<!-- /feature --><!-- feature: capability:weighting -->; weighted only if `weight_aware`<!-- /feature -->.
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On Compose and chain hosts it rides the layer that raised it (a fan-out target's)<!-- feature: capability:compose_banner --><!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
+`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On a batch-root host it rides the layer that raised it (a fan-out target's); a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
@@ -91,11 +109,13 @@ Inferential layers take `multiplicity` (`p_adjusted` figures, a layer echo); pai
 
 ## Streamability
 
-Manifest `overlays[].buffered`; descriptive SERIES kinds stream. MATRIX kinds fold after the crosstab finishes, so they never decide whether it fuses<!-- feature: capability:crosstab --> (`crosstab-guide`)<!-- /feature -->. One buffered kind prices the request buffered.
+Manifest `overlays[].buffered`; descriptive SERIES kinds stream. <!-- feature: capability:crosstab -->MATRIX kinds fold after the crosstab finishes, so they never decide whether it fuses (`crosstab-guide`).<!-- /feature --> One buffered kind prices the request buffered.
 
+<!-- feature: capability:weighting -->
 ## Weighted hosts
 
-Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`). Kinds refusing a weight (`PULSE_WEIGHT_UNSUPPORTED`) say so in their `## Contract`. Spec `"weight": null` opts the slot out, not the host cell<!-- feature: capability:weighting --> (`weighting`)<!-- /feature -->.
+Descriptive kinds read the weighted payload. Inferential kinds RUN on each cell's floor-key N* (Σw, or Kish n_eff under `probability`; echoed in `summary.parameters`). Kinds refusing a weight (`PULSE_WEIGHT_UNSUPPORTED`) say so in their `## Contract`. Spec `"weight": null` opts the slot out, not the host cell (`weighting`).
+<!-- /feature -->
 
 ## See
 

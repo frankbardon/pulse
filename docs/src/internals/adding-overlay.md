@@ -172,7 +172,7 @@ under either weight kind.
 
 ## 6. Use it
 
-```json
+```json norun extension-operator
 {
   "cohort": {"filename": "sales.pulse"},
   "crosstab": {
@@ -187,8 +187,10 @@ under either weight kind.
 
 The layer lands in `Response.Overlays[i]` named `spec.Name`, else the
 lower-cased kind without `OVERLAY_` (`acme_pgrid`). Check the registration
-with `pulse manifest --json` (`extensions.overlays`) and `pulse predict`: both
-judge the spec by the same declaration the runtime does.
+with `p.Manifest(ctx)` (`extensions.overlays`) and `p.Predict(ctx, req)`, or
+an `mcpserve` server over the same instance: both judge the spec by the same
+declaration the runtime does. The stock `pulse` binary registers no
+extensions.
 
 ## Where to look
 

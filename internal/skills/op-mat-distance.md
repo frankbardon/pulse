@@ -21,14 +21,14 @@ As `op-mat-covariance`; members are centroid coordinates.
 | `metric` | enum | `euclidean` | A `matrix.metrics` distance (consumer `MAT_DISTANCE`); a `kind` vector's default (`vector-metrics`). |
 | `min_valid` | int | `1` | Fewest complete member pairs per distance; below → null. |
 | `standardize` | bool | `false` | z-score members over the bucketed rows (R `scale()`) first; refused with `hellinger` / `aitchison`. |
-| `missing` | `listwise` | `listwise` | Listwise only (pairwise refused). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `missing` | enum | `listwise` | `listwise` only (pairwise refused). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 
 `weight`, `encoding`: as `op-mat-correlation`. `fit` is refused (`fit_unsupported`: centroids are not one fitted state). Layout and metric detail: `multivariate-outputs`.
 
 ## Inputs
 
-Integer / float members.
+Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 

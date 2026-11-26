@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "attributes",
-    "description": "Replace each income with its percentile rank, then average those ranks within each region for cohort-relative scoring.",
+    "description": "Add each customer's cohort-wide income percentile rank (ATTR_PERCENTILE, 0-100), then average those ranks per region: a region above 50 earns more than the cohort typically does.",
     "intents": [
       "benchmark",
       "compare_groups"

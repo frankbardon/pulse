@@ -15,11 +15,11 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single equality. |
+| `values` | array | — | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single equality. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -29,8 +29,8 @@ Row-level predicate. Pass when `row == query`. No emitted column.
 
 ## Gotchas
 
-- Empty `Values` resolves to query=0 — only rows whose set is exactly empty pass. An empty mask is a valid "no selection" set value, distinct from null.
-- Unknown label in `Values` → `PROCESSING_CONFIG`.
+- Empty `values` resolves to query=0 — only rows whose set is exactly empty pass. An empty mask is a valid "no selection" set value, distinct from null.
+- Unknown label in `values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
 - Null rows DROP.
 

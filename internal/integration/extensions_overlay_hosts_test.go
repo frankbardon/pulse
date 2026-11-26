@@ -473,7 +473,7 @@ func TestExtensions_OverlaySlotRefusalWording(t *testing.T) {
 	_, err := p.Process(context.Background(), overlayCrosstabRequest(cohort, types.OverlaySpec{Kind: overlayRatioKind, Scope: types.OverlayScopeCell}))
 	ce := requireCodedError(t, err, perr.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)
 	want := map[string]any{"index": 0, "kind": string(overlayRatioKind), "host": "request", "hosts": []string{"compose"}}
-	if ce.Message != "overlay OVERLAY_ACME_RATIO does not run on Request.Overlays; attach it to ComposedRequest.Overlays" || !reflect.DeepEqual(ce.Details, want) {
+	if ce.Message != "overlay OVERLAY_ACME_RATIO does not run on request overlays; attach it to Compose overlays" || !reflect.DeepEqual(ce.Details, want) {
 		t.Errorf("refusal = %q %v, want details %v", ce.Message, ce.Details, want)
 	}
 }

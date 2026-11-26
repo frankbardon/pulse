@@ -246,7 +246,7 @@ Pearson's chi-square adds up, over every cell, how far the observed count is fro
 **Caveats:**
 
 - Chi-square grows with the number of rows, so it does not measure the strength of the association: read Cramer's V.
-- No continuity (Yates) correction is applied, so on a 2x2 table the p-value is smaller than R's chisq.test default.
+- No continuity (Yates) correction is applied unless params.correct is set, so by default the p-value on a 2x2 table is smaller than R's chisq.test default.
 
 #### `p_value`
 
@@ -475,7 +475,7 @@ The normal score the p-value is read from, with a continuity correction of one h
 
 **Caveats:**
 
-- The p-value always uses this large-sample approximation, even for small groups where an exact test would be more accurate.
+- The p-value uses this large-sample approximation unless params.exact asks for the exact one, which is more accurate for small groups.
 
 #### `details.effect_size.rank_biserial`
 
@@ -565,12 +565,12 @@ Checks whether the average change between two measurements of the same rows, suc
 
 #### `statistic`
 
-t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
+t is the average of the per-row differences (field - field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 #### `p_value`
 
@@ -578,16 +578,16 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.mean_diff`
 
-The average of Field - Field2 over complete pairs, in the field's own units.
+The average of field - field2 over complete pairs, in the field's own units.
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 #### `details.ci_low`
 
-Lower end of the confidence interval for the average difference (Field - Field2) at the 1 - alpha level (95% by default).
+Lower end of the confidence interval for the average difference (field - field2) at the 1 - alpha level (95% by default).
 
 **Caveats:**
 
@@ -595,7 +595,7 @@ Lower end of the confidence interval for the average difference (Field - Field2)
 
 #### `details.ci_high`
 
-Upper end of the confidence interval for the average difference (Field - Field2).
+Upper end of the confidence interval for the average difference (field - field2).
 
 #### `details.effect_size.cohens_d`
 
@@ -603,12 +603,12 @@ d_z: the average difference divided by the standard deviation of the differences
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 **Caveats:**
 
-- No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when Field and Field2 correlate above 0.5 and smaller below it.
+- No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when field and field2 correlate above 0.5 and smaller below it.
 - Do not compare d_z directly with a two-group d; report the mean difference alongside it.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
 
@@ -705,7 +705,7 @@ Lower end of the confidence interval for details.diff at the 1 - alpha level (95
 **Caveats:**
 
 - The interval uses the unpooled (Wald) standard error while the test uses the pooled one, so near the alpha boundary the two can disagree.
-- The Wald interval is poor with few successes or failures, or rates near 0 or 1.
+- The Wald interval is poor with few successes or failures, or rates near 0 or 1; for one rate against p0, params.interval wilson gives the score interval instead.
 
 #### `details.ci_high`
 
@@ -782,20 +782,20 @@ W' (Shapiro-Francia) measures how closely the sorted values follow the straight 
 
 **Caveats:**
 
-- With SplitBy, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
+- With split_by, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
 
 #### `p_value`
 
 **Caveats:**
 
 - A small p-value is evidence against normality; a large one only means a departure was not detected, which is likely with few rows.
-- With SplitBy the headline is the smallest p across groups, so it is more likely to be small than any single group's p.
+- With split_by the headline is the smallest p across groups, so it is more likely to be small than any single group's p.
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.per_group`
 
-One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
+One entry per group (or one overall without split_by) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
 
 <a id="op-test_spearman_r"></a>
 
@@ -839,7 +839,7 @@ t is the gap between averages measured in standard errors: the sample mean minus
 
 **Caveats:**
 
-- The two-sample form is Welch's: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number.
+- The two-sample form is Welch's by default: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number. Under params.variance pooled it is Student's t on n_a + n_b - 2 df, with the pooled variance in details.pooled_variance.
 
 #### `p_value`
 
@@ -942,8 +942,8 @@ The Mann-Kendall Z score: the trend count S (details.s) in standard errors, with
 
 **Sign:**
 
-- `+`: the series tends to rise over the OrderBy sequence
-- `-`: the series tends to fall over the OrderBy sequence
+- `+`: the series tends to rise over the order_by sequence
+- `-`: the series tends to fall over the order_by sequence
 
 #### `p_value`
 
@@ -1114,7 +1114,7 @@ Rank-based check of whether paired before/after values tend to shift in one dire
 
 #### `statistic`
 
-The smaller of the two signed-rank sums: rank the non-zero differences (Field - Field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
+The smaller of the two signed-rank sums: rank the non-zero differences (field - field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
 
 **Caveats:**
 
@@ -1130,8 +1130,8 @@ The normal score the p-value is read from, with a continuity correction of one h
 
 **Sign:**
 
-- `+`: Field tends to be larger than Field2
-- `-`: Field2 tends to be larger than Field
+- `+`: field tends to be larger than field2
+- `-`: field2 tends to be larger than field
 
 **Caveats:**
 
@@ -1139,7 +1139,7 @@ The normal score the p-value is read from, with a continuity correction of one h
 
 #### `details.zero_diffs`
 
-How many pairs had Field equal to Field2; they are dropped before ranking, and details.n counts only the pairs that remain.
+How many pairs had field equal to field2; they are dropped before ranking, and details.n counts only the pairs that remain.
 
 **Caveats:**
 
@@ -1151,8 +1151,8 @@ Matched-pairs rank-biserial correlation, from -1 to +1: the rank mass of positiv
 
 **Sign:**
 
-- `+`: Field tends to be larger than Field2
-- `-`: Field2 tends to be larger than Field
+- `+`: field tends to be larger than field2
+- `-`: field2 tends to be larger than field
 
 **Caveats:**
 

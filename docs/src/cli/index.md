@@ -14,7 +14,7 @@ itself is never modified by any `index` subcommand.
 `build` additionally maintains a **keyless catalog** beside the cohort,
 `cohort.pulse.indexes.json`, recording each index's ordered key tuple.
 It exists because `<keyhash>` is a hash **of** the key tuple, so a
-sidecar cannot be opened without already knowing its key columns — and
+sidecar cannot be opened without already knowing its key fields — and
 object storage cannot list a directory, so globbing `.idx` files is not
 an option where cohorts are usually served from. `list` reads the
 catalog first.
@@ -41,11 +41,11 @@ pulse index drop   --input PATH --key FIELD[,FIELD...] [--json]
 Scans the cohort once and writes a sidecar index keyed on `--key`
 (comma-separated for a composite key; order is significant and is
 what `pulse api lookup --key` must match). Idempotent — rebuilding
-with the same key columns over an unchanged cohort produces a
+with the same key fields over an unchanged cohort produces a
 byte-identical sidecar.
 
 ```bash
-pulse index build --input sales.pulse --key region,date
+pulse index build --input sales.pulse --key region,date --json
 ```
 
 ```json
@@ -69,9 +69,8 @@ pulse index build --input sales.pulse --key region,date
 equal to `distinct_keys` on a single file (exact), and on a shard
 archive — where `distinct_keys` is a per-shard sum that counts a key in
 k shards k times — the merge of each shard's HyperLogLog sketch
-(about 3.25% relative standard error). It is absent when unknown (an
-archive index built before the sketches existed, or one whose catalog
-an older Pulse rewrote), never 0. `list` carries it too.
+(about 3.25% relative standard error). It is omitted when unknown (an
+archive index carrying no sketches), never 0. `list` carries it too.
 
 `manifest_path` is the keyless catalog this build upserted its entry
 into — the one path that can be read to recover this index's key tuple
@@ -80,7 +79,7 @@ without knowing the tuple already.
 ## `pulse index list`
 
 Enumerates every sidecar index built for a cohort, with each one's
-ordered key columns. An empty result is not an error.
+ordered key fields. An empty result is not an error.
 
 ```bash
 pulse index list --input sales.pulse
@@ -95,12 +94,10 @@ Two sources, catalog first:
 2. **The directory listing** (`cohort.pulse.<hash>.idx` beside the
    source file), reading each match's own key spec.
 
-The two are **unioned** when both are available, so a sidecar built by
-a Pulse that predates the catalog does not disappear the day one
-appears beside it — and `build` seeds a catalog it is creating from the
-sidecars already on disk, closing the same gap from the write side.
-When the catalog exists, a directory that cannot be listed is not an
-error.
+The two are **unioned** when both are available, so a sidecar missing
+from the catalog still lists; `build` seeds a new catalog from the
+sidecars already on disk. When the catalog exists, a directory that
+cannot be listed is not an error.
 
 A catalog that exists but cannot be parsed is
 `PULSE_INDEX_MANIFEST_INVALID` rather than a silent fall back to the
@@ -149,8 +146,7 @@ pulse index verify --input sales.pulse --key region,date --json
 and, for a shard archive only, `range_mismatch`: every shard hashes
 clean but a shard's recorded key range disagrees with its sidecar
 (`shards_range_mismatched`), or `bloom_stale`: a shard's Bloom filter
-(its record in the index's `.blooms` file, or a pre-`.blooms` index's
-per-shard `.bloom`) is not the one its sidecar's keys build
+(its record in the index's `.blooms` file, or a per-shard `.bloom`) is not the one its sidecar's keys build
 (`shards_bloom_stale`). A missing filter is never stale.
 
 An additive `modtime_drift: true` (omitted when false) means the
@@ -176,13 +172,11 @@ offered.
 pulse index drop --input sales.pulse --key region,date
 ```
 
-## Flags (common to build / verify / drop)
+## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--input` | `-i` | string | (required) | Cohort `.pulse` file path (or the positional argument) |
-| `--key`   | `-k` | string | (required for build/verify/drop) | Comma-separated key column(s), in build-time order |
-| `--json`  |      | bool   | false | Emit the standard envelope |
+Every verb takes `--input` / `-i` (or the positional path) and `--json`;
+`build`, `verify` and `drop` also require `--key` / `-k`. Full list:
+[Command & flag reference](reference.md#pulse-index-build).
 
 ## Coded errors
 
@@ -191,7 +185,8 @@ pulse index drop --input sales.pulse --key region,date
 | `PULSE_INDEX_MISSING` | `verify` / `drop` targeted a key combination with no built sidecar (and, for `drop`, no catalog entry either) |
 | `PULSE_INDEX_MANIFEST_INVALID` | `cohort.pulse.indexes.json` exists but is not a readable catalog (malformed JSON, foreign `kind`, unknown `format_version`) |
 | `PULSE_INDEX_MANIFEST_STALE` | The catalog names an index file that is not present — rebuild or drop that key tuple |
-| `PROCESSING_CONFIG` | `--key` names a field whose type is not index-keyable (`set_*`), or another field-resolution failure |
+| `PROCESSING_CONFIG` | `--key` names a `set_*` field (not index-keyable), or another field-resolution failure |
+| `PULSE_VECTOR_FIELD_NOT_SCALAR` | `--key` names a `vec_*` field |
 
 ## Constraints
 
@@ -211,8 +206,8 @@ pulse index drop --input sales.pulse --key region,date
   rebuild.
 - **Equality-only, full-key required.** No range or partial-key
   lookups in v1.
-- `set_*` fields cannot be key columns — see the keyable-type policy
-  on [`pulse api lookup`](api-lookup.md).
+- `set_*` and `vec_*` fields cannot be key fields — see the
+  [keyable-type policy](api-lookup.md#keyable-type-policy).
 
 ## Related
 

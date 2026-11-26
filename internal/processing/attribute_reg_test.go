@@ -329,7 +329,7 @@ func TestAttrReg_PredictorValidation(t *testing.T) {
 		{
 			name:    "missing target",
 			spec:    &types.Attribute{Type: types.ATTR_REG_FITTED, Predictors: []string{"x1"}},
-			wantSub: "Target",
+			wantSub: "target",
 		},
 		{
 			name:    "categorical predictor",

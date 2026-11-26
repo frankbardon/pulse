@@ -68,7 +68,7 @@ func ExplainCommand() *cli.Command {
 				" (" + string(descriptor.ExplainRootRequest) + " is a process request; " + string(descriptor.ExplainRootSample) + " takes --request only)"},
 			&cli.StringFlag{Name: "detail", Usage: "One of " + orList(descriptor.ExplainDetails()) + ": " + string(descriptor.ExplainTerse) + " (default) is the summary and structured parts; " +
 				string(descriptor.ExplainFull) + " adds narrative sentences, glossary refs, follow-ups and assumptions"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -118,9 +118,9 @@ func ExplainCommand() *cli.Command {
 			res, err := p.Explain(ctx, req)
 			if err != nil {
 				// Every refusal carries its own code (SERVICE_VALIDATION,
-				// DATA_FILE, ENCODING_INVALID); EXPLAIN_ERROR is reached
-				// only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "EXPLAIN_ERROR", err)
+				// SERVICE_RESOURCE, ENCODING_INVALID); CLI_ERROR is
+				// reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)

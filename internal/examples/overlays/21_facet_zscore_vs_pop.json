@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "FacetSchema summarising a filtered experiment cohort's region distribution decorated with an OVERLAY_ZSCORE_VS_POP per-value standardised-distance overlay against the resolver-supplied population frequencies. Streamable FACET-host kind — sibling to OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json): pair both together to get two parallel SERIES layers from a single Facet pass. Each entry's Statistic = (subset_freq - pop_freq) / sd_pop where sd_pop is the population SD across per-category frequencies. Renderers centre diverging colour ramps on baseline = 0 (mirrors the rest of the z-score family). pop_freq of zero emits PULSE_OVERLAY_REF_ZERO and skips the entry.",
+    "description": "Facet of region on the converters of experiment.pulse (FILTER_INCLUDE converted yes) decorated with an OVERLAY_ZSCORE_VS_POP group overlay: each region's subset frequency against its population frequency, (subset_freq - pop_freq) / sd_pop, sd_pop the population SD across the per-region frequencies (north about +11, west about -15 here). Pair it with OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) for two series layers from one facet pass. ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). Streamable. A zero population frequency emits PULSE_OVERLAY_REF_ZERO and skips the entry; renderers centre colour ramps on baseline 0.",
     "intents": [
       "benchmark",
       "distribution_shape"
     ],
     "name": "facet-zscore-vs-pop",
-    "operators": [],
+    "operators": ["FILTER_INCLUDE"],
     "capabilities": [
       "capability:facet"
     ],
@@ -26,6 +26,15 @@
   "fields": [
     "region"
   ],
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "converted",
+      "values": [
+        "yes"
+      ]
+    }
+  ],
   "overlays": [
     {
       "name": "region_zscore_vs_population",
@@ -33,7 +42,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": "experiment_population.pulse"
+          "cohort": ".data/experiment.pulse"
         }
       }
     }

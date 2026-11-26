@@ -26,15 +26,15 @@ Use something else:
 
 ## Params
 
-`Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
+`scope` `matrix`. `ref` empty. `level`/`within` `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `row_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
 | `col_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
-| `targets_as` | `counts` \| `shares` | `shares` | `shares` (default; normalized, scaled to the host total) \| `counts` (totals must agree). |
-| `max_iter` | int | `100` | Iteration cap. |
-| `tolerance` | float | 1e-08 | Convergence threshold on the maximum relative margin error. |
+| `targets_as` | enum | `shares` | `shares` (normalized, scaled to the host total) \| `counts` (totals must agree). |
+| `max_iter` | int | `100` | Iteration cap, 1–100,000. |
+| `tolerance` | float | 1e-08 | Convergence threshold on the maximum relative margin error, in `(0, 1)`. A bad or unknown param ⇒ `PULSE_OVERLAY_PARAM_MISSING`. |
 
 
 ## Host shape
@@ -62,7 +62,7 @@ Primary MATRIX: fitted table. Part `factors` (MATRIX fitted / observed; `null` w
 - Structural zeros stay zero; an empty row cannot reach a positive target.
 - Not converged ⇒ `PULSE_OVERLAY_RAKE_NOT_CONVERGED`, payload still emitted, `converged` 0.
 - Bad (negative / undefined NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.
-- Rakes the table only: writing raked weights to a cohort is out of scope.
+- Rakes the table only; it writes no weights to the cohort.
 
 ## See
 

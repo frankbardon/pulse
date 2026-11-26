@@ -272,7 +272,7 @@ func TestOverlay_IndexVsRollingMean_MissingWindowParamRejected(t *testing.T) {
 		spec types.OverlaySpec
 	}{
 		{
-			name: "Params nil",
+			name: "params nil",
 			spec: types.OverlaySpec{
 				Name:  "idx_rolling",
 				Kind:  types.OverlayKindIndexVsRollingMean,
@@ -282,7 +282,7 @@ func TestOverlay_IndexVsRollingMean_MissingWindowParamRejected(t *testing.T) {
 			},
 		},
 		{
-			name: "Params empty object missing window",
+			name: "params empty object missing window",
 			spec: types.OverlaySpec{
 				Name:   "idx_rolling",
 				Kind:   types.OverlayKindIndexVsRollingMean,

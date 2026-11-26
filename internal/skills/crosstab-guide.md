@@ -24,7 +24,7 @@ requires: [capability:crosstab]
 
 - Need margins (row / column / grand totals) or shares (row %, column %)? → crosstab.
 - Only one figure per key combination, no totals? → plain `groups` + `aggregations` (`grouper-design`).
-- Several figures per cell? → <!-- feature: capability:crosstab_cells -->`cells`, one stub row per measure (`crosstab-measures`), or <!-- /feature -->one crosstab per figure (Compose them). A second figure only on the MARGINS (e.g. an unweighted base, `"weight": null`) rides `margin_aggregations` (`crosstab-margin-aggregations`).
+- Several figures per cell? → <!-- feature: capability:crosstab_cells -->`cells`, one stub row per measure (`crosstab-measures`), or <!-- /feature -->one crosstab per figure<!-- feature: capability:compose --> (Compose them)<!-- /feature -->. A second figure only on the MARGINS (e.g. an unweighted base, `"weight": null`) rides `margin_aggregations` (`crosstab-margin-aggregations`).
 - Comparing cells statistically? → crosstab + overlays (`overlay-system`).
 - Moves in a long panel (a row per subject per time)? → <!-- feature: ATTR_PREVIOUS_STATE -->previous-state rows × state columns (`op-attr-previous-state`), then `op-overlay-markov`.<!-- /feature -->
 
@@ -67,13 +67,15 @@ One decode pass into per-cell / per-margin state — memory `O(cells + margins)`
 
 - the cell aggregator is not in `crosstab.recompute_aggregators`, and every `margin_aggregations` entry is mergeable;
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
-- nothing needs whole-cohort context: no join, windows, regressions, tests, features, formula attributes or expression filters, no decimal cell field.
+- nothing needs whole-cohort context: no <!-- feature: capability:joins -->join, <!-- /feature -->windows, regressions, tests, features, formula attributes or expression filters, no decimal cell field.
 
 Overlays never prevent fusing.
 
 **Grid cap.** Rows × columns over `max_crosstab_cells` refuses with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 
-**Joins.** A joined crosstab runs buffered over the JOINED rows (`as`-prefixed right fields)<!-- feature: capability:joins -->; see `join-design`<!-- /feature -->.
+<!-- feature: capability:joins -->
+**Joins.** A joined crosstab runs buffered over the JOINED rows (`as`-prefixed right fields); see `join-design`.
+<!-- /feature -->
 
 ## Components — `Response.Components.Crosstab`
 

@@ -9,11 +9,10 @@ allowlist. It never means "everything minus X", and a feature added in a
 later Pulse release is not in an existing profile until you add it.
 
 With no profile, an instance offers everything, including features added
-in later releases. Its output is byte-identical to an instance built
-before profiles existed.
+in later releases.
 
-> **Status (v1.0.0 alphas).** An instance enforces its profile. Everything
-> the profile omits is hidden:
+> An instance enforces its profile. Everything the profile omits is
+> hidden:
 >
 > - An extension operator the profile omits is not registered.
 > - A built-in aggregator, attribute, filter, grouper, window, feature,
@@ -115,12 +114,13 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_sweep_adaptive`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_compare`, `capability:compose_post_fit`, `capability:compose_banner`, `capability:compose_base`, `capability:model_save`, `capability:regression_holdout`, `capability:regression_order`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:union`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:materialize_output`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:lookup_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:crosstab`, `capability:facet`, `capability:weighting`, `capability:matrices` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
-`pulse manifest --json` lists every operator name the running build
-registers.
+`pulse features init` prints every feature name the running build
+offers, by kind; `pulse features show FILE` describes each one, with its
+dependencies.
 
 Rules:
 
@@ -173,7 +173,9 @@ one name in every group must be enabled:
   overlays, `capability:process_chain` for stage overlays,
   `capability:facet` for facet overlays.
 - Some operators read another's results, and filter-to-file runs on the
-  filter-expression engine:
+  filter-expression engine. The table holds the common edges;
+  `pulse features show` (or `DescribeFeatureProfile`) prints the full
+  dependency groups of every listed feature:
 
 | Feature | Also needs |
 |---|---|
@@ -235,8 +237,8 @@ unknown kind.
 
 An enabled extension regression also counts as a regression for the
 built-in features that need one. `ATTR_REG_PREDICT`,
-`capability:model_save` and `capability:regression_holdout` normally need one of `REG_BAYES_LINEAR`,
-`REG_GLM`, `REG_MMM_HILL` or `REG_OLS`; an enabled extension regression whose
+`capability:model_save` and `capability:regression_holdout` need a
+built-in regression (table above); an enabled extension regression whose
 registration supplies a `Scorer` meets that need too.
 `capability:compose_fits` and `capability:regression_order` accept any enabled extension regression. So
 a profile that enables only your own model can still fit, score and
@@ -334,10 +336,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   regressions, overlays, commands, MCP tools, synth distributions and
   I/O formats. The `facet`, `process_chain`, `join`, `crosstab`, `export`
   and `import` capability blocks are omitted when their capability is
-  off. This is a public type change: `descriptor.Manifest.Facet`,
-  `ProcessChain`, `Join`, `Crosstab`, `Export` and `Import` are now
-  pointers (nil when hidden), so code that read them as values must
-  check for nil. Prose that names a hidden feature is dropped from
+  off: `descriptor.Manifest.Facet`, `ProcessChain`, `Join`, `Crosstab`,
+  `Export` and `Import` are pointers, nil when hidden. Prose that names a hidden feature is dropped from
   descriptions and hints. The manifest's `skills` list and examples
   count, categories and tags cover only the skills and examples the
   instance serves (see the MCP section). `extensions.label_tables` is empty (`[]`) when
@@ -417,8 +417,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   and the manifest's error lists, show only codes the instance can
   raise. A hidden code looks up as unknown. `pulse errors lookup` on the
   CLI stays unscoped.
-- **Wording follows the instance.** Some refusals and hints that used to
-  name built-ins now name only what the instance offers: the
+- **Wording follows the instance.** Refusals and hints that name
+  built-ins name only what the instance offers: the
   zone-capable operator list, the `ATTR_RANK` to `WIN_RANK` hint (the
   generic unknown-attribute error when `WIN_RANK` is hidden), pairwise
   overlay advice, the facet overlay kind list, and the categorical and
@@ -426,19 +426,12 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   one that recommends other operators (for example "use
   GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT" or "use TEST_ANOVA_F for
   k>2") names only the ones the instance offers, keeping its error
-  code. An instance without a profile reads byte-identically to before.
+  code.
 - **Digest.** Manifest and payload schema carry `feature_set_digest`
   (the schema as its root `$comment`), equal to `p.FeatureSetDigest()`.
   The field is additive; the envelope `format_version` stays `"1.1"`.
   Do not read the digest as hiding the profile: a same-version observer
   can tell a profiled digest from the default.
-
-### Upgrading an existing profiled instance
-
-An instance built with a profile before this release hid nothing. It now
-hides everything the profile omits, including extension operators. A
-request that used an omitted name or slot fails as if the name never
-existed. Add the names you still need to `features`.
 
 ## The MCP server
 

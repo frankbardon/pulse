@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Null-state survey on the nullable income field of intake.pulse via AGG_NULL_COUNT paired with AGG_COUNT (present values) for a complete present-vs-null contrast. AGG_NULL_COUNT reads the per-record null bitmap (Schema.HasBitmap()), so a blank income counts as missing, never as zero: about a quarter of the forms leave income blank.",
+    "description": "Null check on the nullable income field of intake.pulse: AGG_NULL_COUNT beside AGG_COUNT (present values). AGG_NULL_COUNT reads the per-record null bitmap, so a blank income counts as null, never as zero: about a fifth of the forms leave income blank.",
     "intents": [
       "data_quality"
     ],

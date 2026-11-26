@@ -27,11 +27,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[2]string` | (required) | `[low, high]` — both parsed via `strconv.ParseFloat`. Exactly two entries; any other count → `PROCESSING_CONFIG`. |
+| `values` | array | (required) | `[low, high]`, number strings. Any other count → `PROCESSING_CONFIG` at run time; predict passes it. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 

@@ -16,21 +16,17 @@ parallel against a bounded worker pool.
 ```
 pulse api compose --request FILE [--json] [--stream [--stream-fits]]
                                   [--parallel N] [--no-fail-fast]
-                                  [--no-defaults] [--echo-request]
+                                  [--no-defaults] [--no-components]
+                                  [--echo-request]
 ```
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--request`       | `-r` | string | (required) | Composed-request JSON path |
-| `--json`          |      | bool   | false      | Wrap output in the standard envelope |
-| `--stream`        |      | bool   | false      | Stream rows as NDJSON; each line is `{"index": N, "row": {...}}`; a batch that warned adds one `{"warnings": [...]}` line after the rows; a sampling sweep (`random` / `lhs`) adds one `{"sweep_seed": N}` line; a ranked sweep ends with one `{"ranking": [...]}` line (`rank.profile` adds `"ranking_profile"` to it; an adaptive `de` / `bo` sweep adds `"sweep_trace"`, `[]` when no response); a banner then ends with one `{"banner": {...}}` line |
-| `--stream-fits`   |      | bool   | false      | Under `--stream`, end with one `{"fits": {...}}` line — the buffered `fits` object — after every other line (the `ranking` line included); only when the request declares `fits`. Ignored without `--stream` |
-| `--parallel`      |      | int    | 1          | Worker count; 0 = `GOMAXPROCS`, 1 = sequential |
-| `--no-fail-fast`  |      | bool   | false      | Aggregate errors across slots instead of cancelling on first failure (parallel mode only) |
-| `--no-defaults`   |      | bool   | false      | Disable smart operator-type inference |
-| `--echo-request`  |      | bool   | false      | Include the normalized `ComposedRequest` on `envelope.request`; each slot reflects its post-defaults form; a `sweep` or `banner` is echoed as the expanded slots that ran. Ignored under `--stream` |
+Each flag's type, default and help text is in the
+[Command & flag reference](reference.md#pulse-api-compose).
+`--no-defaults`, `--no-components` and `--echo-request` mean what they
+mean on [`api process`](api-process.md#flags), applied to every slot; an
+echoed `sweep` or `banner` shows the expanded slots that ran.
 
 ## Request file shape
 
@@ -114,17 +110,13 @@ With `--no-fail-fast`:
 }
 ```
 
-`data` is a `ComposedResponse` object (since the v0.21.0 Compose facade
-lift). Each `data.responses[i]` is a full `Response` carrying its
-slot's final `label` (the caller's, or the synthesized `request_<i+1>`;
-kept by every `return` preset), so per-slot
-`data.responses[i].components` follows the same additive contract as
-[`api process`](api-process.md#-json). `data.overlays[i]` carries the
-post-fold Compose-host overlay layer plus its per-layer
-`warnings[]` diagnostics (`OverlayWarning{code, message, details}`);
-the slot is `omitempty` so overlay-free Compose responses are
-byte-identical to the legacy `[]*Response` wire shape that shipped
-under `format_version: "1.0"`.
+`data` is a `ComposedResponse`. Each `data.responses[i]` is a full
+`Response` carrying its slot's final `label` (the caller's, or the
+synthesized `request_<i+1>`; kept by every `return` preset), with
+`components` as on [`api process`](api-process.md#--json).
+`data.overlays[i]` carries the post-fold Compose-host overlay layer plus
+its per-layer `warnings[]` (`{code, message, details}`); it is omitted
+when the batch has no Compose overlays.
 
 Every slot's run-time warnings (`data.responses[i].warnings`) and the
 batch's own (`data.warnings`) are also written to the envelope's
@@ -148,9 +140,14 @@ The `index` field identifies which slot's request produced each row.
 Each `row` follows its slot's `return`: the selected columns only, at
 that slot's `precision`.
 
-With `--stream-fits`, a batch that declares `fits` ends with one more
-line, `{"fits": {...}}`: the buffered `fits` object, keyed by fit name,
-written last. The library writes the same stream with
+After the rows come the terminal lines, each only when it applies, in
+this order: `{"warnings": [...]}` (the batch warned), `{"sweep_seed": N}`
+(a `random` / `lhs` sweep), `{"ranking": [...]}` (a ranked sweep;
+`rank.profile` adds `ranking_profile`, an adaptive `de` / `bo` sweep
+adds `sweep_trace`), `{"banner": {...}}`, `{"optimizations": [...]}`,
+`{"comparisons": [...]}`. With `--stream-fits`, a batch that declares
+`fits` ends with one more line, `{"fits": {...}}`: the buffered `fits`
+object, keyed by fit name, written last. The library writes the same stream with
 `pulse.WriteComposeStream` (`ComposeStreamOptions.TerminalFits`).
 
 ## Exit codes

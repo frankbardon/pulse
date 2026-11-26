@@ -15,13 +15,13 @@ Storage is always UTC. `datetime` = epoch SECONDS, `date` = epoch DAYS (never in
 
 Per slot: slot `tz` -> slot `tz_field` -> request `time_zone_field` -> request `time_zone` -> cohort `zone_field` -> `Options.DefaultTimeZone` -> UTC. Predict resolves the same way and echoes `time_zones[]` (`slot`, `tz`, `tz_field`, `source` = slot|field|request|cohort|options|default). `tz` on a `date` field, or on an operator that is not zone-capable, is `PROCESSING_CONFIG`. An inherited zone on a `date` field is not applied (`tz: null`). A non-UTC zone on a derived field (absent from the schema) is refused.
 
-UTC, `Etc/UTC` and absent are byte-identical to the pre-zone output.
+UTC, `Etc/UTC` and absent give identical output.
 
 ## Per-row zones
 
 When each record has its own zone, name a `categorical_*` field of IANA names: slot `tz_field` on `groups` / `filterers` / `attributes` / `features` (and crosstab axes), or request-wide `time_zone_field` on `Request` / `FacetRequest`. `tz` + `tz_field` on one slot is `PROCESSING_CONFIG`; so is a zone field that is not `categorical_*`, one on a non-capable operator, or an explicit `tz_field` on a `date` field. Predict checks every dictionary entry (`PULSE_TIMEZONE_UNKNOWN`, `details.dictionary_index`), as the run does. Echo: `tz: null`, `source: "field"`.
 
-A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked on write and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). Such a cohort is format `0x02` (older builds refuse it). `inspect` shows it as `zone_field`.
+A cohort can store its own default zone field in its schema (`zone_field`, the `.pulse` ZONE section): it must be a `categorical_*` field whose every dictionary entry is a valid zone, the same rule as `time_zone_field`, checked on write and read (`ENCODING_INVALID` for a missing or non-categorical field, `PULSE_TIMEZONE_UNKNOWN` for a bad entry). Such a cohort is format `0x02` (older builds refuse it). `pulse cohort inspect` / `pulse_inspect` show it as `zone_field`.
 
 It is inherited like `time_zone_field`, below any request zone (echo `source: "cohort"`, `tz_field`, `tz: null`): skipped on a `date` field, refused on a derived field (override: request `time_zone`, e.g. `UTC`). A join takes the LEFT cohort's default, never the right's. A chain stage 1+ takes NO per-row zone, permanently: no datetime survives a stage, so its `time_zone_field` / `tz_field` is `SERVICE_VALIDATION`.
 
@@ -40,9 +40,10 @@ A `datetime` stores whole seconds since the epoch, naive UTC. Synthetic ones: [`
 A `datetime` is read on its LOCAL calendar day in every mode (process, stream, compose, parallel, shards, crosstab, join, chain, facet); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
 
 - `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` (`hour_of_day`: `HH`) local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
-- Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
+- Range literals are LOCAL calendar days in the slot's zone.
+- `RangeTables` carry no zone: the slot's zone applies.
 - Filter-to-file zones `FILTER_DATE_RANGES` like `Process`; the zone keys the output name.
-- `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. `iso_weekday` / `dow` are ISO (Monday = 1), ignoring `week_start`.
+- `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the `<label>_hour` feature column) is datetime-only. `iso_weekday` / `dow` are ISO (Monday = 1), ignoring `week_start`.
 - Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point (filter-to-file: `FilterToFileRequest.TimeZone`); they take no slot `tz` ([`calendar-formulas`](calendar-formulas.md)).
 - `OVERLAY_YOY` has no zone slot; it follows its host grouper, so an hourly host gives hourly prior-year alignment.
 

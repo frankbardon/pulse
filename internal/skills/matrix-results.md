@@ -9,7 +9,7 @@ requires: [capability:matrices]
 ---
 # Vectors and matrices
 
-A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result. Both are additive (`format_version` stays `"1.1"`).
+A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result.
 
 ## 1. Name the vector
 
@@ -18,7 +18,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).
 - `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no slot or expression uses warns `PULSE_VECTOR_UNREFERENCED`.
-- `pulse predict` echoes the members (`resolved_vectors`).
+- Predict (`pulse_predict`, `pulse api predict`) echoes the members (`resolved_vectors`).
 
 ## 2. Ask for the matrix
 
@@ -56,14 +56,16 @@ Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only w
 
 `encoding`: `full` (default), `upper` (`values[r][k]` = cell (r, r + k)), or `records` — every part as `{kind, encoding, columns, rows: [{key, <column>: value}]}` in row order, nulls kept (SEM `estimates` add `lval`, `op`, `rval`, `parameter`, `free`; a member `key` is refused).
 
-## 3. Missing data and weights
+## 3. Missing data<!-- feature: capability:weighting --> and weights<!-- /feature -->
 
 `params.missing`: `listwise` (default, drop a row if any member is null) or `pairwise` (each cell over the rows where both are present; `auxiliary.n` per pair).
 
 - Pairwise matrices of 3+ members may not be positive semi-definite: a warning on covariance / correlation, FATAL on a decomposition unless `params.repair: "nearest"` (`PULSE_MATRIX_NOT_PSD`).
 - `max_drop_share` (listwise only) warns `PULSE_MATRIX_LISTWISE_HEAVY_DROP` when more than that share of rows was dropped.
-- `PULSE_MATRIX_INSUFFICIENT_N` (under two rows or no weight mass) and `PULSE_MATRIX_ZERO_VARIANCE` (a constant member: its correlation row and column are null; covariance keeps an exact 0).
+- `PULSE_MATRIX_INSUFFICIENT_N` (under two rows<!-- feature: capability:weighting --> or no weight mass<!-- /feature -->) and `PULSE_MATRIX_ZERO_VARIANCE` (a constant member: its correlation row and column are null; covariance keeps an exact 0).
+<!-- feature: capability:weighting -->
 - Weights follow `weighting`: frequency and probability both fold into a weighted covariance. A row of weight 0 counts toward `n` but adds no mass.
+<!-- /feature -->
 
 ## 4. Per group
 
@@ -73,7 +75,7 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 
 `components.matrices[i]` is the floor: `n`, `n_null`, `n_listwise_dropped`, pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->, weighted `sum_weights` / `n_eff` / `n_weight_invalid`<!-- /feature --> (`response-components`).
 
-`pulse predict` returns `matrices[]` before any row is read: `shape`, `axis_keys`, `accumulator_bytes`, `pairwise_psd_risk` (false guarantees no NOT_PSD warning), `streamable`. For a grouped request it adds:
+Predict returns `matrices[]` before any row is read: `shape`, `axis_keys`, `accumulator_bytes`, `pairwise_psd_risk` (false guarantees no NOT_PSD warning), `streamable`. For a grouped request it adds:
 
 | Key | Meaning |
 |---|---|
@@ -86,8 +88,10 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 
 ## 6. What is refused
 
-- `matrices` with `joins`, or on a chain stage after the first: `PULSE_MATRIX_UNSUPPORTED_SOURCE`.
+- `matrices`<!-- feature: capability:joins --> with `joins`<!-- /feature --><!-- feature: capability:process_chain -->, or on a chain stage after the first<!-- /feature -->: `PULSE_MATRIX_UNSUPPORTED_SOURCE`.
+<!-- feature: capability:crosstab -->
 - `matrices` with `crosstab`: `PULSE_MATRIX_HOST_CONFLICT`.
+<!-- /feature -->
 - Matrices are not streamed row by row: they arrive at the final flush. `ProcessStream` rows carry no matrices.
 
 Serial, parallel-decode and sharded runs (a multi-shard archive vs its single-file twin) are bit-identical.

@@ -6,6 +6,8 @@
 
 - [Installation](getting-started/installation.md)
 - [Your First Cohort](getting-started/first-cohort.md)
+- [Your First Analysis](getting-started/first-analysis.md)
+- [Your First MCP Session](getting-started/first-mcp-session.md)
 - [CLI Tour](getting-started/cli-tour.md)
 
 # Analysis Guide
@@ -476,13 +478,16 @@
 - [Synth calibration & rationale](cli/synth-calibration.md)
 - [mcp](cli/mcp.md)
 - [completion](cli/completion.md)
-- [Flag Reference](cli/flags.md)
+- [CLI concepts & shared flags](cli/flags.md)
+- [Command & flag reference](cli/reference.md)
 
 # Library Embedding
 
 - [Go API Overview](library/overview.md)
+- [Embedder Walkthrough](library/embedder-walkthrough.md)
 - [pulse.New & Options](library/options.md)
 - [Custom Filesystems](library/custom-fs.md)
+- [Readers, Writers & Jobs (io)](library/io.md)
 - [Streaming & ProcessStream](library/streaming.md)
 - [StreamResult[T]](library/stream-result.md)
 - [Parallel Compose](library/parallel-compose.md)
@@ -493,10 +498,14 @@
 - [Watch & WatchDir](library/watch.md)
 - [Deterministic FilterToFile](library/filter-to-file.md)
 - [Reading & Building Cohorts](library/cohort-reader.md)
+- [Synthetic Data (synth)](library/synth.md)
 - [Materializing Derived Columns](library/materialize.md)
 - [Point Lookup & Index Management](library/point-lookup.md)
 - [Cohort Union](library/cohort-union.md)
 - [Request Templating](library/request-templating.md)
+- [Choosing an Operator](library/operators.md)
+- [Overlays](library/overlays.md)
+- [Label, Range & Lookup Tables](library/tables.md)
 - [Response Shaping](library/response-shaping.md)
 - [Row Weighting](library/weighting.md)
 - [Computing Survey Weights (Rake)](library/rake.md)
@@ -505,12 +514,15 @@
 - [Feature Profiles](library/feature-profiles.md)
 - [Tuning Limits](library/tuning-limits.md)
 - [Observability](library/observability.md)
+- [Writing Operators (extend)](library/extend.md)
+- [Serving MCP (mcpserve, mcp/gosdk)](library/mcp-serving.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Numerical Optimization (optimize)](library/optimize.md)
 - [Bayesian Sampling (mcmc)](library/mcmc.md)
 - [Media-Mix Models](library/mmm.md)
 - [Vectors and Matrices](library/matrices.md)
+- [Structural Equation Models](library/sem.md)
 
 # .pulse File Format
 
@@ -525,6 +537,7 @@
 # MCP Integration
 
 - [Server, Tools, Resources](mcp/index.md)
+- [Protocol Versions](mcp/protocol.md)
 
 # Payload Contract
 

@@ -29,7 +29,7 @@ func marginAggBaseReq() *types.Request {
 // structural defect down BOTH dispatch arms. Both call the one
 // validateCrosstabSpec, but the fused arm reaches it from a different
 // entry point, and a refusal that only fired on the buffered path would
-// let a malformed request through on every fusable Visa-shaped scan.
+// let a malformed request through on every fusable wide scan.
 func TestCrosstab_MarginAggregationsMalformedRejected(t *testing.T) {
 	t.Parallel()
 

@@ -39,7 +39,7 @@ Same `Test` / `TestResult`. A post-test drops rows with a null in a used column 
 
 Tier 1 — raw distribution questions (A/B revenue, normality). Tier 2 — per-group summaries / windowed columns (trend on `moving_avg`).
 
-Raw-row and per-group correlations can disagree (Simpson's paradox); `Variant` (`pearson` / `pearson_post`) says which.
+Raw-row and per-group correlations can disagree (Simpson's paradox); `variant` (`pearson` / `pearson_post`) says which.
 
 ## Decision criteria
 
@@ -67,7 +67,7 @@ A failed spread gate → Welch's ANOVA (same Welford state); badly failed normal
 
 The F test rejects the global null but not *which pairs* differ. For pairwise localization chain two requests:
 
-1. Tier-1 one-way ANOVA; read `ms_within` / `df_within` from `Details`.
+1. Tier-1 one-way ANOVA; read `ms_within` / `df_within` from `details`.
 2. Tier-2 Tukey HSD with those two as `params` (Tukey-Kramer p, family-wise α controlled).
 
 After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tests<!-- feature: capability:multiplicity --> with a `multiplicity` block (`holm`)<!-- /feature -->.
@@ -77,7 +77,7 @@ After Welch's ANOVA, Tukey's pooled `ms_within` is wrong: run pairwise Welch tes
 - `alpha` defaults to 0.05, range `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`).
 - Two-sided, fixed-horizon: one look at a planned n. Limits: no sequential / always-valid p-values (peeking inflates false positives), no Bayesian readout (probability to beat control); one-sided is caller-side.
 - Two-group signs read first − second (alphabetical); `params.reference` is second.
-- Multi-group headline tracks the worst group; detail in `Details.per_group`.
+- Multi-group headline tracks the worst group; detail in `details.per_group`.
 <!-- feature: capability:multiplicity -->
 - Many tests: `multiplicity` adds `p_adjusted` beside raw p (`multiplicity-correction`).
 <!-- /feature -->
@@ -96,7 +96,7 @@ A tier-1 test streams when it can run on online state (mean / variance / n, or c
 
 ## Gotchas
 
-- Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`).
+- Tier-2 `field` names the aggregator's output column: its `label`, else `AGG_<TYPE>_<field>`.
 - Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col`.
 - A test failing on its data (`PULSE_TEST_VARIANCE_ZERO`: a constant field) fails alone: `{label, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`).
 

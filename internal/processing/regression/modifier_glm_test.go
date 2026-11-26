@@ -74,7 +74,7 @@ func TestRegGLM_Jackknife_Logistic(t *testing.T) {
 	}
 	res := runGLMWithModifier(t, spec, records)
 	if res.Resample != "jackknife" {
-		t.Errorf("Resample echo = %q, want jackknife", res.Resample)
+		t.Errorf("resample echo = %q, want jackknife", res.Resample)
 	}
 	for _, name := range []string{InterceptKey, "x1", "x2"} {
 		se := res.StdErrors[name]
@@ -113,7 +113,7 @@ func TestRegGLM_Stepwise_Logistic(t *testing.T) {
 		t.Fatalf("FitBuffered: %v", err)
 	}
 	if res.Selection != "stepwise" {
-		t.Errorf("Selection echo = %q, want stepwise", res.Selection)
+		t.Errorf("selection echo = %q, want stepwise", res.Selection)
 	}
 	hasX1, hasX3 := false, false
 	for _, s := range res.SelectedFeatures {

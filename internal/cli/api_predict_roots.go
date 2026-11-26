@@ -70,7 +70,7 @@ func predictRootCmd(name, usage, requestUsage string,
 		Usage: usage,
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: requestUsage, Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat warnings as errors"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the root's normalized request on the envelope under \"request\" (distinct from data.request, which echoes the input as written)."},
 		},
@@ -89,11 +89,11 @@ func predictRootCmd(name, usage, requestUsage string,
 			}
 			p, err := newPulseOpts(ctx, pulse.Options{Strict: cmd.Bool("strict"), EchoRequest: cmd.Bool("echo-request")})
 			if err != nil {
-				return fail("PREDICT_ERROR", err)
+				return fail("CLI_ERROR", err)
 			}
 			env, err := predict(ctx, p, data)
 			if err != nil {
-				return fail("PREDICT_ERROR", err)
+				return fail("CLI_ERROR", err)
 			}
 
 			if jsonOut {

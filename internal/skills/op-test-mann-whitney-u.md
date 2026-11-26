@@ -17,19 +17,19 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
-| `reference` | string | — | The `SplitBy` level read second (`groups[1]`), so `u_a`/`r_a`, `z` and `rank_biserial` belong to the other group (default: alphabetical). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). |
-| `exact` | bool | `false` | Exact permutation p, ties included (`Variant` `exact`): `test-variant-options`. |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `reference` | string | — | The `split_by` level read second (`groups[1]`), so `u_a`/`r_a`, `z` and `rank_biserial` belong to the other group (default: alphabetical). Not a level, or no `split_by` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). |
+| `exact` | bool | `false` | Exact permutation p, ties included (`variant` `exact`): `test-variant-options`. |
 
-- `weight` — frequency only: a row of weight w ranks as w identical rows — equals the test on the expanded rows. `Details` add `sum_weights` shaped like `n` (raw rows).
+- `weight` — frequency only: a row of weight w ranks as w identical rows — equals the test on the expanded rows. `details` add `sum_weights` shaped like `n` (raw rows).
 
 ## Inputs
 
-`Field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` (required, exactly 2 groups) — categorical (`packed_bool` levels `"0"`/`"1"`).
+`field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `split_by` (required, exactly 2 groups) — categorical (`packed_bool` levels `"0"`/`"1"`).
 
 ## Output
 
-`Statistic` = U_min; `PValue` two-sided normal approx, tie- and continuity-corrected (R `wilcox.test(exact = FALSE)`), or exact under `exact`. `Details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
+`statistic` = U_min; `p_value` two-sided normal approx, tie- and continuity-corrected (R `wilcox.test(exact = FALSE)`), or exact under `exact`. `details`: `groups` (sorted; `reference` second), `n`, `u_a`, `u_b`, `u_min`, `r_a`, `r_b`, `mu_u`, `var_u`, `z`; `effect_size.rank_biserial` = (U_A − U_B)/(n_A·n_B) — > 0 ⇒ `groups[0]` tends larger (sign of `z`).
 
 <!-- generated: reading-the-output -->
 

@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL TO DELETE A MANAGED IMPORT YOU NO LONGER NEED.
-Cleaning up after a one-off analysis, or freeing a name for re-import. Sidecar `expired=true` entries can stay until swept; `pulse_drop` is the explicit eviction.
+Cleaning up after a one-off analysis, or freeing a name for re-import. Expired handles stay on disk; `pulse_drop` is the explicit eviction.
 
 ## Input
 
@@ -17,13 +17,13 @@ Cleaning up after a one-off analysis, or freeing a name for re-import. Sidecar `
 
 ## Output
 
-`descriptor.Envelope` wrapping a small drop record (`handle`, `dropped: true`). Unknown handle → `PULSE_IMPORT_SOURCE_MISSING`.
+`{handle, dropped: true}` (no envelope). An unknown handle is a tool error `PULSE_IMPORT_SOURCE_MISSING` (`details.handle`).
 
 ## Gotchas
 
 - Pulse-format passthroughs (`managed=false`) are NOT in the pool — `pulse_drop` returns `PULSE_IMPORT_SOURCE_MISSING` for them. They were never managed.
-- Drop deletes both the `.pulse` file under `$PULSE_DATA_DIR/imports/` AND the TTL sidecar. There is no undo.
-- After drop, any cached session binding pointing at the handle path is stale; the next inspect/import rebinds.
+- Drop deletes both `imports/<handle>.pulse` under the data directory AND its TTL sidecar `imports/<handle>.pulse.meta.json`. There is no undo.
+- A request still naming the handle's path fails to open the cohort; re-import to restore it.
 
 ## See
 

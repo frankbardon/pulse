@@ -24,7 +24,7 @@ mkdir -p "$DATA_DIR"
 
 FIXTURES=internal/examples/fixtures
 
-for cohort in transactions customers orders training_data all_types experiment repeated_measures card_issuers tier_migrations survey subscribers warehouse_orders plan_history plan_history_wide battery intake mmm_weekly brand_survey; do
+for cohort in transactions customers orders training_data all_types experiment repeated_measures card_issuers tier_migrations survey subscribers warehouse_orders plan_history plan_history_wide battery intake mmm_weekly brand_survey brand_ratings; do
   echo "==> building $cohort.pulse"
   "$PULSE_BIN" import csv \
     --input  "$FIXTURES/$cohort.csv" \
@@ -37,6 +37,24 @@ done
 # (attributes/20_record_reference.json).
 echo "==> indexing experiment.pulse on id"
 "$PULSE_BIN" index build "$DATA_DIR/experiment.pulse" --key id --json > /dev/null
+
+# The shard archive the anchor example (aggregations/06_sharded_anchor.json)
+# reads: transactions split evenly into wave1.pulse and wave2.pulse, the
+# split internal/integration's buildShardedTransactionsFixture writes.
+echo "==> building transactions_sharded.pulse"
+SHARD_TMP=$(mktemp -d)
+trap 'rm -rf "$SHARD_TMP"' EXIT
+total=$(( $(wc -l < "$FIXTURES/transactions.csv") - 1 ))
+half=$(( total / 2 ))
+head -n $(( half + 1 )) "$FIXTURES/transactions.csv" > "$SHARD_TMP/wave1.csv"
+{ head -n 1 "$FIXTURES/transactions.csv"; tail -n +$(( half + 2 )) "$FIXTURES/transactions.csv"; } > "$SHARD_TMP/wave2.csv"
+for wave in wave1 wave2; do
+  "$PULSE_BIN" import csv --input "$SHARD_TMP/$wave.csv" --output "$SHARD_TMP/$wave.pulse" \
+    --schema "$FIXTURES/schemas/transactions.json" --json > /dev/null
+done
+rm -f "$DATA_DIR/transactions_sharded.pulse"
+"$PULSE_BIN" shard create "$DATA_DIR/transactions_sharded.pulse" \
+  -i "$SHARD_TMP/wave1.pulse" -i "$SHARD_TMP/wave2.pulse" --json > /dev/null
 
 # The synthetic twin of customers.pulse the union example
 # (tests/38_union_source_vs_twin.json) compares with its source: a

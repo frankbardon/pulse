@@ -2,8 +2,8 @@ package descriptor
 
 import "github.com/frankbardon/pulse/descriptor"
 
-// facetCapability returns the canonical FacetCapability entry. Static
-// today; bumps require updating skills/facet-design.md.
+// facetCapability returns the canonical FacetCapability entry. A
+// change updates skills/facet-design.md.
 func facetCapability() descriptor.FacetCapability {
 	return descriptor.FacetCapability{
 		Name:                "facet_schema",
@@ -22,8 +22,8 @@ func facetCapability() descriptor.FacetCapability {
 			"OVERLAY_ZSCORE_VS_POP",
 		},
 		StreamableConditions: []string{
-			"NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
-			"IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds",
+			"numeric_percentiles is empty (percentiles force a buffered per-field sort)",
+			"include_histogram is false, or histogram_range supplies known [min, max] bounds",
 			"every base filterer is row-local streamable (FILTER_INCLUDE / FILTER_EXCLUDE / FILTER_RANGE / FILTER_GEO_*)",
 		},
 	}

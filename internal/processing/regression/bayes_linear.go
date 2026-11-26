@@ -123,7 +123,7 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 	if spec.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.SERVICE_VALIDATION,
-			"REG_BAYES_LINEAR requires a Target field",
+			"REG_BAYES_LINEAR requires a target field",
 			map[string]any{"name": spec.Name},
 		)
 	}

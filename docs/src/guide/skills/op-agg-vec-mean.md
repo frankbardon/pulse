@@ -35,11 +35,11 @@ Slot: `vector` or `fields`, no `field` ([`vector-aggregates`](vector-aggregates.
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 
-Rich `[]float64`, one mean per member; a null member skips only that element. An element no row answered is NaN (`null`).
+JSON array of numbers, one mean per member; a null member skips only that element. An element no row answered is NaN (`null`).
 
 ## Components
 
@@ -54,7 +54,7 @@ Rich `[]float64`, one mean per member; a null member skips only that element. An
 
 ## Gotchas
 
-- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a Sort key, a window, post-test or overlay input, a crosstab cell or margin without `element`, or a chain stage feeding another — unless expanded ([`vector-aggregates`](vector-aggregates.md)).
+- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a `sort` key, a window, post-test or overlay input, a crosstab cell or margin without `element`, or a chain stage feeding another — unless expanded ([`vector-aggregates`](vector-aggregates.md)).
 - Expanded columns are ordinary nullable f64 columns; a `return` path names one quoted, `data[*]."<label>[<elem>]"`.
 - `element` cell: a record reaches an auxiliary margin only if its member reached a cell.
 

@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-z-two-sample
-description: Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ.
+description: Two-sample z-test on field means across two split_by groups; identical SE to Welch's t-test but p-value via standard normal Φ.
 kind: operator
 category: TEST
 operator: TEST_Z_TWO_SAMPLE
@@ -28,20 +28,19 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `reference` | string | — | The `SplitBy` level read second, so `diff` and the effect size read other − reference (default: alphabetical). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
-| `covariate` | string | — | A numeric pre-period column (CUPED): the test runs on the adjusted `Field − θ(x − x̄)`; `Details` add `diff_unadjusted`, `theta`, `variance_reduction`. Needs `SplitBy`; else `PULSE_TEST_COVARIATE_INVALID`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `reference` | string | — | The `split_by` level read second, so `diff` and the effect size read other − reference (default: alphabetical). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `covariate` | string | — | A numeric pre-period field (CUPED): the test runs on the adjusted `y − θ(x − x̄)`; `details` add `diff_unadjusted`, `theta`, `variance_reduction`. Needs `split_by`; else `PULSE_TEST_COVARIATE_INVALID`. Detail: [`test-variant-options`](test-variant-options.md). |
 
-Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
-- `weight` — per-group moments on w*, SE reads N*_g (Σw frequency, Kish n_eff probability). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
+- `weight` — per-group moments on w*, SE reads N*_g (Σw frequency, Kish n_eff probability). `details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 
 ## Inputs
 
-`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` — categorical (`packed_bool` levels `"0"`/`"1"`).
+`field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `split_by` (required, exactly 2 groups) — categorical (`packed_bool` levels `"0"`/`"1"`).
 
 ## Output
 
-`Statistic` = z = `diff` over the unpooled (Welch) SE √(s²_a/n_a + s²_b/n_b); `PValue` two-sided via standard normal Φ; no `DF`. `Details`: `groups`, per-arm `n` / `mean` / `variance` (sample, n − 1), `diff`, normal `ci_low`/`ci_high` on `diff`, pooled-SD `effect_size.cohens_d`.
+`statistic` = z = `diff` over the unpooled (Welch) SE √(s²_a/n_a + s²_b/n_b); `p_value` two-sided via standard normal Φ; no `df`. `details`: `groups`, per-arm `n` / `mean` / `variance` (sample, n − 1), `diff`, normal `ci_low`/`ci_high` on `diff`, pooled-SD `effect_size.cohens_d`.
 
 ## Reading the output
 
@@ -60,7 +59,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 ## Gotchas
 
 - Streamable — reads the same per-group Welford buckets as the t-tests.
-- Statistic + SE byte-equal to Welch's t; **p-value differs** (Φ vs Student-t). For small n the divergence is non-trivial; predict surfaces no warning — choose intentionally.
+- `statistic` and SE equal Welch's t; **p-value differs** (Φ vs Student-t). For small n the divergence is non-trivial; predict surfaces no warning — choose intentionally.
 - Use only when n is large per group AND survey conventions demand normal-CDF p.
 
 ## See

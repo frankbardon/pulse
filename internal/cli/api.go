@@ -44,12 +44,12 @@ func apiProcessCmd() *cli.Command {
 		Usage: "Execute a processing request against a cohort",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {\"warnings\":[...]} line"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit the response's components (the per-aggregator / per-grouper / per-filterer / crosstab / run counts behind each figure); every other key is unchanged"},
 			&cli.BoolFlag{Name: "no-project", Usage: "Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -82,7 +82,7 @@ func apiProcessCmd() *cli.Command {
 				iter, err := p.ProcessStream(ctx, req)
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -119,7 +119,7 @@ func apiProcessCmd() *cli.Command {
 			resp, err := p.Process(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -150,10 +150,10 @@ func apiProcessChainCmd() *cli.Command {
 		Usage: "Execute a source-rooted linear chain of mergeable processing stages",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Chain request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults"},
-			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ChainRequest on the envelope under \"request\". Each stage's Request reflects the per-stage post-defaults form captured during execution."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-stage Response. Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized chain request on the envelope under \"request\". Each stage's request reflects the per-stage post-defaults form captured during execution."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit components from every stage's response; every other key is unchanged"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -181,7 +181,7 @@ func apiProcessChainCmd() *cli.Command {
 			resp, err := p.ProcessChain(ctx, chain)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_CHAIN_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -204,14 +204,14 @@ func apiComposeCmd() *cli.Command {
 		Usage: "Execute multiple processing requests in batch",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile, \"sweep_trace\" under an adaptive mode); optimize blocks end with one {\"optimizations\":[...]} line"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a sampling sweep (random / lhs) adds one {\"sweep_seed\":N} line; then, in this order, a ranked sweep adds one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile, \"sweep_trace\" under an adaptive mode), a banner one {\"banner\":{...}} line, optimize blocks one {\"optimizations\":[...]} line and nested-model comparisons one {\"comparisons\":[...]} line"},
 			&cli.BoolFlag{Name: "stream-fits", Usage: "Under --stream, end the stream with one {\"fits\":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
-			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ComposedRequest on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-slot Response in ComposedResponse.Responses. Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized compose request on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit components from every slot's response under responses; every other key is unchanged"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -251,7 +251,7 @@ func apiComposeCmd() *cli.Command {
 			}
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "COMPOSE_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -284,10 +284,10 @@ func apiSampleCmd() *cli.Command {
 		Name:  "sample",
 		Usage: "Return sample rows from a cohort",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path (required unless --request)"},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (required unless --request)"},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full SampleRequest JSON file, or - for stdin (cohort or union, union_source_field, n, labels); in place of --input. --count and --labels layer on top of the file"},
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample (with --request: overrides the file's n, the default when it has none)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
@@ -326,7 +326,7 @@ func apiSampleCmd() *cli.Command {
 				rows, err := p.Sample(ctx, input, count)
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -356,7 +356,7 @@ func apiSampleCmd() *cli.Command {
 			result, err := p.SampleWithRequest(ctx, sampleReq)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -406,7 +406,7 @@ func runSampleRequest(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, pat
 	result, err := p.SampleWithRequest(ctx, req)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -470,9 +470,9 @@ func apiFacetCmd() *cli.Command {
 		Name:  "facet",
 		Usage: "Return distinct values for a field in a cohort, or a rich multi-field summary",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path"},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
 			&cli.StringSliceFlag{Name: "field", Aliases: []string{"f"}, Usage: "Field name to facet (repeat for multiple)"},
-			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (overrides flags)"},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (flags layer on top of the file)"},
 			&cli.IntFlag{Name: "top-k", Usage: "Cap discrete values per field"},
 			&cli.Float64SliceFlag{Name: "percentile", Usage: "Numeric percentile (repeatable, in (0,1))"},
 			&cli.BoolFlag{Name: "histogram", Usage: "Include numeric histograms"},
@@ -480,8 +480,8 @@ func apiFacetCmd() *cli.Command {
 			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
 			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable."},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved FacetRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -520,7 +520,7 @@ func apiFacetCmd() *cli.Command {
 				values, err := p.Facet(ctx, input, fields[0])
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -560,7 +560,7 @@ func apiFacetCmd() *cli.Command {
 			result, err := p.FacetSchema(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -629,7 +629,7 @@ func apiPredictCmd() *cli.Command {
 		Usage: "Validate a request against a cohort without executing",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "strict", Usage: "Treat warnings as errors"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized request on the envelope under \"request\" (distinct from PredictResult.Request, which echoes the raw input)."},
 		},
@@ -663,14 +663,14 @@ func apiPredictCmd() *cli.Command {
 			p, err := newPulseOpts(ctx, pulse.Options{Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			env, err := p.PredictEnvelope(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -732,11 +732,11 @@ func apiLookupCmd() *cli.Command {
 		Usage: "Look up row(s) by an indexed key against a cohort's prebuilt sidecar index (see `pulse index build`)",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
-			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column=value pair to match; repeat for a composite key in the same column order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
+			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key field=value pair to match; repeat for a composite key in the same field order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
 			&cli.StringFlag{Name: "return", Usage: "Comma-separated field names to project into the result row(s); omit for every schema field"},
 			&cli.StringFlag{Name: "mode", Usage: lookupModeFlagUsage},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full LookupRequest JSON file (flags layer on top of the file)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved LookupRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -780,7 +780,7 @@ func apiLookupCmd() *cli.Command {
 // a new cohort. All behaviour is pulse.Materialize; the leaf parses
 // flags, calls it once and formats the result. Every refusal carries
 // its own code (PULSE_MATERIALIZE_*, SERVICE_VALIDATION for an existing
-// target, the request's own pre-flight codes); MATERIALIZE_ERROR is
+// target, the request's own pre-flight codes); CLI_ERROR is
 // reached only by an uncoded error. --predict calls
 // pulse.PredictMaterialize instead: the predict envelope is written as
 // it is, nothing is written at --out (which it does not need), and the
@@ -796,7 +796,7 @@ func apiMaterializeCmd() *cli.Command {
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic); its now-stale sidecars are listed, never rebuilt"},
 			&cli.BoolFlag{Name: "strict", Usage: "Fail with PULSE_FIELD_DESCRIPTION_LOW_QUALITY (nothing written) when an output field's description is weak, instead of warning; with --predict, promote every predict warning into an error"},
 			&cli.BoolFlag{Name: "predict", Usage: "Validate without executing: print the output schema the run would write, every static refusal and the data-dependent risks, reading the source's header and schema only; nothing is written"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -822,7 +822,7 @@ func apiMaterializeCmd() *cli.Command {
 				Strict:    cmd.Bool("strict"),
 			})
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "MATERIALIZE_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings)
@@ -844,7 +844,7 @@ func materializePredict(ctx context.Context, cmd *cli.Command, jsonOut bool, req
 	}
 	env, err := p.PredictMaterialize(ctx, req)
 	if err != nil {
-		return cliCodedError(cmd, jsonOut, "PREDICT_ERROR", err)
+		return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 	}
 	if jsonOut {
 		return writeJSON(cmd.Writer, env)
@@ -991,7 +991,7 @@ var lookupModeFlagUsage = "Multiplicity mode when the key matches more than one 
 // translateLookupMode resolves a --mode value through
 // types.ParseLookupMultiplicity: the wire spellings ("assert_unique" |
 // "first" | "all") and the hyphenated "assert-unique" alias. A refusal
-// stays uncoded (the leaf's placeholder code), as it always was.
+// stays uncoded (CLI_ERROR).
 func translateLookupMode(mode string) (types.LookupMultiplicity, error) {
 	m, ok := types.ParseLookupMultiplicity(mode)
 	if !ok {

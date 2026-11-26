@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "facet",
-    "description": "Multi-field FacetSchema with additive_fields. The base filter narrows region=north; the additive accumulator on region strips that clause so the response shows what each region value would yield if added to the filter.",
+    "description": "Multi-field facet request with additive_fields: the base filter keeps region north, and the additive summary on region drops that field's own clause, so it shows what each region value would yield if added to the filter.",
     "intents": [
       "composition",
       "segment"

@@ -1,7 +1,8 @@
 # Finding Change Sites
 
 **Audience:** Pulse internals contributors (human or agent) about to
-change an operator or a request/response slot.
+change an operator, a request/response slot or an example fixture
+cohort.
 
 A Pulse change rarely lives in one file: a new operator touches its
 type constant and registry, the engine, a capability declaration, a
@@ -19,6 +20,7 @@ make sites ARGS="new-op overlay"          # a NEW operator of a category
 make sites ARGS="slot request matrices"   # a Request / Response slot (Go or json name)
 make sites ARGS="slot request my_new_slot"  # unknown name = new-slot template
 make sites ARGS="slot compose sweep"      # a Compose-level slot (ComposedRequest)
+make sites ARGS="fixture survey"          # an example fixture cohort (or a new stem)
 make sites ARGS="categories"              # categories and their operators
 # or: go run ./internal/tools/sites [--json] [--all] <mode> ...
 ```
@@ -118,7 +120,13 @@ of site is found by its shape:
 
 `slot request <name>` falls back to `types.ComposedRequest` when the
 name is not a `types.Request` field (`sweep`, `base`, `fits`, `banner`,
-`optimize`, `post_fit`); `slot compose <name>` asks for it directly.
+`compare`, `optimize`, `post_fit`, …); `slot compose <name>` asks for
+it directly, and is the only way to reach a name both roots declare
+(`overlays`, `multiplicity`, `return`, `params`). `slot response <name>`
+likewise falls back to `types.ComposedResponse` (`optimizations`,
+`comparisons`, `fits`, `ranking`, `banner`, `sweep_trace`, `post_fit`,
+…); a name both declare (`overlays`, `returned`, `warnings`) resolves to
+`types.Response`.
 A name declared on neither root but on structs reachable from it (an
 item-level key such as `for_each`) reports every declaring field. A
 Compose-level slot also prints **Compose sites**, each found by shape:
@@ -136,6 +144,47 @@ Compose-level slot also prints **Compose sites**, each found by shape:
   fields (`ResultCatalog`, `ResolveComposeReturn`): change predict and
   runtime together.
 - **Key carriers** — skills and examples holding the slot's json key.
+
+Every report also prints what reaches the change without naming it:
+
+- **Whole-repo runners** (under Gates to rerun, when an example is a
+  site, and always for `new-op`) — tests that run every example: a
+  `Test` function that calls `internal/examples`' `All`, or lists the
+  `internal/examples` tree (`Walk`, `Glob`, `ReadDir` with no named
+  file), directly or through a helper in its package's tests
+  (`TestLimitsDefaultsNeverTripGoldens`, `TestExamples_RunEndToEnd`).
+- **Call-site floors** (`op`, `slot`) — a `Test` function that walks
+  the tree, parses Go source and holds a module function's name as a
+  string literal checks every call of that function
+  (`TestReadSchemaCallersThreadHeaderVersion` holds `"ReadSchema"`). A
+  site file calling it lists the call and the floor as a gate.
+- **Shared generators** (`op`) — every hit in a fixture generator
+  script (`.py` / `.R` under `testdata/` or `scripts/`) is attributed
+  to its case-table entry: the row key (`("t_split", …)`), the
+  `case == "ov_symmetry"` branch above it, or the first quoted key of
+  the block a comment heads, prefixed with the enclosing function.
+
+`fixture <stem>` covers an example fixture cohort
+(`internal/examples/fixtures/<stem>.csv` with
+`internal/examples/fixtures/schemas/<stem>.json`), existing or new.
+Its sites never name an operator or a slot, so each is found by shape:
+
+- **Registration lists** — a Go declaration (comments excluded) or a
+  run of consecutive lines elsewhere naming at least three cohorts,
+  each quoted, backticked or spelled `<stem>.pulse` / `.csv` / `.json`
+  (or five bare stems on one line, a shell word list); a Markdown table
+  row counts only its first cell. That finds `buildExampleFixtures`,
+  the `fixtures/build.sh` loop, the README setup prose and cohort table,
+  the generator's `Generate` and a fuzz test's cohort subset. A list
+  naming at least 75% of the cohorts is **complete**; one that skips the
+  cohort warns. A smaller one is a **subset**: add the cohort only if
+  it belongs.
+- **Readers** (existing cohort) — files naming `<stem>.pulse`,
+  `<stem>.csv` or `schemas/<stem>.json`: examples, stories, tests.
+- **Gates** — the fixture package's tests, the `Test` / `Fuzz`
+  functions using a Go list's identifier, and the every-example
+  runners; **Regenerate** names the `main` package under
+  `internal/examples/fixtures/cmd/`.
 
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in, outside Go comments, but
@@ -189,7 +238,8 @@ Nothing in the site list is hand-maintained:
   a site list; the tool's tests pin each rule on a fixture tree and the
   regression sites on the real one.
 - **Slot sites** are `go/types`-resolved references to the
-  `types.Request` / `types.ComposedRequest` / `types.Response` field (selectors, promoted fields
+  `types.Request` / `types.ComposedRequest` / `types.Response` /
+  `types.ComposedResponse` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against
   `go list -export` data), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand
@@ -208,16 +258,26 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   function — shows up only through the **Enumerators** section (callers
   of the registry function) or the category gates. Read the
   update-demand slice for the contract.
-- Whole-repo runners and floors that never name the operator or slot
-  (the every-example runner, a `ReadSchema` call-site floor) are not
-  listed; grep for them when your change reaches examples or a read
-  path.
+- Whole-repo runners and call-site floors are found by shape (above):
+  an every-example runner that enumerates the library some other way
+  (say through the facade's search), or a floor test that matches its
+  callee by something other than a string literal, is missed.
+- A floor is matched by file: a site file that calls the floor's
+  callee anywhere lists it, even when the call sits in a declaration
+  your change does not touch.
+- Per-case attribution reads a generator script's layout (row keys,
+  `case == "…"` branches, comment-headed blocks); a case table of
+  another shape is reported as the enclosing function or `(top level)`.
 - Predicate callers are matched by function name; a name with more than
   80 call sites is reported in the footer instead of expanded.
 - Contributor recipes describe a category in general and rarely name
   one operator, so the category's `adding-*.md` recipe and
   `extension-points.md` are appended to **Read before editing** rather
   than found by name.
+- A fixture-cohort list held some other way (one cohort per Go
+  declaration, a list built from a glob, a table keyed by a later
+  column) is not found; nor is a cohort named only as a bare word in
+  prose.
 - Synth distribution names are ordinary words, so they are matched only
   as `"quoted"` strings; a quoted `"normal"` in an unrelated parameter
   table is reported too.

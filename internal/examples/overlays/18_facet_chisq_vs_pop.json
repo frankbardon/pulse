@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "FacetSchema summarising a filtered customers cohort's region distribution decorated with an OVERLAY_CHISQ_VS_POP scalar overlay that runs a chi-square goodness-of-fit test of the host subset's per-value distribution against the resolver-supplied population frequencies (an unfiltered or alternately-filtered comparison cohort). FACET-host inferential sibling of the discrete-arm streamable OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) and OVERLAY_ZSCORE_VS_POP (21_facet_zscore_vs_pop.json). Emits one scalar OverlaySummary{Statistic, PValue, Parameters{df}} carrying the table-level test result — the renderer surfaces it as a distributional-shift badge near the facet header. Low-expected-cell warning follows the canonical chi-square rule (any expected < 5 → one PULSE_OVERLAY_EXPECTED_LOW warning). Inherently buffered (inferential FACET-host family).",
+    "description": "Facet of region on the customers aged 50 and over (FILTER_RANGE on age) decorated with an OVERLAY_CHISQ_VS_POP scalar overlay: a chi-square goodness-of-fit test of the subset's region counts against the whole cohort's region shares (chi-square about 4.0 on 3 df, p about 0.26 here: the older customers spread over the regions like everyone else). ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). The layer summary carries statistic, p_value and parameters.df; any expected count below 5 emits one PULSE_OVERLAY_EXPECTED_LOW. Discrete-field siblings: OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) and OVERLAY_ZSCORE_VS_POP (21_facet_zscore_vs_pop.json). Buffered.",
     "intents": [
       "benchmark",
       "composition"
     ],
     "name": "facet-chisq-vs-pop",
-    "operators": [],
+    "operators": ["FILTER_RANGE"],
     "capabilities": [
       "capability:facet"
     ],
@@ -26,6 +26,16 @@
   "fields": [
     "region"
   ],
+  "filterers": [
+    {
+      "type": "FILTER_RANGE",
+      "field": "age",
+      "values": [
+        "50",
+        "90"
+      ]
+    }
+  ],
   "overlays": [
     {
       "name": "region_chisq_vs_population",
@@ -33,7 +43,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": "customers_population.pulse"
+          "cohort": ".data/customers.pulse"
         }
       }
     }

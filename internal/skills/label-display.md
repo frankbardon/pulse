@@ -26,20 +26,20 @@ Tables live on `pulse.Options.Extensions.LabelTables`:
 LabelTables: map[string]pulse.LabelTable{
     "country_names": {Description: "ISO → name",
         Rows: map[string]string{"US": "United States", "CA": "Canada"}},
-    // Function-driven for external stores:
+    // Function-driven (external stores):
     "icd_descriptions": {Lookup: func(k string)(string,bool,error){...}},
 }
 ```
 
-Or `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (stem = table name), flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic and disk-loaded tables can't share a name.
+Or `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (stem = table name), flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic and disk tables can't share a name.
 
 Pulse's own `*.spss.json` / `*.meta.json` / `*.indexes.json` sidecars are skipped; **any other unparseable `*.json` fails `pulse.New`**. `PULSE_RANGE_TABLES_DIR` alike.
 
 ### 2. Attach a binding
 
-Each `LabelBinding` pairs a field with a table and mode:
+A `LabelBinding` pairs a field with a table and mode:
 
-```json
+```json norun fragment
 {"labels":[{"field":"country","table":"country_names","mode":"replace"}]}
 ```
 
@@ -49,7 +49,7 @@ Each `LabelBinding` pairs a field with a table and mode:
 
 **Augment** — raw value preserved; sibling `"<field>_label"` column added. A schema field or output column (default names included) named `<field>_label` ⇒ `PULSE_LABEL_FIELD_COLLISION`, predict included.
 
-**Integer codes.** A `u4`–`u32` field binds too, keyed by its codes' decimal spellings (`"1"`, `"7"`; else `PULSE_LABEL_KEY_INVALID`). On a response it is augment-only (`replace` ⇒ `PULSE_LABEL_REPLACE_NUMERIC`): the number stays, `<field>_label` is added: group keys, sample cells, long crosstab rows, every chain / compose stage; a facet counts it per code (no KS overlay). A matrix axis lacks one: `PULSE_LABEL_NOT_APPLIED`. Floats, `u64`, dates: `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
+**Integer codes.** A `u4`–`u32` field binds too, keyed by its codes' decimal spellings (`"1"`, `"7"`; else `PULSE_LABEL_KEY_INVALID`). On a response it is augment-only (`replace` ⇒ `PULSE_LABEL_REPLACE_NUMERIC`): the number stays, `<field>_label` is added: group keys<!-- feature: capability:sample -->, sample cells<!-- /feature --><!-- feature: capability:crosstab -->, long crosstab rows<!-- /feature -->, every stage / slot<!-- feature: capability:facet -->; a facet counts it per code (no KS overlay)<!-- /feature --><!-- feature: capability:matrices -->. A matrix axis lacks one: `PULSE_LABEL_NOT_APPLIED`<!-- /feature -->. Floats, `u64`, dates: `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
 ## Surface coverage
 
@@ -114,9 +114,9 @@ Validated before any record is read; predict (`PredictConvert` too) reports the 
 
 - `docs/src/internals/extension-points.md` — registering `LabelTables` on `Options.Extensions`.
 <!-- feature: capability:facet -->
-- `skills/facet-design.md` — surfacing labels on `FacetField` values.
+- `facet-design` — surfacing labels on `FacetField` values.
 <!-- /feature -->
-- `skills/tool-label-tables.md` / `skills/tool-label-resolve.md` — `pulse_label_tables` / `pulse_label_resolve` schemas.
+- `tool-label-tables` / `tool-label-resolve` — `pulse_label_tables` / `pulse_label_resolve` schemas.
 <!-- feature: io_format:spss -->
-- `skills/spss-cohorts.md` — why an SPSS cohort stores codes, and where its labels live.
+- `spss-cohorts` — why an SPSS cohort stores codes, and where its labels live.
 <!-- /feature -->

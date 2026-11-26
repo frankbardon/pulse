@@ -25,7 +25,7 @@ Weighted: Hmisc `wtd.quantile` — sort by value; h = p·(Σw−1); x(k) = first
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

@@ -15,11 +15,11 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND-eq-zero. |
+| `values` | array | — | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND-eq-zero. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -30,7 +30,7 @@ Row-level predicate. Pass when `row & query == 0`. No emitted column.
 ## Gotchas
 
 - Null rows PASS (like an exclude filter); add a null filter if you need them out too.
-- Unknown label in `Values` → `PROCESSING_CONFIG`.
+- Unknown label in `values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
 - Useful as a NOT-of-features survey filter ("respondents who picked neither X nor Y").
 

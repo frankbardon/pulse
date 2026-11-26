@@ -1,34 +1,4 @@
 # TestDocsSnippetsRun baseline: runnable json request blocks in docs/src that are untagged or fail on their fixture.
 # Format: path<TAB>json:<block hash><TAB>reason. Shrink-only: fix or tag a block, then delete its line.
 # A generated docs/src/guide page is fixed in internal/docgen or the skill it renders.
-docs/src/cli/api-process.md	json:1b7167c84047	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/cli/api-process.md	json:242cceb3776a	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/getting-started/first-cohort.md	json:e3a0d8842acd	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/cohort-union.md	json:2520c7c0668e	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/label-display.md	json:ddb0f1344b2c	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/materialize-container.md	json:95abe4e40399	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/regression-collinearity.md	json:d5036a0bfdc9	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/regression-inference.md	json:323f53b64263	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/regression-margins.md	json:7fe400e24f27	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/regression-panel-covariance.md	json:1997e2d263d4	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/request-envelope.md	json:5bb97bc6c88a	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/request-params.md	json:ab9e8576cccf	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/request-templating.md	json:5ab54c0c69e1	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/response-shaping.md	json:f62e1c974513	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/guide/skills/sem-groups.md	json:0c2357e9c4a6	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/internals/adding-overlay.md	json:177b5e40fdb0	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/internals/adding-post-fit.md	json:e72f2f057b52	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/internals/extension-points.md	json:9ecc79f03891	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/cohort-union.md	json:80148841544d	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/cohort-union.md	json:c26fff9031fd	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/cohort-union.md	json:ca370ab6c233	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/compose-banner.md	json:e54f2ed6768a	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/compose-sweeps.md	json:32aa6e030bf8	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/compose-sweeps.md	json:6b6a3e00bcfa	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/compose-sweeps.md	json:aed45c28273d	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/matrices.md	json:835a0aaaa72e	baseline (U32a): predict refuses it on its tagged fixture; U32b fixes the snippet
-docs/src/library/multiplicity.md	json:cbd70e4834bb	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/request-templating.md	json:efc87b3215f4	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/weighting.md	json:bec87e109543	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/library/weighting.md	json:fb3392ecd184	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
-docs/src/regression.md	json:e16bdd1a2368	baseline (U32a): runnable request has no cohort= tag; U32b tags it cohort=<fixture> or norun
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

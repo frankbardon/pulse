@@ -23,19 +23,20 @@ Sub-packages you'll commonly touch:
 |---|---|
 | `github.com/frankbardon/pulse`            | Public facade (`Pulse`, `Options`, `Request`, `Response`, ...) |
 | `github.com/frankbardon/pulse/types`      | Request/response structs, component-type constants (`AGG_*`, ...) |
-| `github.com/frankbardon/pulse/io`         | Jobs (`ImportJob`, `ExportJob`, `ConvertJob`, …), `Reader` / `Writer`, and the factory: `io.NewReader(io.FormatCSV, fs, path, io.ReaderOptions{})`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, `FormatFromPath` |
+| `github.com/frankbardon/pulse/io` (imported as `pio`) | Jobs (`ImportJob`, `ExportJob`, `ConvertJob`, …), `Reader` / `Writer`, and the factory: `pio.NewReader(pio.FormatCSV, fs, path, pio.ReaderOptions{})`, `NewReaderFromBytes`, `NewWriter`, `NewWriterToBuffer`, `FormatFromPath` |
 | `github.com/frankbardon/pulse/errors`     | Typed `CodedError` system and code constants |
 | `github.com/frankbardon/pulse/descriptor` | Result and envelope types for manifest, predict, inspect (`Envelope`, `Manifest`, `PredictResult`, `InspectResult`) |
 | `github.com/frankbardon/pulse/synth`      | Synthetic data specs, profiles, `Synth` / `SynthBytes` for fixtures |
 | `github.com/frankbardon/pulse/encoding`   | Schema nouns and the ungrouped raw-byte primitives |
 | `github.com/frankbardon/pulse/mcp/gosdk`, `.../mcpserve` | Mount Pulse's MCP tools on your server / run a ready-made one |
+| `github.com/frankbardon/pulse/extend`     | The operator-authoring API for extensions ([Writing Operators](extend.md)) |
+| `github.com/frankbardon/pulse/observe` (+ `/otel`, `/prom`) | Logs, hooks and metrics vocabulary and adapters ([Observability](observability.md)) |
+| `.../linalg`, `.../optimize`, `.../mcmc`  | Numerical building blocks Pulse's estimators use ([Linear Algebra](linalg.md), [Numerical Optimization](optimize.md), [MCMC](mcmc.md)) |
 
 Everything under `internal/` — the engine, the per-format adapters, the
 MCP core, the skill pack, the filesystem config — is not importable from
 outside the module. The skill pack is reachable through the MCP skill
-tools, `pulse skills`, or the manifest's `skills` block. Upgrading from
-the earlier, flatter layout: see the embedder migration guide in the
-repository roadmap (`docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md`).
+tools, `pulse skills`, or the manifest's `skills` block.
 
 ## The facade
 
@@ -63,8 +64,8 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Open(ctx, path) (*Cohort, error)` | Read header + schema, return a typed Cohort handle |
 | `Process(ctx, req) (*Response, error)` | Execute one request |
 | `ProcessStream(ctx, req) (RowIter, error)` | Same, pull-based iterator over result rows |
-| `Compose(ctx, req) ([]*Response, error)` | Execute a batch sequentially |
-| `ComposeParallel(ctx, req, opts) ([]*Response, error)` | Execute a batch in parallel with a worker pool |
+| `Compose(ctx, req) (*ComposedResponse, error)` | Execute a batch sequentially; `Responses[i]` answers `Requests[i]` |
+| `ComposeParallel(ctx, req, opts) (*ComposedResponse, error)` | Execute a batch in parallel with a worker pool |
 | `Import(ctx, job) (*ImportReport, error)` | Tabular → `.pulse` |
 | `Export(ctx, job) (*ExportReport, error)` | `.pulse` → tabular |
 | `Convert(ctx, job) (*ConvertReport, error)` | Tabular → tabular, with `.pulse` as the transparent middle |
@@ -75,7 +76,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `PredictEnvelope(ctx, req) (*Envelope, error)` | Same header-only read as `Predict` (an archive's central directory and shard headers, an anchor's one entry, through the instance filesystem), envelope returned whole — `Options.Strict` / `Options.EchoRequest` come from the instance, as for `PredictBytes`; what `pulse api predict` calls |
 | `PredictBytes(ctx, data, req) (*Envelope, error)` | Validate a request against an in-memory cohort; the extension snapshot, `Options.Strict` and `Options.EchoRequest` come from the instance |
 | `PredictCompose(ctx, req)` / `PredictFacet(ctx, req)` / `PredictChain(ctx, req)` `(*Envelope, error)` | Validate a Compose batch, facet request or ProcessChain without executing it; the whole envelope comes back, `Data` a `*ComposePredictResult` / `*FacetPredictResult` / `*ChainPredictResult` with each refusal a coded `Errors` entry |
-| `CohortArtifacts(ctx, cohort) ([]string, error)` | Every existing Pulse-owned sidecar of a cohort (`.<keyhash>.idx`, an archive index's `.<keyhash>.blooms` and per-shard `#<shard>.<keyhash>.idx` / legacy `.bloom`, `.indexes.json`, `.spss.json`, `.meta.json`), sorted — what must move with it (keep the cohort's mtime: both sidecars fingerprint it) |
+| `CohortArtifacts(ctx, cohort) ([]string, error)` | Every Pulse-owned sidecar that exists beside a cohort (point-lookup indexes and Bloom files, `.indexes.json`, `.spss.json`, `.meta.json`, an interrupted-append `.append` journal), sorted: what must move with it (keep the cohort's mtime: the index and SPSS sidecars fingerprint it) |
 | `Sample(ctx, path, n) ([]Record, error)` | Up to n rows |
 | `Facet(ctx, path, field) ([]string, error)` | Distinct values of a field |
 | `Synth(ctx, spec, out, opts) (*SynthResult, error)` | Generate a synthetic cohort |
@@ -102,7 +103,7 @@ type (
 
 ## Minimum viable embed
 
-```go
+```go compile
 package main
 
 import (
@@ -137,6 +138,9 @@ func main() {
 
 ## Where to go from here
 
+- [Embedder Walkthrough](embedder-walkthrough.md) — the decisions in
+  order: Options, extensions, profiles, limits, observability, response
+  shaping, MCP serving.
 - [pulse.New & Options](options.md) — full `Options` reference.
 - [Custom Filesystems](custom-fs.md) — in-memory testing pattern,
   custom storage backends.
@@ -146,3 +150,7 @@ func main() {
   per-request timeout.
 - [Feature Profiles](feature-profiles.md) — declare the instance's feature
   set; validation codes and the MCP server entry point.
+- Per package: [Readers, Writers & Jobs (io)](io.md),
+  [Synthetic Data (synth)](synth.md),
+  [Writing Operators (extend)](extend.md),
+  [Serving MCP (mcpserve, mcp/gosdk)](mcp-serving.md).

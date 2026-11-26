@@ -4,18 +4,22 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/spf13/afero"
-	cli "github.com/urfave/cli/v3"
 
+	pcli "github.com/frankbardon/pulse/internal/cli"
 	"github.com/frankbardon/pulse/internal/doccheck"
+	"github.com/frankbardon/pulse/internal/docgen"
 )
 
-// flagsDocPath is the flag reference page, repo-relative (the allowlist key)
-// and as reached from this package's directory.
+// flagsDocPath is the hand-written CLI concepts page, repo-relative (the
+// allowlist key) and as reached from this package's directory. The
+// per-leaf flag lists live on the generated reference
+// (docgen.CLIReferencePath).
 const flagsDocPath = "docs/src/cli/flags.md"
 
 // docLongFlagRe matches a long flag token ("--input", "--log-level") not
@@ -27,6 +31,11 @@ var (
 	// docLinkDestRe matches an inline link's destination, whose #anchor
 	// ("#--strict-import") spells a heading slug, not a flag.
 	docLinkDestRe = regexp.MustCompile(`\]\([^)\s]*\)`)
+	// refLeafHeading is a leaf section heading on the generated reference.
+	refLeafHeading = regexp.MustCompile("^### `(pulse [^`]+)`$")
+	// refFlagCellRe is one backticked flag spelling in a table row's
+	// first cell ("`--input`, `-i`").
+	refFlagCellRe = regexp.MustCompile("`--?([A-Za-z0-9][A-Za-z0-9-]*)`")
 )
 
 // flagToken spells a flag name as a user types it.
@@ -37,30 +46,88 @@ func flagToken(name string) string {
 	return "--" + name
 }
 
-// treeFlagNames returns every flag name the binary accepts, aliases
-// included, mapped to the commands that mount it ("pulse" for the root's
-// global flags). The tree is the post-setup one (completionTree), so the
-// framework's --help / -h and the root's --version / -v count: a user can
-// type them.
-func treeFlagNames() map[string][]string {
-	out := map[string][]string{}
-	add := func(path string, flags []cli.Flag) {
-		for _, f := range flags {
-			for _, n := range f.Names() {
-				out[n] = append(out[n], path)
+// treeFlags is the command tree's flag names, aliases included: the
+// root's global flags and each runnable leaf's own flags. urfave's help
+// flag, mounted on every leaf, counts once, with the globals.
+type treeFlags struct {
+	global []string
+	leaves map[string][]string
+}
+
+func treeFlagSet() treeFlags {
+	root := completionTree()
+	names := func(fs []pcli.FlagDoc) []string {
+		var out []string
+		for _, f := range fs {
+			if f.Names[0] == "help" {
+				continue
 			}
+			out = append(out, f.Names...)
+		}
+		sort.Strings(out)
+		return out
+	}
+	t := treeFlags{leaves: map[string][]string{}}
+	for _, f := range pcli.GlobalFlags(root) {
+		t.global = append(t.global, f.Names...)
+	}
+	sort.Strings(t.global)
+	for _, l := range pcli.Leaves(root) {
+		t.leaves[l.Path] = names(l.Flags)
+	}
+	return t
+}
+
+// all returns every flag name the binary accepts.
+func (t treeFlags) all() map[string]bool {
+	out := map[string]bool{}
+	for _, n := range t.global {
+		out[n] = true
+	}
+	for _, ns := range t.leaves {
+		for _, n := range ns {
+			out[n] = true
 		}
 	}
-	root := completionTree()
-	add(root.Name, root.Flags)
-	walkCompletionTree(root, func(path []string, _, c *cli.Command) {
-		add(strings.Join(path, " "), c.Flags)
-	})
 	return out
 }
 
-// docFlagNames returns every flag name docs/src/cli/flags.md spells out,
-// prose, tables and code blocks alike (link destinations excluded).
+// refFlags parses the generated reference into the same shape: the flag
+// names in the `## Global flags` table and in each leaf section's table.
+func refFlags(doc string) treeFlags {
+	t := treeFlags{leaves: map[string][]string{}}
+	var into *[]string
+	var leaf string
+	for _, line := range strings.Split(doc, "\n") {
+		switch {
+		case line == "## Global flags":
+			into, leaf = &t.global, ""
+		case strings.HasPrefix(line, "## "):
+			into, leaf = nil, ""
+		case refLeafHeading.MatchString(line):
+			leaf = refLeafHeading.FindStringSubmatch(line)[1]
+			t.leaves[leaf] = []string{}
+			into = nil
+		case strings.HasPrefix(line, "| `-"):
+			cell := strings.SplitN(line, " | ", 2)[0]
+			for _, m := range refFlagCellRe.FindAllStringSubmatch(cell, -1) {
+				if leaf != "" {
+					t.leaves[leaf] = append(t.leaves[leaf], m[1])
+				} else if into != nil {
+					*into = append(*into, m[1])
+				}
+			}
+		}
+	}
+	sort.Strings(t.global)
+	for k := range t.leaves {
+		sort.Strings(t.leaves[k])
+	}
+	return t
+}
+
+// docFlagNames returns every flag name a page spells out, prose, tables
+// and code blocks alike (link destinations excluded).
 func docFlagNames(doc string) map[string]bool {
 	out := map[string]bool{}
 	doc = docLinkDestRe.ReplaceAllString(doc, "]")
@@ -73,80 +140,83 @@ func docFlagNames(doc string) map[string]bool {
 	return out
 }
 
-// containsLeaf reports whether doc names the command path leaf as a whole
-// token: `pulse api process` inside `pulse api process-chain` does not
-// count. A neighbouring letter, digit, '-' or '_' continues the name.
-func containsLeaf(doc, leaf string) bool {
-	nameByte := func(c byte) bool {
-		return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_'
-	}
-	for from := 0; ; {
-		i := strings.Index(doc[from:], leaf)
-		if i < 0 {
-			return false
+// diffNames returns the names in a missing from b, sorted.
+func diffNames(a, b []string) []string {
+	var out []string
+	for _, n := range a {
+		if !slices.Contains(b, n) {
+			out = append(out, n)
 		}
-		start, end := from+i, from+i+len(leaf)
-		if (start == 0 || !nameByte(doc[start-1])) && (end == len(doc) || !nameByte(doc[end])) {
-			return true
-		}
-		from = start + 1
 	}
+	return slices.Compact(out)
 }
 
-// commandList names up to three mounting commands, then a count.
-func commandList(cmds []string) string {
-	cmds = append([]string(nil), cmds...)
-	sort.Strings(cmds)
-	if len(cmds) <= 3 {
-		return strings.Join(cmds, ", ")
-	}
-	return fmt.Sprintf("%s and %d more", strings.Join(cmds[:3], ", "), len(cmds)-3)
-}
-
-// cliFlagsDocViolations compares the command tree with the flag reference,
-// names only, both directions. Every alias is a name like any other: it is
-// documented or allowlisted, and a documented one must be mounted.
-func cliFlagsDocViolations(leaves []string, tree map[string][]string, doc string) []doccheck.Violation {
+// cliFlagsDocViolations compares the command tree with the generated
+// reference per leaf, both directions (leaves and each leaf's flags,
+// aliases included, plus the global flags), and requires every flag the
+// concepts page names to be mounted somewhere.
+func cliFlagsDocViolations(tree treeFlags, ref treeFlags, concepts string) []doccheck.Violation {
 	var vs []doccheck.Violation
-	for _, leaf := range leaves {
-		if !containsLeaf(doc, leaf) {
-			vs = append(vs, doccheck.Violation{Path: flagsDocPath, Entry: "undocumented leaf " + leaf,
-				Message: "the CLI leaf is not named on the flag reference page; add it to the Command index"})
+	refPath := docgen.CLIReferencePath
+	add := func(path, entry, msg string) {
+		vs = append(vs, doccheck.Violation{Path: path, Entry: entry, Message: msg})
+	}
+	const regen = "; run `make docs` (the page is rendered from the command tree)"
+	for _, n := range diffNames(tree.global, ref.global) {
+		add(refPath, "undocumented global flag "+flagToken(n), "the root mounts it but the Global flags table omits it"+regen)
+	}
+	for _, n := range diffNames(ref.global, tree.global) {
+		add(refPath, "unmounted global flag "+flagToken(n), "the Global flags table lists it but the root does not mount it"+regen)
+	}
+	leaves := make([]string, 0, len(tree.leaves))
+	for l := range tree.leaves {
+		leaves = append(leaves, l)
+	}
+	sort.Strings(leaves)
+	for _, l := range leaves {
+		got, ok := ref.leaves[l]
+		if !ok {
+			add(refPath, "undocumented leaf "+l, "the CLI leaf has no section on the reference"+regen)
+			continue
+		}
+		for _, n := range diffNames(tree.leaves[l], got) {
+			add(refPath, "undocumented flag "+flagToken(n)+" on "+l, "the leaf mounts it but its section omits it"+regen)
+		}
+		for _, n := range diffNames(got, tree.leaves[l]) {
+			add(refPath, "unmounted flag "+flagToken(n)+" on "+l, "the leaf's section lists it but the leaf does not mount it"+regen)
 		}
 	}
-	documented := docFlagNames(doc)
-	names := make([]string, 0, len(tree))
-	for n := range tree {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		if !documented[n] {
-			vs = append(vs, doccheck.Violation{Path: flagsDocPath, Entry: "undocumented flag " + flagToken(n),
-				Message: fmt.Sprintf("mounted on %s but never named on the flag reference page; add it (a row, or the shared per-command section)", commandList(tree[n]))})
+	var stale []string
+	for l := range ref.leaves {
+		if _, ok := tree.leaves[l]; !ok {
+			stale = append(stale, l)
 		}
 	}
-	var docNames []string
-	for n := range documented {
-		docNames = append(docNames, n)
+	sort.Strings(stale)
+	for _, l := range stale {
+		add(refPath, "unmounted leaf "+l, "the reference has a section for a command the binary does not mount"+regen)
 	}
-	sort.Strings(docNames)
-	for _, n := range docNames {
-		if _, ok := tree[n]; !ok {
-			vs = append(vs, doccheck.Violation{Path: flagsDocPath, Entry: "unmounted flag " + flagToken(n),
-				Message: "named on the flag reference page but no command in the binary accepts it; remove or rename it"})
+	mounted := tree.all()
+	var named []string
+	for n := range docFlagNames(concepts) {
+		named = append(named, n)
+	}
+	sort.Strings(named)
+	for _, n := range named {
+		if !mounted[n] {
+			add(flagsDocPath, "unmounted flag "+flagToken(n),
+				"named on the CLI concepts page but no command in the binary accepts it; remove or rename it")
 		}
 	}
 	return vs
 }
 
-// TestCliHelpMatchesFlagsDoc holds the urfave command tree and
-// docs/src/cli/flags.md to the same names, both directions: every runnable
-// leaf and every flag the binary accepts (global, persistent and per-leaf,
-// aliases included) is named on the page, and every flag the page names is
-// mounted somewhere. Names only: descriptions and defaults are not compared.
-// The reverse direction for leaves (an index row naming an unmounted
-// command) is TestSkillsCoverAllCliLeaves' "mounted" check.
+// TestCliHelpMatchesFlagsDoc holds the urfave command tree and the
+// generated reference (docs/src/cli/reference.md) to the same leaves and,
+// per leaf, the same flags (aliases included), both directions, plus the
+// root's global flags; and every flag the hand-written concepts page
+// (docs/src/cli/flags.md) names is mounted somewhere. Names only: the
+// reference's text is held byte for byte by TestCLIReferenceCurrent.
 //
 // Known mismatches live in the shrink-only allowlist
 // internal/doccheck/allowlists/cli-flags.txt.
@@ -154,39 +224,55 @@ func TestCliHelpMatchesFlagsDoc(t *testing.T) {
 	t.Parallel()
 
 	repo := afero.NewBasePathFs(afero.NewOsFs(), filepath.Join("..", ".."))
-	raw, err := afero.ReadFile(repo, flagsDocPath)
+	ref, err := afero.ReadFile(repo, docgen.CLIReferencePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaves := cliLeaves()
-	tree := treeFlagNames()
-	if len(leaves) == 0 || len(tree) < 20 {
-		t.Fatalf("walked %d leaves and %d flag names — the command tree walk is broken", len(leaves), len(tree))
+	concepts, err := afero.ReadFile(repo, flagsDocPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := treeFlagSet()
+	parsed := refFlags(string(ref))
+	if len(tree.leaves) < 50 || len(parsed.leaves) < 50 || len(tree.global) < 5 {
+		t.Fatalf("walked %d leaves, parsed %d sections and %d global flags — the tree walk or the reference parse is broken",
+			len(tree.leaves), len(parsed.leaves), len(tree.global))
 	}
 	allow, err := doccheck.Load(repo, doccheck.AllowlistFile("cli-flags"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range allow.Reconcile(cliFlagsDocViolations(leaves, tree, string(raw))).Problems(allow.File) {
+	for _, p := range allow.Reconcile(cliFlagsDocViolations(tree, parsed, string(concepts))).Problems(allow.File) {
 		t.Error(p)
 	}
 }
 
 func TestCliFlagsDocViolations(t *testing.T) {
 	t.Parallel()
-	tree := map[string][]string{
-		"input": {"pulse api process"}, "i": {"pulse api process"},
-		"json": {"pulse"}, "log-level": {"pulse"}, "help": {"pulse"}, "h": {"pulse"},
+	tree := treeFlags{
+		global: []string{"h", "help", "log-level"},
+		leaves: map[string][]string{
+			"pulse api process": {"i", "input", "json"},
+			"pulse api missing": {"json"},
+		},
 	}
-	doc := "# Flags\n| `--input` / `-i` | in |\n`--log-level off|debug`\n" +
-		"```\npulse api process --json --help\n```\n" +
-		"`--gone` and --also-gone; not flags: x--y, a-b, -1, e-mail, [see](#--input-anchor)\n" +
-		"a longer leaf is not a shorter one's mention: `pulse api chain-run`, xpulse api chain\n"
+	ref := refFlags("# R\n\n## Global flags\n\n| Flag | Value |\n|---|---|\n| `--log-level` | string |\n| `--help`, `-h` |  |\n| `--gone-global` |  |\n\n" +
+		"## Commands\n\n### `pulse api process`\n\n| Flag | Value |\n|---|---|\n| `--input` | string |\n| `--stale` |  |\n\n" +
+		"### `pulse api ghost`\n\nNo flags of its own.\n\n## Flags by name\n\n| `--json` | [`api process`](#pulse-api-process) |\n")
+	concepts := "`--input` and `-i`; `--never-mounted`; not flags: x--y, a-b, -1, [see](#--input-anchor)\n"
 	got := map[string]bool{}
-	for _, v := range cliFlagsDocViolations([]string{"pulse api process", "pulse api missing", "pulse api chain"}, tree, doc) {
+	for _, v := range cliFlagsDocViolations(tree, ref, concepts) {
 		got[v.Entry] = true
 	}
-	want := []string{"undocumented leaf pulse api missing", "undocumented leaf pulse api chain", "undocumented flag -h", "unmounted flag --gone", "unmounted flag --also-gone"}
+	want := []string{
+		"unmounted global flag --gone-global",
+		"undocumented flag -i on pulse api process",
+		"undocumented flag --json on pulse api process",
+		"unmounted flag --stale on pulse api process",
+		"undocumented leaf pulse api missing",
+		"unmounted leaf pulse api ghost",
+		"unmounted flag --never-mounted",
+	}
 	for _, w := range want {
 		if !got[w] {
 			t.Errorf("missing violation %q in %v", w, got)
@@ -194,5 +280,20 @@ func TestCliFlagsDocViolations(t *testing.T) {
 	}
 	if len(got) != len(want) {
 		t.Errorf("violations = %v, want exactly %v", got, want)
+	}
+}
+
+// TestRefFlagsParsesTheGeneratedPage: the parse sees every leaf section
+// and global flag the renderer writes, so the per-leaf check is not
+// vacuous.
+func TestRefFlagsParsesTheGeneratedPage(t *testing.T) {
+	t.Parallel()
+	page := docgen.RenderCLIReference(pcli.CLIReference(buildApp()))
+	tree, ref := treeFlagSet(), refFlags(string(page))
+	if v := cliFlagsDocViolations(tree, ref, ""); len(v) != 0 {
+		t.Errorf("a freshly rendered reference disagrees with the tree: %v", v)
+	}
+	if fmt.Sprint(ref.global) != fmt.Sprint(tree.global) {
+		t.Errorf("global flags parsed %v, tree %v", ref.global, tree.global)
 	}
 }

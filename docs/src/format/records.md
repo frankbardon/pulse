@@ -17,12 +17,12 @@ not directly supported.
 ## Computing record size
 
 Record size (`Schema.RecordByteSize`) is the sum of
-`Schema.FieldWidth(i)` over all schema fields — `FieldType.ByteSize()`,
-**plus one byte for each bit-packed field** — **plus the null bitmap**
-when the schema declares any nullable field. For non-packed types `ByteSize()` returns
-the obvious value (`u32` = 4, `f64` = 8, `decimal128` = 16,
-`set_u256` = 32); the bit-packed types (`u4`, `packed_bool`) return
-`0` and are counted as one byte each.
+`Schema.FieldWidth(i)` over all schema fields, **plus the null bitmap**
+when the schema declares any nullable field. `FieldWidth` is
+`FieldType.ByteSize()` for most types (`u32` = 4, `f64` = 8,
+`decimal128` = 16, `set_u256` = 32), one byte for each bit-packed field
+(`u4`, `packed_bool`), and element size × dim for a vector
+(`vec_f32`, `vec_f64`). Those three report `ByteSize() == 0`.
 
 A cohort with [parent groups](parent-groups.md) (format `0x02`) stores
 member fields in the schema block instead: its record size counts a
@@ -30,10 +30,10 @@ member fields in the schema block instead: its record size counts a
 narrowed to the non-member fields. It is still fixed and still derived
 from the schema alone.
 
-**Stride is a pure function of the type bytes.** The per-field
-`ByteOffset` stored in the schema is a convenience for readers, not
-the source of truth — a type byte with the wrong width silently
-corrupts every downstream offset.
+**Stride is a pure function of the schema** (type bytes plus vector
+dims). The per-field `ByteOffset` stored in the schema is a convenience
+for readers, not the source of truth: a field sized from its type byte
+alone silently corrupts every downstream offset.
 
 The writer (`encoding/record.go`) lays out fields in the order they
 appear in the schema; the reader walks the same order.
@@ -55,6 +55,7 @@ From `WriteFieldValue` / `ReadFieldValue` in
 | `f64`                                 | 8 bytes, little-endian IEEE 754 |
 | `decimal128`                          | 16 bytes, little-endian two's-complement integer (scaled by `10^scale`). Exceeds the `uint64` API — use the 16-byte accessors |
 | `set_u128` / `set_u256`               | 16 / 32 bytes, little-endian **64-bit words**, `words[0]` = bits 0–63. Exceeds the `uint64` API — `Read/WriteFieldValue` return `ENCODING_TYPE_MISMATCH` rather than truncating; use `encoding.SetMaskFromBytes` / `PutSetMask` |
+| `vec_f32` / `vec_f64`                 | dim × 4 / 8 bytes, little-endian IEEE 754, element 0 first. Use `encoding.ReadVector` / `WriteVector` ([Vector fields](field-types.md#vector-fields)) |
 | `u4` / `packed_bool`                  | Bit-packed — see below |
 
 A `set_*` payload is a membership bitmask, not a number: bit `i` set
@@ -108,13 +109,15 @@ embedder decodes a single-file ungrouped record with the public
 (`Schema.RecordByteSize`, each field's byte offset and bit position).
 A non-Go reader can follow the same recipe:
 
-1. Compute record size from the schema (field widths + one byte per
-   bit-packed field + the bitmap, if any).
+1. Compute record size from the schema (field widths + the bitmap, if
+   any).
 2. Read `record_size` bytes.
-3. Walk the schema fields in declaration order, advancing a cursor:
-   - If `ByteSize() > 0`, decode `ByteSize()` bytes at the cursor.
-   - If `ByteSize() == 0` (`u4`, `packed_bool`), consume ONE byte and
-     decode the bit slot at `BitPosition` within it.
+3. Walk the schema fields in declaration order, advancing a cursor by
+   each field's width:
+   - `u4`, `packed_bool`: consume ONE byte and decode the bit slot at
+     `BitPosition` within it.
+   - `vec_*`: consume element size × dim bytes.
+   - Every other type: decode `ByteSize()` bytes.
 4. If the schema has a bitmap, the last `BitmapByteSize()` bytes of the
    record are it; mark field `i` null when bit `i%8` of byte `i/8` is
    set.

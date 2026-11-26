@@ -10,7 +10,7 @@ requires: [MAT_SEM]
 
 # Structural equation modelling
 
-`MAT_SEM` fits a lavaan / semopy model to one vector's members (params: [`op-mat-sem`](op-mat-sem.md)). This skill is the why: which convention a fit follows, and how to model means.
+`MAT_SEM` fits a lavaan / semopy model to one vector's members (params: [`op-mat-sem`](op-mat-sem.md)).
 
 ## Which convention applies
 
@@ -46,25 +46,25 @@ The two paths can report a different `chi2` for one covariance model: compare on
 
 ## Multi-group fits
 
-`params.group` names a categorical, `packed_bool` or `u4` / `u8` field, or a computed column ([`sem-groups`](sem-groups.md)). Its levels are the groups of ONE joint fit (lavaan's `group =`):
+`params.group` names a categorical, `packed_bool` or `u4` / `u8` field, or a computed value ([`sem-groups`](sem-groups.md)). Its levels are the groups of ONE joint fit (lavaan's `group =`):
 
 - Configural (no `group_equal`): every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
 - A group fit always models the means and follows lavaan.
 - The levels are the values that hold rows, in dictionary order (else ascending). A null group drops the row. Predict's `group_levels` bounds them.
 - `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label (`records` rows add `group`, `label`).
 - `primary` is the `group_reference` level's Σ̂ (default: the first level). Per level, the auxiliaries are `implied_covariance.<level>`, `residual_covariance.<level>`, `implied_means.<level>` and `observed_means.<level>`.
-- The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).
+- The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (the group's size N*).
 - Refused: request `groups`, a standardizing vector, another field type, a one-entry dictionary.
 - The slot fails alone (`PULSE_MATRIX_INSUFFICIENT_N`) on fewer than two levels with rows, on a level with no more rows than observed variables, or on a reference level without rows.
 
 ## Invariance
 
-- `group_equal` holds lavaan `group.equal` classes equal across groups: `loadings`, `intercepts`, `means`, `residuals`, `residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`. Metric = `["loadings"]`, scalar = `["loadings","intercepts"]`.
+- `group_equal` holds lavaan `group.equal` classes equal across groups: `loadings`, `intercepts`, `means`, `residuals`, `residual.covariances`, `lv.variances`, `lv.covariances`, `regressions` (`thresholds`: [`sem-ordinal`](sem-ordinal.md)). Metric = `["loadings"]`, scalar = `["loadings","intercepts"]`.
 - Equal intercepts (without `means`) free the latent means outside the `group_reference` level, which stays at 0. They read in marker units: the non-reference level's shift on each factor.
 - `group_partial` frees rows from their class, spelled as lavaan does: `v2~1`, `f=~x2`, `x1~~x2`. A freed marker loading is free outside the reference.
 - A marker loading stays 1 in every group. A labelled row keeps its label's equality, not its class's.
 - `c(a1,a2)*x` / `c(0.5,NA)*x` set a label or value per level, in level order (categorical or `packed_bool` field only). `NA*x` frees a loading (on a first indicator: no marker).
-- Ladder: one slot per step, or a zip sweep over `group_equal` (a comma-separated string, `""` = configural): axes `step` [configural, metric, scalar] and `eq` [`""`, `loadings`, `loadings,intercepts`], label `{{step}}`. Compare `chi2`, `dof`, `cfi`, `rmsea` step to step; Pulse computes no Δχ² test.
+- Ladder: one slot per step, or a zip sweep over `group_equal` (a comma-separated string, `""` = configural): axes `step` [configural, metric, scalar] and `eq` [`""`, `loadings`, `loadings,intercepts`], label `{{step}}`. Compare `chi2`, `dof`, `cfi`, `rmsea` step to step; test the Δχ² with `compare` ([`sem-comparison`](sem-comparison.md)).
 - Examples: `pulse_examples_search tags=[matrix, multivariate]` (one slot per step), `tags=[compose, multivariate]` (the sweep).
 
 ## Members

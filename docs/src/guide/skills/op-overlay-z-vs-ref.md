@@ -3,7 +3,7 @@ name: op-overlay-z-vs-ref
 kind: operator
 category: OVERLAY
 operator: OVERLAY_Z_VS_REF
-description: Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); parity overlay reading from CellComponents.
+description: Compose-host per-group two-sample z-test on the means against the reference slot's matching group (SERIES); reads each group's mean, variance and n from its components.
 type: reference
 applies_to: compose
 examples_tags: [overlay, compose, hypothesis-test, z, byte-equal-test]
@@ -36,15 +36,15 @@ Use something else:
 | `sample_size_ref` | float | — | Reference sample size; likewise. |
 | `sample_size` | float | — | Both sides, when a side's own key is absent. |
 
-`Scope` `group`; rows key on group columns. A mean measure needs the params for EVERY group and target (missing → `PULSE_OVERLAY_PARAM_MISSING`); other measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); mean vs moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`. Allowlist: [`overlay-reference-tests`](overlay-reference-tests.md).
+`scope` `group`; rows key on group columns. A mean measure needs the params for EVERY group and target (missing → `PULSE_OVERLAY_PARAM_MISSING`); other measures → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (`measure_type`); mean vs moments → `PULSE_OVERLAY_SCHEMA_DIVERGENT`. Allowlist: [`overlay-reference-tests`](overlay-reference-tests.md).
 
 ## Host shape
 
-COMPOSE — SERIES grouped Process on both slots. Reads `{n, mean, variance}` from per-group `Response.Components` of `AGG_WELFORD` or another moment-carrying measure (off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else `params`. Crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
+COMPOSE — SERIES host on both slots. Reads `{n, mean, variance}` from the per-group components of `AGG_WELFORD` or another moment-carrying measure (off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`), else `params`. Crosstab slots → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (use the cell twin).
 
 ## Output
 
-SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statistic`; `Baseline` unset. One layer per target (`<name>__<target>` for 2+); cap `max_panel_targets`.
+SERIES — one entry per host group key, the p-value on `summary.statistic`; `summary.baseline` unset. One layer per target (`<name>__<target>` for 2+); cap `max_panel_targets`.
 
 ## Reading the output
 
@@ -61,10 +61,9 @@ SERIES — one `SeriesEntry` per host group key, the p-value on `Summary.Statist
 ## Gotchas
 
 - A NaN value on either side → the entry keeps its key, NO `statistic` (absent, not `null`).
-- An engine `AGG_WELFORD` series is pinned to R `2·pnorm(-|z|)` on the Welch SE per group at 1e-10, weighted or not.
 - Weighted: legs read N* (`sum_weights` / `n_eff`), never the raw `n`.
-- **Byte-equal** to the two-sample z-test (shared `normalTwoSidedP`).
-- Missing reference row or degenerate inputs → `PULSE_OVERLAY_REF_ZERO` (`ref_missing=true`), entry NaN.
+- Equals the two-sample z-test on the same inputs.
+- Missing reference row or degenerate inputs → `PULSE_OVERLAY_REF_ZERO` (`ref_missing=true`), entry `null`.
 
 ## See
 

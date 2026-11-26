@@ -1,34 +1,3 @@
-# TestCliHelpMatchesFlagsDoc baseline: CLI leaves / flags vs docs/src/cli/flags.md (names only).
-# Format: path<TAB>entry<TAB>reason. Shrink-only: document (or unmount) the name, then delete its line.
-docs/src/cli/flags.md	undocumented flag --additive	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --bind-on-open	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --correlation-top-k	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --domain	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --handle	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --histogram	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --histogram-bins	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --histogram-max	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --histogram-min	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --ignore-sidecar	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --include-stats	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --key	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --mode	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --no-components	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --no-fail-fast	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --no-project	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --parallel	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --percentile	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --profile	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --sample-limit	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --sanitize-names	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --spec	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --top-k	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --ttl	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag --uncompressed	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -h	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -k	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -m	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -n	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -p	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -s	baseline (U32a): not named on flags.md; U32b documents it
-docs/src/cli/flags.md	undocumented flag -v	baseline (U32a): not named on flags.md; U32b documents it
+# TestCliHelpMatchesFlagsDoc baseline: CLI leaves / flags vs docs/src/cli/reference.md (generated, per leaf) and flags named on docs/src/cli/flags.md.
+# Format: path<TAB>entry<TAB>reason. Shrink-only: fix the page (or run `make docs`), then delete the line.
+# Locked empty by TestDocsBaselinesEmpty: fix a finding in the docs, never list it here.

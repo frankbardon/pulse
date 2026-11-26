@@ -27,8 +27,8 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | Use | In plain words | Level |
 |---|---|---|
 | [`AGG_AUC`](../catalog/aggregator.md#op-agg_auc) | How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. | intermediate |
-| [`AGG_MAE`](../catalog/aggregator.md#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. | intermediate |
-| [`AGG_MAPE`](../catalog/aggregator.md#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. | intermediate |
+| [`AGG_MAE`](../catalog/aggregator.md#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. | intermediate |
+| [`AGG_MAPE`](../catalog/aggregator.md#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. | intermediate |
 | [`AGG_RMSE`](../catalog/aggregator.md#op-agg_rmse) | Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. | intermediate |
 
 ### Attributes
@@ -210,7 +210,7 @@ t is the gap between averages measured in standard errors: the sample mean minus
 
 **Caveats:**
 
-- The two-sample form is Welch's: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number.
+- The two-sample form is Welch's by default: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number. Under params.variance pooled it is Student's t on n_a + n_b - 2 df, with the pooled variance in details.pooled_variance.
 
 **`p_value`**
 

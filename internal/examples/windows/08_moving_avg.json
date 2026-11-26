@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Centered 7-day moving average of revenue (3 preceding plus current plus 3 following) over an ordered date partition.",
+    "description": "Centred 7-row moving average of revenue (3 preceding rows, the current one and 3 following) over the date-ordered orders. The frame counts rows, not days: orders.pulse has gaps and repeat dates, so for a calendar window group by day first (as tests/10_post_trend_on_window.json does).",
     "intents": [
       "change_over_time"
     ],

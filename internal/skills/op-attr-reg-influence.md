@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 ---
 
-Row-level scalars; no `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -31,7 +29,7 @@ Refit keys are top-level, not `params`; `field` unread.
 
 `target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
 
-- `Label` — default `<TYPE>_<target>`, with `fit` `<TYPE>_<fit>`
+- `label` — default `<TYPE>_<target>`, with `fit` `<TYPE>_<fit>`
 
 ## Output
 

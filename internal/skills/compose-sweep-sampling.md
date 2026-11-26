@@ -48,7 +48,7 @@ To FIND an optimum rather than map the space, an adaptive mode (`de`, `bo`) spen
 
 ## Limits and predict
 
-- `samples` counts toward `MaxComposeSlots` with the explicit slots (default 1000; raise `Limits.MaxComposeSlots`, CLI root `--limit max_compose_slots=N`, for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
+- `samples` counts toward `MaxComposeSlots` with the explicit slots (default in the manifest `limits`; raise `Limits.MaxComposeSlots`, CLI root `--limit max_compose_slots=N`, for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
 - Predict expands exactly: `expanded_count` = `samples`, each axis reports `count` and its `range`, and the labels match the run.
 
 ## Refusals

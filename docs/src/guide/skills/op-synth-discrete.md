@@ -44,10 +44,10 @@ One declared level per row at its own share. Marginal exact — no threshold, no
 
 ## Gotchas
 
-- **The only honest marginal for a coded scale.** `profile create` uses it for every integer column with ≤64 observed levels, ahead of `--fit-shape`. A clamped normal keeps the mean and flattens the shape: a 1–7 item at 25.26% on level 1 generated 13.73%.
+- **The only honest marginal for a coded scale.** `profile create` uses it for every integer column with ≤64 observed levels, ahead of `--fit-shape`. A clamped normal keeps the mean and flattens the shape.
 - **Over 64 levels the capture ABANDONS it** (never truncates) and the field falls back to the clamped normal. The missing `discrete` key in the profile *is* the record — no warning, no knob.
-- **A modelled target is an ORDERED PROBIT.** The staircase `Q` shifts the latent, not the value: direction and ordering carry, scale-point magnitude does not. `latentFor` refuses a staircase, so the fidelity `models` section scores both sides on the interval-midpoint probit score rather than inverting.
-- Non-ascending or duplicate `values` → `SERVICE_VALIDATION`; silent sorting would break `Q`'s monotonicity and the copula's rank order.
+- **A modelled target is an ORDERED PROBIT.** The model shifts the latent, not the value: direction and ordering carry, scale-point magnitude does not. The fidelity `models` section scores both sides on the interval-midpoint probit score.
+- Non-ascending or duplicate `values` → `SERVICE_VALIDATION`; never silently sorted.
 - A rule reading the field needs no `round()` guard — the row value already is the stored integer.
 
 ## See

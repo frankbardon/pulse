@@ -15,13 +15,13 @@ resp, err := p.Process(ctx, &pulse.Request{
 		{Cohort: &types.Cohort{Filename: "wave2.pulse"}, Label: "2025"},
 	},
 	Groups:       []*types.Group{{Field: types.DefaultUnionSourceField}}, // "_source"
-	Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "spend"}},
+	Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "income"}},
 })
 ```
 
 The same request as JSON (`pulse api process`, MCP `pulse_process`):
 
-```json
+```json cohort=customers
 {
   "union": [
     {"cohort": {"filename": "wave1.pulse"}, "label": "2024"},
@@ -29,7 +29,7 @@ The same request as JSON (`pulse api process`, MCP `pulse_process`):
   ],
   "union_source_field": "wave",
   "groups": [{"field": "wave"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 
@@ -75,7 +75,7 @@ request.
 | `ProcessChain` | the chain root's `union` is stage 0's source |
 | `FacetSchema` | facet the source field to count records per member |
 | `SampleWithRequest` | rows in member order; MCP `pulse_sample` takes `union` in place of `path`; the CLI `pulse api sample --request FILE` takes a whole `SampleRequest` |
-| `Materialize` | the source field is written as an ordinary column |
+| `Materialize` | the source field is written as an ordinary field |
 | `Lookup` | always scans the members in order — a union never reads or writes a sidecar index |
 | a join | the union is the LEFT side (the request's own cohort) |
 | every predict root | header and schema only: `record_count` is the members' total, `union` lists each member |
@@ -91,13 +91,13 @@ There are two recipes, and which one applies depends on where you are.
 **Inside the secure zone: the tagged output.** `pulse synth
 from-profile --source customers.pulse` (without `--synthetic-only`)
 writes one cohort holding the source rows and the generated rows,
-marked by the boolean `_synthetic` column. Group or split by it:
+marked by the boolean `_synthetic` field. Group or split by it:
 
-```json
+```json norun needs-synth-tagged-cohort
 {
   "cohort": {"filename": "customers_tagged.pulse"},
   "groups": [{"field": "_synthetic"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 
@@ -109,14 +109,14 @@ zone.
 own file (`--synthetic-only`), union it with the source and group by the
 source field:
 
-```json
+```json cohort=customers
 {
   "union": [
     {"cohort": {"filename": "customers.pulse"}, "label": "source"},
     {"cohort": {"filename": "twin.pulse"}, "label": "twin"}
   ],
   "groups": [{"field": "_source"}, {"field": "region"}],
-  "aggregations": [{"type": "AGG_AVERAGE", "field": "spend"}]
+  "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}]
 }
 ```
 

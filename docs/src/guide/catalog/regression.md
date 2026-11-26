@@ -5,7 +5,7 @@ The regressions this instance offers: what each is for, the questions it answers
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
 | [`REG_BAYES_LINEAR`](#op-reg_bayes_linear) | Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. | Given the data and our prior belief, what range of values is plausible for the price coefficient? | advanced | [`REG_OLS`](#op-reg_ols) when you want p-values, resampled standard errors or stepwise predictor selection (none run on this type).<br>[`REG_GLM`](#op-reg_glm) when the outcome is yes/no (0/1) or a count.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you only want how closely two numeric fields follow a straight line together. |
-| [`REG_GLM`](#op-reg_glm) | Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. | Which customer traits are associated with the chance of churning, holding the others fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure with roughly symmetric, constant-spread residuals.<br>[`TEST_PROP_Z`](test.md#op-test_prop_z) when you only want to know whether a yes/no rate differs between two groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
+| [`REG_GLM`](#op-reg_glm) | Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts. | Which customer traits are associated with the chance of churning, holding the others fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure with roughly symmetric, constant-spread residuals.<br>[`TEST_PROP_Z`](test.md#op-test_prop_z) when you only want to know whether a yes/no rate differs between two groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
 | [`REG_MMM_BAYES`](#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | What return does each marketing channel earn, and how sure are we? | advanced | [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised. |
 | [`REG_MMM_HILL`](#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | What does each marketing channel contribute to sales, holding price and the other channels fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome moves in a straight line with spend, with no saturation. |
 | [`REG_MULTINOMIAL`](#op-reg_multinomial) | Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. | Which customer traits are associated with choosing the premium or the basic plan over the standard one, holding the others fixed? | advanced | [`REG_GLM`](#op-reg_glm) when the outcome has two categories (yes/no).<br>[`REG_OLS`](#op-reg_ols) when the outcome is numeric.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when you only want to know whether the categories are spread differently across a grouping category. |
@@ -44,7 +44,7 @@ Fits a straight-line model of a numeric outcome under a prior, reporting each co
 - Credible intervals are probability statements about each coefficient given the prior and the model; a wrong prior or a wrong model makes them wrong too.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable; the prior keeps even an exactly collinear set solvable, but then the prior, not the data, decides how the shared association is split between them.
-- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, or the fields are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 
 **Use something else:**
@@ -70,7 +70,7 @@ See [How Pulse is validated](../validation.md).
 
 ### `REG_GLM`
 
-Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts.
+Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts.
 
 **Level:** advanced
 
@@ -90,13 +90,14 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 **Assumptions:**
 
 - Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.
-- The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson non-negative counts, gamma positive values.
+- The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson and negative binomial non-negative counts, gamma positive values.
 - The link must suit the outcome (each family takes its own: logit, probit or cloglog for binomial; log, identity or sqrt for counts; inverse, log or identity for gamma); the predictors act linearly on that link scale, and margins converts the effects to the outcome's units.
-- Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion fixed at 1 for binomial and Poisson, where overdispersed counts (variance above the mean) make Poisson p-values too small; a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.
+- Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion fixed at 1 for binomial, Poisson and negative binomial, where overdispersed counts (variance above the mean) make Poisson p-values too small and negative binomial models that extra spread; a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.
+- params.covariance swaps in robust (hc0 to hc3), clustered or hac standard errors behind the p-values.
 - If a predictor separates the 0s from the 1s perfectly in a logistic model, the fit cannot converge and Pulse refuses it.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
-- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, or the fields are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 
 **Use something else:**
@@ -269,10 +270,11 @@ Fits a model of an outcome with three or more categories (which plan, brand or c
 - Each category other than the reference has its own coefficients: the change in the log odds of that category against the reference per unit of the predictor, holding the others fixed.
 - The odds between any two categories do not depend on the other categories offered (independence of irrelevant alternatives).
 - Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, as a Wald z.
+- params.covariance swaps in robust (hc0, hc1) or clustered standard errors behind the p-values.
 - If a predictor separates a category from the reference perfectly, the fit cannot converge and Pulse refuses it.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
-- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, or the fields are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 
 **Use something else:**
@@ -334,12 +336,12 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 
 - Rows are independent of each other: repeated rows for the same customer, or values over time, make the reported uncertainty too small.
 - The outcome changes linearly with each predictor; model a curve by adding transformed predictors (FEAT_POLY, FEAT_LOG).
-- Residuals have roughly constant spread: Pulse reports classic standard errors, not heteroscedasticity-robust ones. With few rows the residuals should also be roughly normal for the p-values to hold.
+- Residuals have roughly constant spread for the default classic standard errors; params.covariance swaps in heteroscedasticity-robust (hc0 to hc3), clustered (repeated rows per unit) or autocorrelation-robust (hac, values over time) ones. With few rows the residuals should also be roughly normal for the p-values to hold.
 - Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, on a t distribution with n - p - 1 degrees of freedom (p predictors).
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
 - Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 by design, so their p-values lose the usual reading; l1 and elasticnet fits report no standard errors or p-values (null) because the data pick the predictors.
-- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, or the fields are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 
 **Use something else:**
@@ -407,10 +409,11 @@ Fits a model that predicts an ordered rating (poor, fair, good) from numeric pre
 - Proportional odds: each predictor moves every threshold of the scale by the same amount (one coefficient per predictor); params.brant (logit) or params.nominal_test (any link) tests it, and a small p-value says some effect differs across the scale.
 - The link sets the shape of the scale's steps: logit (default) reads coefficients as log odds ratios, probit as shifts of a normal latent score, cloglog as log hazard ratios.
 - Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, a Wald z on the fitted information.
+- params.covariance swaps in robust (hc0, hc1) or clustered standard errors behind the p-values.
 - A predictor that separates the levels perfectly makes the fit unable to converge, and Pulse refuses it.
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
-- Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
+- Predictors must be numeric: encode a category as 0/1 fields first (FEAT_ONE_HOT) and leave one level out, or the fields are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 
 **Use something else:**

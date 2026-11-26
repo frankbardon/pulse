@@ -171,7 +171,7 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	default:
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_OLS refit: unknown Penalty "+spec.Penalty,
+			"REG_OLS refit: unknown penalty "+spec.Penalty,
 			map[string]any{"penalty": spec.Penalty},
 		)
 	}

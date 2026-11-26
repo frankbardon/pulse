@@ -6,5 +6,5 @@
   {"name": "category", "type": "categorical_u8", "description": "Categorical product class (A, B, C, D, E)"},
   {"name": "price", "type": "f64", "description": "Item price in USD; log-normally distributed"},
   {"name": "income", "type": "f64", "description": "Annual income in USD; log-normally distributed"},
-  {"name": "signup_date", "type": "date", "description": "Account signup date spanning January 2024 through April 2025"}
+  {"name": "signup_date", "type": "date", "description": "Account signup date spanning January 2024 through mid-May 2025"}
 ]

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "facet",
-    "description": "Simplest FacetSchema call: per-value counts on one categorical field with no extras.",
+    "description": "Simplest facet request: per-value counts on one categorical field, with no extras.",
     "intents": [
       "composition",
       "describe"

@@ -8,10 +8,10 @@
       "buffered-pipeline"
     ],
     "operators": [
-      "REG_MMM_BAYES",
-      "FILTER_INCLUDE"
+      "FILTER_INCLUDE",
+      "REG_MMM_BAYES"
     ],
-    "description": "Bayesian media-mix model sampled by static HMC instead of NUTS: FILTER_INCLUDE keeps the east market's weekly series, and ONE REG_MMM_BAYES adstocks TV spend inside the model (geometric, 8-week window) with price as a linear control, with params.sampler hmc. Every transition integrates path_length π/2 (1.5708) — a quarter period of the unit-scale posterior the adapted metric aims at, which carries a draw to a nearly independent point (Stan's 2π would bring it back near its start) — in ceil(path_length / step size) leapfrog steps, the step size adapted during warmup towards target_accept (a fixed params.step_size turns adaptation off). The chains are kept short for a quick run (2 chains of 150 warmup + 100 draws, so expect ess_low warnings). HMC builds no tree, so outputs.diagnostics carries divergences, step sizes and R-hat / ESS but no treedepth_saturated or max_tree_depth; the posterior, outputs.roi and outputs.params read exactly as under NUTS.",
+    "description": "Bayesian media-mix model sampled by static HMC instead of NUTS: FILTER_INCLUDE keeps the east market's weekly series, and ONE REG_MMM_BAYES adstocks TV spend inside the model (geometric, 8-week window) with price as a linear control, with params.sampler hmc. Every transition integrates path_length π/2 (1.5708) — a quarter period of the unit-scale posterior the adapted metric aims at, which carries a draw to a nearly independent point (Stan's 2π would bring it back near its start) — in ceil(path_length / step size) leapfrog steps, the step size adapted during warmup towards target_accept (a fixed params.step_size turns adaptation off). The chains are kept short for a quick run (2 chains of 150 warmup + 100 draws, so the fit warns PROCESSING_REGRESSION_DIAGNOSTIC on R-hat and effective sample size). HMC builds no tree, so outputs.diagnostics carries divergences, step sizes and R-hat / ESS but no treedepth_saturated or max_tree_depth; the posterior, outputs.roi and outputs.params read exactly as under NUTS.",
     "intents": [
       "drivers"
     ]

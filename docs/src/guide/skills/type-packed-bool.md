@@ -1,33 +1,33 @@
 ```yaml
 name: type-packed-bool
 kind: type
-description: 1-bit boolean; bit-packed with adjacent packed_bool / u4 fields.
+description: 1-bit boolean; bit-packed into one whole record byte of its own.
 type: reference
 applies_to: inspect, predict
 ```
 
 ## Bytes
 
-`ByteSize() == 0` — bit-packed. Each value is 1 bit; eight `packed_bool` fields share one byte. Stride math handled by `Schema.RecordByteSize`; place packed runs together for optimal layout. `FieldType.IsBitPacked()` reports `true`.
+Bit-packed (`IsBitPacked()` is `true`, `ByteSize()` is 0), yet each `packed_bool` takes one whole record byte (`Schema.FieldWidth` = 1); the value is `(b >> BitPosition) & 1`, and Pulse writers set `BitPosition` 0. Fields never share a byte, so field order does not change the stride.
 
 ## Range
 
-`0` or `1` — false or true. The canonical boolean encoding. Aggregators treat it as analytics-numeric (mean = positive rate, sum = positive count), with `IsNumericForAnalytics()` reporting `true`; strict `IsNumeric()` is `false`.
+`0` (false) or `1` (true); record rows render the number. Inference picks it for a source column whose sampled values are all `true`/`false`, `yes`/`no`, `t`/`f`, `y`/`n` or `1`/`0` (any case) — so a 0/1 integer column becomes `packed_bool`; a later non-boolean cell is a row error. Analytics-numeric (`IsNumericForAnalytics()`: mean = positive rate, sum = positive count); strict `IsNumeric()` is `false`.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap (independent from the value bit). `0` is `false`, never null. Null-skip semantics apply uniformly — mean over `n` non-null records.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap, independent of the value bit. `0` is false, never null; a mean runs over the non-null records.
 
 ## Dictionary
 
-Absent. `packed_bool` carries no inline dictionary block. The default grouper is `GROUP_CATEGORY` (two buckets). The default aggregator is `AGG_MODE_COUNT`.
+Absent. The default grouper is `GROUP_CATEGORY` (two buckets). The default aggregator is `AGG_MODE_COUNT`.
 
 ## Synth
 
-`profile create` summarises a `packed_bool` through the NUMERIC accumulator (it is neither date, categorical nor set), and `SpecFromProfile` reconstructs it as `bernoulli` with `p` = the observed mean — ahead of `--fit-shape`, so a boolean never becomes a mixture. A continuous marginal is NOT a valid reconstruction: one bit forces the writer to threshold, and a clamped normal thresholded anywhere reproduces the wrong prevalence. A modelled boolean draws through a step quantile, which makes it a probit — coefficients order rows, they are not probability changes.
+`profile create` summarises a `packed_bool` as numeric, and a profile-driven synth rebuilds it as `bernoulli` with `p` = the observed mean, ahead of `--fit-shape`, so a boolean never becomes a mixture. A continuous marginal is not a valid reconstruction: one bit forces the writer to threshold, and a thresholded clamped normal gives the wrong prevalence. A modelled boolean draws through a step quantile, which makes it a probit: coefficients order rows, they are not probability changes.
 
 ## See
 
-- Skill: [`cohort-schema-design`](cohort-schema-design.md) (Field-type matrix, Bit-packed runs, Smart defaults).
+- Skill: [`cohort-schema-design`](cohort-schema-design.md) (Field-type matrix, Bit-packed runs).
 - Skills: [`op-synth-bernoulli`](op-synth-bernoulli.md), [`synth-marginals`](synth-marginals.md) (Boolean marginals).
-- Cross-link: [`type-u4`](type-u4.md) for small ordinals using the same packed-byte cursor.
+- Cross-link: [`type-u4`](type-u4.md) (the other bit-packed type).

@@ -45,8 +45,9 @@ import (
 // promote nearly every decimal column.
 //
 // Only inference-originated fields promote. An authoritative schema
-// (SchemaAwareReader), a user-authored ImportJob.Schema and every
-// ColumnTypeOverrides column keep their declared type, and an overflow
+// (SchemaAwareReader), a user-authored ImportJob.Schema, every
+// ColumnTypeOverrides column and every source-declared Arrow / Parquet
+// pin (DeclaredTypeReader) keep their declared type, and an overflow
 // there stays the row error it has always been — a declared width is a
 // contract, not a guess.
 //
@@ -69,16 +70,19 @@ type widening struct {
 // widenableFields marks the fields the row pass may promote. Nothing
 // is widenable unless the schema is inference-originated (inferred);
 // then every field is, except the ColumnTypeOverrides columns, whose
-// type the caller fixed. The type itself decides whether a widenable
-// field has anywhere to go (widenTarget).
-func widenableFields(schema *encoding.Schema, inferred bool, overrides map[string]encoding.FieldType) []bool {
+// type the caller fixed, and the source-declared pins (import_pins.go),
+// whose type the source fixed. The type itself decides whether a
+// widenable field has anywhere to go (widenTarget).
+func widenableFields(schema *encoding.Schema, inferred bool, overrides map[string]encoding.FieldType, pins map[string]encoding.Field) []bool {
 	out := make([]bool, len(schema.Fields))
 	if !inferred {
 		return out
 	}
 	for i := range schema.Fields {
-		_, forced := overrides[schema.Fields[i].Name]
-		out[i] = !forced
+		name := schema.Fields[i].Name
+		_, forced := overrides[name]
+		_, pinned := pins[name]
+		out[i] = !forced && !pinned
 	}
 	return out
 }

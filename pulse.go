@@ -258,8 +258,8 @@ type Options struct {
 	// constituent metadata. Defaults to false (components emitted).
 	//
 	// When true, Response.Components stays nil and the wire form is
-	// byte-identical to the pre-Components baseline; format_version is
-	// not bumped. The gate sits at the processor's attach helpers and
+	// byte-identical to a response without the block; format_version
+	// is unchanged. The gate sits at the processor's attach helpers and
 	// the per-shard merge path, so the MetaAggregator.Components and
 	// MetaGrouper.Components construction work is skipped entirely —
 	// not built-then-discarded.
@@ -373,7 +373,7 @@ type Options struct {
 
 	// ShardDistinctLimit caps the keys a shard archive writer holds per
 	// field per shard while counting the exact distinct values it
-	// records in `_schema.pulse` (U73 #500; the DIST trailer: create,
+	// records in `_schema.pulse` (the DIST trailer: create,
 	// add, remove, compact and filter-to-file all write one). Counted
 	// fields are u32, u64, date, datetime, f32 and f64, on the stored
 	// bit pattern, nulls excluded. A shard's field with more distinct
@@ -461,7 +461,8 @@ type Options struct {
 	// including one a hidden feature owns (PULSE_RETURN_PATH_UNKNOWN).
 	// A `data[*].<column>` path is accepted (no schema to judge it
 	// against); the runtime warns PULSE_RETURN_PATH_UNMATCHED when it
-	// matches nothing. Applies at Process today.
+	// matches nothing. Applies at Process, ProcessStream, Compose,
+	// ComposeParallel and ProcessChain.
 	DefaultReturn *types.Return
 
 	// Strict promotes request-validation warnings into hard errors at
@@ -482,7 +483,10 @@ type Options struct {
 	// ProjectBufferedFields enables buffered-decode field projection.
 	//
 	// Deprecated: projection is on by default; retained for compat.
-	// Setting true is a harmless no-op; use DisableProjection to opt out.
+	// Setting true keeps projection on even when DisableProjection is
+	// also true (the two are ORed: projection runs when this is true or
+	// DisableProjection is false). Leave it false and set
+	// DisableProjection to opt out.
 	ProjectBufferedFields bool
 
 	// LabelTablesDir points at a directory of JSON files that the
@@ -628,10 +632,12 @@ type Options struct {
 
 	// FeatureProfile declares the features this instance offers, as a
 	// Go value. pulse.New validates it structurally and stores a copy on
-	// the instance; the feature list is not applied yet, but its
-	// Behaviour switches take effect (OR semantics: a profile switch set
-	// true turns the matching Options switch on, and Options cannot turn
-	// it back off). Nil means no profile — behaviour is unchanged.
+	// the instance. The feature list is enforced: a feature the profile
+	// does not list is hidden, acting as if it had never been registered
+	// (runtime, predict, manifest, payload schema, MCP surface). Its
+	// Behaviour switches take effect too (OR semantics: a profile switch
+	// set true turns the matching Options switch on, and Options cannot
+	// turn it back off). Nil means no profile — every feature is offered.
 	//
 	// Mutually exclusive with FeatureProfileFile: setting both fails
 	// New with PULSE_FEATURE_PROFILE_INVALID. pulse.New never reads a
@@ -963,18 +969,18 @@ func validateAutoLabels(bindings []LabelBinding, tables map[string]LabelTable) e
 		b := bindings[i]
 		if strings.TrimSpace(b.Field) == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"auto_labels: Field is required",
+				"auto_labels: field is required",
 				map[string]any{"index": i})
 		}
 		if strings.TrimSpace(b.Table) == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"auto_labels: Table is required",
+				"auto_labels: table is required",
 				map[string]any{"index": i, "field": b.Field})
 		}
 		mode := b.LabelModeOrDefault()
 		if mode != LabelModeReplace && mode != LabelModeAugment {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				fmt.Sprintf("auto_labels: Mode %q is invalid (expected %q or %q)", b.Mode, LabelModeReplace, LabelModeAugment),
+				fmt.Sprintf("auto_labels: mode %q is invalid (expected %q or %q)", b.Mode, LabelModeReplace, LabelModeAugment),
 				map[string]any{"index": i, "field": b.Field, "mode": string(b.Mode)})
 		}
 		if _, ok := tables[b.Table]; !ok {
@@ -1010,7 +1016,7 @@ func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
 // purposes of facade methods. Anchors require an archive backing the
 // path; using `#` against a single-file `.pulse` raises
 // PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
-// supported in v1.
+// supported.
 //
 // Anchor parsing happens inside internal/service.Service.Open as well, so the
 // other facade methods (Process, Sample, Facet, ...) that receive an
@@ -1252,7 +1258,7 @@ type ChainResponse = types.ChainResponse
 // ProcessChain executes a source-rooted linear chain of Process
 // requests. The first stage runs against the cohort identified by
 // req.Cohort; each subsequent stage receives the previous stage's
-// rows as its input. All stages must be mergeable per the v1 chain
+// rows as its input. All stages must be mergeable per the chain
 // gate (an extension aggregator qualifies when its registration
 // declares Mergeable); a non-mergeable stage surfaces
 // PULSE_CHAIN_NOT_MERGEABLE with the offending stage index so the
@@ -1326,8 +1332,10 @@ type ComposeOptions = service.ComposeOptions
 // execution is safe.
 //
 // Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
-// FailFast = true (set FailFast=false to collect every request's outcome
-// instead of cancelling siblings on first error).
+// FailFast = false (the zero value): every request runs to completion
+// and the errors are collected. Set FailFast=true to cancel in-flight
+// siblings on the first error instead (`pulse api compose --parallel`
+// sets it unless --no-fail-fast).
 //
 // Returned shape mirrors Compose:
 //
@@ -2100,7 +2108,7 @@ func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 	var path string
 	if len(req.Union) == 0 && req.UnionSourceField == "" {
 		if req.Cohort == nil || req.Cohort.Filename == "" {
-			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires cohort.filename")
 		}
 		path = req.Cohort.Filename
 	}

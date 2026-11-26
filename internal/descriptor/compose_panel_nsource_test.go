@@ -159,7 +159,7 @@ func TestValidateCompose_PanelMalformedBeatsUnknownMode(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected exactly one params error, got %v", msgs)
 	}
-	if !strings.Contains(msgs[0], "malformed Params") {
+	if !strings.Contains(msgs[0], "malformed params") {
 		t.Errorf("expected the decode diagnostic, got %q", msgs[0])
 	}
 	if strings.Contains(msgs[0], "unknown n_source") {

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "filterers",
-    "description": "Compound expr-lang predicate keeping high-income northerners only, with categorical fields auto-resolving to their dictionary strings.",
+    "description": "Compound FILTER_EXPRESSION predicate keeping high-income northerners only (income > 50000 && region == \"north\"); a categorical field reads as its dictionary label.",
     "intents": [
       "segment"
     ],

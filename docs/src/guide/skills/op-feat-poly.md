@@ -9,11 +9,11 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, polynomial, pre-filter, streaming-friendly]
 ```
 
-Feature operators emit derived columns; no `Response.Components`.
+Feature operators write derived fields before filters run; no `Response.Components`.
 
 ## Use when
 
-Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
+Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
 
 Questions it answers:
 
@@ -22,27 +22,27 @@ Questions it answers:
 
 Use something else:
 
-- `REG_OLS` when you want to fit the curve itself, not just build its columns.
+- `REG_OLS` when you want to fit the curve itself, not just build its fields.
 
 ## Params
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `degree` | int | (required) | `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream. |
+| `degree` | int | (required) | `>= 2` AND `<= 10`. Degree 1 is the source field; reference it directly downstream. |
 
 ## Inputs
 
-`Field` — numeric (types: `## Contract`); `decimal128` via f64.
+`field` (required) — numeric (types: `## Contract`); `decimal128` reads as its float64 echo.
 
 ## Output
 
-`Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
+`degree − 1` derived fields `<prefix>_<k>` for `k = 2..degree`, `prefix` default `<field>_poly` (override via `label`). Each holds `x^k` by repeated multiplication. The source field is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
 
 ## Reading the output
 
-- `value.*`: One column per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.
-  - Caveat: A single power column means little alone: the curve shows in a model's coefficients on x and its powers together, and those change when the field is centred first.
-  - Caveat: Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared column.
+- `value.*`: One field per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 field; the original field is it.
+  - Caveat: A single power field means little alone: the curve shows in a model's coefficients on x and its powers together, and those change when the field is centred first.
+  - Caveat: Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared field.
 
 ## Contract
 
@@ -53,7 +53,7 @@ Use something else:
 ## Gotchas
 
 - `degree` outside `[2, 10]` → `PROCESSING_CONFIG`.
-- OVERFLOW WITHOUT STANDARDISATION: `x^10` at `|x| = 100` is already `1e20`. Centre / standardise first; an orthogonal basis is out of scope for v1.
+- OVERFLOW WITHOUT STANDARDISATION: `x^10` at `|x| = 100` is already `1e20`. Centre / standardise first; there is no orthogonal basis.
 - Null inputs → null on every emitted column. Streamable per-row.
 
 ## See

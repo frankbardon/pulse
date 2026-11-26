@@ -39,7 +39,7 @@ var featurePurposes = map[string]descriptor.Purpose{
 // Shared assumption sentences, so sibling features say the same thing the
 // same way.
 const (
-	featBeforeFilters = "Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees."
+	featBeforeFilters = "Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees."
 	featWholeCohort   = "Its figures come from every record of the cohort, before any filter: filtering afterwards does not recompute them."
 	featNullOut       = "A missing input value gives a missing output."
 )
@@ -48,7 +48,7 @@ const (
 
 var (
 	purposeFeatLog = descriptor.Purpose{
-		Plain:   "Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.",
+		Plain:   "Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.",
 		Intents: []string{IntentPrepare, IntentDistributionShape},
 		Questions: []string{
 			"Can I tame the long tail of customer spend before fitting a model on it?",
@@ -74,7 +74,7 @@ var (
 	}
 
 	purposeFeatSqrt = descriptor.Purpose{
-		Plain:   "Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.",
+		Plain:   "Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.",
 		Intents: []string{IntentPrepare, IntentDistributionShape},
 		Questions: []string{
 			"Can I soften the few very large complaint counts without a full log?",
@@ -98,7 +98,7 @@ var (
 	}
 
 	purposeFeatPoly = descriptor.Purpose{
-		Plain:   "Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.",
+		Plain:   "Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.",
 		Intents: []string{IntentPrepare, IntentRelationship},
 		Questions: []string{
 			"Does satisfaction rise with tenure and then level off?",
@@ -110,12 +110,12 @@ var (
 			descriptor.DomainScience: "Dose, dose squared and dose cubed for a curved dose-response fit.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want to fit the curve itself, not just build its columns", Use: "REG_OLS"},
+			{When: "you want to fit the curve itself, not just build its fields", Use: "REG_OLS"},
 			{When: "you want one custom transform of the value", Use: "ATTR_FORMULA"},
 		},
 		Assumptions: []string{
 			featBeforeFilters,
-			"Emits powers 2 up to the degree (at most 10); the power-1 term is the original column, which you add yourself.",
+			"Emits powers 2 up to the degree (at most 10); the power-1 term is the original field, which you add yourself.",
 			"Raw powers grow fast and move together; centre or standardise the field first. " + featNullOut,
 		},
 		Level:    descriptor.LevelAdvanced,
@@ -127,27 +127,27 @@ var (
 
 var (
 	purposeFeatOneHot = descriptor.Purpose{
-		Plain:   "Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.",
+		Plain:   "Turns a category field into one 0/1 field per category, so a model or a sum can treat each category as its own yes/no.",
 		KnownAs: []string{"dummy coding", "dummy variables"},
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How do I feed region into a regression as separate yes/no predictors?",
-			"Which rows are in each plan tier, as columns I can sum?",
+			"Which rows are in each plan tier, as fields I can sum?",
 		},
 		UseCases: map[descriptor.Domain]string{
-			descriptor.DomainSurvey:  "One yes/no column per answer to a single-choice question.",
-			descriptor.DomainOps:     "One column per warehouse for a model of delivery time.",
-			descriptor.DomainScience: "One column per treatment arm in a design table.",
+			descriptor.DomainSurvey:  "One yes/no field per answer to a single-choice question.",
+			descriptor.DomainOps:     "One field per warehouse for a model of delivery time.",
+			descriptor.DomainScience: "One field per treatment arm in a design table.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "the field has hundreds of categories and one column each is too many", Use: "FEAT_FREQUENCY_ENCODE"},
+			{When: "the field has hundreds of categories and one field each is too many", Use: "FEAT_FREQUENCY_ENCODE"},
 			{When: "you want how many rows fall in each category: group by the field, then count", Use: "GROUP_CATEGORY"},
 		},
 		Assumptions: []string{
 			featBeforeFilters,
-			"Columns come from the field's dictionary, so a category with no rows still gets an all-zero column.",
-			"A missing category reads 0 in every column; there is no separate unknown column.",
-			"In a model with an intercept, leave one category's column out as the reference: all of them together are perfectly collinear and the fit is refused.",
+			"The fields come from the dictionary, so a category with no rows still gets an all-zero field.",
+			"A null category reads 0 in every field; there is no separate unknown field.",
+			"In a model with an intercept, leave one category's field out as the reference: all of them together are perfectly collinear and the fit is refused.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value", "multicollinearity"},
@@ -167,7 +167,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want the count table itself, one row per category: group by the field, then count", Use: "GROUP_CATEGORY"},
-			{When: "the field has few categories and each should be its own column", Use: "FEAT_ONE_HOT"},
+			{When: "the field has few categories and each should be its own field", Use: "FEAT_ONE_HOT"},
 		},
 		Assumptions: []string{
 			featBeforeFilters,
@@ -192,7 +192,7 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want to report each category's average outcome", Use: "AGG_AVERAGE"},
-			{When: "the field has few categories and each should be its own column", Use: "FEAT_ONE_HOT"},
+			{When: "the field has few categories and each should be its own field", Use: "FEAT_ONE_HOT"},
 			{When: "you want how common each category is, without using the outcome", Use: "FEAT_FREQUENCY_ENCODE"},
 		},
 		Assumptions: []string{
@@ -211,7 +211,7 @@ var (
 
 var (
 	purposeFeatDateFeatures = descriptor.Purpose{
-		Plain:   "Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled.",
+		Plain:   "Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled.",
 		Intents: []string{IntentPrepare, IntentChangeOverTime},
 		Questions: []string{
 			"Do orders differ by day of the week?",
@@ -228,8 +228,8 @@ var (
 		},
 		Assumptions: []string{
 			featBeforeFilters,
-			"Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour column. Day of week is 1 for Monday through 7 for Sunday.",
-			"A missing date gives missing values in every column.",
+			"Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour field. Day of week is 1 for Monday through 7 for Sunday.",
+			"A missing date gives nulls in every field.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
@@ -244,7 +244,7 @@ var (
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Age bands for each respondent, from fixed cut points.",
-			descriptor.DomainOps:     "Order value tenths, as a column later steps can filter on.",
+			descriptor.DomainOps:     "Order value tenths, as a field later steps can filter on.",
 			descriptor.DomainScience: "Exposure bands for each subject, for a banded analysis.",
 		},
 		NotFor: []descriptor.Alternative{
@@ -282,8 +282,8 @@ var (
 			"Each share is the ratio times the record count, rounded; with stratify it is applied within each category.",
 			"The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.",
 			"In temporal mode records sharing an order value always land in the same set, and a record with no order value lands in none (its label is missing).",
-			"The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, " +
-				"so build those from the train rows in a separate request.",
+			"The split does not isolate other features: frequency encoding and equal-count bucketing in the same request still learn from test rows, " +
+				"so build those from the train rows in a separate request; target encoding learns from them too unless params.fit_on picks the train rows.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"overfitting"},

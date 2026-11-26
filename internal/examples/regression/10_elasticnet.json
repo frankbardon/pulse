@@ -12,7 +12,7 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Elastic Net regression (Indeed #11): REG_OLS with penalty=elasticnet, alpha=0.05, l1_ratio=0.5 — a balanced l1/l2 combination via coordinate descent.",
+    "description": "Elastic net regression: REG_OLS with penalty elasticnet, alpha 1000 and l1_ratio 0.5, half lasso and half ridge, by coordinate descent: label's coefficient goes to exactly 0 and price shrinks (about 13.6 against OLS's 17.5). Like the lasso (06_lasso.json) it reports null standard errors, p-values and intervals with advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED; resample bootstrap gives replicate ones. Streamable.",
     "intents": [
       "drivers"
     ]
@@ -26,9 +26,12 @@
       "type": "REG_OLS",
       "name": "income_elasticnet",
       "target": "income",
-      "predictors": ["price", "label"],
+      "predictors": [
+        "price",
+        "label"
+      ],
       "penalty": "elasticnet",
-      "alpha": 0.05,
+      "alpha": 1000,
       "l1_ratio": 0.5
     }
   ]

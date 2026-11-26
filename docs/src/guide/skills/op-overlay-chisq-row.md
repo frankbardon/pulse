@@ -26,16 +26,16 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — must be `row`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
+`scope` (enum, required) — must be `row`. `ref` (object, empty) — implicit-margin — leave empty. `level`/`within` must be `0`.
 
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Family: implicit-margin χ² (no `Ref`). Compatible with any crosstab regardless of cell aggregator; row-axis twin of the column χ².
+MATRIX crosstab (`crosstab.matrix`). Any cell aggregator; row-axis twin of the column χ².
 
 ## Output
 
-SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row key carrying `Summary.Statistic` (row χ²), `Summary.PValue`, `Summary.Parameters["df"]` = `cols - 1`. Entries align element-for-element with host `RowKeys`. Layer `Baseline` unset.
+SERIES — `payload.shape` `"series"`. One `payload.series.entries[]` entry per row key carrying `summary.statistic` (row χ²), `summary.p_value`, `summary.parameters.df` = `cols - 1`. Entries align with the host's `row_keys`. `summary.baseline` unset.
 
 ## Reading the output
 
@@ -51,11 +51,10 @@ SERIES — `OverlayLayer.Payload.Shape = "series"`. One `SeriesEntry` per row ke
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: read as an absent cell (an observation of 0), never into a total.
-- Weighted host (both kinds, any source): cells are Σw; under probability each row is scaled to its margin's Kish `n_eff` (expected-low on the scaled row) — first-order Kish, not Rao-Scott. Each entry's `Parameters` adds that row's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
-- Reuses `chiSquareSurvival` — byte-equal p-values to every χ² test and overlay on the same contingency.
+- Weighted host (both kinds, any source): cells are Σw; under probability each row is scaled to its margin's Kish `n_eff` (expected-low on the scaled row) — first-order Kish, not Rao-Scott. Each entry's `summary.parameters` adds that row's `sum_weights` (+ `n_eff`). Probability host with components disabled ⇒ `PROCESSING_CONFIG` (no `n_eff` to scale by; predict AND runtime).
+- p-values equal every χ² test's and overlay's on the same contingency.
 - Any `expected < 5` in a row emits ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending row.
-- Absent host cell treated as observed count of 0.
-- Scope MUST be `row`. Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- A populated `ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 
 ## See

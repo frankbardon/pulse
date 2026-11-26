@@ -26,11 +26,11 @@ Give EXACTLY ONE of `alpha` / `decay` (manifest `exactly_one_of: smoothing`; a R
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrence seeds from the first non-null value in the partition.
+One `float64` per row written to `label` (default `WIN_EWMA_<field>`). Recurrence seeds from the first non-null value in the partition.
 
 <!-- generated: reading-the-output -->
 
@@ -42,7 +42,7 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 - `alpha = 1 − decay` from the decay's EXACT decimal: `decay: 0.7` smooths bit-identically to `alpha: 0.3` (not float `1 − 0.7`). `decay: 0` is `alpha: 1` (identity).
 - Rows preceding the first non-null emit `null` (no seed).
 - Null values emit `null`; state survives to the next non-null row.
-- Result rows are NOT reordered — use `Request.Sort`.
+- Result rows are NOT reordered — use `sort`.
 - For media adstock use<!-- feature: WIN_DISTRIBUTED_LAG --> `WIN_DISTRIBUTED_LAG`<!-- /feature -->: it starts from zero, with geometric or Weibull kernels.
 - Regressions and post-window formulas may read the label (`regression-model-options`).
 

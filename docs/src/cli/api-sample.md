@@ -29,14 +29,12 @@ both, or neither, is a usage error (exit 2).
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--input`        | `-i` | string | (none)     | Cohort `.pulse` file path. Required unless `--request` |
-| `--request`      | `-r` | string | (none)     | A `SampleRequest` JSON file, or `-` to read it from stdin: `cohort` or `union` (+ `union_source_field`), `n`, `labels`. Decoded strictly — a misspelled key is `PULSE_REQUEST_UNKNOWN_FIELD` (exit 1, in the envelope). Never beside `--input` |
-| `--count`        | `-n` | int    | 10         | Rows to sample. With `--request`: overrides the file's `n` when set; a file without `n` takes 10 |
-| `--json`         |      | bool   | false      | Emit the standard envelope |
-| `--labels`       |      | string | (none)     | Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: `field=table[:replace|augment]`. Repeatable. Requires `PULSE_LABEL_TABLES_DIR` or a programmatically registered label table. With `--request`: replaces the file's `labels` |
-| `--echo-request` |      | bool   | false      | Include the resolved `SampleRequest` on `envelope.request` |
+Flags are listed in the [Command & flag reference](reference.md#pulse-api-sample).
+With `--request` (a file, or `-` for stdin), the file is decoded
+strictly — a misspelled key is `PULSE_REQUEST_UNKNOWN_FIELD` (exit 1);
+`--count` overrides its `n` (a file without `n` takes 10) and `--labels`
+replaces its `labels`. `--labels` needs `PULSE_LABEL_TABLES_DIR` or a
+registered label table (see [Labels](flags.md#--labels-export)).
 
 ## Output (text mode)
 
@@ -77,7 +75,7 @@ second, and no zone is applied. A null cell is omitted from its row.
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | File not found, truncated, or unsupported version — in the envelope's `errors` under `--json` |
+| 1 | Any coded error (missing or unreadable cohort, unknown request key, …) — in the envelope's `errors` under `--json` |
 | 2 | Usage error (unknown flag, malformed value, neither `--input` nor `--request`, or both); no envelope |
 
 ## Examples

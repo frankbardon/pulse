@@ -26,19 +26,18 @@ Use something else:
 
 ## Params
 
-
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `on` | `correlation` \| `covariance` | `correlation` | Covariance keeps units: a large-spread member dominates. |
+| `on` | enum | `correlation` | Or `covariance`, which keeps units: a large-spread member dominates. |
 | `components` | any | `kaiser` | Int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`. |
 | `rotation` | enum | `none` | k ≥ 2, orthogonal: `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`. |
 | `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
-| `repair` | `nearest` | — | Decompose the nearest correlation matrix (rescaled on `covariance`; [`multivariate-design`](multivariate-design.md)). |
-| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `repair` | enum | — | `nearest`: decompose the nearest correlation matrix (rescaled on `covariance`; [`multivariate-design`](multivariate-design.md)). |
+| `missing` | enum | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 | `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row ([`vector-row-scores`](vector-row-scores.md)). |
 
-`weight`, `encoding`: as [`op-mat-correlation`](op-mat-correlation.md). Oblique names are refused: `rotation_oblique_unsupported`.
+`weight`, `encoding`: as [`op-mat-correlation`](op-mat-correlation.md). Oblique: `SERVICE_VALIDATION` `rotation_oblique_unsupported`.
 
 ## Inputs
 

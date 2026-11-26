@@ -195,7 +195,7 @@ func TestApplyPropZPanel_CapRidesOptionsNotParams(t *testing.T) {
 	spec := composeSpecMultiTargetPropZPanel([]string{"t0", "t1"}, &types.OverlayOptions{MaxPanelTargets: 1})
 	_, _, err := applyPropZPanel(&spec, ref, targets, 0, []int{1, 2})
 	if err == nil {
-		t.Fatal("expected the MaxPanelTargets cap to refuse a 2-target panel at cap 1")
+		t.Fatal("expected the max_panel_targets cap to refuse a 2-target panel at cap 1")
 	}
 	var coded *pulseerrors.CodedError
 	if !stderrors.As(err, &coded) {

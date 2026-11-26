@@ -170,7 +170,7 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, unpenalized []
 	if iters >= maxIters {
 		return nil, iters, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_NO_CONVERGE,
-			"coordinate descent did not converge within MaxIters",
+			"coordinate descent did not converge within max_iters",
 			map[string]any{
 				"max_iters": maxIters,
 				"tol":       tol,

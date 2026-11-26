@@ -49,7 +49,7 @@
         },
         "alternatives": [
           {
-            "when": "the data already holds one row per subject with a from column and a to column",
+            "when": "the data already holds one row per subject with a from field and a to field",
             "use": "GROUP_CATEGORY"
           },
           {
@@ -79,7 +79,7 @@
         },
         "alternatives": [
           {
-            "when": "the data already holds one row per subject with a from column and a to column",
+            "when": "the data already holds one row per subject with a from field and a to field",
             "use": "GROUP_CATEGORY"
           },
           {
@@ -109,7 +109,7 @@
         },
         "alternatives": [
           {
-            "when": "the data already holds one row per subject with a from column and a to column",
+            "when": "the data already holds one row per subject with a from field and a to field",
             "use": "GROUP_CATEGORY"
           },
           {
@@ -125,4 +125,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6b3c27638415cb2379216eb3025e097ab530c71817765f5e3280febf4fc8e637
+// golden-hash: 2bc1a0c5449eca16ba3a0ea98dd938eec1ba26925970e684df5d96d0724ffc2c

@@ -176,7 +176,11 @@ func apiRows(d *apiDump, src *goSource) ([]Row, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, Row{Kind: kind, ID: id, GoDoc: doc})
+		r := Row{Kind: kind, ID: id, GoDoc: doc}
+		if kind != KindOptions {
+			r.Field = f.Name
+		}
+		rows = append(rows, r)
 	}
 	return rows, nil
 }

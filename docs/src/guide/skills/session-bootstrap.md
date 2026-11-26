@@ -13,16 +13,16 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skills index, extensions, capability blocks |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skill list, extensions, capability blocks |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict` / `pulse_process` / `pulse_compose` / `pulse_sample` / `pulse_facet`, constraining them to schema-resident values |
-| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`; or `pulse_recommend` by `intents` ID |
+| 3 | `pulse_examples_search` | per question | name + summary, by `query` + `intent` + `tags` + `category` (CLI `pulse examples search --intent`); or `pulse_recommend` by `intents` ID |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
 | 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via [`session-skill-routing`](session-skill-routing.md). Runnable JSON comes from examples, NOT skills |
 | 6 | `pulse_predict` (bare request, or `composed`, or `facet`, or `chain`) | until clean | `errors`, `warnings`, `data.suggestions`, `data.defaults_applied`, `data.streamable`, `data.streamable_reasons` |
 | 7 | the execute tool the manifest's `mcp_tools` lists for the operation — `pulse_process` / `pulse_compose` / `pulse_process_chain` / `pulse_facet` / `pulse_facet_schema` / `pulse_sample` / `pulse_lookup` | execute | `{format_version, data, errors, warnings}` + additive `data.components`; `format_version` is `"1.1"`; read via `pulse_explain` |
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
 
-**Step 7 Compose return shape.** `pulse_compose`'s `data` is a `ComposedResponse` `{responses[], overlays[]}` — NOT the legacy `[]*Response`. Per-slot Components ride each `responses[i]`; overlay diagnostics ride `overlays[i].warnings`.
+**Step 7 Compose return shape.** `pulse_compose`'s `data` is a `ComposedResponse` `{responses[], overlays[]}`, not a bare array. Per-slot Components ride each `responses[i]`; overlay diagnostics ride `overlays[i].warnings`.
 
 ## Which skill answers what
 
@@ -54,7 +54,7 @@ Roots auto-loaded at `pulse.New`:
 - `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render (`RenderTemplate` / `RenderTemplateRequest`), then predict. See [`request-templating`](request-templating.md).
 
-A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is benchmark-only.
+A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`.
 
 Managed imports (`PULSE_IMPORTS_DIR`) keep each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `zone_field`, `--vector` folds); a handle never changes zone — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
 

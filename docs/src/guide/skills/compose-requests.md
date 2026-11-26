@@ -1,6 +1,6 @@
 ```yaml
 name: compose-requests
-description: ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
+description: Compose batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -14,7 +14,7 @@ requires: [capability:compose]
 
 ## When to compose
 
-- **Several independent questions in one call** — a summary, a breakdown and a crosstab of one survey, or one request over several cohorts (a grid: [`compose-sweeps`](compose-sweeps.md)) (banners: [`compose-banner`](compose-banner.md)).
+- **Several independent questions in one call** — a summary and a breakdown or a crosstab of one survey, or one request over several cohorts (a grid: [`compose-sweeps`](compose-sweeps.md)) (banners: [`compose-banner`](compose-banner.md)).
 - **Comparing slots** — a Compose-host overlay reads two or more finished slots and decorates the comparison (reference vs target, or a multi-slot panel).
 - **One model, many slots** — fit once, every slot reads it by name ([`compose-fits`](compose-fits.md)).
 
@@ -42,13 +42,13 @@ Shared parts go once in `base`, merged into every `requests` entry (never sweep,
 
 ## Order-preserving slot dispatch
 
-The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in (a slot an optimize block's `result()` reads runs first, still once: [`compose-optimize`](compose-optimize.md)). Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. Filter state in slot `i` never affects slot `j`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
+The response is a `ComposedResponse` object `{responses, overlays}`: `responses[i]` answers `requests[i]`, whatever order slots finished in (a slot an optimize block's `result()` reads runs first, still once: [`compose-optimize`](compose-optimize.md)). Each slot carries its own full `Response` — `metadata`, `data`, `crosstab`, `components`. A slot's `return` shapes `responses[i]`; a top-level `return` takes `overlays…` paths only.
 
 ```jsonc
 {
   "responses": [
     {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 50}},
-    {"data": [...], "metadata": {"total_rows": 1000, "filtered_rows": 1000}}
+    {"data": [...], "metadata": {...}}
   ],
   "overlays": [ /* one OverlayLayer per Compose overlay spec; key omitted when there are none */ ]
 }
@@ -56,7 +56,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 ## Slot labels
 
-Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
+Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots: set them explicitly when an overlay refers to a slot.
 
 Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs.
 
@@ -68,7 +68,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 ## Post-slot Compose-overlay fold
 
-`ComposedRequest.Overlays` runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates ([`overlay-system`](overlay-system.md)).
+`overlays` on a Compose request runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates ([`overlay-system`](overlay-system.md)).
 
 Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them in the manifest `overlays[]` entries serving `compare_groups` or `benchmark`. The usual refusal is schema divergence (reference and target group or crosstab on different axes): keep compared slots' shapes identical, vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
@@ -76,7 +76,7 @@ Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by 
 
 ## Multiplicity
 
-`ComposedRequest.multiplicity` is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections ([`multiplicity-correction`](multiplicity-correction.md)).
+`multiplicity` on a Compose request is every slot's default; `compose` family pools all slots and Compose-host layers, the rest stay per slot; serial == parallel, `--stream` emits no corrections ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Per-slot Components contract
 
@@ -84,8 +84,8 @@ Every slot's `components` is emitted independently (the universal floor plus eac
 
 ## Validate before executing
 
-`pulse_predict` takes one `Request`: loop it over the slots to catch field typos, missing dictionaries and type mismatches before paying for `pulse_compose`. Compose overlay specs are checked only after the slots run: check every `SlotLabel` against your labels.
+`pulse_predict` with the batch alone under `composed` (`PredictCompose`, `pulse api predict-compose`) predicts each slot over its own cohort, then the Compose overlays from headers alone (kinds, slot labels, shapes, panel cap); data faults surface at the run.
 
 ## See
 
-[`response-components`](response-components.md) (per-slot components shape) · [`overlay-system`](overlay-system.md) (overlay hosts and resolution) · [`streaming-and-watching`](streaming-and-watching.md) (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold) · [`process-chain`](process-chain.md) (when slots depend on each other).
+[`response-components`](response-components.md) (per-slot components shape) · [`overlay-system`](overlay-system.md) (overlay hosts and resolution) · [`compose-optimize`](compose-optimize.md) (best inputs from fitted models) · [`streaming-and-watching`](streaming-and-watching.md) (`Request.Hash()` per-slot cache keys; `--stream` emits per-row events and skips the overlay fold) · [`process-chain`](process-chain.md) (when slots depend on each other).

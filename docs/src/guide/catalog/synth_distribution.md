@@ -5,20 +5,20 @@ The synth distributions this instance offers: what each is for, the questions it
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
 | [`bernoulli`](#op-bernoulli) | Draws a yes/no value per row: 1 with a chosen chance p and 0 otherwise, such as whether a customer churned. | How do I mark 12% of synthetic customers as churned? | basic | [`weighted_categorical`](#op-weighted_categorical) when there are more than two outcomes.<br>[`set_bernoulli`](#op-set_bernoulli) when each row can tick several options.<br>[`constant`](#op-constant) when every row should get the same value. |
-| [`constant`](#op-constant) | Puts the same value on every row, for a placeholder field or a fixed flag in a test fixture. | How do I fill a column with the same country code? | basic | [`monotonic_from`](#op-monotonic_from) when each row needs a distinct ID.<br>[`weighted_categorical`](#op-weighted_categorical) when the value should vary over a few labels.<br>[`bernoulli`](#op-bernoulli) when a flag should be set on only some rows. |
+| [`constant`](#op-constant) | Puts the same value on every row, for a placeholder field or a fixed flag in a test fixture. | How do I fill a field with the same country code? | basic | [`monotonic_from`](#op-monotonic_from) when each row needs a distinct ID.<br>[`weighted_categorical`](#op-weighted_categorical) when the value should vary over a few labels.<br>[`bernoulli`](#op-bernoulli) when a flag should be set on only some rows. |
 | [`discrete`](#op-discrete) | Draws whole-number levels at set shares, such as a 1 to 7 rating scale, so each level appears about as often as declared. | How do I generate answers on a 1 to 5 scale where most people choose 4? | intermediate | [`normal`](#op-normal) when the field is a continuous measure.<br>[`weighted_categorical`](#op-weighted_categorical) when the levels are text labels.<br>[`poisson`](#op-poisson) when the counts follow an average rate rather than fixed shares. |
 | [`exponential`](#op-exponential) | Draws positive waiting times where short waits are common and long ones rare, set by how often events happen. | How do I simulate the time between customer arrivals? | intermediate | [`poisson`](#op-poisson) when you want whole-number counts of events per period.<br>[`pareto`](#op-pareto) when a few values should be extremely large.<br>[`lognormal`](#op-lognormal) when values bunch around a typical size rather than near zero. |
 | [`lognormal`](#op-lognormal) | Draws positive numbers with a long right tail, like incomes or order values: most are modest and a few are very large. | How do I simulate skewed order values? | intermediate | [`normal`](#op-normal) when values are spread evenly around a centre.<br>[`pareto`](#op-pareto) when the tail should follow a power law, as with wealth or city sizes.<br>[`exponential`](#op-exponential) when the values are waiting times between events. |
-| [`mixture`](#op-mixture) | Draws from two or more bell curves blended by weight, for data with several peaks, like weekday and weekend order sizes. | How do I simulate a column with two separate peaks? | advanced | [`normal`](#op-normal) when one peak is enough.<br>[`lognormal`](#op-lognormal) when there is one peak with a long right tail.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few fixed levels. |
+| [`mixture`](#op-mixture) | Draws from two or more bell curves blended by weight, for data with several peaks, like weekday and weekend order sizes. | How do I simulate a field with two separate peaks? | advanced | [`normal`](#op-normal) when one peak is enough.<br>[`lognormal`](#op-lognormal) when there is one peak with a long right tail.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few fixed levels. |
 | [`monotonic_from`](#op-monotonic_from) | Counts up (or down) by a fixed step from a start value, one step per row, to make unique IDs or row numbers. | How do I give each synthetic row a unique customer ID? | basic | [`constant`](#op-constant) when every row should get the same value.<br>[`uniform`](#op-uniform) when the numbers should be random, not in order.<br>[`regex`](#op-regex) when IDs should be text codes like AB-1234. |
 | [`normal`](#op-normal) | Draws numbers from a bell curve around a chosen centre and spread, optionally clipped to a low and a high bound. | How do I generate realistic test scores that cluster around 70? | basic | [`lognormal`](#op-lognormal) when values are always positive with a long right tail, like income.<br>[`mixture`](#op-mixture) when the data has two or more peaks.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few levels, like 1 to 7. |
 | [`pareto`](#op-pareto) | Draws heavy-tailed values above a minimum, where a small share of rows holds most of the total, like wealth or file sizes. | How do I simulate customers where the top fifth spend most of the money? | advanced | [`lognormal`](#op-lognormal) when the tail is long but values have a typical size.<br>[`exponential`](#op-exponential) when the values are waiting times between events.<br>[`uniform`](#op-uniform) when every value in a range should be equally likely. |
 | [`poisson`](#op-poisson) | Draws whole-number counts of events per period, such as visits per day, around a chosen average. | How many orders might a store get per hour? | intermediate | [`exponential`](#op-exponential) when you want the time between events, not how many.<br>[`bernoulli`](#op-bernoulli) when each row is a yes/no outcome.<br>[`discrete`](#op-discrete) when you know the exact share of each count. |
 | [`regex`](#op-regex) | Generates text matching a pattern, such as order codes like AB-1234, for realistic-looking IDs and labels. | How do I generate postcodes that look real? | intermediate | [`weighted_categorical`](#op-weighted_categorical) when the values come from a short known list.<br>[`monotonic_from`](#op-monotonic_from) when IDs must be unique.<br>[`constant`](#op-constant) when every row should carry the same text. |
 | [`set_bernoulli`](#op-set_bernoulli) | Fills a multi-select answer: each option is ticked on its own at its own rate, such as 40% picking email and 25% SMS. | How do I simulate a tick-all-that-apply question? | intermediate | [`weighted_categorical`](#op-weighted_categorical) when each row picks exactly one answer.<br>[`bernoulli`](#op-bernoulli) when there is only one yes/no flag. |
-| [`uniform`](#op-uniform) | Draws numbers between a low and a high bound, every value equally likely, for flat filler columns or random noise. | How do I fill a test column with random numbers between 0 and 100? | basic | [`normal`](#op-normal) when values should cluster around a typical value.<br>[`uniform_date`](#op-uniform_date) when the field is a calendar date.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few fixed levels. |
-| [`uniform_date`](#op-uniform_date) | Draws calendar dates between a start and an end date, every day equally likely, both ends included. | How do I spread synthetic orders across 2024? | basic | [`uniform`](#op-uniform) when the field is a plain number, not a date.<br>[`constant`](#op-constant) when every row shares one date. |
-| [`uniform_datetime`](#op-uniform_datetime) | Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own. | How do I generate delivery times that follow each depot's local business hours? | intermediate | [`uniform_date`](#op-uniform_date) when only the calendar day matters.<br>[`constant`](#op-constant) when every row shares one timestamp. |
+| [`uniform`](#op-uniform) | Draws numbers between a low and a high bound, every value equally likely, for flat filler fields or random noise. | How do I fill a test field with random numbers between 0 and 100? | basic | [`normal`](#op-normal) when values should cluster around a typical value.<br>[`uniform_date`](#op-uniform_date) when the field is a calendar date.<br>[`discrete`](#op-discrete) when the field is a coded scale with a few fixed levels. |
+| [`uniform_date`](#op-uniform_date) | Draws calendar dates between a start and an end date, both ends included, every day equally likely unless month weights are set. | How do I spread synthetic orders across 2024? | basic | [`uniform`](#op-uniform) when the field is a plain number, not a date.<br>[`constant`](#op-constant) when every row shares one date. |
+| [`uniform_datetime`](#op-uniform_datetime) | Draws datetime values on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own. | How do I generate delivery times that follow each depot's local business hours? | intermediate | [`uniform_date`](#op-uniform_date) when only the calendar day matters.<br>[`constant`](#op-constant) when every row shares one datetime. |
 | [`weighted_categorical`](#op-weighted_categorical) | Picks one label per row from a list, each at its own share, such as 50% North, 30% South and 20% West. | How do I give synthetic respondents a realistic region mix? | basic | [`bernoulli`](#op-bernoulli) when there are just two outcomes stored as 1 and 0 or true and false.<br>[`set_bernoulli`](#op-set_bernoulli) when each row can pick several options.<br>[`discrete`](#op-discrete) when the levels are numbers on a scale. |
 
 ## Operators
@@ -68,7 +68,7 @@ Puts the same value on every row, for a placeholder field or a fixed flag in a t
 
 **Questions it answers:**
 
-- How do I fill a column with the same country code?
+- How do I fill a field with the same country code?
 - How do I add a fixed version field to test data?
 
 **Use cases by domain:**
@@ -203,7 +203,7 @@ Draws from two or more bell curves blended by weight, for data with several peak
 
 **Questions it answers:**
 
-- How do I simulate a column with two separate peaks?
+- How do I simulate a field with two separate peaks?
 - How do I generate order sizes where small and bulk orders form distinct groups?
 
 **Use cases by domain:**
@@ -273,7 +273,7 @@ Draws numbers from a bell curve around a chosen centre and spread, optionally cl
 **Questions it answers:**
 
 - How do I generate realistic test scores that cluster around 70?
-- How do I make a numeric column with a known average and spread?
+- How do I make a numeric field with a known average and spread?
 
 **Use cases by domain:**
 
@@ -380,7 +380,7 @@ Generates text matching a pattern, such as order codes like AB-1234, for realist
 **Questions it answers:**
 
 - How do I generate postcodes that look real?
-- How do I fill a SKU column with codes like SKU-00042?
+- How do I fill a SKU field with codes like SKU-00042?
 
 **Use cases by domain:**
 
@@ -438,13 +438,13 @@ Fills a multi-select answer: each option is ticked on its own at its own rate, s
 
 ### `uniform`
 
-Draws numbers between a low and a high bound, every value equally likely, for flat filler columns or random noise.
+Draws numbers between a low and a high bound, every value equally likely, for flat filler fields or random noise.
 
 **Level:** basic
 
 **Questions it answers:**
 
-- How do I fill a test column with random numbers between 0 and 100?
+- How do I fill a test field with random numbers between 0 and 100?
 - How do I add flat random noise to a synthetic cohort?
 
 **Use cases by domain:**
@@ -472,7 +472,7 @@ Draws numbers between a low and a high bound, every value equally likely, for fl
 
 ### `uniform_date`
 
-Draws calendar dates between a start and an end date, every day equally likely, both ends included.
+Draws calendar dates between a start and an end date, both ends included, every day equally likely unless month weights are set.
 
 **Level:** basic
 
@@ -490,6 +490,7 @@ Draws calendar dates between a start and an end date, every day equally likely, 
 
 - start and end are written as YYYY-MM-DD; end may equal start, which puts every row on that day, but may not come before it.
 - Dates before 1970-01-01 are allowed.
+- month_weights lists one weight per calendar month the range touches, start's month first, and scales every day of that month: a trend or a seasonal swing.
 - The field is drawn on its own unless the spec adds correlations, models or rules that tie it to other fields.
 - The same spec and seed give the same rows every time; change the seed for a fresh draw.
 
@@ -504,7 +505,7 @@ Draws calendar dates between a start and an end date, every day equally likely, 
 
 ### `uniform_datetime`
 
-Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
+Draws datetime values on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
 
 **Level:** intermediate
 
@@ -522,6 +523,7 @@ Draws timestamps on a local clock, weighted by weekday and hour like opening hou
 
 - start and end are local calendar days written as YYYY-MM-DD, both included.
 - A weekday weight scales every such day in the range, so a 0 removes that weekday and over whole weeks the shares follow the weights.
+- month_weights lists one weight per calendar month the range touches, start's month first, and scales every day of that month: a trend or a seasonal swing.
 - A local time that a daylight-saving change skips or repeats stops the run unless dst_policy is earlier or later.
 - The field is drawn on its own unless the spec adds correlations, models or rules that tie it to other fields.
 - The same spec and seed give the same rows every time; change the seed for a fresh draw.
@@ -529,7 +531,7 @@ Draws timestamps on a local clock, weighted by weekday and hour like opening hou
 **Use something else:**
 
 - [`uniform_date`](#op-uniform_date) when only the calendar day matters.
-- [`constant`](#op-constant) when every row shares one timestamp.
+- [`constant`](#op-constant) when every row shares one datetime.
 
 **Skill:** [`op-synth-uniform-datetime`](../skills/op-synth-uniform-datetime.md)
 

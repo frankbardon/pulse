@@ -416,7 +416,7 @@
             "use": "GROUP_CATEGORY"
           },
           {
-            "when": "the field has few categories and each should be its own column",
+            "when": "the field has few categories and each should be its own field",
             "use": "FEAT_ONE_HOT"
           }
         ]
@@ -428,4 +428,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2f95a6b9c993eb7c00b14f35a01ee126de03fe759591b48bae886d7d61029477
+// golden-hash: 26c25f62200b5ed66fb0d27dbae8a4dfccf602234cb0aa996ef678a791497865

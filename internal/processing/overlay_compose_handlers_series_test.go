@@ -442,7 +442,7 @@ func TestApplyTVsRef_TripleBypassesParamsDefaults(t *testing.T) {
 	}
 	want, _ := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
 	for i := 0; i < 2; i++ {
-		approxEqual(t, "entry (triple bypasses Params)", entryStat(t, layer, i), want, 1e-9)
+		approxEqual(t, "entry (triple bypasses params)", entryStat(t, layer, i), want, 1e-9)
 	}
 }
 

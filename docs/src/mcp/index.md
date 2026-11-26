@@ -65,7 +65,7 @@ Restart Claude Desktop. Pulse tools appear in the tool picker.
 claude mcp add pulse --env PULSE_DATA_DIR=/var/data/pulse -- pulse mcp
 ```
 
-Or by hand in `~/.claude.json` (or per-project `.claude.json`):
+Or by hand in a project's `.mcp.json`:
 
 ```jsonc
 {
@@ -87,39 +87,30 @@ Any host that speaks the MCP stdio transport can launch `pulse mcp` the same way
 
 ### Tool surface
 
-The core tools below are registered at server start (the manifest's `mcp_tools` is the authoritative list for an instance). Names and order match `internal/mcp/toolmeta/meta.go`.
+The manifest's `mcp_tools` (`pulse --json | jq '.data.mcp_tools'`) is the
+authoritative list for an instance; a [feature profile](../library/feature-profiles.md)
+mounts only what it enables. Each tool's full description is served with
+`tools/list` (source: `internal/mcp/toolmeta/meta.go`), and each has a
+`tool-<name>` skill (`tool-predict`, `tool-import`, …).
 
-| Tool | Purpose |
+| Job | Tools |
 |---|---|
-| `pulse_manifest` | **Call first.** Self-description: commands, operators (with accepted types + streamability), tier-1/tier-2 tests, regressions, synth distributions, error code list, MCP tool list, cohort field types with operator cross-references. Cache once per session. |
-| `pulse_inspect` | Read `.pulse` header + schema (no record bytes). Carries an additive `warnings` array beside the result — a payload length that is not a whole multiple of the record stride floors `record_count` and says so there. Side effect: registers session-scoped schema-bound tool variants (see below). |
-| `pulse_predict` | Validate a request against the schema without executing. Returns errors, warnings, applied defaults, streamability reasons. |
-| `pulse_process` | Execute one pre-built request. |
-| `pulse_compose` | Execute a batch of requests against the same cohort in one round trip. |
-| `pulse_sample` | Return up to N rows for preview / diagnostics. |
-| `pulse_facet` | Distinct values for a single field. |
-| `pulse_import` | Convert a tabular source (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) into a managed `.pulse` handle under `internal/imports/`, with TTL-tracked sidecar. Pulse-format inputs pass through. |
-| `pulse_dedup` | Deduplicate an existing single-file cohort into parent groups (format 0x02), in place or to `out`; `suggest_groups` alone is read-only candidate detection. |
-| `pulse_materialize` | Write a request's derived columns (features, attributes, windows) as ordinary fields of a NEW cohort at `out` — `{request, out, overwrite, predict}`, the request nested — so a later request can regress, group, filter or join on them; a request `output` block picks, orders, renames and describes the written columns, its `shards` / `elide_constants` keys write a shard archive / store constant columns once, and `groups` keeps the source's parent groups or declares new ones. Returns `target`, `records`, `derived_columns`, `shards`, `elided_constants`, `groups`, `warnings`. `predict: true` writes nothing (no `out` needed) and answers under `predict` with the output `columns`, `derived_columns`, data-dependent `risks`, the `container` plan and coded `errors` / `warnings` — the run's own codes. |
-| `pulse_rake` | Compute survey weights (rim weighting to inline target margins, cell weighting for a joint margin; optional `by`, `base_weight`, caps) and write them as a nullable `f64` column of a NEW cohort at `out` — a `RakeRequest` spread at the root. Returns iterations, convergence, per-margin observed / target / achieved shares and the Kish efficiency. Every refusal keeps its `PULSE_RAKE_*` code and writes nothing. |
-| `pulse_recommend` | Turn a question kind (an intent ID) into ranked draft requests: `<placeholder>` skeletons without `cohort`, drafts bound to the cohort's fields and predict-validated with it. Non-analytic intents return `routes_to` instead. |
-| `pulse_explain` | Say in plain words what a request will do (never run; predict-checked when it names a cohort) or what a result found: `findings` with closed verdicts read at the result's own alpha, strength bands with their convention, and `caveats`. Pass a result exactly as returned, with its request beside it. |
-| `pulse_drop` | Delete a managed-import handle and its sidecar. |
-| `pulse_imports_list` | Enumerate managed handles with sidecar metadata (source, format, imported_at, expires_at, ttl, expired flag, pinned flag). |
-| `pulse_examples_search` | Search the embedded request-example library by query, taxonomy tags (ANDed), or category. |
-| `pulse_examples_get` | Fetch one runnable example body by name. |
-| `pulse_errors_lookup` | Per-code Message + Fixup detail (kept out of the manifest for context economy). |
-| `pulse_skills_list` | Embedded skill metadata; the optional `intent` filter returns that intent's skills. |
-| `pulse_skills_get` | Fetch one skill body by name. |
+| Discover | `pulse_manifest` (**call first**, cache per session), `pulse_skills_list`, `pulse_skills_get`, `pulse_examples_search`, `pulse_examples_get`, `pulse_errors_lookup` (per-code Message + Fixups) |
+| Look at a cohort | `pulse_inspect` (header + schema, never records; also binds schemas, below), `pulse_sample` (up to N rows), `pulse_facet` (distinct values of one field), `pulse_facet_schema` (multi-field summary: counts, nulls, stats, histograms) |
+| Author and run | `pulse_recommend` (an intent ID to draft requests), `pulse_predict` (validate without running), `pulse_process`, `pulse_compose` (several requests, same or different cohorts, one round trip), `pulse_process_chain` (each stage reads the previous stage's rows), `pulse_explain` (plain-words reading of a request or result), `pulse_lookup` (rows by key from a prebuilt sidecar index) |
+| Bring data in | `pulse_import` (a tabular file, SPSS included, to a managed handle; `.pulse` passes through), `pulse_imports_list`, `pulse_drop` |
+| Write a new cohort | `pulse_dedup` (parent groups), `pulse_materialize` (derived columns as fields), `pulse_rake` (survey weights) |
+| Name things | `pulse_label_tables`, `pulse_label_resolve` (display name to raw key), `pulse_range_tables`, `pulse_lookup_tables` |
 
 ### Resources
 
 | URI scheme | Yields |
 |---|---|
 | `pulse://<path>` | One resource per `.pulse` file under the data directory. Read returns `descriptor.InspectResult` JSON (header + schema only — no record bytes). The per-file entries are produced by a startup scan the operator can disable (`pulse mcp --no-cohort-scan`); a read by URI resolves either way. |
+| `pulse://schema` | The instance's payload JSON Schema (draft 2020-12), the same document `pulse schema` prints. |
 | `pulse-skill://<name>` | One per skill — every embedded skill plus the two rendered from Go registries, `glossary` and `intents`. Read returns the markdown body. |
 
-Resources are registered once at server start. Files added afterwards do not appear until the server restarts. Listing is cheap because the server only reads header bytes.
+Resources are registered once at server start: a file added afterwards is not listed until the server restarts, but reads by URI through the template. Reading a cohort resource reads only header bytes.
 
 ### Prompts
 
@@ -140,7 +131,7 @@ Resources are registered once at server start. Files added afterwards do not app
 | `pulse-flows` | `cohort`, `from`, `to` | The guided intent workflow for `flows` (below). |
 | `pulse-data-quality` | `cohort`, `fields` | The guided intent workflow for `data_quality` (below). |
 
-**Intent prompts.** One `pulse-<intent>` prompt per analytic intent (the twelve above; the tooling intents `prepare`, `simulate` and `lookup` route to tools and get none), generated from the intent registry. Every argument is optional: `cohort` plus one field hint per role of the intent's shapes, comma-separated field names. All share one script: `pulse_inspect` the cohort → `pulse_recommend {intent, fields}` (the role arguments become `fields` hints) → `pulse_explain` the draft request and confirm it with the user → `pulse_process` → `pulse_explain` the response. Under a feature profile each prompt is its own `mcp_extra:prompt_<intent>` feature (it needs `capability:recommend`, `capability:explain` and `capability:process`), and it is not mounted when every operator serving its intent is hidden.
+**Intent prompts.** One `pulse-<intent>` prompt per analytic intent (the tooling intents `prepare`, `simulate` and `lookup` route to tools and get none), generated from the intent registry. Every argument is optional: `cohort` plus one field hint per role of the intent's shapes, comma-separated field names. All share one script: `pulse_inspect` the cohort → `pulse_recommend {intent, fields}` (the role arguments become `fields` hints) → `pulse_explain` the draft request and confirm it with the user → `pulse_process` → `pulse_explain` the response. Under a feature profile each prompt is its own `mcp_extra:prompt_<intent>` feature (it needs `capability:recommend`, `capability:explain` and `capability:process`), and it is not mounted when every operator serving its intent is hidden.
 
 Hosts that surface prompts as slash commands let users trigger these directly.
 
@@ -149,10 +140,10 @@ Hosts that surface prompts as slash commands let users trigger these directly.
 The default sequence for nearly every user request:
 
 1. **`pulse_manifest`** once at session start. No arguments. Cache the payload — it is deterministic for a binary version and carries every fact needed to author a valid request.
-2. **`pulse_import`** when the user hands the LLM a raw tabular file (CSV/TSV/NDJSON/JSONArray/Parquet/Arrow/Excel). Returns a managed handle that subsequent tools address as if it were a `.pulse`. Skip when the cohort already exists as a managed handle or `.pulse` file in `PULSE_DATA_DIR`.
-3. **`pulse_inspect`** on the handle (or path). Reads header + schema only — no record bytes — and registers session-scoped, schema-bound variants of the action tools (see below).
+2. **`pulse_import`** when the user hands the LLM a raw tabular file (CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS). Returns a managed handle that subsequent tools address as if it were a `.pulse`. Skip when the cohort already exists as a managed handle or `.pulse` file in `PULSE_DATA_DIR`.
+3. **`pulse_inspect`** on the handle (or path). Reads header + schema only — no record bytes — and binds the action tools to the cohort's fields (see below; `pulse_import` binds too).
 4. **`pulse_predict`** with the authored request. Validates against the schema, surfaces applied defaults, streamability, and any structural errors / warnings. Each error code carries Fixup metadata so the LLM can repair the request without another round trip.
-5. **`pulse_process`** to execute. Use `pulse_compose` to batch multiple requests against the same cohort in one round trip.
+5. **`pulse_process`** to execute. Use `pulse_compose` to batch several requests in one round trip.
 
 Cheaper probes are available without going through `pulse_process`:
 
@@ -164,18 +155,18 @@ Cheaper probes are available without going through `pulse_process`:
 
 `pulse_import` lets the LLM hand the server any tabular file and address it from then on as if it were a `.pulse`.
 
-- **Convertible formats** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel) are imported into `$PULSE_DATA_DIR/imports/<handle>.pulse` with a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count — plus `source_tz` / `column_source_tz` / `source_tz_field` / `dst_policy` when the import read naive datetimes in a source zone (the `pulse_import` fields of the same names; omitted for a UTC import), and `zone_field` when it declared the cohort's default per-row zone field. `result.managed=true`.
+- **Convertible formats** (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) are imported into `$PULSE_DATA_DIR/imports/<handle>.pulse` with a sidecar `<handle>.pulse.meta.json` carrying `imported_at`, `expires_at`, `ttl_seconds`, source path, source format, and row count — plus `source_tz` / `column_source_tz` / `source_tz_field` / `dst_policy` when the import read naive datetimes in a source zone (the `pulse_import` fields of the same names; omitted for a UTC import), and `zone_field` when it declared the cohort's default per-row zone field. `result.managed=true`.
 - **Pulse passthroughs** (`.pulse` extension) under `PULSE_DATA_DIR` are not copied — the server returns the relative path verbatim with `managed=false`. A `.pulse` outside `PULSE_DATA_DIR` is copied into the managed pool.
 
 **Source path resolution.** Relative `source` paths resolve against `PULSE_DATA_DIR`. Absolute paths read from the host filesystem through a separate "source fs."
 
 **Import jail.** Absolute source paths are confined to a single directory tree (the *jail root*). Default: the working directory the MCP server was launched from. Paths that escape the jail (including `..`) return `PULSE_IMPORT_SOURCE_FORBIDDEN`. Override via `pulse.Options.ImportSourceJailRoot` when embedding.
 
-**Sliding TTL.** Default lifetime is `7d` (overridable via `PULSE_IMPORT_TTL`, or per-import via the `ttl` field — accepts Go duration like `"24h"`, day form like `"7d"`, or `"pin"` for never-expire). Every subsequent inspect/predict/process/sample/facet against the handle slides `expires_at` forward. The pool self-sweeps on every `pulse_import` call — no daemon required. Inspect with `pulse_imports_list`; evict manually with `pulse_drop`.
+**Sliding TTL.** Default lifetime is `7d` (overridable via `PULSE_IMPORT_TTL`, or per-import via the `ttl` field — accepts Go duration like `"24h"`, day form like `"7d"`, or `"pin"` for never-expire). Every later read of the handle (inspect, predict, process, sample, facet, …) slides `expires_at` forward. The pool self-sweeps on every `pulse_import` call — no daemon required. Inspect with `pulse_imports_list`; evict manually with `pulse_drop`.
 
 ## Schema-bound enums
 
-After a successful `pulse_inspect`, the server registers session-scoped variants of the action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_sample`, `pulse_facet`) whose JSON Schemas embed enum constraints on field-name parameters. The LLM picks field names from a typed list rather than free-texting and discovering on predict that the name was wrong.
+After a successful `pulse_inspect` or `pulse_import`, the server re-registers the action tools (`pulse_process`, `pulse_predict`, `pulse_compose`, `pulse_process_chain`, `pulse_sample`, `pulse_facet`, `pulse_facet_schema`) with JSON Schemas that embed enum constraints on field-name parameters. The LLM picks field names from a typed list rather than free-texting and discovering on predict that the name was wrong.
 
 What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compose` schemas:
 
@@ -210,12 +201,12 @@ Beyond the enums, a bound schema carries every key the payload schema declares o
 
 **Join targets.** `pulse_inspect` takes an optional `joins: [{right, as}]` naming the cohorts the session's requests will join. Each target that opens widens the bound `pulse_process` / `pulse_predict` / `pulse_compose` / `pulse_process_chain` field enums with its joined names (`as` + right field, the names predict resolves against the joined schema; type rules kept, so a joined categorical is still no `ATTR_ZSCORE` field though an `ATTR_CODE_IN` one) and binds `joins[].on[].right_field` to its own fields; `left_field` stays left-only, and `pulse_sample` / `pulse_facet` / `pulse_facet_schema` stay on the inspected cohort. Inspect's output is unchanged, a target that does not open widens nothing, and an instance hiding `capability:joins` ignores the targets. The bound `as` is the one named here: a request joining with another prefix or another cohort is still judged by `pulse_predict`. Pinned by `TestBind_JoinTarget*` (`internal/mcp`) and `TestRegister_BindOnInspectJoinTargets` (`mcp/gosdk`).
 
-**Trigger and lifecycle.** Binding fires on a successful `pulse_inspect`. The go-sdk server auto-fires `notifications/tools/list_changed` on the post-serve `AddTool` / `RemoveTools` swap; the host refreshes its tool list and picks up the bound schemas on the next list. Bound tools share names with the global tools — the session-scoped variants override globals for that session.
+**Trigger and lifecycle.** Binding fires on a successful `pulse_inspect` or `pulse_import`. The server replaces the tools by name (`AddTool`), and the go-sdk server emits `notifications/tools/list_changed`; the host picks up the bound schemas on its next list. The server holds one tool set, so on stdio (one process, one session) the bound tools are exactly that session's.
 
 **Limitations.**
 - *Multi-file sessions:* the latest inspect wins. Track multiple cohorts client-side.
 - *No per-element type ↔ field correlation:* JSON Schema can't easily express "if `aggregations[i].type == AGG_SUM` then `aggregations[i].field` must be numeric." Operator–type compatibility lives in the `type` property description; strict validation remains `pulse_predict`'s job.
-- *Transport support:* binding mutates the single stdio-session server post-serve (`AddTool` / `RemoveTools` auto-emit `list_changed`), so stdio — the transport `pulse mcp` ships — honours it. There is no per-session schema override for a shared HTTP server, a documented limitation. The manifest's `accepts_types` table is still authoritative, so authoring is never blocked regardless of transport.
+- *Transport support:* an embedder serving one server to several HTTP sessions shares one tool set, so the latest bind applies to every session; one server per session (the go-sdk `getServer` factory) keeps them apart. The manifest's `accepts_types` table stays authoritative either way.
 - *Empty enums omitted:* when the cohort has zero fields in a category (e.g. no geo fields), the enum is omitted entirely rather than emitted as `[]`.
 
 Disable binding entirely with `--bind-on-open=false`.
@@ -231,9 +222,8 @@ host (`pulse mcp --return`, `gosdk.Config.DefaultReturn`,
 `mcpserve.Options.DefaultReturn`) > instance default
 (`pulse.Options.DefaultReturn`, else the feature profile's `return`) >
 `standard`. An agent that needs everything sends
-`"return": {"preset": "full"}`; an operator restores the pre-default
-output with `pulse mcp --return full`. The library default is
-unchanged (`full`). Contract: [Response shaping](../library/response-shaping.md).
+`"return": {"preset": "full"}`; an operator makes `full` the server
+default with `pulse mcp --return full`. The library default is `full`. Contract: [Response shaping](../library/response-shaping.md).
 
 ## Configuration
 
@@ -243,12 +233,14 @@ unchanged (`full`). Contract: [Response shaping](../library/response-shaping.md)
 | `PULSE_IMPORTS_DIR` | Subdirectory for managed-import handles. | `imports` |
 | `PULSE_IMPORT_TTL` | Default TTL for managed handles. Accepts Go duration (`24h`, `30m`), day form (`7d`, `30d`), or `pin`. | `7d` |
 
-Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, ImportTTL, ImportSourceJailRoot, FS, ImportSourceFS, BindOnOpen}` — see `pulse.go`.
+Embedders set the same per instance through `pulse.Options` (`DataDir`, `FS`, `ImportsDir`, `ImportTTL`, `ImportSourceFS`, `ImportSourceJailRoot`) and serve it with `mcpserve` or `gosdk.Register` ([Serving MCP](../library/mcp-serving.md)).
 
 ## Transport caveats
 
-- **Stdio.** The default and only transport `pulse mcp` ships today. Schema bind-on-inspect works on the single stdio session (see Limitations). Stdout is the JSON-RPC channel; stderr is the log channel — never write structured output to stdout outside the protocol.
-- **Streamable HTTP.** Not exposed by the `mcp` CLI leaf yet. The underlying go-sdk server supports it; embedders build their own `go-sdk` server and call `gosdk.Register(server, p, cfg)` (or use `mcpserve.Serve`), then serve over the transport of their choice. Bind-on-inspect has no per-session override on a shared HTTP server (see Limitations).
+Protocol revisions, negotiation and the upgrade policy: [Protocol Versions](protocol.md).
+
+- **Stdio.** The only transport `pulse mcp` serves. Schema binding is exact on its single session (see Limitations). Stdout is the JSON-RPC channel; stderr is the log channel — never write structured output to stdout outside the protocol.
+- **Streamable HTTP.** Not exposed by the `mcp` CLI leaf. The go-sdk server supports it; embedders build their own `go-sdk` server and call `gosdk.Register(server, p, cfg)` (or use `mcpserve.Serve`), then serve over the transport of their choice. Bind-on-inspect has no per-session override on a shared HTTP server (see Limitations).
 
 ## Troubleshooting
 
@@ -257,14 +249,14 @@ Embedders can override per-instance via `pulse.Options{DataDir, ImportsDir, Impo
 | `data directory required: set PULSE_DATA_DIR or pass --data-dir` | Neither env var nor flag set | Pass `PULSE_DATA_DIR` in the host's `env` block, or `--data-dir` in `args` |
 | Tools don't appear in the host UI after editing config | Host caches tool list | Restart the host fully (not just the conversation) |
 | `pulse_import` returns `PULSE_IMPORT_SOURCE_FORBIDDEN` for an absolute path | Path escapes the import jail (default = server's working dir) | Either move the file under the jail, launch the server from a higher-level directory, or set `pulse.Options.ImportSourceJailRoot` when embedding |
-| `pulse_inspect` succeeds but bound enums never fire | Stdio session — binding is a no-op there | Use `pulse_predict` for validation; the manifest's `accepts_types` lists give the LLM the same information |
+| `pulse_inspect` succeeds but bound enums never fire | Binding is off (`--bind-on-open=false`, `BindOnInspect: false`), or the host ignores `notifications/tools/list_changed` | Turn binding on, or rely on `pulse_predict` for validation; the manifest's `accepts_types` lists give the LLM the same information |
 | Tool calls hang | Host wrote non-protocol bytes to the server's stdin, or server wrote non-protocol bytes to stdout | Check server stderr; restart the session. `pulse mcp` itself only writes a one-line startup notice to stderr at boot |
 
 To see what the server registers without launching the host:
 
 ```bash
 pulse --json | jq '.data.mcp_tools[]'
-pulse manifest --json | jq '.data.skills[]'
+pulse --json | jq '.data.skills[]'
 ```
 
 ## Skill cross-reference for LLM agents
@@ -289,11 +281,11 @@ If you are writing a system prompt for an LLM agent that uses Pulse, point it at
 | Gate, mask or derive a synthetic field (`rules[]`) | `synth-structural-rules` |
 | Understand a cohort's schema layout | `cohort-schema-design` |
 | Import a tabular source into `.pulse` | `tool-import` |
-| Pick an export format | `pulse manifest --json` (`Export` capability block) |
+| Pick an export format | `pulse --json` (`Export` capability block) |
 | Work with `decimal128` (currency, precise arithmetic) | `financial-cohorts` |
 | Get started end-to-end (LLM walkthrough) | `session-bootstrap` |
 
-The agent should call `pulse_skills_list` once at session start to enumerate the catalog, then `pulse_skills_get` on demand. The returned text is authoritative; this site does not duplicate it and may lag.
+The agent should call `pulse_skills_list` once at session start, then `pulse_skills_get` on demand. The served text is authoritative.
 
 ## Related
 

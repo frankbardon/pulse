@@ -42,7 +42,7 @@ func VersionCommand() *cli.Command {
 		Name:  "version",
 		Usage: "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output build facts as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			info := currentVersionInfo()

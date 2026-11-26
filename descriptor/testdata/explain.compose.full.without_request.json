@@ -96,10 +96,11 @@
       "Adding a multiplicity block (for example holm) adjusts them for multiple comparisons; then read p_adjusted beside each raw p-value.",
       "Partial reading: the composed request is absent, so the aggregations and groupings are described by count only; pass it beside the response to name their operators and weight.",
       "TEST_T: Rows are independent of each other, within and across groups.",
-      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances.",
+      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances; params.variance pooled runs Student's equal-variance form.",
+      "TEST_T: params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.",
       "TEST_T: The average is roughly normally distributed: safe for large groups, risky for small skewed ones.",
       "TEST_T: The p-value is two-sided: it looks for a difference in either direction.",
-      "OVERLAY_T_CELL: Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.",
+      "OVERLAY_T_CELL: Cells should use AGG_WELFORD, which supplies each cell's mean, variance and n; any cell aggregator whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.",
       "OVERLAY_T_CELL: Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
       "OVERLAY_T_CELL: The null hypothesis is equal means in the cell; the p-value is two-sided.",
       "OVERLAY_T_CELL: Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones."
@@ -108,4 +109,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 131c9efb9eafe370dd6c030a3a216188ee049e5de9e2ce3ce49d8fa4297595c2
+// golden-hash: 3373557d744a8ff99f45a7ab783dccb320bf5307bc841489588d74138fa15fdb

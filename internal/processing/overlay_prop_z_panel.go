@@ -433,7 +433,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	if len(targets) > cap {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
-			"compose overlay "+string(spec.Kind)+" exceeded the per-spec MaxPanelTargets cap",
+			"compose overlay "+string(spec.Kind)+" exceeded the per-spec max_panel_targets cap",
 			map[string]any{
 				"kind":     string(spec.Kind),
 				"observed": len(targets),
@@ -458,7 +458,7 @@ func applyPropZPanel(spec *types.ComposeOverlaySpec, reference *types.Response, 
 	if perr != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" has malformed Params: "+perr.Error(),
+			"overlay "+string(spec.Kind)+" has malformed params: "+perr.Error(),
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	if !types.ValidPanelNSource(params.NSource) {

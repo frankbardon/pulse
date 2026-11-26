@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Age-weighted mean income on customers.pulse via AGG_WEIGHTED_MEAN with Params.weight_field=age (older customers carry more weight). Paired with unweighted AGG_AVERAGE for the canonical weighted-vs-unweighted contrast — when the weight covaries with the value the two diverge. Streamable via the Chan-Welford weighted recurrence.",
+    "description": "Age-weighted mean income on customers.pulse via AGG_WEIGHTED_MEAN (params.weight_field age: older customers count more) beside the unweighted AGG_AVERAGE; the two diverge when the weight covaries with the value. Its components carry sum_weights and Kish n_eff. Streamable.",
     "intents": [
       "describe"
     ],

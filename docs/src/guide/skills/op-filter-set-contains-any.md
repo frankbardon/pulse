@@ -27,11 +27,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND. |
+| `values` | array | — | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -46,8 +46,8 @@ Row-level predicate. Pass when `row & query != 0`. No emitted column.
 
 ## Gotchas
 
-- Empty `Values` resolves to a zero query — every row drops. Validate caller input.
-- Unknown label in `Values` → `PROCESSING_CONFIG`.
+- Empty `values` resolves to a zero query — every row drops. Validate caller input.
+- Unknown label in `values` → `PROCESSING_CONFIG`.
 - Label whose dictionary bit position exceeds the set's width → `PROCESSING_CONFIG`.
 - Null rows DROP (like an include filter).
 

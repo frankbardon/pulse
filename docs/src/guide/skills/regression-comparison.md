@@ -30,7 +30,7 @@ Verified on the specs, at predict and at run alike:
 - every restricted term (its predictors, plus the intercept when it fits one) is a full-fit term, and the full fit adds at least one — the tested `terms`;
 - the requests are equal but for the regression's `predictors`, `intercept` and reporting knobs (`name`, `vcov`, `conf_level`, `margins`, `collinearity`, `save`, `multiplicity`) and the request's `label`, `return`, `disable_components`, `multiplicity`: same cohort, filters, features, weight, family, link, θ, dispersion, covariance. Put a full-only feature in both requests.
 
-The full fit's rows (listwise over more columns) are a subset of the restricted fit's; unequal row counts fail the comparison alone, `PULSE_COMPARISON_ROWS_DIFFER` (as R's anova stops). Filter both to non-null extra predictors.
+The full fit's rows (listwise over more fields) are a subset of the restricted fit's; unequal row counts fail the comparison alone, `PULSE_COMPARISON_ROWS_DIFFER` (as R's anova stops). Filter both to non-null extra predictors.
 
 ## Tests
 

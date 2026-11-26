@@ -11,7 +11,7 @@
     "operators": [
       "REG_OLS"
     ],
-    "description": "Bootstrap resampling: REG_OLS with resample=bootstrap replaces analytical std errors with empirical-distribution estimates over 200 with-replacement bootstrap iterations (rng_seed=42 for determinism). Sibling shape to 09_jackknife.json — the bootstrap arm is the canonical large-sample resampling estimator; jackknife is the leave-one-out approximation. Forces the buffered orchestrator path (the bootstrap fold needs the materialised record set).",
+    "description": "Bootstrap resampling: REG_OLS with resample bootstrap replaces the analytical standard errors, p-values and intervals with estimates from 200 with-replacement resamples (bootstrap_iters 200, rng_seed 42 pins them); the coefficients do not move. Sibling of 09_jackknife.json (leave-one-out). bootstrap_requested / bootstrap_succeeded echo the replicates. Resampling buffers the request.",
     "intents": [
       "drivers"
     ]

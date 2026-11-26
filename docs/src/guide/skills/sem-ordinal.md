@@ -57,7 +57,7 @@ requires: [MAT_SEM, capability:sem_ordinal]
 
 ## Scores
 
-- `ATTR_SEM_SCORE` scores an ordinal fit (inline, a Compose `fits` entry, a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
+- `ATTR_SEM_SCORE` scores an ordinal fit (inline, a bound fit or a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
 - A row is coded by the fit's categories: a value the fit never saw scores null (`PULSE_SEM_SCORE_LEVEL_UNSEEN`, reason `category_unseen`). A null member scores null (lavaan skips it instead). An observed mediator is scored as lavaan does.
 
 ## Refusals

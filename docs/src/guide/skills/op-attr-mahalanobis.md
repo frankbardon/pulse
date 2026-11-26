@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [outlier-detection, multivariate, streaming-friendly]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 ## Use when
 
 Adds to every row how unusual its mix of several numeric fields is, allowing for how those fields usually vary together.
@@ -40,7 +38,7 @@ Slot: `vector` or `fields`, no `field` ([`vector-row-scores`](vector-row-scores.
 
 ## Inputs
 
-Members: see `## Contract` (`packed_bool` via `coerce: binary`); source columns only.
+Members: see `## Contract` (`packed_bool` via `coerce: binary`); schema fields only.
 
 ## Output
 

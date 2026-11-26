@@ -42,7 +42,7 @@ Keeps only the rows whose date falls inside one of a set of named date ranges, s
 - Runs before attributes, groups and aggregations, so every figure in the result comes from the rows it keeps.
 - Both ends of each range are inclusive; a range with no start or no end is open on that side.
 - The ranges may not overlap; overlapping or duplicate ranges are refused, not merged.
-- A date-and-time field is matched by the day it falls on.
+- A datetime field is matched by the day it falls on in its time zone (UTC unless the slot or the request sets one).
 - A row whose field is missing is dropped.
 
 **Use something else:**
@@ -253,7 +253,7 @@ Keeps only the rows whose number lies between a low and a high limit, both limit
 - Runs before attributes, groups and aggregations, so every figure in the result comes from the rows it keeps.
 - Several filters in one request all have to keep a row for it to stay: they combine as AND, never OR.
 - Both limits are inclusive: a value equal to the low or the high limit is kept.
-- On a date field the limits are day numbers counted from 1 January 1970, not written dates.
+- On a date field the limits are day numbers counted from 1 January 1970 (on a datetime field, seconds), not written dates.
 - A row whose field is missing is dropped.
 
 **Use something else:**

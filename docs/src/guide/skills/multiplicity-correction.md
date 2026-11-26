@@ -9,7 +9,7 @@ requires: [capability:multiplicity]
 ```
 # Multiple-comparison correction
 
-Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
+Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) adds nothing.
 
 ## The block
 

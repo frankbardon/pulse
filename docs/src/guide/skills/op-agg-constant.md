@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `type` | enum | (required) | One of the 22 field-type names. |
+| `type` | enum | (required) | A field-type name (manifest `cohort_types`). |
 | `value` | any | — | Literal judged against `type`; `null` emits null. |
 | `expr` | string | — | Scalar expression, evaluated once before the run. |
 

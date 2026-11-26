@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, bayesian, streaming-friendly]
 ```
 
-Fits ride `Response.Regressions[i]`; no `Response.Components`.
+Fits ride `regressions[i]`; no `Response.Components`.
 
 ## Use when
 
@@ -38,11 +38,11 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `prior_shape` | float | — | Inverse-gamma α₀ on residual variance. |
 | `prior_rate` | float | — | Inverse-gamma β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Credible-interval mass. |
-| `conf_level` | float | `0.95` | `CILower` / `CIUpper` mass. |
-| `vcov` | bool | `false` | Adds the posterior covariance + `Correlation`. |
+| `conf_level` | float | `0.95` | `ci_lower` / `ci_upper` mass. |
+| `vcov` | bool | `false` | Adds the posterior covariance + `correlation`. |
 | `covariance` | object | — | Müller sandwich posterior ([`regression-inference`](regression-inference.md)). |
 | `weight` | slot weight | — | `null` opts out; frequency only. |
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `holdout`. |
 | `save` | string | — | Writes a model file. |
 | `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
@@ -53,7 +53,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level`, `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). **No `PValues`** — credibility, not tail probability.
+`coefficients["(intercept)"]` + per-predictor posterior-mean βs; `std_errors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `credible_intervals[name] = [lower, upper]` at `credible_level`; `ci_lower` / `ci_upper` the same t interval at `conf_level`, `df` = 2a_n, `conf_level`; `r2`, `adj_r2`, `residual_std_err`, `n_obs` (+ weighted `sum_weights`). **No `p_values`** — credibility, not tail probability.
 
 ## Reading the output
 
@@ -74,8 +74,8 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 - Flat (`0`) entries need the data to identify those coefficients: an improper posterior (e.g. collinear, both flat) → `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 - A `multiplicity` method other than `none` → `PULSE_MULTIPLICITY_INVALID` (no p-values).
 - A robust `covariance` is a substitution, not a posterior ([`regression-inference`](regression-inference.md)).
-- Vague-prior limit reproduces the OLS point estimate; intervals and `ResidualStdErr` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
-- `R2` is on the posterior-mean fit, not averaged over posterior draws.
+- Vague-prior limit reproduces the OLS point estimate; intervals and `residual_std_err` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
+- `r2` is on the posterior-mean fit, not averaged over posterior draws.
 
 ## See
 

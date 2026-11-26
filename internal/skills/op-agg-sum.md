@@ -17,13 +17,11 @@ Weighted: Σw·x.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
-
-Decimal128 sums stay in decimal (banker-rounded precision propagation); all other numerics emit float64.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Scalar `float64` (decimal128 preserved when input is decimal). One row per group when wired under a grouper.
+Scalar `float64`; over `decimal128` a decimal string (banker-rounded precision propagation). One row per group when wired under a grouper.
 
 ## Components
 
@@ -33,8 +31,7 @@ Scalar `float64` (decimal128 preserved when input is decimal). One row per group
 
 ## Gotchas
 
-- Smart default for numeric fields when `Type` omitted.
-- Overflow on huge u64 sums silently promotes through float64.
+- Smart default for numeric fields when `type` is omitted.
 - Order-free binned sum: serial, any `DecodeWorkers` / `ShardWorkers` count and any shard split give the same bits (not correctly rounded; error ≲ 7ε·|sum|).
 - Empty input (all null / no rows) sums to `0` (`"0.00"` on `decimal128`), never null: the empty sum is defined. Detect emptiness by `n == 0` in the components floor.
 - `decimal128` under any weight in force (default included) → `PULSE_WEIGHT_UNSUPPORTED`; `"weight": null` opts out.

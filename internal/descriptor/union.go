@@ -594,7 +594,7 @@ func unionHead(members []UnionSource, cohort *types.Cohort, union []types.UnionM
 		for i, m := range members {
 			if _, err := m.R.Seek(0, io.SeekStart); err != nil {
 				return nil, CohortCounts{}, codedHeadFault(LocateUnionMember(
-					errors.WrapCodedError(err, errors.DATA_FILE, "rewinding union member"), i, m.Label))
+					errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "rewinding union member"), i, m.Label))
 			}
 			read, err := readUnionMember(m.R)
 			if err != nil {

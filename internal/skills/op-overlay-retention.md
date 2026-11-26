@@ -15,7 +15,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` `row`. `Ref` empty. `Level`/`Within` `0`.
+`scope` `row`. `ref` empty. `level`/`within` `0`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|

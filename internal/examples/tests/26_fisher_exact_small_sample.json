@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Fisher exact test alongside chi-square on a 2x2 contingency table that has been filtered down to a small subgroup.",
+    "description": "Fisher exact test beside the chi-square on a 2x2 treatment x converted table filtered to a small subgroup (segment_a in the north region: 31 rows, 5 conversions, smallest expected count about 2.3). With an expected count below 5 the chi-square's large-sample p (about 0.22 here) is unreliable; Fisher's exact p (about 0.34) is the one to read.",
     "intents": [
       "relationship"
     ],
@@ -40,6 +40,13 @@
       "values": [
         "segment_a"
       ]
+    },
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "region",
+      "values": [
+        "north"
+      ]
     }
   ],
   "tests": [
@@ -58,5 +65,4 @@
       "label": "fisher_exact_small_n"
     }
   ]
-
 }

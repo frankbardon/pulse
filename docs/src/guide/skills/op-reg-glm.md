@@ -9,11 +9,11 @@ applies_to: process, compose, predict
 examples_tags: [regression, glm, logistic, buffered-pipeline]
 ```
 
-Fits ride `Response.Regressions[i]`; no `Response.Components`.
+Fits ride `regressions[i]`; no `Response.Components`.
 
 ## Use when
 
-Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts.
+Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts.
 
 Questions it answers:
 
@@ -22,7 +22,7 @@ Questions it answers:
 
 Use something else:
 
-- `TEST_PROP_Z` when you only want to know whether a yes/no rate differs between two groups.
+- `TEST_CHISQ` when the outcome and the single predictor are both categories.
 
 ## Params
 
@@ -50,13 +50,13 @@ Flat keys (`params` is refused); shared: [`regression-spec`](regression-spec.md)
 | `selection` | enum | — | `backward`, `forward`, `stepwise`. |
 | `criterion` | enum | — | `aic`, `bic`. |
 | `conf_level` | float | `0.95` | CI level. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `vcov` | bool | `false` | Adds `vcov` + `correlation`. |
 | `covariance` | object | — | Robust SEs. |
 | `margins` | object | — | AME / MEM ([`regression-margins`](regression-margins.md)). |
 | `collinearity` | object | — | VIFs ([`regression-collinearity`](regression-collinearity.md)). |
 | `weight` | slot weight | — | Prior weights. |
 | `multiplicity` | object | — | p-values join a family. |
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Held-out rows → `holdout`. |
 | `save` | string | — | Writes a model file. |
 | `order` | object | — | Row order. |
 | `name` | string | — | Result / model name. |
@@ -67,7 +67,7 @@ See `## Contract`; binomial target `{0,1}` or `packed_bool`; null / NaN / ±Inf 
 
 ## Output
 
-`RegressionResult`: `Coefficients` (`(intercept)` + βs, link scale), `StdErrors`, `PValues`, `CILower` / `CIUpper` — Wald z, no `DF`, or t on `DF` (gamma; [`regression-spec`](regression-spec.md)); `ConfLevel`, `Deviance`, `NullDeviance`, `PseudoR2`, `ConvergedIters`, `NObs`, `TwoLogLik`, `AIC`; `Family` / `Link` echoed. NB: `Theta`, `ThetaStdErr` (null: l1/enet).
+`coefficients` (`(intercept)` + βs, link scale), `std_errors`, `p_values`, `ci_lower` / `ci_upper` — Wald z, no `df`, or t on `df` (gamma; [`regression-spec`](regression-spec.md)); `conf_level`, `deviance`, `null_deviance`, `pseudo_r2`, `converged_iters`, `n_obs`, `two_log_lik`, `aic`; `family` / `link` echoed. NB: `theta`, `theta_std_err` (null: l1/enet).
 
 ## Reading the output
 

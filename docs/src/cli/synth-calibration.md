@@ -37,7 +37,7 @@ fields off by more than 0.05.
 Per-cell, the conditional-pair arm recurred once per cell and was worst exactly
 where the signal is: a 5% cell generated at **41%**. A hand-authored continuous
 distribution on a `packed_bool` is still biased (22.7% for a 0.2 field, because
-clamping piles asymmetric mass on the near bound) but no longer inverted, since
+clamping piles asymmetric mass on the near bound) but not inverted, since
 `toBool` rounds at 0.5.
 
 ### The small-integer defect (`discrete` marginals)
@@ -392,7 +392,7 @@ original did not have.
 | Compensated (Kahan) summation for reproducible capture | still order-dependent in principle; sort the keys instead |
 | `math.FMA` for architecture-independent floats | forces fusion everywhere — it changes amd64's values rather than preserving them |
 | Inverse-Mills recovery for a step target | reports a large false attenuation for a generation path that is exactly correct |
-| An ordered-probit refit for the recovery | more efficient, not more correct; `internal/processing/regression` has `binomial`+`probit` as a reserved, unimplemented link |
+| An ordered-probit refit for the recovery | more efficient, not more correct |
 | A tolerance-terminated mixture quantile inverse | makes the answer depend on how many steps a given `p` needed, breaking byte-determinism; Newton additionally explodes where the density underflows between modes |
 | One `set` map with a `{"$expr": …}` marker | leaves `{"set": {"region": "west"}}` undecidable between a literal and an identifier |
 | A two-phase rule pass (evaluate gates, re-run dependent stages) | doubles the stage surface and needs a rule↔model dependency order no document declares |

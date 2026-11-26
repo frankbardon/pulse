@@ -95,7 +95,7 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 		if spec.Target == "" {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.SERVICE_VALIDATION,
-				"REG_OLS requires a Target field",
+				"REG_OLS requires a target field",
 				map[string]any{"name": spec.Name},
 			)
 		}
@@ -111,7 +111,7 @@ func newOLSEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	if spec.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.SERVICE_VALIDATION,
-			"REG_OLS requires a Target field",
+			"REG_OLS requires a target field",
 			map[string]any{"name": spec.Name},
 		)
 	}
@@ -438,7 +438,7 @@ func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 		// clear error if the validator is bypassed.
 		return nil, 0, false, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_OLS Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+e.spec.Penalty,
+			"REG_OLS penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+e.spec.Penalty,
 			map[string]any{"penalty": e.spec.Penalty},
 		)
 	}

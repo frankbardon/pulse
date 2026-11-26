@@ -98,7 +98,7 @@ func TestRegOLS_Jackknife_SEMatchesAnalytical(t *testing.T) {
 	jack := runOLSWithModifier(t, jackSpec, records)
 
 	if jack.Resample != "jackknife" {
-		t.Errorf("Resample echo = %q, want jackknife", jack.Resample)
+		t.Errorf("resample echo = %q, want jackknife", jack.Resample)
 	}
 	for _, name := range []string{"x1", "x2"} {
 		analytical := base.StdErrors[name]
@@ -145,7 +145,7 @@ func TestRegOLS_Bootstrap_Reproducible(t *testing.T) {
 		}
 	}
 	if r1.Resample != "bootstrap" {
-		t.Errorf("Resample echo = %q, want bootstrap", r1.Resample)
+		t.Errorf("resample echo = %q, want bootstrap", r1.Resample)
 	}
 }
 
@@ -190,7 +190,7 @@ func TestRegOLS_Resample_RegularizedFlag(t *testing.T) {
 		}
 	}
 	if res.Resample != "jackknife" {
-		t.Errorf("Resample echo = %q, want jackknife", res.Resample)
+		t.Errorf("resample echo = %q, want jackknife", res.Resample)
 	}
 }
 

@@ -8,21 +8,21 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 4 bytes per record (dictionary index, little-endian). Not bit-packed. Stride contributes 4 bytes to `Schema.RecordByteSize`. The inline dictionary block lives in the schema.
+Fixed-width: 4 bytes per record holding the dictionary index, little-endian. Not bit-packed. The dictionary lives once in the schema block, not in the records.
 
 ## Range
 
-`MaxCategoricalEntries()` = `4,294,967,295` (~4.29B) distinct labels. The widest categorical — surrogate keys with labels, very large enums, free-text canonicalized columns. Practical dictionary size is bounded by the schema-block budget; reach for `u32` (no dictionary) when labels offer no analytic value. Overflow on import → `PULSE_IMPORT_CATEGORICAL_OVERFLOW`; shard insert past the width → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`.
+Up to `4,294,967,295` distinct labels (`MaxCategoricalEntries()`). Fits very large enums and labelled keys; when the labels carry no analytic value, a plain `u32` is cheaper (no dictionary in the schema block). Inference picks it past 60,000 distinct sampled values. The widest rung: an import row past it is dropped (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_CATEGORICAL_OVERFLOW`). In practice the schema block, which holds every label, is the limit.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap. Index `0` is the first dictionary entry, never null. `IsCategorical()` is `true`<!-- feature: AGG_MODE_COUNT -->; default aggregator `AGG_MODE_COUNT`<!-- /feature --><!-- feature: GROUP_CATEGORY -->; default grouper `GROUP_CATEGORY`<!-- /feature -->.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap. Index `0` is the first dictionary entry, never null (import stores a placeholder `0` under a null). `IsCategorical()` is `true`<!-- feature: AGG_MODE_COUNT -->; the default aggregator is `AGG_MODE_COUNT`<!-- /feature --><!-- feature: GROUP_CATEGORY -->; the default grouper is `GROUP_CATEGORY`<!-- /feature -->.
 
 ## Dictionary
 
-Present (`HasDictionary()` = `true`). Inline schema block; `MaxDictEntries()` = `4,294,967,295`. Shard cohesion: union-merge — incoming records byte-rewritten with remapped indices on dict divergence. A non-null index at or past the dictionary length is corrupt data — readers that key, label or render it refuse `ENCODING_INVALID` (`categorical_index_out_of_range`).
+Present (`HasDictionary()`), at most `4,294,967,295` entries. Shard archives union-merge dictionaries (canonical entries first, an arriving shard's records re-indexed), but a categorical rung never widens: a union past `4,294,967,295` is `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. A non-null index at or past the dictionary length is corrupt data; readers that key, label or render it refuse `ENCODING_INVALID` (`categorical_index_out_of_range`).
 
 ## See
 
-- Skill: `cohort-schema-design` (Field-type matrix, Width overflow, Sharded cohorts — Cohesion).
-- Cross-link: `type-set-u32`, `type-u32`.
+- Skills: `cohort-schema-design` (Field-type matrix), `cohort-width-overflow`, `cohort-sharding`.
+- Cross-link: `type-set-u32` (multi-select), `type-u32`.

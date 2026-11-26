@@ -1,6 +1,6 @@
 ---
 name: join-design
-description: Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, v1 limits, and validating a join before running it.
+description: Pushdown hash-join surface — Request.Joins envelope, JoinSpec, OnPair key-type compatibility, As-prefix, limits, and validating a join before running it.
 type: guide
 kind: design
 applies_to: process, predict
@@ -10,11 +10,11 @@ requires: [capability:joins]
 
 # Join design
 
-`Request.Joins` is a pushdown hash join. v1 supports **exactly one inner join per Request**: the right (build) side materialises in RAM, hashed by the join-key tuple; the left streams as the probe. Joined records then flow through the ordinary pipeline (filter → attribute → group → aggregate) exactly like single-cohort records.
+`Request.Joins` is a pushdown hash join, **exactly one inner join per Request**: the right (build) side materialises in RAM, hashed by the join-key tuple; the left streams as the probe. Joined records then flow through the ordinary pipeline (filter → attribute → group → aggregate) exactly like single-cohort records.
 
 ## When to join
 
-Join when the question needs columns that live in two cohorts sharing a key (orders + customers, responses + panel demographics). Skip it when:
+Join when the question needs fields that live in two cohorts sharing a key (orders + customers, responses + panel demographics). Skip it when:
 
 - the second cohort only supplies a display name for a code — a label table does that at output time without a join<!-- feature: capability:labels --> (`label-display`)<!-- /feature -->;
 - the lookup is a small numeric `key → value` map used inside an expression — an embedder `LookupTables` entry is cheaper (`expression-language`);
@@ -45,9 +45,9 @@ Join when the question needs columns that live in two cohorts sharing a key (ord
 | `on` | Equi-join key pairs (`OnPair[]`), AND-ed for composite keys. |
 | `as` | Optional prefix on every right-side field name in the joined schema. |
 
-The joined schema is `left_fields + right_fields` (right prefixed by `as`). Every downstream slot sees the union; reference right-side columns by their prefixed name (`r_bonus`).
+The joined schema is `left_fields + right_fields` (right prefixed by `as`). Every downstream slot sees the union; reference right-side fields by their prefixed name (`r_bonus`).
 
-## v1 envelope
+## Limits
 
 The manifest `join` block (`max_joins_per_request`, `kinds`, `spill_bytes`, `limitations`) is the live statement of these limits.
 
@@ -55,7 +55,9 @@ The manifest `join` block (`max_joins_per_request`, `kinds`, `spill_bytes`, `lim
 - **Inner only.** `"left"` / `"outer"` / `"anti"` ⇒ `PULSE_JOIN_KIND_NOT_IMPLEMENTED`. An unmatched left row is dropped — it reaches no group, cell or count.
 - **A null key never matches**, not even a null: a row null on ANY key field, either side, joins nothing and drops like an unmatched row.
 - **No spill.** The right side materialises fully in RAM, `O(right_records)`. Put the SMALLER cohort on the right; the build side is always `right` (no automatic swap). A right side over the instance's `max_join_build_rows` limit — or a join whose memory estimate passes a set `max_estimated_memory` — is refused `PULSE_LIMIT_EXCEEDED` before any record decodes; `pulse_predict` reports it as a `certain` `limit_findings` entry. `pulse_inspect` reports each side's `record_count` without reading records.
+<!-- feature: capability:crosstab -->
 - **Crosstab honours the join.** `Request.Crosstab` crosstabs the JOINED rows — axes and cell may name `as`-prefixed fields; unmatched left rows reach no cell or margin; always buffered.
+<!-- /feature -->
 - **No shard-parallel join.** A shard-archive left side runs serial on a joined request.
 
 ## OnPair key type compatibility
@@ -68,7 +70,7 @@ Equi-keys must compare equal after normalisation. Accepted:
 
 Rejected:
 
-- **Any `set_*` column, either side, even at identical rungs.** A bitmask has no unambiguous equality value, and the key would be a lossy float echo of the mask, so different selections collapse onto one key and unrelated rows join silently. Filter on set membership instead. Carrying a set column THROUGH a join (non-key) is fine.
+- **Any `set_*` field, either side, even at identical rungs.** A bitmask has no unambiguous equality value, and the key would be a lossy float echo of the mask, so different selections collapse onto one key and unrelated rows join silently. Filter on set membership instead. Carrying a set field THROUGH a join (non-key) is fine.
 - `decimal128` ↔ any other type (precision/scale matter for hashing).
 - `categorical_*` ↔ a non-categorical numeric type.
 - `u64` ↔ `f32` / `f64` (`details.reason = "u64_float_key"`): a `u64` key is exact, a float above 2^53 cannot be.
@@ -79,7 +81,7 @@ A `u64` key compares on its exact stored word, so ids above 2^53 one float apart
 
 ## Field collisions and the `as` prefix
 
-Two fields with the same name in the union ⇒ `PULSE_JOIN_FIELD_COLLISION`. Set `as` to prefix every right-side column (`"as": "r_"` turns `bonus` into `r_bonus`). Categorical right-side fields keep their own dictionaries, so they render the right side's strings.
+Two fields with the same name in the union ⇒ `PULSE_JOIN_FIELD_COLLISION`. Set `as` to prefix every right-side field (`"as": "r_"` turns `bonus` into `r_bonus`). Categorical right-side fields keep their own dictionaries, so they render the right side's strings.
 
 ## Validate before executing
 
@@ -92,4 +94,4 @@ Two fields with the same name in the union ⇒ `PULSE_JOIN_FIELD_COLLISION`. Set
 
 ## See
 
-`aggregation-design` (operators over the joined schema) · `cohort-schema-design` (shard archives + `archive.pulse#shard.pulse` anchors) <!-- feature: capability:process_chain --> · `process-chain` (joining at stage 0)<!-- /feature --> · `docs/src/internals/` (adding a join kind + spill wiring).
+`aggregation-design` (operators over the joined schema) · `cohort-schema-design` (shard archives + `archive.pulse#shard.pulse` anchors) <!-- feature: capability:process_chain --> · `process-chain` (joining at stage 0)<!-- /feature -->.

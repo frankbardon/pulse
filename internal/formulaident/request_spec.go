@@ -71,9 +71,9 @@ func RequestSpecRefusalWithTables(spec *types.OverlaySpec, index int, shape type
 	}
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
-		msg := "overlay " + kind + " requires Params[\"formula\"] (non-empty string)"
+		msg := "overlay " + kind + " requires params.formula (non-empty string)"
 		if reason != ReasonMissingFormula {
-			msg = "overlay " + kind + " Params[\"formula\"] must be a non-empty string"
+			msg = "overlay " + kind + " params.formula must be a non-empty string"
 		}
 		return MissingFormula(kind, msg, index, reason)
 	}
@@ -105,7 +105,7 @@ func RequestSpecRefusalWithTables(spec *types.OverlaySpec, index int, shape type
 		_, baseline, bad = BaselinePosition(params)
 		if bad {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-				"overlay "+kind+" Params[\"baseline_position\"] must be a non-negative integer (the 0-based row of the host series `baseline` reads)",
+				"overlay "+kind+" params.baseline_position must be a non-negative integer (the 0-based row of the host series `baseline` reads)",
 				map[string]any{"index": index, "kind": kind, "param": BaselineParam, BaselineParam: params[BaselineParam]})
 		}
 	}
@@ -121,12 +121,12 @@ func requestParams(spec *types.OverlaySpec, index int) (map[string]any, *errors.
 	kind := string(spec.Kind)
 	if len(spec.Params) == 0 {
 		return nil, MissingFormula(kind,
-			"overlay "+kind+" requires Params[\"formula\"] (non-empty string); Params is missing or empty",
+			"overlay "+kind+" requires params.formula (non-empty string); params is missing or empty",
 			index, ReasonMissingFormula)
 	}
 	var m map[string]any
 	if err := paramread.Decode(paramread.Overlay, kind, spec.Params, &m); err != nil {
-		return nil, MissingFormula(kind, "overlay "+kind+" Params must be a JSON object carrying \"formula\"",
+		return nil, MissingFormula(kind, "overlay "+kind+" params must be a JSON object carrying \"formula\"",
 			index, "params is not a JSON object")
 	}
 	paramread.Read(paramread.Overlay, kind, exprslots.OverlayFormulaParam)

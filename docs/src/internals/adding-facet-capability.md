@@ -21,9 +21,10 @@ new fields use `omitempty` and do not bump.
 ## 2. Implement per-row accumulation
 
 Add the per-row accumulation in `internal/service/facet_rich.go`, dispatching
-off the schema field type via `newKindAccumulator`. The accumulator
-contract — `Add(value)`, `Finalize()`, `Result()` — runs per-row
-during the facet pass.
+off the schema field type via `newKindAccumulator`. An accumulator
+implements `kindAccumulator`: `update(record, field)` runs per row during
+the facet pass, and `finalize(req)` returns the field's
+`*types.FacetField` plus an optional warning.
 
 ## 3. Capability flag
 
@@ -57,10 +58,14 @@ contract.
 ## 7. Run the gates
 
 ```bash
-go test ./internal/skills/ ./internal/examples/ ./descriptor/ ./internal/descriptor/
-go test ./internal/service/ -run TestFacet
-go test ./internal/mcp/ -run TestMCPSchemaBinding
+go test -count=1 ./internal/skills/ ./internal/examples/ ./descriptor/ ./internal/descriptor/
+go test -count=1 ./internal/service/ -run TestFacet
+go test -count=1 ./internal/mcp/ -run TestMCPSchemaBinding
 ```
+
+A new request or result field also changes the payload schema and
+manifest goldens (`go test -count=1 ./descriptor/ -update`, then rerun
+without it).
 
 The Update Demand row for facet-capability changes covers all of
 these in one PR; see [The Update Demand](update-demand.md).

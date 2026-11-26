@@ -20,9 +20,8 @@ chains predict-side suggestions into structured fixups.
 
 ## "data directory required: set PULSE_DATA_DIR or pass --data-dir"
 
-`pulse mcp` refuses to start. The MCP leaf is the one place the
-binary insists on a base directory because it enumerates cohorts at
-session start.
+`pulse mcp` refuses to start: it serves the cohorts under one base
+directory.
 
 **Fix:** export `PULSE_DATA_DIR` in the client's MCP config, or pass
 `--data-dir /path/to/data` on the command line. The
@@ -30,13 +29,16 @@ session start.
 
 ## "file not found" / "no such file or directory"
 
-The cohort path was resolved against the wrong base. Pulse prefers
-absolute paths; with `PULSE_DATA_DIR` set, relative paths resolve
-against it.
+The cohort path was resolved against the wrong base. CLI commands
+resolve a relative path against the working directory; `pulse mcp`,
+`import auto` / `list` / `drop` and a library instance resolve it
+against the data directory (`PULSE_DATA_DIR`, `--data-dir` or
+`Options.DataDir`). The `SERVICE_RESOURCE` message names the path it
+tried.
 
-**Fix:** call `pulse cohort inspect /absolute/path/data.pulse` to
-verify the file is where you think it is. If you're running inside
-`pulse mcp`, check the data-dir line on stderr at startup.
+**Fix:** run `pulse cohort inspect /absolute/path/data.pulse` to
+confirm the file is where you think it is. Under `pulse mcp`, check the
+data directory on the stderr startup line.
 
 ## "permission denied"
 
@@ -44,8 +46,9 @@ Pulse runs as your user; it does not escalate. When deployed as an
 MCP process under a different user (e.g. via `launchd` / `systemd`),
 the cohort directory and files must be readable by that user.
 
-**Fix:** check `id` inside the MCP startup banner on stderr; check
-the file mode with `ls -l`; widen the group as needed.
+**Fix:** check which user the service runs as (the `launchd` /
+`systemd` unit), check the file mode with `ls -l`, and widen the group
+as needed.
 
 ## "invalid pulse magic bytes" / "unsupported pulse format version"
 
@@ -56,9 +59,10 @@ accepts). Upgrade Pulse, or re-import the source with this binary. The reader re
 at parse time (see [Header Layout](../format/header.md)) so a future
 binary doesn't silently mis-decode an older file.
 
-**Fix:** verify the file with `file path/to/data.pulse` and the first
-nine bytes (`hexdump -C`). The expected magic is `50 55 4c 53 45 00 00 00`
-followed by a version byte (`0x01` or `0x02`).
+**Fix:** check the first nine bytes (`hexdump -C path/to/data.pulse |
+head -1`). The expected magic is `50 55 4c 53 45 00 00 00` followed by a
+version byte (`0x01` or `0x02`); `PK` is a shard archive and `28 b5 2f fd`
+a [transfer artifact](../format/transfer.md) (`PULSE_COHORT_COMPRESSED`).
 
 ## "truncated pulse header"
 
@@ -76,23 +80,56 @@ operator targets a field of the wrong type.
 
 **Fix:** run [`pulse api predict`](../cli/api-predict.md) on the same
 request — predict diagnoses validation failures without executing.
-Common cases: typo in field name; numeric aggregation on a
-categorical field (error code `PULSE_FIELD_TYPE_UNSUPPORTED`, which
-`Process` raises too); two-pass attribute
-combined with a feature (currently buffered, not invalid — predict
-will flag this in `streamable_reasons`).
+Common cases: a typo in a field name; a numeric aggregation on a
+categorical field (`PULSE_FIELD_TYPE_UNSUPPORTED`, which `Process`
+raises too); a name used upstream of the operator that produces it. A
+combination that only forces buffering is not invalid: predict lists it
+in `streamable_reasons`.
+
+## `PULSE_CHAIN_*` errors
+
+`api process-chain` (`pulse_process_chain`) runs only mergeable stages.
+A stage with a non-mergeable aggregator, grouper or attribute fails with
+`PULSE_CHAIN_NOT_MERGEABLE`: run that stage as its own `api process`
+call. A chain with no stage fails with `PULSE_CHAIN_EMPTY`.
+`pulse api predict-chain` reports both without running.
+
+## `PULSE_CROSSTAB_*` errors
+
+Crosstab shape faults, refused by predict and the run alike:
+
+- `PULSE_CROSSTAB_MISSING_CELL` — the crosstab has no `cell` (or
+  `cells`) aggregation. Add one: it is the value at every row × column
+  intersection.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS` — `normalize_level` or
+  `normalize_within` is set but `normalize` is not `row` or `column`.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE` — either is set beside
+  `normalize: total`, whose grand-total denominator has no axis to
+  descend.
+- `PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE` /
+  `PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE` — the depth is outside
+  the axis: 0 is the first grouper, `len(axis) − 1` the leaf.
+  `normalize_level` counts on the normalized axis, `normalize_within` on
+  the other one.
 
 ## `PULSE_IMPORT_*` errors
 
-Import-time failures. The two most common:
+Import-time failures. The most common:
 
-- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` — too many distinct values for
-  the chosen categorical width. Either bump the width (`categorical_u16`
-  / `categorical_u32`), drop the categorical encoding, or filter the
-  source before re-importing. See [Dictionary
-  Blocks](../format/dictionaries.md).
+- `PULSE_IMPORT_CATEGORICAL_OVERFLOW` — more distinct values than a
+  declared (`--schema`) categorical width holds; each overflowing row is
+  skipped as a row error. Declare a wider rung (`categorical_u16` /
+  `categorical_u32`). Inferred types promote instead. See [Dictionary
+  Blocks](../format/dictionaries.md#overflow-and-unbounded-errors).
+- `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` — every sampled value of a string
+  column is distinct (an ID or free text). Drop or bucket the column, or
+  raise `--sample-rows` if it really is a category.
 - `PULSE_IMPORT_DESCRIPTION_TOO_LONG` — schema field description
   exceeds 1000 bytes. Trim it.
+- `PULSE_IMPORT_SCHEMA_AMBIGUOUS` — inference has nothing to sample:
+  the source has no header columns or no data rows.
 - `PULSE_IMPORT_ROW_ERROR: null value in non-nullable field` — a null
   cell (`""` / `null` / `na` / `n/a`) landed in a field your **explicit
   `--schema`** declared non-nullable. Mark the field `"nullable": true`
@@ -140,11 +177,38 @@ column never promotes either: it stays a row error.
 ## `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
 
 A warning by default, an error under `--strict`. The description is
-empty, under ten characters, or a generic placeholder (`"n/a"`,
-`"tbd"`, `"unknown"`, `"field"`, `"data"`, `"value"`, `"column"`).
+empty or under 10 bytes once trimmed (which catches placeholders such
+as `"n/a"` and `"tbd"`).
 
 **Fix:** edit the description in the schema JSON, re-import with
 `--schema`.
+
+## `PULSE_EXPORT_FIELD_UNKNOWN`
+
+An export or convert `--include` (`ExportJob.Includes` /
+`ConvertJob.Includes`) names a field the source schema does not have.
+List the field names with `pulse cohort inspect` and fix the spelling.
+
+## Domain-wide codes
+
+Each error domain has codes for failures no specific code describes.
+Look any code up with `pulse_errors_lookup` or `pulse errors lookup
+CODE`.
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `SERVICE_REGISTRY` | The request names an operator this instance does not register | Fix the `type` spelling; check `pulse --json` (a feature profile may hide it) |
+| `DATA_PARSE` | Tabular input failed to parse at a row | Fix the source row, or the delimiter / format flags |
+| `DATA_CONFIG` | An import or export job is misconfigured (conflicting flags, unknown format, bad target) | Read the message's `details`; fix the job |
+| `DATA_CALCULATION` | A value-level read failed, such as a field missing from a record | Check the field names against the schema |
+| `CLI_COMMAND` | A CLI command failed to dispatch | Check the command and flags (`pulse <command> --help`) |
+| `CLI_OUTPUT` | Output could not be written (a file error, an unsupported format) | Check the output path and format |
+| `CLI_INTERNAL`, `DATA_INTERNAL`, `ENCODING_INTERNAL`, `PROCESSING_STATE` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
+
+Two codes are never raised and exist only so a lookup resolves:
+`PULSE_CROSSTAB_EMPTY_COLUMNS` (a crosstab without column groupers runs
+with one implicit Total column) and `PULSE_INDEX_UNSUPPORTED_SHARDED`
+(point-lookup indexes accept shard archives).
 
 ## MCP "tool not found" / "no tools registered"
 
@@ -162,9 +226,9 @@ memory map on Linux, macOS, FreeBSD and Windows. If your environment
 forbids mmap (some sandboxed containers, very locked-down macOS
 configurations), the reader falls back to a buffered read.
 
-**Fix:** typically transparent. If you suspect a regression, run with
-verbose Go runtime tracing or compare against a non-mmap file by
-copying it to `/tmp` and re-running.
+**Fix:** none needed; results are identical. The fallback reads the
+whole file into memory and skips parallel decode, so a large cohort
+there needs RAM for the file and runs serially.
 
 **Windows: a rewrite fails with `ENCODING_IO` / `SERVICE_RESOURCE`
 "renaming … onto …".** Another process (or your own code) still holds
@@ -182,5 +246,8 @@ pulse api predict --request request.json --json
 
 Predict reads only the header and schema — it never touches record
 data — and returns the full envelope of errors, warnings, and the
-`streamable` flag. If predict says `valid:true` and process still
-fails, the bug is in the processing layer, not the request.
+`streamable` flag. A request predict calls `valid: true` can still fail
+on its data (a slot that fails keeps its identity and warns
+`PULSE_SLOT_FAILED`, a resource limit trips at run time); a run-time
+failure on a valid request with no data-dependent code is a bug worth
+reporting.

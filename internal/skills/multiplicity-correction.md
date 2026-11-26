@@ -9,7 +9,7 @@ requires: [capability:multiplicity]
 ---
 # Multiple-comparison correction
 
-Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
+Many tests make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) adds nothing.
 
 ## The block
 
@@ -50,7 +50,7 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 ## Where it runs
 
-- Process: every arm (streaming, crosstab, join, shard, decode).
+- Process: every arm (streaming<!-- feature: capability:crosstab -->, crosstab<!-- /feature --><!-- feature: capability:joins -->, join<!-- /feature -->, shard, decode).
 <!-- feature: capability:compose -->- Compose: after all slots, serial = parallel; non-compose families stay per slot, `compose` pools all; each fan-out target layer is its own `layer`; `--stream` rows carry no corrections; a failed slot errors the batch.<!-- /feature -->
 <!-- feature: capability:process_chain -->- ProcessChain: per stage, never across stages; whole-chain overlays take no block.<!-- /feature -->
 <!-- feature: capability:facet -->- Facet: each overlay layer alone.<!-- /feature -->

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "In-sample model error per region: ATTR_REG_FITTED adds an OLS income ~ age prediction to every customer, then AGG_MAPE (a fraction; rows with a zero actual excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with that column, named by params.prediction_field. Error on the fitted rows is optimistic; score a holdout from a compose fit with ATTR_REG_PREDICT to judge new data.",
+    "description": "In-sample model error per region: ATTR_REG_FITTED adds an OLS income ~ age prediction to every customer, then AGG_MAPE (a fraction; rows with a zero actual excluded and counted in n_zero_actual), AGG_RMSE and AGG_MAE compare income with that derived field, named by params.prediction_field. Error on the fitted rows is optimistic; score a holdout from a compose fit with ATTR_REG_PREDICT to judge new data.",
     "intents": [
       "benchmark",
       "compare_groups"

@@ -47,14 +47,14 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if spec.Alpha != 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Alpha is only valid when Penalty is set (l1, l2, or elasticnet)",
+				t+" alpha is only valid when penalty is set (l1, l2, or elasticnet)",
 				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
 			)
 		}
 		if spec.L1Ratio != 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" L1Ratio is only valid when Penalty is elasticnet",
+				t+" l1_ratio is only valid when penalty is elasticnet",
 				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
 			)
 		}
@@ -63,14 +63,14 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if spec.Alpha <= 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Penalty="+spec.Penalty+" requires Alpha > 0",
+				t+" penalty="+spec.Penalty+" requires alpha > 0",
 				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
 			)
 		}
 		if spec.L1Ratio != 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" L1Ratio is only valid when Penalty=elasticnet; use Penalty=elasticnet to mix l1/l2",
+				t+" l1_ratio is only valid when penalty=elasticnet; use penalty=elasticnet to mix l1/l2",
 				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
 			)
 		}
@@ -78,35 +78,35 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if spec.Alpha <= 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Penalty=elasticnet requires Alpha > 0",
+				t+" penalty=elasticnet requires alpha > 0",
 				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
 			)
 		}
 		if spec.L1Ratio <= 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Penalty=elasticnet requires L1Ratio > 0 (use Penalty=l2 for pure ridge)",
+				t+" penalty=elasticnet requires l1_ratio > 0 (use penalty=l2 for pure ridge)",
 				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
 			)
 		}
 		if spec.L1Ratio >= 1 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Penalty=elasticnet requires L1Ratio < 1 (use Penalty=l1 for pure lasso)",
+				t+" penalty=elasticnet requires l1_ratio < 1 (use penalty=l1 for pure lasso)",
 				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
 			)
 		}
 	default:
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			t+" Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+spec.Penalty,
+			t+" penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+spec.Penalty,
 			map[string]any{"penalty": spec.Penalty},
 		)
 	}
 	if spec.Type == types.REG_GLM && spec.Family == "gamma" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family="+spec.Family+" unpenalised",
+			"REG_GLM penalty is defined for the binomial, poisson and negative_binomial families only; fit family="+spec.Family+" unpenalised",
 			map[string]any{"penalty": spec.Penalty, "family": spec.Family, "allowed_families": Families, "type": t},
 		)
 	}
@@ -127,7 +127,7 @@ func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 	if spec.Penalty == "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			t+" Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk",
+			t+" unpenalized requires a penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk",
 			map[string]any{"unpenalized": spec.Unpenalized, "penalty": spec.Penalty, "type": t},
 		)
 	}
@@ -136,14 +136,14 @@ func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
 		if !slices.Contains(spec.Predictors, name) {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Unpenalized names "+name+", which is not one of Predictors",
+				t+" unpenalized names "+name+", which is not one of predictors",
 				map[string]any{"unpenalized": spec.Unpenalized, "field": name, "predictors": spec.Predictors},
 			)
 		}
 		if seen[name] {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				t+" Unpenalized lists "+name+" twice",
+				t+" unpenalized lists "+name+" twice",
 				map[string]any{"unpenalized": spec.Unpenalized, "field": name},
 			)
 		}

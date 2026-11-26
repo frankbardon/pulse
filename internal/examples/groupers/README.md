@@ -1,8 +1,7 @@
 # Grouper Examples
 
-Runnable JSON requests demonstrating each `GROUP_*` operator. The
-processor honors a single grouper per request (`req.Groups[0]`); compose
-multiple requests for multi-level breakdowns.
+Runnable JSON requests demonstrating each `GROUP_*` operator. Several
+groupers in `groups` nest: one output row per key tuple.
 
 Setup is documented in [`../README.md`](../README.md). Run all:
 
@@ -19,6 +18,9 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `03_quantile.json` | `GROUP_QUANTILE` | Quartiles by income (`Q1..Q4`) |
 | `04_range.json` | `GROUP_RANGE` | Equal-width bins by income (keys `low-high`) |
 | `05_rounded.json` | `GROUP_ROUNDED` | Round age down to nearest 10 (decade buckets) |
+| `06_set_per_element.json` | `GROUP_SET_PER_ELEMENT` | One bucket per held issuer of a `set_u8` multi-select (a row lands in every bucket it holds) |
+| `07_set_value.json` | `GROUP_SET_VALUE` | One bucket per distinct issuer combination (`AMEX\|MC` keys) |
+| `08_date_ranges.json` | `GROUP_DATE_RANGES` | Inline labelled date ranges plus an `unmatched_label` bucket |
 | `09_date_hour.json` | `GROUP_DATE` | Local wall-clock hour buckets of a `datetime` (`component: hour`, request `time_zone`) |
 | `10_date_week_start.json` | `GROUP_DATE` | Sunday-start weeks keyed by their first day (`week_start: sunday`) |
 | `11_kmeans.json` | `GROUP_KMEANS` | Three seeded k-means segments over age and income (`cluster_1..3` by size) |

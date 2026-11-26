@@ -160,35 +160,33 @@ go test ./descriptor/ ./internal/descriptor/ -run 'TestPredictNoExecution|TestDe
 
 - `TestPredictNoExecutionImports` — `internal/descriptor/predict.go` must not
   import `internal/service/` or `internal/processing/`.
-- `TestDescriptorNoFmtSprintf` — no `fmt.Sprintf` in
-  `descriptor/envelope.go`, `manifest.go`, `predict.go`, `inspect.go`.
+- `TestDescriptorNoFmtSprintf` — no `fmt.Sprintf` in the JSON-building
+  files of `descriptor/` and `internal/descriptor/` (the test lists them).
 - `TestGoldensNotHandEdited` — every golden file under
   `descriptor/testdata/` must end with a valid
   `// golden-hash: <sha256>` line that matches the body.
 
 ## Skill-coverage gates
 
-The skill pack under `skills/` is the LLM-facing surface. Every
-registered component, error code, distribution, CLI leaf, field
-type, MCP tool must be mentioned in its target skill by name:
+The skill pack under `internal/skills/` is the LLM-facing surface. Every
+registered operator, synth distribution, field type, CLI leaf, MCP tool
+and prompt must be mentioned in its target skill by name:
 
 ```bash
 go test ./internal/skills/ -run 'TestSkillsCoverAll|TestSkillsManifestConsistent|TestSkillsFrontmatter'
 ```
 
 The specific gates this batch includes are listed in [Testing
-Conventions → Non-skippable CI gates](testing.md#non-skippable-ci-gates).
+Conventions → Structural gates](testing.md#structural-gates).
 
 ## Predecessor-reference scrub
 
-Pulse has a hard rule against leaking strings from its predecessor
-project (legacy "Orbit" naming) into error codes or type constants:
+No string prefix from Pulse's predecessor project may appear in an
+error code or type constant:
 
 ```bash
 go test ./types/ ./errors/ -run TestNoOrbit
 ```
-
-Should always return zero matches before opening a PR.
 
 ## Public API gates
 
@@ -288,13 +286,12 @@ does ([Warm build cache](#warm-build-cache)).
 ### Windows and macOS legs
 
 The four OS legs are blocking, like the ubuntu jobs, and each fits an
-8-minute wall on a cold cache (E1-S3 measured the numbers below; aim
-6 minutes). They run the same fast tier as `test (1.26)`: no
+8-minute wall on a cold cache (aim for 6 minutes). They run the same fast tier as `test (1.26)`: no
 `-parallel 1` and no budget, so a test that takes over 1 s on a slow
 runner is fine there. `make test` keeps the budget locally. Each test
 leg runs `go test` in one step. A separate compile step would link
-every test binary twice, and linking ~145 binaries is most of a cold
-Windows job.
+every test binary twice, and linking them is most of a cold Windows
+job.
 
 `test-windows` runs as two jobs, one per id in its `fast-shard:`
 matrix. `.github/fast-shards.txt` pins a few long-running packages
@@ -458,13 +455,13 @@ dependency finding with `go get <module>@<fixed>` and `go mod tidy`
 findings are judged against the running toolchain. CI's `"1.26"`
 floats to the latest patch the `actions/go-versions` manifest lists,
 which can lag a Go security release by days; the `toolchain` line in
-`go.mod` (currently `go1.26.11`) is the scan's toolchain: both
+`go.mod` is the scan's toolchain: both
 `vulncheck` jobs (`ci.yml`, `release.yml`) install it with
 `go-version-file: go.mod`, because setup-go pins `GOTOOLCHAIN=local`
 and never auto-switches; locally `GOTOOLCHAIN=auto` switches any older
 1.26 patch up to it. Fix a standard-library finding
 by raising that line to the fixed patch. Locally, run under the same
-patch, for example `GOTOOLCHAIN=go1.26.11 make vulncheck`. A toolchain
+patch: `GOTOOLCHAIN=<go.mod toolchain> make vulncheck`. A toolchain
 that is not the latest patch of its minor can report standard-library
 findings that CI does not.
 
@@ -557,12 +554,14 @@ form the check parses.
 
 ## CLAUDE.md hygiene gates
 
-`CLAUDE.md` is itself a tested artefact. Every `PULSE_*` env var
-named in Go source must appear there; every non-skippable gate must
-be listed; the current `format_version` must be mentioned:
+`CLAUDE.md` is itself a tested artefact: it must name the current
+`format_version` and stay under its size ceiling. Every `PULSE_*` env
+var named in Go source must have a row in the
+[Options → Environment variables](../library/options.md#environment-variables)
+table (`TestEnvVarsDocumented`):
 
 ```bash
-go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUpdateDemandTable'
+go test ./internal/integration/ -run 'TestClaudeMd|TestUpdateDemandTable|TestEnvVarsDocumented'
 ```
 
 ## Per-change quick reference
@@ -578,8 +577,7 @@ go test ./internal/integration/ ./internal/descriptor/ -run 'TestClaudeMd|TestUp
 | A field type | `go test ./internal/skills/ -run TestSkillsCoverAllFieldTypes && go test ./encoding/... ./internal/encoding/...` |
 | The Update Demand table or a contract listed in it | `go test ./internal/integration/ -run TestUpdateDemandTableCovers` |
 | Any exported identifier in a public package, or a root alias's target | `go test -tags heavy ./internal/apigolden/` (then `-update` only if the change is intended) + `make smoke` |
-| A package move under `internal/io/**` / `internal/iocore` | `go test ./internal/iocore/ -run TestIOImportBoundary` |
+| A package move under `internal/io/**` / `internal/iocore` | `go test -tags heavy ./internal/iocore/ -run TestIOImportBoundary` |
 
-The full set is documented in [Testing Conventions → Non-skippable
-CI gates](testing.md#non-skippable-ci-gates) and enumerated by name
-in [`CLAUDE.md`](https://github.com/frankbardon/pulse/blob/main/CLAUDE.md).
+The full set is listed in [Testing Conventions → Structural
+gates](testing.md#structural-gates).

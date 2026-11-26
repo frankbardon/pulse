@@ -18,8 +18,9 @@ cd pulse
 ## Tooling
 
 Pulse needs only the Go toolchain — there is no Node, Python, or
-container build. Install Go 1.24+ (see `go.mod` for the canonical
-version).
+container build. Install the Go version `go.mod` names (its `go` and
+`toolchain` lines); with `GOTOOLCHAIN=auto` an older Go downloads it.
+Building the book (`make docs`) also needs mdBook 0.5.4.
 
 The repo also uses `staticcheck` for `make lint`; it is auto-installed on
 first run via `go run`.
@@ -29,14 +30,15 @@ first run via `go run`.
 | Command | What it does |
 |---|---|
 | `make build` | Builds the CLI binary to `bin/pulse` (default goal) |
-| `make test`  | Runs `go test ./...` (the fast test tier) |
+| `make test`  | Runs the fast test tier and fails on any test of 1 s or more ([The 1 s budget](local-ci.md#the-1-s-budget)) |
 | `make test-heavy` | Runs `go test -tags heavy ./...`: both tiers, the `//go:build heavy` files included ([Test tiers](local-ci.md#test-tiers)) |
 | `make fmt`   | Runs `gofmt -w .` |
 | `make fmt-check` | Fails listing any Go file `gofmt` would rewrite |
 | `make vet`   | Runs `go vet ./...`, then again with `-tags heavy` |
 | `make lint`  | Runs `fmt-check`, `vet`, then `staticcheck` over both test tiers, merged (the CI `lint` job runs exactly this) |
 | `make cover` | Runs both tiers with coverage into `coverage.out`; fails on a package below its `.github/coverage-floors.txt` floor ([Coverage floors](local-ci.md#coverage-floors)) |
-| `make clean` | Removes `bin/` and `coverage.out` |
+| `make doc-checks` | Runs the fast documentation checks ([Documentation Checks](doc-checks.md)) |
+| `make clean` | Removes `bin/`, `dist/` and the coverage profiles |
 
 A `.env` file at the repo root is auto-loaded and exported, so
 `PULSE_DATA_DIR` and any other `PULSE_*` env vars can live there for
@@ -59,7 +61,7 @@ Layout](../internals/packages.md). Two pointers worth knowing on day
 one:
 
 - **Public facade:** [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go) —
-  every Go embedder API lives here.
+  the `Pulse` type and `Options` embedders start from.
 - **CLI internals:** [`internal/cli/`](https://github.com/frankbardon/pulse/tree/main/internal/cli) —
   one file per command group; never put processing logic here.
 

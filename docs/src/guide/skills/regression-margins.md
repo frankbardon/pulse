@@ -11,12 +11,13 @@ covers: [margins, marginal effects, average marginal effect, AME, MEM, dydx, slo
 
 A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports how much the expected outcome moves per unit of a predictor, in outcome units (probability points, counts), with a standard error (Stata `margins, dydx(*)`; R `marginaleffects::avg_slopes`).
 
-```json
-{"regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
-  "predictors": ["tenure", "spend"], "margins": {}}]}
+```json cohort=subscribers
+{"cohort": {"filename": "subscribers.pulse"},
+ "regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
+  "predictors": ["late_payment"], "margins": {}}]}
 ```
 
-`"margins": {}` = every predictor, `ame`, response scale. Absent = no block, byte-identical.
+`"margins": {}` = every predictor, `ame`, response scale. Absent = no `margins` output.
 
 ## Knobs
 
@@ -52,7 +53,7 @@ One effect per fitted category and term on P(Y = category): π_k·(β_kj − Σ_
 
 ## Execution
 
-OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted rows after IRLS. Identical across decode / shard worker counts.
+OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted rows after IRLS.
 
 ## Refusals
 
@@ -62,12 +63,12 @@ OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted
 |---|---|
 | bad `type` / `scale` / `binary` | `type ame or mem` / `scale response or link` / `binary slope or contrast` |
 | a term not a predictor, or repeated | `a predictor` |
-| `REG_BAYES_LINEAR` | `type REG_OLS, REG_GLM or REG_MULTINOMIAL` |
+| `REG_BAYES_LINEAR` | `a type that reports margins` |
 | an extension or model regression not declaring margins | `declared_margins` |
 | `penalty` / `selection` / `bounds` | `unpenalized` / `no_selection` / `unbounded` |
 | a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |
 
-A derived predictor (a log column, a one-hot dummy) is differentiated as given. One built from another predictor (x² beside x, an interaction beside its factors) is refused: holding the other fixed is not defined.
+A derived predictor (a log field, a one-hot dummy) is differentiated as given. One built from another predictor (x² beside x, an interaction beside its factors) is refused: holding the other fixed is not defined.
 
 ## Against R
 

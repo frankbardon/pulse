@@ -57,8 +57,8 @@ import (
 // via the per-Request `Request.Overlays` slot) is left UNTOUCHED by
 // this barrier.
 //
-// FailFast handling: when `ComposeOptions.FailFast = true` (default)
-// and any slot fails, the orchestrator SKIPS the overlay fold
+// FailFast handling: when `ComposeOptions.FailFast = true` (opt-in;
+// the zero value is false) and any slot fails, the orchestrator SKIPS the overlay fold
 // entirely — no `ApplyComposeOverlays` call, no partial emission.
 // FailFast=false runs the fold over the subset of slots that
 // succeeded; the call site filters the responses slice to the present

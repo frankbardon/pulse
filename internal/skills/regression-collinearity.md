@@ -15,15 +15,17 @@ covers: [collinearity, multicollinearity, VIF, GVIF, variance inflation factor, 
 For a candidate predictor set with no model yet, use `MAT_COLLINEARITY` instead (same VIF, plus Belsley's diagnostics).
 <!-- /feature -->
 
-<!-- feature: REG_GLM -->
-```json
-{"regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
-  "predictors": ["tenure", "plan_basic", "plan_pro", "spend"],
-  "collinearity": {"groups": [{"name": "plan", "predictors": ["plan_basic", "plan_pro"]}]}}]}
+<!-- feature: REG_GLM, FEAT_ONE_HOT -->
+```json cohort=subscribers
+{"cohort": {"filename": "subscribers.pulse"},
+ "features": [{"type": "FEAT_ONE_HOT", "field": "plan"}],
+ "regressions": [{"type": "REG_GLM", "family": "binomial", "target": "churned",
+  "predictors": ["late_payment", "plan_plus", "plan_pro"],
+  "collinearity": {"groups": [{"name": "plan", "predictors": ["plan_plus", "plan_pro"]}]}}]}
 ```
 <!-- /feature -->
 
-`"collinearity": {}` = every predictor its own term, basis `model`. Absent = no block, byte-identical.
+`"collinearity": {}` = every predictor its own term, basis `model`. Absent = no `collinearity` output.
 
 ## Knobs
 

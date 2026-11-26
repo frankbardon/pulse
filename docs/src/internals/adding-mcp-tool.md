@@ -5,17 +5,15 @@ embedded MCP server. The MCP layer is split into the SDK-free core
 (`internal/mcp/`), the go-sdk adapter (`mcp/gosdk/`, the only package importing
 the MCP SDK), and the leaf metadata package (`internal/mcp/toolmeta/`).
 
-Each MCP tool wraps one slice of `pulse.Pulse` and surfaces it over
-stdio / Streamable HTTP transports. The catalog covers one tool per
-facade method (`pulse_inspect`, `pulse_predict`, `pulse_process`,
-`pulse_compose`, `pulse_sample`, `pulse_facet`, `pulse_facet_schema`,
-`pulse_manifest`, `pulse_errors_lookup`, …) plus the skills / examples /
-import / label tools, and the two resource schemes (`pulse://*.pulse`,
-`pulse-skill://*`). Treat the manifest (`pulse manifest`) as the
-source-of-truth count — never hardcode a number. Adding a new tool
-means extending the core catalog, registering the metadata, optionally
-binding a field-aware JSON Schema, and updating the MCP-integration
-skill.
+Each MCP tool wraps one slice of `pulse.Pulse` and is served over
+stdio (`pulse mcp`) or an embedder-supplied HTTP transport. The catalog
+covers one tool per facade method (`pulse_inspect`, `pulse_predict`,
+`pulse_process`, …) plus the skills / examples / import / label tools,
+and the two resource schemes (`pulse://*.pulse`, `pulse-skill://*`).
+The manifest (`pulse --json`, `mcp_tools`) lists them — never hardcode a
+number. Adding a tool means extending the core catalog, registering its
+metadata and feature binding, optionally binding a field-aware JSON
+Schema, and writing its atomic skill.
 
 ## 1. Implement the handler
 
@@ -44,6 +42,11 @@ the manifest) and by the core, so this is the leaf-metadata package that
 lets the descriptor surface the tool without importing the MCP layer or
 the SDK.
 
+Bind the tool to the feature (or core surface) that owns it in
+`mcpToolBindings` (`internal/descriptor/features.go`): tools register per
+instance, so a feature profile that hides the feature drops the tool.
+`TestFeaturesHaveSince` fails on an unbound or twice-bound tool.
+
 ## 3. Field-name parameters (optional)
 
 If the new tool has field-name parameters (e.g. a `field: string`
@@ -67,23 +70,28 @@ Schema-binding parity is enforced by:
   reason), and no bound key is absent from the instance's payload schema
 
 The transport caveat: bind-on-inspect works on the single stdio session
-(post-serve `AddTool`/`RemoveTools` auto-emits `list_changed`); there is
-no per-session override for shared HTTP servers — a documented
-limitation. See the MCP integration skill for the configuration recipe.
+(a same-name `Server.AddTool` replaces the tool and go-sdk emits
+`list_changed`); go-sdk has no per-session tool set, so a shared HTTP
+server binds per session only when its `NewStreamableHTTPHandler`
+factory builds one server per session (see [MCP Serving](../library/mcp-serving.md)).
 
-## 4. Update the session-bootstrap skill
+## 4. Write the tool skill
 
-Add a section to `skills/session-bootstrap.md` covering the new
-tool's purpose, request shape, response shape, and (if applicable)
-the Schema-bound enums it exposes after `pulse_inspect`.
-`TestSkillsCoverAllMCPTools` enforces presence by name.
+Write the atomic skill `skills/tool-<kebab>.md` (the tool name minus
+`pulse_`; frontmatter, required sections and budget in
+`.claude/reference/skill-pack.md`; copy `skills/tool-facet-schema.md`).
+Its `## When to use` first line is the description's lead sentence.
+Mention the tool in `docs/src/mcp/` too: the coverage matrix needs a
+hand-written mdBook mention for every tool.
 
 ## 5. Run the gates
 
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllMCPTools
-go test ./internal/descriptor/ -run TestManifestMCPToolsComplete
-go test ./internal/mcp/ -run TestMCPSchemaBinding
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestAtomicSkillHasRequiredSections|TestSkillTokenBudget|TestSkillsCoverAllMCPTools|TestToolDescriptionsLeadWithWhenToUse'
+go test -count=1 ./internal/descriptor/ -run 'TestManifestMCPToolsComplete|TestFeaturesHaveSince|TestToolDescriptionFences_Valid'
+go test -count=1 ./internal/mcp/... -run 'TestMCPSchemaBinding|TestBindForInstance'
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs && make doc-checks
 ```
 
 The Update Demand row for MCP tools covers all of these in one PR;

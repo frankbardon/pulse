@@ -25,15 +25,15 @@ Use something else:
 
 ## Params
 
-None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-out labels and fixes emission order.
+None. The key column is named after `field` (a group slot takes no `label`); `include` allow-lists fan-out labels and fixes emission order.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One string key per set bit per row. Smart default for `set_*`. `GroupType.FansOut()` true — implements `MultiKeyStreamingGrouper`. Non-empty `Include` overrides dict-index emission order; zero-record labels dropped.
+One string key per set bit per row. Smart default for `set_*`. Streams. Non-empty `include` overrides dict-index emission order; zero-record labels dropped.
 
 ## Components
 

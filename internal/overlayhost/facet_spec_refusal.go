@@ -41,13 +41,13 @@ func FacetSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index in
 	other := spec.Ref
 	other.Population = nil
 	if other != (types.OverlayRef{}) {
-		return refusal("requires Ref.Population only (no other Ref arm)")
+		return refusal("requires ref.population only (no other ref arm)")
 	}
 	if spec.Ref.Population == nil {
-		return refusal("requires Ref.Population (population-comparison reference; the comparison cohort lives on Ref.Population.Cohort)")
+		return refusal("requires ref.population (population-comparison reference; the comparison cohort lives on ref.population.cohort)")
 	}
 	if spec.Ref.Population.Cohort == "" {
-		return refusal("Ref.Population.Cohort is empty (population reference requires a comparison-cohort name)")
+		return refusal("ref.population.cohort is empty (population reference requires a comparison-cohort name)")
 	}
 	if spec.Scope != types.OverlayScopeGroup {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_SCOPE_UNSUPPORTED,
@@ -56,7 +56,7 @@ func FacetSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index in
 	}
 	if spec.Level != 0 || spec.Within != 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+kind+" does not support Level / Within (population-comparison kind: the reference is a single-value lookup, not an axis prefix)",
+			"overlay "+kind+" does not support level / within (population-comparison kind: the reference is a single-value lookup, not an axis prefix)",
 			map[string]any{"index": index, "kind": kind, "level": spec.Level, "within": spec.Within})
 	}
 	if w := spec.Weight.Spec(); w != nil {

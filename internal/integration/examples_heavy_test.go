@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -53,15 +54,12 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		{"regression", "regression", 17, "", checkRegressionExample},
 		{"matrices", "matrices", 2, "", nil},
 		{"crosstab", "crosstab", 13, "", nil},
-		// The overlays directory mixes Request-, Compose- and Facet-host
-		// examples, and only Request-host ones run through pulse.Process,
-		// so this arm is scoped to the MATRIX-host axis-pairing family.
-		{"overlays-crosstab-pairwise", "overlays", 4, "*_crosstab_pairwise_*.json", nil},
-		// The flows overlays (U30 E7) on a from x to crosstab.
-		{"overlays-crosstab-symmetry", "overlays", 1, "*_crosstab_symmetry.json", nil},
-		{"overlays-crosstab-retention", "overlays", 1, "*_crosstab_retention.json", nil},
-		// The three flows overlays straight from a long panel (U55).
-		{"overlays-crosstab-previous-state", "overlays", 1, "*_crosstab_previous_state_*.json", nil},
+		// The overlays directory mixes Request-, Compose-, chain- and
+		// Facet-host examples; only the Request-host ones run through
+		// pulse.Process (the loop below skips the others by
+		// classifyExample, and TestLimitsDefaultsNeverTripGoldens runs
+		// every host).
+		{"overlays", "overlays", 20, "", nil},
 	}
 
 	// A renamed example would silently drop its figure checks.
@@ -83,7 +81,15 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 			if len(matches) < cat.minJSON {
 				t.Fatalf("category %s: expected >= %d examples, found %d", cat.name, cat.minJSON, len(matches))
 			}
+			ran := 0
 			for _, ex := range matches {
+				if host := exampleFileHost(t, ex); host != hostRequest {
+					if cat.dir != "overlays" {
+						t.Errorf("%s is a %s-host example; this pass runs Request hosts only", ex, host)
+					}
+					continue
+				}
+				ran++
 				t.Run(filepath.Base(ex), func(t *testing.T) {
 					resp := runExample(t, p, ex, tmp)
 					if trip := limitTripIn(t, nil, resp); trip != "" {
@@ -98,8 +104,26 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 					}
 				})
 			}
+			if ran < cat.minJSON {
+				t.Fatalf("category %s: expected >= %d Request-host examples, ran %d", cat.name, cat.minJSON, ran)
+			}
 		})
 	}
+}
+
+// exampleFileHost classifies the example at path by its top-level
+// keys (classifyExample).
+func exampleFileHost(t *testing.T, path string) exampleHost {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(body, &keys); err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	return classifyExample(keys)
 }
 
 // checkRegressionExample is the regression arm's tighter contract:

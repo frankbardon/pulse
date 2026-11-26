@@ -164,7 +164,7 @@ type LookupResult struct {
 	// under LookupMultiplicityAll.
 	Rows []map[string]any `json:"rows"`
 
-	// Warnings carries per-lookup diagnostics. Empty in v1 — reserved
-	// for the eventual staleness diagnostics a later story adds.
+	// Warnings carries per-lookup diagnostics. Reserved; always
+	// empty.
 	Warnings []string `json:"warnings,omitempty"`
 }

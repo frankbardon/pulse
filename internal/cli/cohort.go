@@ -31,7 +31,7 @@ func cohortInspectCmd() *cli.Command {
 		ArgsUsage: "PATH",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "full-dict", Usage: "Show full categorical dictionaries without truncation"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -49,7 +49,7 @@ func cohortInspectCmd() *cli.Command {
 			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -63,7 +63,7 @@ func cohortInspectCmd() *cli.Command {
 			env, err := p.InspectEnvelope(ctx, path, &descriptor.InspectOptions{FullDict: fullDict})
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -195,14 +195,14 @@ func cohortFilterCmd() *cli.Command {
 			"rows into ONE single-file cohort (canonical schema, archive order); with " +
 			"no predicate it is a pure flatten, and on a single-file input it is a no-op.",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
+			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
 			&cli.StringFlag{Name: "filter", Usage: "Filter expression (FILTER_EXPRESSION semantics)"},
 			&cli.StringFlag{Name: "include-from", Usage: "Path to newline-delimited file of values to include"},
 			&cli.StringFlag{Name: "include-field", Usage: "Field name whose value is tested against --include-from"},
 			&cli.StringFlag{Name: "time-zone", Usage: "IANA zone (UTC or Area/Location) a to_day() call in --filter reads; omitted reads UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN and nothing is written"},
 			&cli.BoolFlag{Name: "flatten", Usage: "Write a shard archive input as ONE single-file .pulse (canonical schema, rows in archive order); --filter / --include-from become optional. A no-op on a single-file input"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
@@ -290,7 +290,7 @@ func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, inpu
 	rep, err := p.FilterToFileWithOptions(ctx, input, output, pulse.FilterToFileOptions{Expression: filterExpr, Flatten: flatten})
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -305,7 +305,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	schema, err := p.ResolveCanonicalSchema(ctx, input)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -336,7 +336,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	load, err := pulse.LoadMemberSetFromReader(f, schema, includeField)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -346,7 +346,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	})
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}

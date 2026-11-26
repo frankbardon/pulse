@@ -16,7 +16,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 | Need | Option | Model |
 |---|---|---|
 | A penalty, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS, GLM, multinomial |
-| Slopes that cannot be negative (media spend, prices of goods) | `bounds: {nonnegative: [names]}` | OLS |
+| Slopes that cannot be negative (media spend) | `bounds: {nonnegative: [names]}` | OLS |
 | A prior centred on an experiment for ONE coefficient, flat or weak elsewhere | `prior_precision: [..]` per coefficient | Bayesian linear |
 | A curve or fit no built-in covers | a registered regression | manifest `extensions.regressions` |
 <!-- feature: capability:models -->
@@ -29,7 +29,7 @@ The penalty skips the listed predictors (glmnet `penalty.factor` 0: never shrunk
 
 ## `bounds.nonnegative` (NNLS)
 
-Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes stay free; weighted fits work).
+Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes stay free<!-- feature: capability:weighting -->; weighted fits work<!-- /feature -->).
 
 - No bound binds: the fit is plain OLS, bit for bit.
 - A bound binds: coefficients (held ones exactly 0), `R2`, `AdjR2` and `ResidualStdErr` stand, but `StdErrors`, `PValues`, intervals and `Vcov` entries are `null` and the result carries `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`details.suggested` = `resample: bootstrap`). A bootstrap refits the bounded model per replicate and gives intervals.
@@ -38,14 +38,14 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 
 ## Per-coefficient prior precision
 
-`prior_precision` takes a number (ε·I, unchanged) or an array of predictors + 1 entries, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` is flat on that coefficient, a large entry pins it to its `prior_mu`. A wrong length or negative entry is `PROCESSING_CONFIG`; an improper flat prior `PROCESSING_REGRESSION_RANK_DEFICIENT`.
+`prior_precision` takes a number (ε·I) or an array of predictors + 1 entries, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` is flat on that coefficient, a large entry pins it to its `prior_mu`. A wrong length or negative entry is `PROCESSING_CONFIG`; an improper flat prior `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 
 ## Media-mix recipe (one request)
 
 A regression may name a same-request window label. Adstock each channel (a window, `partition_by` market, `order_by` week), saturate with `hill(x, half, shape)` in a post-window attribute, then fit OLS with `bounds.nonnegative` on the saturated channels and a `holdout` on the last weeks — one request, no materialize.<!-- feature: capability:compose_sweep, capability:regression_holdout --> Sweep the decay with a `$var` and `rank` on `regressions.<name>.holdout.rmse` (`compose-sweeps`).<!-- /feature -->
 
 <!-- feature: REG_MMM_HILL -->- Joint fit: `REG_MMM_HILL` (`op-reg-mmm-hill`) fits each channel's β and Hill `k`, `s` together, no `hill()` attribute.<!-- /feature --><!-- feature: REG_MMM_BAYES --> `REG_MMM_BAYES` (`op-reg-mmm-bayes`) adds decay and ROI intervals.<!-- /feature --><!-- feature: REG_MMM_HILL, WIN_DISTRIBUTED_LAG, capability:compose_sweep_sampling, capability:compose_optimize --> Decay sweep, fit, `optimize`: `mmm-workflow`.<!-- /feature -->
-- Windows-over-records shape only (no `groups` / `aggregations` / `crosstab`): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
+- Windows-over-records shape only (no `groups` / `aggregations`<!-- feature: capability:crosstab --> / `crosstab`<!-- /feature -->): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
 - A lag's first rows are `null`: guard a formula with `lag ?? 0` or `x == nil ? nil : …`, else `PROCESSING_RUNTIME`. Null / NaN / ±Inf rows drop listwise.
 
 ## `holdout` (out-of-sample)
@@ -62,7 +62,7 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in, plus `params`.
 
-- `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
+- `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). Built-in OLS, GLM, Bayesian, multinomial fits take no `params`.
 - `outputs`: the model's own figures, keyed by the manifest's `output_schema` (`regressions[i].outputs.<key>`); a sweep can `rank` on one.
 - A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}`.
 - `conf_level` and `order` always work, `resample` unless the row lists no `resample` slot (then `PROCESSING_CONFIG`): intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.

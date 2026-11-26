@@ -47,14 +47,14 @@ func Check(spec *types.RegressionSpec, offered func(string) bool) *errors.CodedE
 	if spec.Resample != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal)"+RemedyResample(offered),
+			"REG_BAYES_LINEAR does not accept resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal)"+RemedyResample(offered),
 			map[string]any{"resample": spec.Resample, "type": string(spec.Type)},
 		)
 	}
 	if spec.Selection != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it"+RemedySelection(offered),
+			"REG_BAYES_LINEAR does not accept selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it"+RemedySelection(offered),
 			map[string]any{"selection": spec.Selection, "type": string(spec.Type)},
 		)
 	}
@@ -64,7 +64,7 @@ func Check(spec *types.RegressionSpec, offered func(string) bool) *errors.CodedE
 	default:
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR Prior must be one of \"\", \"nig\"; got "+spec.Prior,
+			"REG_BAYES_LINEAR prior must be one of \"\", \"nig\"; got "+spec.Prior,
 			map[string]any{"prior": spec.Prior, "allowed": []string{"", "nig"}},
 		)
 	}
@@ -75,28 +75,28 @@ func Check(spec *types.RegressionSpec, offered func(string) bool) *errors.CodedE
 	if spec.PriorShape < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorShape must be > 0 (zero selects the engine default of 1e-3)",
+			"REG_BAYES_LINEAR prior_shape must be > 0 (zero selects the engine default of 1e-3)",
 			map[string]any{"prior_shape": spec.PriorShape},
 		)
 	}
 	if spec.PriorRate < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorRate must be > 0 (zero selects the engine default of 1e-3)",
+			"REG_BAYES_LINEAR prior_rate must be > 0 (zero selects the engine default of 1e-3)",
 			map[string]any{"prior_rate": spec.PriorRate},
 		)
 	}
 	if spec.CredibleLevel != 0 && (spec.CredibleLevel <= 0 || spec.CredibleLevel >= 1) {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR CredibleLevel must satisfy 0 < CredibleLevel < 1 (zero selects the default of 0.95)",
+			"REG_BAYES_LINEAR credible_level must satisfy 0 < credible_level < 1 (zero selects the default of 0.95)",
 			map[string]any{"credible_level": spec.CredibleLevel},
 		)
 	}
 	if len(spec.PriorMu) != 0 && len(spec.PriorMu) != len(spec.Predictors)+1 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorMu length must equal len(Predictors)+1 (one intercept + one per predictor)",
+			"REG_BAYES_LINEAR prior_mu length must equal len(predictors)+1 (one intercept + one per predictor)",
 			map[string]any{
 				"prior_mu_len":    len(spec.PriorMu),
 				"predictors_len":  len(spec.Predictors),
@@ -110,42 +110,42 @@ func Check(spec *types.RegressionSpec, offered func(string) bool) *errors.CodedE
 	if spec.Penalty != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Penalty; remove it"+RemedyPenalty(offered),
+			"REG_BAYES_LINEAR does not accept penalty; remove it"+RemedyPenalty(offered),
 			map[string]any{"penalty": spec.Penalty, "type": string(spec.Type)},
 		)
 	}
 	if spec.Alpha != 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Alpha; the Inverse-Gamma prior on σ² is parameterized by PriorShape / PriorRate",
+			"REG_BAYES_LINEAR does not accept alpha; the Inverse-Gamma prior on σ² is parameterized by prior_shape / prior_rate",
 			map[string]any{"alpha": spec.Alpha, "type": string(spec.Type)},
 		)
 	}
 	if spec.L1Ratio != 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept L1Ratio",
+			"REG_BAYES_LINEAR does not accept l1_ratio",
 			map[string]any{"l1_ratio": spec.L1Ratio, "type": string(spec.Type)},
 		)
 	}
 	if len(spec.Unpenalized) != 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Unpenalized; a per-coefficient prior_precision (0 = flat) leaves a coefficient unshrunk",
+			"REG_BAYES_LINEAR does not accept unpenalized; a per-coefficient prior_precision (0 = flat) leaves a coefficient unshrunk",
 			map[string]any{"unpenalized": spec.Unpenalized, "type": string(spec.Type)},
 		)
 	}
 	if spec.Family != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Family"+RemedyFamily(offered),
+			"REG_BAYES_LINEAR does not accept family"+RemedyFamily(offered),
 			map[string]any{"family": spec.Family, "type": string(spec.Type)},
 		)
 	}
 	if spec.Link != "" {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Link"+RemedyLink(offered),
+			"REG_BAYES_LINEAR does not accept link"+RemedyLink(offered),
 			map[string]any{"link": spec.Link, "type": string(spec.Type)},
 		)
 	}
@@ -160,7 +160,7 @@ func checkPrecision(spec *types.RegressionSpec) *errors.CodedError {
 		if pp.Scalar() < 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				"REG_BAYES_LINEAR PriorPrecision must be > 0 (zero selects the engine default of 1e-3)",
+				"REG_BAYES_LINEAR prior_precision must be > 0 (zero selects the engine default of 1e-3)",
 				map[string]any{"prior_precision": pp.Scalar()},
 			)
 		}
@@ -170,7 +170,7 @@ func checkPrecision(spec *types.RegressionSpec) *errors.CodedError {
 	if want := len(spec.Predictors) + 1; len(v) != want {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorPrecision vector length must equal len(Predictors)+1 (one intercept + one per predictor, PriorMu's order)",
+			"REG_BAYES_LINEAR prior_precision vector length must equal len(predictors)+1 (one intercept + one per predictor, prior_mu's order)",
 			map[string]any{
 				"prior_precision_len": len(v),
 				"predictors_len":      len(spec.Predictors),
@@ -182,7 +182,7 @@ func checkPrecision(spec *types.RegressionSpec) *errors.CodedError {
 		if !(e >= 0) || math.IsInf(e, 1) {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				"REG_BAYES_LINEAR PriorPrecision entries must be finite and ≥ 0 (0 is a flat prior on that coefficient)",
+				"REG_BAYES_LINEAR prior_precision entries must be finite and ≥ 0 (0 is a flat prior on that coefficient)",
 				map[string]any{"index": i, "coefficient": coefficientName(spec, i), "value": e},
 			)
 		}
@@ -230,7 +230,7 @@ func RemedyPenalty(offered func(string) bool) string {
 // RemedyFamily completes the REG_BAYES_LINEAR Family refusal.
 func RemedyFamily(offered func(string) bool) string {
 	if regOffered(offered, types.REG_GLM) {
-		return "; Family is a REG_GLM knob"
+		return "; family is a REG_GLM knob"
 	}
 	return ""
 }
@@ -238,7 +238,7 @@ func RemedyFamily(offered func(string) bool) string {
 // RemedyLink completes the REG_BAYES_LINEAR Link refusal.
 func RemedyLink(offered func(string) bool) string {
 	if regOffered(offered, types.REG_GLM) {
-		return "; Link is a REG_GLM knob"
+		return "; link is a REG_GLM knob"
 	}
 	return ""
 }

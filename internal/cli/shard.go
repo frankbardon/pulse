@@ -39,7 +39,7 @@ func shardCreateCmd() *cli.Command {
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{Name: "include", Aliases: []string{"i"}, Usage: "Single-file .pulse shard to include (repeatable)"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -59,11 +59,11 @@ func shardCreateCmd() *cli.Command {
 			}
 			result, err := p.CreateShardArchive(ctx, archive, includes)
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "SHARD_CREATE_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
@@ -100,7 +100,7 @@ func shardAddCmd() *cli.Command {
 		Usage:     "Append a shard to an existing archive",
 		ArgsUsage: "ARCHIVE SHARD",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "rewrite", Usage: "Rewrite the whole archive (staged file + rename) instead of appending in place; never opens the archive for writing and reclaims dead bytes"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -118,11 +118,11 @@ func shardAddCmd() *cli.Command {
 			}
 			result, err := p.AddShardWithOptions(ctx, archive, shard, pulse.AddShardOptions{Rewrite: cmd.Bool("rewrite")})
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "SHARD_ADD_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				// The widen warning rides the envelope's `warnings`
@@ -168,7 +168,7 @@ func shardRemoveCmd() *cli.Command {
 		Usage:     "Remove a shard from an archive by basename",
 		ArgsUsage: "ARCHIVE BASENAME",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -185,11 +185,11 @@ func shardRemoveCmd() *cli.Command {
 			}
 			result, err := p.RemoveShard(ctx, archive, basename)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_REMOVE_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				// The index-upkeep warning rides the envelope's
@@ -219,7 +219,7 @@ func shardListCmd() *cli.Command {
 		Usage:     "List shards inside an archive",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -235,7 +235,7 @@ func shardListCmd() *cli.Command {
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -265,7 +265,7 @@ func shardCompactCmd() *cli.Command {
 		Usage:     "Rewrite a shard archive to reclaim orphan bytes and refresh canonical metadata",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			args := cmd.Args()
@@ -280,11 +280,11 @@ func shardCompactCmd() *cli.Command {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if err := p.CompactShardArchive(ctx, archive); err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_COMPACT_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, map[string]any{
@@ -304,7 +304,7 @@ func shardVerifyCmd() *cli.Command {
 		Usage:     "Re-validate every shard's header + cohesion against the canonical schema",
 		ArgsUsage: "ARCHIVE",
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "repair", Usage: "First roll back an interrupted in-place shard add (truncate to the journalled length, remove the journal); refuses when the journal does not match the archive"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -323,12 +323,12 @@ func shardVerifyCmd() *cli.Command {
 			if cmd.Bool("repair") {
 				repair, err = p.RepairShardArchive(ctx, archive)
 				if err != nil {
-					return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
+					return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 				}
 			}
 			result, err := p.VerifyShardArchive(ctx, archive)
 			if err != nil {
-				return cliErrorFrom(cmd, jsonOut, "SHARD_VERIFY_ERROR", err)
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			if jsonOut {

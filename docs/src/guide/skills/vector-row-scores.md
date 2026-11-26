@@ -22,7 +22,7 @@ A row score reads one vector — exactly one of `vector` (a `vectors` entry) or 
 Each fits once, then scores every row; a score is an ordinary field (average it by group, use it as a regression predictor):
 
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry ([`compose-fits`](compose-fits.md)). XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`. `ATTR_SEM_SCORE` reads a SEM fit instead ([`sem-fits`](sem-fits.md)).
+- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery ([`compose-fits`](compose-fits.md)), or a loaded `populations` entry. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`. `ATTR_SEM_SCORE` reads a SEM fit instead ([`sem-fits`](sem-fits.md)).
 - `missing` — `listwise` only.
 - `weight` — fits only (N* = Σw or n_eff; the Mahalanobis covariance is M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 
@@ -49,7 +49,7 @@ Execution and failure:
 | `{table, key_field}` | its own profile, keyed by a categorical or `u4`…`u64` field in exact base-10 form (`u64` above 2^53 too) |
 | `{centroid: {filter?, by?}}` | the weighted per-member mean of the rows `filter` admits (= `AGG_VEC_MEAN`); `by` = one centroid per exact key, each row against its own |
 | `{population: name}` | a bound vector fit's mean ([`compose-fits`](compose-fits.md)); a distance's population need not be its `fit` |
-| `{record: {cohort?, keys}}` | one stored row, point-looked-up through its cohort's index (the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)), read by member column (null = a missing element) |
+| `{record: {cohort?, keys}}` | one stored row, point-looked-up through its cohort's index (the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)), read by member field (null = a missing element) |
 
 - `min_valid` (default 1) — the fewest complete pairs; below it the row is null. A distance's sums rescale by p / p_observed.
 - A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation (`hellinger`, `aitchison`) nulls the row and warns `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate. Components count them: `n_reference_missing`, `n_domain_invalid`.

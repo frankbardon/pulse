@@ -1,0 +1,508 @@
+{
+  "metadata": {
+    "total_rows": 600,
+    "filtered_rows": 600,
+    "cohort_file": "brand_ratings.pulse"
+  },
+  "matrices": [
+    {
+      "name": "axes",
+      "type": "MAT_PCA",
+      "primary": {
+        "kind": "rectangular",
+        "encoding": "full",
+        "row_keys": [
+          "quality",
+          "premium",
+          "value",
+          "modern",
+          "innovative",
+          "heritage"
+        ],
+        "column_keys": [
+          "PC1",
+          "PC2"
+        ],
+        "values": [
+          [
+            0.9008,
+            -0.07459
+          ],
+          [
+            0.911,
+            -0.05469
+          ],
+          [
+            -0.873,
+            0.08528
+          ],
+          [
+            0.09919,
+            0.8086
+          ],
+          [
+            0.04737,
+            0.7829
+          ],
+          [
+            -0.09551,
+            -0.7766
+          ]
+        ]
+      },
+      "auxiliary": {
+        "eigenvectors": {
+          "kind": "rectangular",
+          "encoding": "full",
+          "row_keys": [
+            "quality",
+            "premium",
+            "value",
+            "modern",
+            "innovative",
+            "heritage"
+          ],
+          "column_keys": [
+            "PC1",
+            "PC2"
+          ],
+          "values": [
+            [
+              0.5785,
+              -0.05432
+            ],
+            [
+              0.5851,
+              -0.03983
+            ],
+            [
+              -0.5606,
+              0.0621
+            ],
+            [
+              0.0637,
+              0.5888
+            ],
+            [
+              0.03042,
+              0.5701
+            ],
+            [
+              -0.06134,
+              -0.5656
+            ]
+          ]
+        }
+      },
+      "vectors": {
+        "communalities": [
+          0.817,
+          0.8329,
+          0.7694,
+          0.6636,
+          0.6152,
+          0.6123
+        ],
+        "cumulative": [
+          0.4041,
+          0.7184,
+          0.8172,
+          0.9037,
+          0.9604,
+          1
+        ],
+        "eigenvalues": [
+          2.425,
+          1.886,
+          0.5928,
+          0.5191,
+          0.3402,
+          0.2375
+        ],
+        "explained_variance": [
+          0.4041,
+          0.3143,
+          0.0988,
+          0.08651,
+          0.05669,
+          0.03959
+        ],
+        "kmo_msa": [
+          0.7203,
+          0.7004,
+          0.7925,
+          0.65,
+          0.6699,
+          0.6864
+        ]
+      },
+      "scalars": {
+        "bartlett_chisq": 1296,
+        "bartlett_df": 15,
+        "bartlett_p": 3.225e-267,
+        "components_retained": 2,
+        "kmo": 0.7138
+      }
+    },
+    {
+      "name": "brand_distance",
+      "type": "MAT_DISTANCE",
+      "primary": {
+        "kind": "square_symmetric",
+        "encoding": "full",
+        "row_keys": [
+          "brand_a",
+          "brand_b",
+          "brand_c",
+          "brand_d",
+          "brand_e"
+        ],
+        "column_keys": [
+          "brand_a",
+          "brand_b",
+          "brand_c",
+          "brand_d",
+          "brand_e"
+        ],
+        "values": [
+          [
+            0,
+            1.385,
+            1.924,
+            2.293,
+            1.211
+          ],
+          [
+            1.385,
+            0,
+            2.245,
+            1.775,
+            1.063
+          ],
+          [
+            1.924,
+            2.245,
+            0,
+            1.251,
+            1.183
+          ],
+          [
+            2.293,
+            1.775,
+            1.251,
+            0,
+            1.085
+          ],
+          [
+            1.211,
+            1.063,
+            1.183,
+            1.085,
+            0
+          ]
+        ]
+      },
+      "auxiliary": {
+        "centroids": {
+          "kind": "rectangular",
+          "encoding": "full",
+          "row_keys": [
+            "brand_a",
+            "brand_b",
+            "brand_c",
+            "brand_d",
+            "brand_e"
+          ],
+          "column_keys": [
+            "map_x",
+            "map_y"
+          ],
+          "values": [
+            [
+              1.035,
+              0.6046
+            ],
+            [
+              0.7985,
+              -0.76
+            ],
+            [
+              -0.8856,
+              0.7245
+            ],
+            [
+              -0.9607,
+              -0.5243
+            ],
+            [
+              0.01273,
+              -0.04479
+            ]
+          ]
+        }
+      },
+      "vectors": {
+        "counts": [
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        "sizes": [
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      }
+    },
+    {
+      "name": "rating_distance",
+      "type": "MAT_DISTANCE",
+      "primary": {
+        "kind": "square_symmetric",
+        "encoding": "full",
+        "row_keys": [
+          "brand_a",
+          "brand_b",
+          "brand_c",
+          "brand_d",
+          "brand_e"
+        ],
+        "column_keys": [
+          "brand_a",
+          "brand_b",
+          "brand_c",
+          "brand_d",
+          "brand_e"
+        ],
+        "values": [
+          [
+            0,
+            1.92,
+            3,
+            3.477,
+            1.83
+          ],
+          [
+            1.92,
+            0,
+            3.327,
+            2.763,
+            1.571
+          ],
+          [
+            3,
+            3.327,
+            0,
+            1.726,
+            1.763
+          ],
+          [
+            3.477,
+            2.763,
+            1.726,
+            0,
+            1.66
+          ],
+          [
+            1.83,
+            1.571,
+            1.763,
+            1.66,
+            0
+          ]
+        ]
+      },
+      "auxiliary": {
+        "centroids": {
+          "kind": "rectangular",
+          "encoding": "full",
+          "row_keys": [
+            "brand_a",
+            "brand_b",
+            "brand_c",
+            "brand_d",
+            "brand_e"
+          ],
+          "column_keys": [
+            "quality",
+            "premium",
+            "value",
+            "modern",
+            "innovative",
+            "heritage"
+          ],
+          "values": [
+            [
+              5.233,
+              5.508,
+              3.042,
+              4.558,
+              4.575,
+              3.458
+            ],
+            [
+              5.15,
+              5.225,
+              3.167,
+              3.55,
+              3.383,
+              4.525
+            ],
+            [
+              2.708,
+              2.683,
+              4.908,
+              4.542,
+              4.55,
+              3.592
+            ],
+            [
+              2.858,
+              2.65,
+              4.933,
+              3.467,
+              3.517,
+              4.442
+            ],
+            [
+              4.008,
+              4.142,
+              4.067,
+              4.008,
+              3.925,
+              4.033
+            ]
+          ]
+        },
+        "centroids_standardized": {
+          "kind": "rectangular",
+          "encoding": "full",
+          "row_keys": [
+            "brand_a",
+            "brand_b",
+            "brand_c",
+            "brand_d",
+            "brand_e"
+          ],
+          "column_keys": [
+            "quality",
+            "premium",
+            "value",
+            "modern",
+            "innovative",
+            "heritage"
+          ],
+          "values": [
+            [
+              0.8648,
+              0.9566,
+              -0.8301,
+              0.5223,
+              0.5875,
+              -0.5737
+            ],
+            [
+              0.8067,
+              0.7718,
+              -0.7244,
+              -0.4652,
+              -0.6092,
+              0.5355
+            ],
+            [
+              -0.8938,
+              -0.886,
+              0.7484,
+              0.506,
+              0.5624,
+              -0.435
+            ],
+            [
+              -0.7893,
+              -0.9077,
+              0.7695,
+              -0.5468,
+              -0.4753,
+              0.4489
+            ],
+            [
+              0.01161,
+              0.06523,
+              0.03664,
+              -0.01632,
+              -0.06528,
+              0.02426
+            ]
+          ]
+        }
+      },
+      "vectors": {
+        "counts": [
+          120,
+          120,
+          120,
+          120,
+          120
+        ],
+        "sizes": [
+          120,
+          120,
+          120,
+          120,
+          120
+        ]
+      }
+    }
+  ],
+  "components": {
+    "run": {
+      "total_records": 600,
+      "filtered_records": 600,
+      "null_records": 0
+    },
+    "matrices": [
+      {
+        "name": "axes",
+        "type": "MAT_PCA",
+        "n": 600,
+        "n_null": 0,
+        "n_listwise_dropped": 0
+      },
+      {
+        "name": "brand_distance",
+        "type": "MAT_DISTANCE",
+        "n": 600,
+        "n_null": 0,
+        "n_listwise_dropped": 0,
+        "operator": {
+          "buckets": 5,
+          "metric": "euclidean",
+          "n_null_key": 0,
+          "standardize": false
+        }
+      },
+      {
+        "name": "rating_distance",
+        "type": "MAT_DISTANCE",
+        "n": 600,
+        "n_null": 0,
+        "n_listwise_dropped": 0,
+        "operator": {
+          "buckets": 5,
+          "metric": "euclidean",
+          "n_null_key": 0,
+          "standardize": true
+        }
+      }
+    ]
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

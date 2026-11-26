@@ -14,7 +14,7 @@ import (
 // host) and predict (descriptor.validateOverlayPairwise, off the cell
 // type's declared ComponentSchema) raise it with the same text.
 func WelfordCellMessage(kind types.OverlayKind) string {
-	return "overlay " + string(kind) + " requires AGG_WELFORD cells (Welford triple on CellComponents); host matrix has none"
+	return "overlay " + string(kind) + " requires AGG_WELFORD cells (Welford triple in the cells' components); host matrix has none"
 }
 
 // PairwiseMeasureReasonNoWelfordTriple is details.reason of a

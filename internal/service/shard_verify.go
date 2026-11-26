@@ -180,7 +180,7 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 	// rewrite and shard placement); Compact will refresh the cache.
 	if len(result.Errors) == 0 && liveAggregate != canonicalDoc.AggregateRecordCount {
 		result.Warnings = append(result.Warnings, encx.CohesionWarning{
-			Code: "PULSE_SHARD_AGGREGATE_DRIFT",
+			Code: string(errors.PULSE_SHARD_AGGREGATE_DRIFT),
 			Message: fmt.Sprintf(
 				"canonical aggregate_record_count (%d) does not match the live per-shard sum (%d); run `pulse shard compact` to refresh the cached value",
 				canonicalDoc.AggregateRecordCount, liveAggregate),

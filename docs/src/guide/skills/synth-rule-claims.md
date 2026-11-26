@@ -1,6 +1,6 @@
 ```yaml
 name: synth-rule-claims
-description: Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the four exclusions that are silent if got backwards, and why the fidelity report is the reason.
+description: Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the exclusions that are silent if got backwards, and why the fidelity report is the reason.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
@@ -18,7 +18,7 @@ A whole-field claim SUBSUMES that field's `set_*` OPTIONS, so an unconditional r
 
 **The report is the reason, not the wasted work.** `FidelityReport.Models` asks generation's own compiler which models ran, so without the claim a rule-overwritten modelled field ships a captured-versus-recovered coefficient delta for a value nothing kept — every number rendering, nothing saying it describes something that did not happen.
 
-**Four exclusions, each SILENT if got backwards:**
+**The exclusions, each SILENT if got backwards:**
 
 | Rule shape | Claims? | Why |
 |---|---|---|
@@ -32,7 +32,7 @@ A whole-field claim SUBSUMES that field's `set_*` OPTIONS, so an unconditional r
 
 The last exclusion is why the pre-rounding remedy `{"set_expr": {"nps": "round(nps)"}}` is safe: claiming there would leave the rounding applied to a bare marginal draw — the documented fix for one silent fault causing a larger one. Self-reference is detected on the PARSED expression, never by substring (`nps_reason` is not `nps`), and an unparseable expression answers "reads", the direction that cannot lose structure.
 
-**One contract narrows.** The pass still consumes no RNG, but a CLAIMING rule retires a model and a retired model stops drawing its own per-row normal, so the stream shifts — for a reason a warning names. No rules, or rules claiming nothing ⇒ byte-identical.
+**One contract narrows.** The pass still consumes no RNG, but a CLAIMING rule retires a model and a retired model stops drawing its own per-row normal, so the stream shifts — for a reason a warning names. No rules, or rules claiming nothing ⇒ the stream does not move.
 
 ## See
 

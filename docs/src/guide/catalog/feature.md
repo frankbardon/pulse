@@ -5,13 +5,13 @@ The feature operators this instance offers: what each is for, the questions it a
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
 | [`FEAT_BUCKETIZE`](#op-feat_bucketize) | Puts each value into an ordered bin, using cut points you give or bins holding about equal numbers of records, and adds the bin number. | Which income band is each customer in? | basic | [`GROUP_RANGE`](grouper.md#op-group_range) when you want results grouped by fixed-width bands.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want results grouped by equal-count bins. |
-| [`FEAT_DATE_FEATURES`](#op-feat_date_features) | Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled. | Do orders differ by day of the week? | basic | [`ATTR_DATE_PART`](attribute.md#op-attr_date_part) when you need just one part of the date.<br>[`GROUP_DATE`](grouper.md#op-group_date) when you want results grouped by day, month or year. |
-| [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) | Replaces each category with the share of records that carry it, one number that says how common the category is. | How common is each customer's city, as a single number a model can use? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when you want the count table itself, one row per category: group by the field, then count.<br>[`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own column. |
-| [`FEAT_LOG`](#op-feat_log) | Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. | Can I tame the long tail of customer spend before fitting a model on it? | intermediate | [`FEAT_SQRT`](#op-feat_sqrt) when the tail is only moderate and a gentler squeeze is enough.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want each value in standard units from the mean, not a squeezed scale.<br>[`FEAT_BUCKETIZE`](#op-feat_bucketize) when you want ordered bins instead of a continuous transform. |
-| [`FEAT_ONE_HOT`](#op-feat_one_hot) | Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no. | How do I feed region into a regression as separate yes/no predictors? | basic | [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when the field has hundreds of categories and one column each is too many.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want how many rows fall in each category: group by the field, then count. |
-| [`FEAT_POLY`](#op-feat_poly) | Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. | Does satisfaction rise with tenure and then level off? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want to fit the curve itself, not just build its columns.<br>[`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want one custom transform of the value. |
-| [`FEAT_SQRT`](#op-feat_sqrt) | Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. | Can I soften the few very large complaint counts without a full log? | intermediate | [`FEAT_LOG`](#op-feat_log) when the tail is very long and needs a stronger squeeze.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want each value in standard units from the mean. |
-| [`FEAT_TARGET_ENCODE`](#op-feat_target_encode) | Replaces each category with the average outcome of the records in that category, optionally pulled toward the overall average. | How do I give a model a single number for each of a thousand postcodes? | advanced | [`AGG_AVERAGE`](aggregator.md#op-agg_average) when you want to report each category's average outcome.<br>[`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own column.<br>[`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when you want how common each category is, without using the outcome. |
+| [`FEAT_DATE_FEATURES`](#op-feat_date_features) | Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled. | Do orders differ by day of the week? | basic | [`ATTR_DATE_PART`](attribute.md#op-attr_date_part) when you need just one part of the date.<br>[`GROUP_DATE`](grouper.md#op-group_date) when you want results grouped by day, month or year. |
+| [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) | Replaces each category with the share of records that carry it, one number that says how common the category is. | How common is each customer's city, as a single number a model can use? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when you want the count table itself, one row per category: group by the field, then count.<br>[`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own field. |
+| [`FEAT_LOG`](#op-feat_log) | Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. | Can I tame the long tail of customer spend before fitting a model on it? | intermediate | [`FEAT_SQRT`](#op-feat_sqrt) when the tail is only moderate and a gentler squeeze is enough.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want each value in standard units from the mean, not a squeezed scale.<br>[`FEAT_BUCKETIZE`](#op-feat_bucketize) when you want ordered bins instead of a continuous transform. |
+| [`FEAT_ONE_HOT`](#op-feat_one_hot) | Turns a category field into one 0/1 field per category, so a model or a sum can treat each category as its own yes/no. | How do I feed region into a regression as separate yes/no predictors? | basic | [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when the field has hundreds of categories and one field each is too many.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want how many rows fall in each category: group by the field, then count. |
+| [`FEAT_POLY`](#op-feat_poly) | Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. | Does satisfaction rise with tenure and then level off? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want to fit the curve itself, not just build its fields.<br>[`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want one custom transform of the value. |
+| [`FEAT_SQRT`](#op-feat_sqrt) | Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. | Can I soften the few very large complaint counts without a full log? | intermediate | [`FEAT_LOG`](#op-feat_log) when the tail is very long and needs a stronger squeeze.<br>[`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want each value in standard units from the mean. |
+| [`FEAT_TARGET_ENCODE`](#op-feat_target_encode) | Replaces each category with the average outcome of the records in that category, optionally pulled toward the overall average. | How do I give a model a single number for each of a thousand postcodes? | advanced | [`AGG_AVERAGE`](aggregator.md#op-agg_average) when you want to report each category's average outcome.<br>[`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own field.<br>[`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when you want how common each category is, without using the outcome. |
 | [`FEAT_TRAIN_TEST_SPLIT`](#op-feat_train_test_split) | Labels every record train (0), validation (1) or test (2) by a seeded shuffle or by time, to check a model on records it never learned from. | How do I hold back 20% of records to test a model on? | intermediate | `capability:sample` when you just want a random subset of rows to look at.<br>[`GROUP_CATEGORY`](grouper.md#op-group_category) when you want to compare groups that already exist. |
 
 ## Operators
@@ -32,12 +32,12 @@ Puts each value into an ordered bin, using cut points you give or bins holding a
 **Use cases by domain:**
 
 - *survey:* Age bands for each respondent, from fixed cut points.
-- *ops:* Order value tenths, as a column later steps can filter on.
+- *ops:* Order value tenths, as a field later steps can filter on.
 - *science:* Exposure bands for each subject, for a banded analysis.
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - Bin 0 is the lowest; a value equal to a cut point goes in the bin below it.
 - Equal-count bins use cut points from every record of the cohort, and repeated values can leave bins uneven. A missing input value gives a missing output.
 
@@ -54,7 +54,7 @@ Puts each value into an ordered bin, using cut points you give or bins holding a
 
 ### `FEAT_DATE_FEATURES`
 
-Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled.
+Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled.
 
 **Level:** basic
 
@@ -71,9 +71,9 @@ Splits a date into year, month, day, day of week and quarter columns, so each pa
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
-- Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour column. Day of week is 1 for Monday through 7 for Sunday.
-- A missing date gives missing values in every column.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
+- Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour field. Day of week is 1 for Monday through 7 for Sunday.
+- A missing date gives nulls in every field.
 
 **Use something else:**
 
@@ -105,14 +105,14 @@ Replaces each category with the share of records that carry it, one number that 
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - Its figures come from every record of the cohort, before any filter: filtering afterwards does not recompute them.
 - The share is out of records with a category; records missing it read missing and are left out of the total.
 
 **Use something else:**
 
 - [`GROUP_CATEGORY`](grouper.md#op-group_category) when you want the count table itself, one row per category: group by the field, then count.
-- [`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own column.
+- [`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own field.
 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
@@ -122,7 +122,7 @@ Replaces each category with the share of records that carry it, one number that 
 
 ### `FEAT_LOG`
 
-Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
+Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
 
 **Level:** intermediate
 
@@ -139,7 +139,7 @@ Adds a column holding the natural log of 1 + the value, which pulls in a long ta
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - Computes ln(1 + x), not ln(x): 0 maps to 0, and values between -1 and 0 map below 0.
 - A value of -1 or less has no log and reads missing, with no error; A missing input value gives a missing output.
 
@@ -157,7 +157,7 @@ Adds a column holding the natural log of 1 + the value, which pulls in a long ta
 
 ### `FEAT_ONE_HOT`
 
-Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.
+Turns a category field into one 0/1 field per category, so a model or a sum can treat each category as its own yes/no.
 
 **Level:** basic
 
@@ -166,24 +166,24 @@ Turns a category field into one 0/1 column per category, so a model or a sum can
 **Questions it answers:**
 
 - How do I feed region into a regression as separate yes/no predictors?
-- Which rows are in each plan tier, as columns I can sum?
+- Which rows are in each plan tier, as fields I can sum?
 
 **Use cases by domain:**
 
-- *survey:* One yes/no column per answer to a single-choice question.
-- *ops:* One column per warehouse for a model of delivery time.
-- *science:* One column per treatment arm in a design table.
+- *survey:* One yes/no field per answer to a single-choice question.
+- *ops:* One field per warehouse for a model of delivery time.
+- *science:* One field per treatment arm in a design table.
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
-- Columns come from the field's dictionary, so a category with no rows still gets an all-zero column.
-- A missing category reads 0 in every column; there is no separate unknown column.
-- In a model with an intercept, leave one category's column out as the reference: all of them together are perfectly collinear and the fit is refused.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
+- The fields come from the dictionary, so a category with no rows still gets an all-zero field.
+- A null category reads 0 in every field; there is no separate unknown field.
+- In a model with an intercept, leave one category's field out as the reference: all of them together are perfectly collinear and the fit is refused.
 
 **Use something else:**
 
-- [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when the field has hundreds of categories and one column each is too many.
+- [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when the field has hundreds of categories and one field each is too many.
 - [`GROUP_CATEGORY`](grouper.md#op-group_category) when you want how many rows fall in each category: group by the field, then count.
 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value), [`multicollinearity`](../glossary.md#term-multicollinearity)
@@ -194,7 +194,7 @@ Turns a category field into one 0/1 column per category, so a model or a sum can
 
 ### `FEAT_POLY`
 
-Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
+Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
 
 **Level:** advanced
 
@@ -211,13 +211,13 @@ Adds columns holding the value squared, cubed and so on up to a chosen power, so
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
-- Emits powers 2 up to the degree (at most 10); the power-1 term is the original column, which you add yourself.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
+- Emits powers 2 up to the degree (at most 10); the power-1 term is the original field, which you add yourself.
 - Raw powers grow fast and move together; centre or standardise the field first. A missing input value gives a missing output.
 
 **Use something else:**
 
-- [`REG_OLS`](regression.md#op-reg_ols) when you want to fit the curve itself, not just build its columns.
+- [`REG_OLS`](regression.md#op-reg_ols) when you want to fit the curve itself, not just build its fields.
 - [`ATTR_FORMULA`](attribute.md#op-attr_formula) when you want one custom transform of the value.
 
 **Glossary:** [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`multicollinearity`](../glossary.md#term-multicollinearity), [`missing-value`](../glossary.md#term-missing-value)
@@ -228,7 +228,7 @@ Adds columns holding the value squared, cubed and so on up to a chosen power, so
 
 ### `FEAT_SQRT`
 
-Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
+Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
 
 **Level:** intermediate
 
@@ -245,7 +245,7 @@ Adds a column holding the square root of the value, a gentler squeeze than a log
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - A negative value has no real square root and reads missing, with no error; A missing input value gives a missing output.
 
 **Use something else:**
@@ -278,7 +278,7 @@ Replaces each category with the average outcome of the records in that category,
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - Its averages come from the training records params.fit_on picks (for example split == 0 after FEAT_TRAIN_TEST_SPLIT); every record is encoded, and a category with no training record reads the overall training average.
 - Without fit_on every record is a training record: test rows and each row's own outcome feed every average, and placing FEAT_TRAIN_TEST_SPLIT first changes nothing.
 - With folds k each training record reads the averages of the training records outside its fold, so its own outcome never feeds its value.
@@ -287,7 +287,7 @@ Replaces each category with the average outcome of the records in that category,
 **Use something else:**
 
 - [`AGG_AVERAGE`](aggregator.md#op-agg_average) when you want to report each category's average outcome.
-- [`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own column.
+- [`FEAT_ONE_HOT`](#op-feat_one_hot) when the field has few categories and each should be its own field.
 - [`FEAT_FREQUENCY_ENCODE`](#op-feat_frequency_encode) when you want how common each category is, without using the outcome.
 
 **Glossary:** [`mean`](../glossary.md#term-mean), [`overfitting`](../glossary.md#term-overfitting), [`missing-value`](../glossary.md#term-missing-value)
@@ -316,11 +316,11 @@ Labels every record train (0), validation (1) or test (2) by a seeded shuffle or
 
 **Assumptions:**
 
-- Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
+- Runs on every record before filters, so a filter can use the new field but never narrows what the feature sees.
 - Each share is the ratio times the record count, rounded; with stratify it is applied within each category.
 - The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.
 - In temporal mode records sharing an order value always land in the same set, and a record with no order value lands in none (its label is missing).
-- The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, so build those from the train rows in a separate request.
+- The split does not isolate other features: frequency encoding and equal-count bucketing in the same request still learn from test rows, so build those from the train rows in a separate request; target encoding learns from them too unless params.fit_on picks the train rows.
 
 **Use something else:**
 

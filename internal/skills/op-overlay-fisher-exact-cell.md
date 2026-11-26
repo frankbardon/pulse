@@ -15,16 +15,16 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `cell`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
+`scope` must be `cell`. `ref` (object, empty) — implicit-margin — leave empty. `level`/`within` must be `0`.
 
 
 ## Host shape
 
-MATRIX crosstab. Implicit-margin family (no `Ref`). Canonical low-count χ² backstop — the correct surface when `expected < 5` breaks χ² approximation.
+MATRIX crosstab of counts. The low-count backstop when `expected < 5` breaks the χ² approximation.
 
 ## Output
 
-MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host RowKeys / ColumnKeys. Absent host cells stay absent on the overlay. Layer `Baseline` unset (inferential).
+MATRIX — `payload.matrix.cells[r][c].value` = the two-sided p-value, on the host's keys; absent host cells stay absent. `summary.baseline` unset (inferential).
 
 <!-- generated: reading-the-output -->
 
@@ -33,11 +33,11 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors host Ro
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: no p, no warning, out of `summary.count`.
-- Frequency-only: on a frequency-weighted host the exact test runs on the integer Σw table and `Summary.Parameters` adds `sum_weights`; a probability weight — on the overlay slot OR only on the host cell — is `PULSE_WEIGHT_UNSUPPORTED` naming the kind (predict AND runtime).
-- 2×2 contingency: `[cell, row_margin-cell; col_margin-cell, grand-row_margin-col_margin+cell]`. Reuses `logHypergeometric` — byte-equal to the Fisher exact test on the same 2×2.
+- Frequency-only: on a frequency-weighted host the exact test runs on the integer Σw table and `summary.parameters` adds `sum_weights`; a probability weight — on the overlay slot OR only on the host cell — is `PULSE_WEIGHT_UNSUPPORTED` naming the kind (predict AND runtime).
+- 2×2 contingency: `[cell, row_margin-cell; col_margin-cell, grand-row_margin-col_margin+cell]`. p equals the Fisher exact test's on the same 2×2.
 - Cochran rule: any of four expected counts `< 1` OR `>= 20%` of expected `< 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per offending cell. Advisory only — Fisher stays exact.
 - `grand_total <= 0` → absent cells everywhere + ONE `PULSE_OVERLAY_REF_ZERO`.
-- Populated `Ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Populated `ref` arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 <!-- feature: AGG_MODE -->
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 <!-- /feature -->

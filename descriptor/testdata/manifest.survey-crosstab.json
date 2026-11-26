@@ -164,7 +164,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -412,7 +412,7 @@
         {
           "name": "FILTER_INCLUDE",
           "category": "filterer",
-          "description": "Keep records whose field value appears in the supplied Values list.",
+          "description": "Keep records whose field value appears in the supplied values list.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -459,7 +459,7 @@
         {
           "name": "FILTER_RANGE",
           "category": "filterer",
-          "description": "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+          "description": "Keep records whose numeric field value falls within [low, high]; values = [low, high].",
           "params": null,
           "accepts_types": [
             "date",
@@ -559,7 +559,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. The slot's include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -676,7 +676,7 @@
         "name": "TEST_CHISQ",
         "family": "TEST_CHISQ",
         "tier": 1,
-        "description": "Chi-square independence test on a 2D Rows×Cols contingency table; with params.expected and no Cols, a goodness-of-fit test of Rows' level counts against expected proportions.",
+        "description": "Chi-square independence test on a 2D rows×cols contingency table; with params.expected and no cols, a goodness-of-fit test of rows level counts against expected proportions.",
         "streamable": true,
         "params": [
           {
@@ -684,14 +684,14 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
             "name": "expected",
             "type": "object",
             "required": false,
-            "description": "Goodness of fit: map of Rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects Variant goodness_of_fit (df = labels − 1) and requires Cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
+            "description": "Goodness of fit: map of rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects variant goodness_of_fit (df = labels − 1) and requires cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
           },
           {
             "name": "correct",
@@ -714,7 +714,7 @@
         "name": "TEST_T",
         "family": "TEST_T",
         "tier": 1,
-        "description": "One-sample or two-sample t-test on a numeric Field; SplitBy switches to the two-sample variant (Welch, or Student's pooled-variance t under params.variance pooled).",
+        "description": "One-sample or two-sample t-test on a numeric field; split_by switches to the two-sample variant (Welch, or Student's pooled-variance t under params.variance pooled).",
         "streamable": true,
         "params": [
           {
@@ -722,7 +722,7 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
@@ -730,19 +730,19 @@
             "type": "float",
             "required": false,
             "default": 0,
-            "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+            "description": "Hypothesized mean for the one-sample variant (ignored when split_by is set)."
           },
           {
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs split_by; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
             "names_column": true
           },
           {
@@ -750,7 +750,7 @@
             "type": "enum",
             "required": false,
             "default": "unequal",
-            "description": "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; Variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs SplitBy, else PROCESSING_CONFIG.",
+            "description": "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs split_by, else PROCESSING_CONFIG.",
             "enum_values": [
               "pooled",
               "unequal"
@@ -769,7 +769,7 @@
         "name": "TEST_WELCH",
         "family": "TEST_WELCH",
         "tier": 1,
-        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
+        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with split_by.",
         "streamable": true,
         "params": [
           {
@@ -777,20 +777,20 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs split_by; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
             "names_column": true
           }
         ],
@@ -807,7 +807,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 208,
+    "error_codes_count": 209,
     "error_domains": [
       "CLI",
       "DATA",
@@ -818,6 +818,7 @@
     ],
     "error_codes": [
       "CLI_COMMAND",
+      "CLI_ERROR",
       "CLI_INPUT",
       "CLI_INTERNAL",
       "CLI_OUTPUT",
@@ -1033,7 +1034,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -1045,7 +1046,7 @@
       },
       {
         "name": "pulse_facet_schema",
-        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
+        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional `numeric_percentiles` (forces a buffered per-field sort), `include_histogram` + `histogram_range` + `histogram_bins` for fixed-width binning, `discrete_top_k` truncation, and `additive_fields` contribution counts that strip the field's own filter clauses so you can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
       },
       {
         "name": "pulse_inspect",
@@ -1053,7 +1054,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -1069,7 +1070,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -1411,7 +1412,7 @@
       },
       {
         "name": "cohort-schema-design",
-        "description": "Entry point for .pulse cohort schemas — the 22-type field matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
+        "description": "Entry point for .pulse cohort schemas — the field-type matrix, selection heuristics, bit-packed runs, description-length cap, the single-file vs shard-archive shapes, and which focused schema skill answers each nullability, width, parent-group, sharding and sidecar-index question. Use when picking schema types, evaluating storage layout, or interpreting a cohort returned by pulse_inspect."
       },
       {
         "name": "cohort-sharding",
@@ -1443,7 +1444,7 @@
       },
       {
         "name": "facet-design",
-        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, four FACET-host overlay kinds against Population. Per-OVERLAY math in op-overlay-* atomics."
+        "description": "FacetSchema endpoint — per-field summaries, histograms, additive contribution counts, streamability tradeoffs, FACET-host overlay kinds against a Population. Per-OVERLAY math in op-overlay-* atomics."
       },
       {
         "name": "feature-engineering",
@@ -1451,7 +1452,7 @@
       },
       {
         "name": "financial-cohorts",
-        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, three consumer-facing decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
+        "description": "decimal128 patterns — precision/scale propagation, banker's rounding, divide-by-zero policy, currency conventions, the decimal error codes. Use when a cohort has monetary fields or a response carries PULSE_DECIMAL_OVERFLOW / PULSE_DECIMAL_PRECISION_LOSS / PULSE_DECIMAL_DIVIDE_BY_ZERO."
       },
       {
         "name": "glossary",
@@ -1499,7 +1500,7 @@
       },
       {
         "name": "op-filter-include",
-        "description": "Keep records whose field value appears in the supplied Values list."
+        "description": "Keep records whose field value appears in the supplied `values` list."
       },
       {
         "name": "op-filter-range",
@@ -1527,15 +1528,15 @@
       },
       {
         "name": "op-test-chisq",
-        "description": "Chi-square independence test on a 2D Rows × Cols contingency table, or goodness of fit of Rows against expected proportions."
+        "description": "Chi-square independence test on a 2D rows × cols contingency table, or goodness of fit of rows against expected proportions."
       },
       {
         "name": "op-test-t",
-        "description": "One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant."
+        "description": "One-sample or two-sample Welch t-test on a numeric field; split_by switches to the two-sample variant."
       },
       {
         "name": "op-test-welch",
-        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
+        "description": "Explicit two-sample Welch t-test on a numeric field across a categorical split_by partition."
       },
       {
         "name": "overlay-pairwise",
@@ -1551,7 +1552,7 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the n_source modes, the distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "predict-advisories",
@@ -1599,7 +1600,7 @@
       },
       {
         "name": "response-components",
-        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
+        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, attribute, matrix and crosstab cell"
       },
       {
         "name": "response-shaping",
@@ -1611,19 +1612,19 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
-        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
       },
       {
         "name": "spss-cohorts",
-        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
+        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived fields, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
       },
       {
         "name": "spss-export",
-        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
+        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
       },
       {
         "name": "spss-export-fidelity",
@@ -1635,7 +1636,7 @@
       },
       {
         "name": "spss-import-schema",
-        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file."
+        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a field unexpectedly or refuses a file."
       },
       {
         "name": "spss-metadata-sidecar",
@@ -1647,7 +1648,7 @@
       },
       {
         "name": "spss-response-sets",
-        "description": "SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables."
+        "description": "SPSS multiple-response sets and the fields an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more fields than its .sav had variables."
       },
       {
         "name": "statistical-testing",
@@ -1743,7 +1744,7 @@
       },
       {
         "name": "type-packed-bool",
-        "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
+        "description": "1-bit boolean; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-set-u128",
@@ -1779,11 +1780,11 @@
       },
       {
         "name": "type-u4",
-        "description": "4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields."
+        "description": "4-bit unsigned integer; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-u64",
-        "description": "8-byte unsigned integer; for sub-day timestamps and very wide cardinals."
+        "description": "8-byte unsigned integer; for very wide keys and sub-second timestamps."
       },
       {
         "name": "type-u8",
@@ -1881,8 +1882,8 @@
       "supports_additive": true,
       "supports_overlays": true,
       "streamable_conditions": [
-        "NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
-        "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds"
+        "numeric_percentiles is empty (percentiles force a buffered per-field sort)",
+        "include_histogram is false, or histogram_range supplies known [min, max] bounds"
       ]
     },
     "crosstab": {
@@ -1959,7 +1960,7 @@
           "level",
           "within"
         ],
-        "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. CELL scope over a MATRIX (crosstab) host with a Margin reference. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation.",
+        "description": "Per-cell index against the matching crosstab margin (ref.margin.axis row, column or grand): 100 · cell / margin. level / within truncate the margin to a nested-axis prefix.",
         "intents": [
           "benchmark"
         ]
@@ -1975,7 +1976,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. RAW p-values; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). Buffered (inferential).",
+        "description": "Pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads each cell's {mean, variance, n} from the crosstab components). A cell whose component schema lacks mean and variance is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (predict and runtime). The payload matrix has one pair-axis entry per tested (i, j) pair, keyed by the two legs' labels, against the host's other axis; each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). No ref. Reads the crosstab components: a host with components disabled is PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). p-values are raw; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). Detail: skill pairwise-n-sources.",
         "intents": [
           "compare_groups"
         ],
@@ -2025,7 +2026,7 @@
           "level",
           "within"
         ],
-        "description": "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX (crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked horizontal projection. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation.",
+        "description": "Per-cell share of its row (ref.margin.axis row): cell / row margin. A row's cells sum to 1 when none is missing. level / within truncate the margin to a nested-axis prefix.",
         "intents": [
           "composition"
         ]
@@ -2487,4 +2488,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9eabe9f0bd5bc9a668f901bd77bdf821c2ee5d15b564dacb8d148f4de14a4868
+// golden-hash: 1c0539e0628187b6a1961012cdbf8a93a6662399161dc07147cf119b14f899a8

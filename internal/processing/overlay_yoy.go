@@ -329,7 +329,7 @@ func extractYoYFrequency(spec *types.OverlaySpec) (string, error) {
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING,
-			"overlay "+string(spec.Kind)+" requires Params[\"frequency\"] (one of: annual | quarterly | monthly | weekly | daily | hourly); not found on OverlaySpec.Params or host GROUP_DATE.Params",
+			"overlay "+string(spec.Kind)+" requires params.frequency (one of: annual | quarterly | monthly | weekly | daily | hourly); not found in the spec's params or the host GROUP_DATE's params",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": "frequency",
@@ -338,7 +338,7 @@ func extractYoYFrequency(spec *types.OverlaySpec) (string, error) {
 	if !isYoYSupportedFrequency(frequency) {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY,
-			"overlay "+string(spec.Kind)+" Params[\"frequency\"] value is not in the supported set (annual | quarterly | monthly | weekly | daily | hourly): "+frequency,
+			"overlay "+string(spec.Kind)+" params.frequency value is not in the supported set (annual | quarterly | monthly | weekly | daily | hourly): "+frequency,
 			map[string]any{
 				"kind":      string(spec.Kind),
 				"frequency": frequency,

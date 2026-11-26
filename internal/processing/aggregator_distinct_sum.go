@@ -79,7 +79,7 @@ func newDistinctSumAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggre
 	// which returns a plausible number for a question nobody asked.
 	if params.DistinctBy == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"AGG_DISTINCT_SUM requires Params.distinct_by")
+			"AGG_DISTINCT_SUM requires params.distinct_by")
 	}
 	return &distinctSumAggregator{distinctBy: params.DistinctBy}, nil
 }

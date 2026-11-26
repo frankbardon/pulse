@@ -19,8 +19,8 @@ examples_tags: [feature-engineering, proportion-analysis, streaming-friendly]
 
 ## Inputs
 
-- `Field` — `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too)
-- `Label` (output name) — required; `target` → `PROCESSING_CONFIG`
+- `field` — `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too)
+- `label` — derived field name; default `ATTR_CODE_IN_<field>`. A `target` slot → `PROCESSING_CONFIG`
 
 ## Output
 
@@ -34,7 +34,7 @@ examples_tags: [feature-engineering, proportion-analysis, streaming-friendly]
 - Nulls count as "no".<!-- feature: FILTER_NULL --> To drop them, put `FILTER_NULL` (`values: ["is_not_null"]`) first.<!-- /feature -->
 - Integer field: a code not a whole number in range (`u4` 0..15, `u8` 0..255…) → `PROCESSING_CONFIG`.
 - A categorical code absent from the dictionary matches nothing; predict warns `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` (error under `--strict`).
-- `Field` must be a cohort schema field: a column derived by an earlier attribute or feature → `PROCESSING_CONFIG` "unknown field".
+- `field` must be a schema field: one derived by an earlier attribute or feature → `PROCESSING_CONFIG` "unknown field".
 - Row-local: streams; fuses on crosstabs; merges (shards, parallel decode, chain stages).
 
 ## See

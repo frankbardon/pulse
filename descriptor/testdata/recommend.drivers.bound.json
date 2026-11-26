@@ -297,7 +297,7 @@
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses revenue (f64) and seats (u16).",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. It uses revenue (f64) and seats (u16).",
         "bound": true,
         "request": {
           "aggregations": [
@@ -328,7 +328,7 @@
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses revenue (f64) and score (f64).",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. It uses revenue (f64) and score (f64).",
         "bound": true,
         "request": {
           "aggregations": [
@@ -359,7 +359,7 @@
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. It uses seats (u16) and revenue (f64).",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. It uses seats (u16) and revenue (f64).",
         "bound": true,
         "request": {
           "aggregations": [
@@ -393,4 +393,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1cc7331258eceefe4750727011de0817c315334c49b6776993ab5342987cba98
+// golden-hash: 7ec36a743d7fdab387b15c6d5eec56184704ce5a46af140771a2e10d6d4b5321

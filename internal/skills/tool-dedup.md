@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL WHEN A COHORT REPEATS PARENT ATTRIBUTES ON EVERY CHILD ROW.
-A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte row index: smaller file, byte-identical answers.<!-- feature: capability:import --> The existing-cohort twin of `pulse_import` `groups`.<!-- /feature -->
+A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte row index: smaller file, identical answers.<!-- feature: capability:import --> The existing-cohort twin of `pulse_import` `groups`.<!-- /feature -->
 
 ## Input
 
@@ -20,7 +20,7 @@ A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte r
 
 ## Output
 
-`rewritten`, `in_place`, `records`, `*_before/after` (format version, bytes, stride), `groups` (per-group `verdict`, `ratio`, `dictionary_bytes`, `byte_delta`), `group_warnings`, `group_candidates` (with the `suggested` set) and `invalidated_sidecars` (in place only, each with its rebuild command).
+The dedup report (no envelope): `source`, `target`, `rewritten`, `in_place`, `records`, `*_before/after` (format version, bytes, stride), `groups` (per-group `verdict`, `ratio`, `dictionary_bytes`, `byte_delta`), `group_warnings`, `group_candidates` (with the `suggested` set) and `invalidated_sidecars` (in place only, each with its rebuild command).
 
 ## Gotchas
 
@@ -35,4 +35,4 @@ A denormalized join: `pulse_dedup` stores each parent tuple once plus a 4-byte r
 ## See
 
 - `tool-import` — declaring groups at import time.
-- `cohort-schema-design` (Parent groups) — when grouping pays off.
+- `cohort-parent-groups` — when grouping pays off.

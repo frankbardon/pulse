@@ -51,7 +51,7 @@ type CrosstabMargins struct {
 //   - Columns is optional. Absent (nil) or empty yields ONE implicit
 //     column keyed CrosstabTotalColumnKey ("Total") holding every record
 //     whose row key resolved — a Total column with no constant field
-//     behind it (U47 #326 / #328). See HasImplicitTotalColumn.
+//     behind it. See HasImplicitTotalColumn.
 //   - Exactly one of Cell and Cells is required (Cells: several
 //     measures as stub rows, see Cells and CellsFaults).
 //   - A crosstab section cannot coexist with top-level Aggregations / Groups
@@ -81,7 +81,7 @@ type CrosstabSpec struct {
 	Cell *Aggregation `json:"cell,omitempty"`
 
 	// Cells declares SEVERAL cell aggregations — measures — over the
-	// same axes (U47 #326): the multi-measure form of Cell, mutually
+	// same axes: the multi-measure form of Cell, mutually
 	// exclusive with it. Each measure is a stub row: the matrix folds a
 	// MEASURE dimension into the row axis as its innermost position, so
 	// MatrixPayload and CrosstabComponents stay 2-D. Row key r of the
@@ -124,8 +124,8 @@ type CrosstabSpec struct {
 	// auxiliary margin aggregation observes the SAME record admission
 	// as the cell aggregator — a record contributes to these
 	// accumulators only if it contributed to a cell. The cell
-	// aggregator's own margins share the axis half of that rule (U47:
-	// a record reaches any margin only if both its axis keys resolved)
+	// aggregator's own margins share the axis half of that rule (a
+	// record reaches any margin only if both its axis keys resolved)
 	// but still count a null cell field as n_null, which an auxiliary
 	// drops; it is what makes an auxiliary base reconcilable against
 	// the cells it sits beside. The slot carries no knob for
@@ -179,7 +179,7 @@ func (s *CrosstabSpec) NormalizeOrDefault() CrosstabNormalize {
 }
 
 // ShapeOrDefault returns the configured shape, defaulting to "matrix" on
-// the zero value (matches the canonical handoff §2 default).
+// the zero value.
 func (s *CrosstabSpec) ShapeOrDefault() CrosstabShape {
 	if s == nil || s.Shape == "" {
 		return CrosstabShapeMatrix
@@ -479,9 +479,8 @@ type MarginAggregationFigure struct {
 // consumers can index components by the same (row, column) tuple they
 // already use to read MatrixPayload.Cells / RowMargins / ColumnMargins
 // / GrandTotal. Every field is `omitempty` so an unpopulated
-// CrosstabComponents marshals to byte-identical wire output against the
-// pre-Components baseline; an empty struct produces no JSON keys at
-// all.
+// CrosstabComponents marshals only the keys it populates; an empty
+// struct produces no JSON keys at all.
 //
 // Layout (each axis indexed in the same order as MatrixPayload.RowKeys
 // / MatrixPayload.ColumnKeys):
@@ -819,8 +818,8 @@ func (s *CrosstabSpec) MarginAggregationLabels() []string {
 // cell's own margin counts and components do. So a spec with every
 // margin off and normalize=row DOES accumulate its auxiliaries (both
 // execution paths allocate on Needs*Margin) and then emits not one of
-// them — the one shape where "declared with nowhere to land" was
-// previously silent AND paid for. Answering the cell's question here
+// them — the one shape where "declared with nowhere to land" would be
+// silent AND paid for. Answering the cell's question here
 // would leave it that way.
 //
 // Keep this predicate and the Components emission gate stating the same

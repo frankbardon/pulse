@@ -81,10 +81,11 @@ How closely every pair of numeric fields moves together, in a line or in rank or
 
 **Assumptions:**
 
-- A row with any member missing is dropped from every cell (listwise deletion).
+- A row with any member missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen.
 - Each r reads only a straight-line link; a curved relationship can still be strong.
 - A few extreme rows can move an r a lot.
 - r is unit-free: each pair's co-moment divided by both members' spreads, the same arithmetic as TEST_PEARSON_R.
+- params.inference adds each pair's two-sided p-value and confidence interval; with many pairs, some fall below alpha by chance alone.
 - The spearman and kendall methods rank each member first, so they read any steady rise or fall, curved or not, and resist extreme rows; each cell is the TEST_SPEARMAN_R or TEST_KENDALL_TAU figure for its pair.
 
 **Use something else:**
@@ -128,7 +129,7 @@ How every pair in a set of numeric fields varies together, as one square table w
 
 **Assumptions:**
 
-- A row with any member missing is dropped from every cell (listwise deletion).
+- A row with any member missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen.
 - Sample form by default: the squared deviations are divided by n - 1 (ddof 0 divides by n).
 - The figures depend on each field's units: a field in larger units gets larger entries.
 
@@ -267,6 +268,7 @@ How closely each pair of numeric fields moves together once other fields are hel
 - Only straight-line links are removed and measured; a curved link to a held-fixed field leaves a trace.
 - A row with any member or control missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen, which can leave the input inconsistent; that input is refused unless it is repaired.
 - A field that is an exact straight-line mix of the others leaves nothing to compare, so the matrix is refused.
+- params.inference adds each pair's two-sided p-value and confidence interval; with many pairs, some fall below alpha by chance alone.
 
 **Use something else:**
 

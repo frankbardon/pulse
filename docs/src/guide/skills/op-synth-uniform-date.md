@@ -13,7 +13,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Use when
 
-Draws calendar dates between a start and an end date, every day equally likely, both ends included.
+Draws calendar dates between a start and an end date, both ends included, every day equally likely unless month weights are set.
 
 Questions it answers:
 
@@ -33,7 +33,7 @@ Use something else:
 | `end` | string | (required) | ISO-8601 `YYYY-MM-DD`; must not precede `start` (equal is legal). |
 | `month_weights` | list | — | One per-day weight per calendar month spanned, `start`'s first; uniform when absent. |
 
-Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
+Both parse into days since 1970-01-01.
 
 ## Inputs
 
@@ -41,7 +41,7 @@ Field `type:` — `date` (32-bit days-since-epoch).
 
 ## Output
 
-Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable. With `month_weights` it is one `Float64` weighted by month.
+Per-row days since the epoch, stored as the signed 32-bit `date` value; every day in `[start, end]` equally likely (or at its month's weight with `month_weights`).
 
 ## Contract
 

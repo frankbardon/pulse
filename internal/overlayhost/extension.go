@@ -274,7 +274,7 @@ func ExtensionDeclRefusal(d *ExtensionDecl, judged types.OverlayShape, measures 
 			runs += shapeHost(s)
 		}
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" does not run on a "+string(judged)+"-shape Request.Overlays host; it runs on "+runs,
+			"overlay "+kind+" does not run on a "+string(judged)+"-shape overlays host; it runs on "+runs,
 			map[string]any{"index": index, "kind": kind, "host": string(Request), "shape": string(judged), "shapes": names})
 	}
 	if measures {
@@ -303,7 +303,7 @@ func extensionScopeLevelRefusal(d *ExtensionDecl, k types.OverlayKind, scope typ
 	}
 	if level != 0 || within != 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+kind+" does not support Level / Within (an extension overlay reads the leaf axes)",
+			"overlay "+kind+" does not support level / within (an extension overlay reads the leaf axes)",
 			map[string]any{"index": index, "kind": kind, "level": level, "within": within})
 	}
 	return nil
@@ -360,7 +360,7 @@ func extensionComposePartitionRefusal(d *ExtensionDecl, spec *types.ComposeOverl
 	}
 	kind := string(spec.Kind)
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARTITION_INVALID,
-		"overlay "+kind+" params.partition_by partitions a Request.Overlays SERIES host only; an extension kind's Compose handler reads every slot whole — omit partition_by on ComposedRequest.Overlays",
+		"overlay "+kind+" params.partition_by partitions a request's overlays on a SERIES host only; an extension kind's Compose handler reads every slot whole — omit partition_by on a Compose request's overlays",
 		map[string]any{"index": index, "kind": kind, "partition_by": given, "reason": "compose_host"})
 }
 
@@ -373,23 +373,23 @@ func extensionRefRefusal(d *ExtensionDecl, spec *types.OverlaySpec, index int) *
 	case len(arms) == 0:
 		if !slices.Contains(d.Refs, RefNone) {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" requires a Ref (accepts: "+accepts+")",
+				"overlay "+kind+" requires a ref (accepts: "+accepts+")",
 				map[string]any{"index": index, "kind": kind, "refs": slices.Clone(d.Refs)})
 		}
 		return nil
 	case len(arms) > 1:
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" sets more than one Ref arm ("+strings.Join(arms, ", ")+"); set at most one (accepts: "+accepts+")",
+			"overlay "+kind+" sets more than one ref arm ("+strings.Join(arms, ", ")+"); set at most one (accepts: "+accepts+")",
 			map[string]any{"index": index, "kind": kind, "ref_arms": arms, "refs": slices.Clone(d.Refs)})
 	case !slices.Contains(d.Refs, arms[0]):
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" does not read Ref."+arms[0]+" (accepts: "+accepts+")",
+			"overlay "+kind+" does not read ref."+arms[0]+" (accepts: "+accepts+")",
 			map[string]any{"index": index, "kind": kind, "ref": arms[0], "refs": slices.Clone(d.Refs)})
 	}
 	if spec.Ref.Margin != nil && !knownMarginAxes[spec.Ref.Margin.Axis] {
 		axis := string(spec.Ref.Margin.Axis)
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" Ref.Margin.Axis is not a known MarginAxis: "+axis,
+			"overlay "+kind+" ref.margin.axis is not a known MarginAxis: "+axis,
 			map[string]any{"index": index, "kind": kind, "axis": axis})
 	}
 	return nil

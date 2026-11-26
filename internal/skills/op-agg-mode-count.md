@@ -17,7 +17,7 @@ Weighted: the largest per-value Σw (a float), its value the weighted mode.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

@@ -26,15 +26,15 @@ Use something else:
 
 ## Params
 
-`Scope` must be `cell`; any other scope → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (predict and runtime). `Ref.Margin.Axis` (enum, required) — `row` / `column` / `grand`. `Level`/`Within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Any other `Ref` arm beside `Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
+`scope` must be `cell`; any other scope → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (predict and runtime). `ref.margin.axis` (enum, required) — `row` / `column` / `grand`. `level`/`within` optional (default `0`): nested-axis prefix truncation of the margin denominator, each in `[0, axis depth)` else `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`. Any other `ref` arm beside `margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` (predict and runtime).
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`). Ratio sibling of the margin delta and the margin z-score. Foundational kind establishing the share-margin pattern.
+MATRIX crosstab (`crosstab.matrix`). Any cell aggregator; ratio sibling of the margin delta and margin z-score.
 
 ## Output
 
-MATRIX. `Cells[r][c].Value = 100 × cell / margin`. Mirrors host RowKeys / ColumnKeys. Absent host cells stay absent. Layer `Baseline = 100` (ratio family centerpoint).
+MATRIX — `payload.matrix.cells[r][c].value` = `100 × cell / margin`, on the host's keys; absent host cells stay absent. Layer `summary.baseline` = `100`.
 
 ## Contract
 
@@ -43,11 +43,11 @@ MATRIX. `Cells[r][c].Value = 100 × cell / margin`. Mirrors host RowKeys / Colum
 
 ## Gotchas
 
-- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any Level / Within bucket sum.
-- `margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice (not per cell).
-- All three axes supported. `Axis = grand` is the grand-total share × 100.
-- Empty `Ref.Margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
-- Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100). Kind names kept distinct — don't authoring-confuse.
+- MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any `level` / `within` bucket sum.
+- `margin == 0` → `null` cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice (not per cell).
+- `axis: grand` is the grand-total share × 100.
+- Empty `ref.margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+- Distinct from `OVERLAY_SHARE_OF_*` (raw ratio, no ×100).
 - Weighted host → weighted figure (reads the host payload).
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 

@@ -11,16 +11,17 @@ examples_tags: [feature-engineering, proportion-analysis, streaming-friendly]
 
 ## Use when
 
-Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base.
+Adds a 1 / 0 field saying whether each row's code is one of a listed set, keeping every row in the base.
 
 Questions it answers:
 
 - What share of all respondents gave a top-two-box answer (codes 4 or 5)?
-- Which orders carry one of the priority status codes, as a column to average by region?
+- Which orders carry one of the priority status codes, as a field to average by region?
 
 Use something else:
 
 - `FILTER_INCLUDE` when you want to keep only the rows with those codes.
+- `ATTR_SET_HAS` when the field is a multi-select.
 
 ## Params
 
@@ -30,8 +31,8 @@ Use something else:
 
 ## Inputs
 
-- `Field` — `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too)
-- `Label` (output name) — required; `target` → `PROCESSING_CONFIG`
+- `field` — `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too)
+- `label` — derived field name; default `ATTR_CODE_IN_<field>`. A `target` slot → `PROCESSING_CONFIG`
 
 ## Output
 
@@ -49,7 +50,7 @@ Use something else:
 - Nulls count as "no". To drop them, put `FILTER_NULL` (`values: ["is_not_null"]`) first.
 - Integer field: a code not a whole number in range (`u4` 0..15, `u8` 0..255…) → `PROCESSING_CONFIG`.
 - A categorical code absent from the dictionary matches nothing; predict warns `PULSE_ATTR_CODE_NOT_IN_DICTIONARY` (error under `--strict`).
-- `Field` must be a cohort schema field: a column derived by an earlier attribute or feature → `PROCESSING_CONFIG` "unknown field".
+- `field` must be a schema field: one derived by an earlier attribute or feature → `PROCESSING_CONFIG` "unknown field".
 - Row-local: streams; fuses on crosstabs; merges (shards, parallel decode, chain stages).
 
 ## See

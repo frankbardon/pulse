@@ -23,11 +23,11 @@ Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: tr
 
 ## Inputs
 
-`Field`: numeric (types in `## Contract`). Usually an aggregation label on grouped rows.
+`field`: numeric (types in `## Contract`). Usually an aggregation label on grouped rows.
 
 ## Output
 
-One `float64` per row on `Label` (default `WIN_SHARE_<field>`), a fraction: `x / Σx` over the partition. Cumulative: running Σx (unbounded preceding → current row, `order_by` order) / Σx, exactly `1` on the last row.
+One `float64` per row on `label` (default `WIN_SHARE_<field>`), a fraction: `x / Σx` over the partition. Cumulative: running Σx (unbounded preceding → current row, `order_by` order) / Σx, exactly `1` on the last row.
 
 <!-- generated: reading-the-output -->
 

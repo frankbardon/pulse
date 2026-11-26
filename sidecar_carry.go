@@ -27,7 +27,7 @@ func (p *Pulse) prepareSidecarCarry(source string) (*spss.SidecarCarry, *errors.
 // the write replaced; mirrors the columns holding a recorded field's
 // codes, spss.Mirror), and returns the warnings to report: the prepare
 // warning, or a failure to carry. A carried sidecar is fresh, so it is
-// dropped from built.InvalidatedSidecars — an overwrite no longer leaves
+// dropped from built.InvalidatedSidecars — an overwrite does not leave
 // it stale.
 func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, replaced []string, mirrors map[string]spss.Mirror) []*errors.CodedError {
 	if prepWarn != nil {
@@ -63,7 +63,7 @@ func (p *Pulse) carryProjectedSidecar(c *spss.SidecarCarry, prepWarn *errors.Cod
 }
 
 // dropFreshSPSS removes the SPSS sidecar from built.InvalidatedSidecars:
-// a carried sidecar is fresh, so an overwrite no longer leaves it stale.
+// a carried sidecar is fresh, so an overwrite does not leave it stale.
 func dropFreshSPSS(built *CohortBuildResult) {
 	kept := built.InvalidatedSidecars[:0]
 	for _, s := range built.InvalidatedSidecars {

@@ -13,11 +13,11 @@ Cache the result; reference it for every request-authoring decision. Source of t
 
 ## Input
 
-Optional `intent` (an intent-taxonomy ID, e.g. `compare_groups`): the manifest scoped to it — only operators serving it, its ranked skills, the intent record in `scope.intent`. Fixed sections (commands, error codes, cohort types, tool list, limits, `components_schemas`, ...) are absent and named in `elided`. Cache per intent. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`. (CLI: `pulse manifest --json` with `--slim` = the MCP payload, `--intent ID`.)
+Optional `intent` (an intent-taxonomy ID, e.g. `compare_groups`): the manifest scoped to it — only operators serving it, its ranked skills, the intent record in `scope.intent`. Fixed sections (commands, error codes, cohort types, tool list, limits, `components_schemas`, ...) are absent and named in `elided`. Cache per intent. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`. (CLI: `pulse --json --slim` is the same payload; `--intent ID`.)
 
 ## Output
 
-`descriptor.Envelope`; `data` = `commands`, `components`, `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes*`, `mcp_tools`, `cohort_types`, `skills`, `extensions`, capability blocks (`facet`, `join`, `process_chain`, `crosstab`, `export`, `import`, `overlays`; absent when not offered), `limits` (`{name, value, default, unit}`, `-1` = none), `feature_set_digest` + `limits_digest` — the cache key with the build version (and the intent). Sort-stable.
+The manifest object (no envelope; the CLI wraps the same data in one): `commands`, `components`, `tests` + `post_tests`, `synth_distributions`, `regressions`, `error_codes*`, `mcp_tools`, `cohort_types`, `skills`, `extensions`,<!-- feature: capability:matrices --> `matrices` + `matrix`,<!-- /feature --> `intents`, `return_presets`, `example_categories` / `example_tags`, capability blocks (`facet`, `join`, `union`, `process_chain`, `crosstab`, `export`, `import`, `overlays`; absent when not offered), `limits` (`{name, value, default, unit}`, `-1` = none), `feature_set_digest` + `limits_digest` — the cache key with the build version (and the intent). Sort-stable.
 
 ## Gotchas
 

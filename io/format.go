@@ -84,8 +84,8 @@ func (f Format) tabular() bool {
 // diagnostic.
 //
 // `.xls` maps to FormatExcel although the Excel reader decodes only the
-// xlsx container: the mapping is the historical dispatch, and a legacy
-// `.xls` fails at read time with the reader's own error.
+// xlsx container: an old binary `.xls` fails at read time with the
+// reader's own error.
 func FormatFromPath(path string) Format {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".csv":

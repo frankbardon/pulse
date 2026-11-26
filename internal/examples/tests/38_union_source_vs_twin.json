@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Real cohort vs its synthetic twin in ONE request: a union reads customers.pulse (label source) and customers_twin.pulse (label twin, written by synth from-profile --synthetic-only) as one record stream, each row tagged in the virtual _source field. Two-sample Kolmogorov-Smirnov on income and a chi-square of region by _source ask whether the twin reproduces the source's distributions; group by _source for side-by-side figures. Inside the secure zone the tagged output (one cohort, _synthetic column) answers the same question with no union.",
+    "description": "Real cohort vs its synthetic twin in ONE request: a union reads customers.pulse (label source) and customers_twin.pulse (label twin, written by synth from-profile --synthetic-only) as one record stream, each row tagged in the virtual _source field. Two-sample Kolmogorov-Smirnov on income and a chi-square of region by _source ask whether the twin reproduces the source's distributions; group by _source for side-by-side figures. A tagged synth output (one cohort with a _synthetic field) answers the same question with no union.",
     "intents": [
       "compare_groups",
       "distribution_shape"

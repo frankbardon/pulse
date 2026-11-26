@@ -8,12 +8,11 @@
 tier-1 (row-stream) or tier-2 (post-test on the materialised result
 set).
 
-The recipe mirrors the aggregator and feature recipes; the
-test-specific moving parts are streamability, the test catalog, and
-the registered-test capability table.
-
-> **From CLAUDE.md, "Update Demand" rows for statistical tests and
-> tier-2 post-test variants.**
+The recipe mirrors the [aggregator](adding-aggregator.md) and
+[feature](adding-feature.md) recipes; the test-specific moving parts are
+streamability, the test catalog, and the registered-test capability
+table. The binding companion list is the operator row of
+`.claude/reference/update-demand/operators-and-guidance.md`.
 
 ## 1. Decide tier
 
@@ -81,11 +80,13 @@ enforce that the manifest enumerates every registered test.
 
 ## 6. Skill update
 
-Add an entry to `skills/statistical-testing.md` under "Operator
-catalog". Describe the test's family, inputs, outputs (statistic, p,
-df, effect size, …), and any preconditions (`PULSE_TEST_*` error
-codes it can raise). For tier-2 variants, also document the variant
-field shape since the post-test API exposes it.
+Write the atomic skill `skills/op-test-gini-trend.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
+(`.claude/reference/skill-pack.md`; copy `skills/op-test-t.md`):
+family, inputs, outputs (statistic, p, df, effect size, …), and any
+preconditions (the error codes it can raise). For tier-2 variants, also
+document the variant field shape the post-test API exposes. Touch the
+topical `skills/statistical-testing.md` ("Decision criteria", "Picking
+the tier") when the test changes which test an agent should pick.
 
 ## 7. Tests
 
@@ -97,38 +98,38 @@ fixtures that exercise the streaming and buffered paths.
 
 ## 8. Error codes
 
-If your test introduces a new failure mode, add a code to
-`errors/codes.go` (mirror the existing `PULSE_TEST_*` family),
-register its description row in `internal/descriptor/capabilities_errors.go`,
-and document recovery in `errors/fixup_metadata.go` (`codeMetadata`
-Message + Fixups, surfaced per-code via `pulse_errors_lookup` /
-`pulse errors lookup CODE`). See the
-[Adding an Aggregator](adding-aggregator.md) recipe for the same
-pattern at the aggregator layer.
+Reuse an existing code where one fits. A new failure mode follows
+[Adding an Error Code](adding-error-code.md): the constant in
+`errors/codes.go`, a `codeMetadata` entry (Message + Fixups) in
+`errors/fixup_metadata.go`, and an owner in
+`internal/descriptor/error_owners.go`.
 
-## 9. CLAUDE.md
+## 9. The other per-operator tables
 
-There is **no registered-test count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-test-<kebab>.md`, the `types/streamability.go` case (§4), the capability declaration in
-`internal/descriptor/capabilities_tests.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
-names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
-
-A new preconditions class (e.g. paired sample, repeated measures)
-belongs in `skills/statistical-testing.md`, not CLAUDE.md.
+Every test also has an entry in `internal/weighting/weighting.go`,
+`builtinFeatures` (`internal/descriptor/features.go`),
+`internal/descriptor/purposes_stattests.go`,
+`internal/descriptor/interpretations_stattests.go`,
+`internal/descriptor/validation_registry.go`, the Explain response
+reader (`internal/guide/explain_response.go`) and, for most, the
+accepted-types table (`internal/fieldaccept/fieldaccept.go`). `make sites
+ARGS="new-op test"` names each with an exemplar line. Add an
+`internal/examples/tests/NN_<name>.json` example whose `_meta.operators`
+names the test (`TestEveryOperatorHasAnExampleTag`). CLAUDE.md is not a
+companion.
 
 ## 10. Run the gates
 
+`make sites ARGS="op TEST_GINI_TREND"` prints the full gate set. At minimum:
+
 ```bash
-go test ./types/      -run TestStreamability_TestsKnown   # declared TestType.Streamable() table
-go test ./internal/processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'   # tier-1 streaming vs buffered, post-test dispatch
-go test ./descriptor/ ./internal/descriptor/ -run TestManifest
-go test ./internal/skills/    -run TestSkillsCoverAll
-go test ./...
+go test -count=1 ./types/ -run TestStreamability_TestsKnown
+go test -count=1 ./internal/processing/ -run 'TestProcessor_Tier1|TestProcessor_PostTest'
+go test -count=1 ./descriptor/ ./internal/descriptor/ -run TestManifest
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestSkillsCoverAll'
+go test -count=1 ./internal/weighting/ ./internal/guide/ ./internal/examples/
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
-See [The Update Demand](update-demand.md) for the full row that
-governs statistical-test changes.
+See [The Update Demand](update-demand.md).

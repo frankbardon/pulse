@@ -1,6 +1,6 @@
 ```yaml
 name: op-win-lift
-description: Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
+description: Lift of a field over a base — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
 kind: operator
 category: WIN
 operator: WIN_LIFT
@@ -28,18 +28,18 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `base` | field | (required) | The comparison column. |
+| `base` | field | (required) | The comparison field or aggregation label. |
 | `cumulative` | bool | `false` | Running shares (first row to this one) instead of the row's own. |
 
 Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
 
 ## Inputs
 
-`Field` and `params.base`: numeric (types in `## Contract`). On a decile table: defaults (field) over loans (base).
+`field` and `params.base`: numeric (types in `## Contract`). On a decile table: defaults (field) over loans (base).
 
 ## Output
 
-One `float64` per row on `Label` (default `WIN_LIFT_<field>`): `(x/Σx) / (b/Σb)` — exactly the field's share over the base's share, each total over its own present values. Cumulative: running share of field ÷ running share of base (`978/2149 ÷ 3600/18000`); `1` on the last row.
+One `float64` per row on `label` (default `WIN_LIFT_<field>`): `(x/Σx) / (b/Σb)` — exactly the field's share over the base's share, each total over its own present values. Cumulative: running share of field ÷ running share of base (`978/2149 ÷ 3600/18000`); `1` on the last row.
 
 ## Reading the output
 

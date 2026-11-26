@@ -11,7 +11,7 @@ import (
 )
 
 // extensions_probe_dictionary.go is the pulse.New probe of an attribute
-// declaring InheritsDictionary (U67 E3-S2): the attribute is computed
+// declaring InheritsDictionary: the attribute is computed
 // over a synthetic three-entry categorical source carrying each code
 // once, and a value that is no code of it is refused with the run's own
 // PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH (reason

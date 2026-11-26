@@ -32,7 +32,7 @@ Weighted: m2_w / (Σw − ddof).
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

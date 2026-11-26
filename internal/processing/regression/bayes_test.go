@@ -85,7 +85,7 @@ func TestRegBayes_DiffusePriorMatchesOLS(t *testing.T) {
 			t.Error("Bayes did not populate CredibleIntervals")
 		}
 		if bayesRes.Prior != "nig" {
-			t.Errorf("Bayes Prior = %q, want \"nig\"", bayesRes.Prior)
+			t.Errorf("Bayes prior = %q, want \"nig\"", bayesRes.Prior)
 		}
 		if len(bayesRes.PValues) != 0 {
 			t.Errorf("Bayes emitted PValues unexpectedly: %v", bayesRes.PValues)
@@ -233,7 +233,7 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 			ok: true,
 		},
 		{
-			name: "PriorMu matching length passes",
+			name: "prior_mu matching length passes",
 			spec: &types.RegressionSpec{
 				Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"},
 				PriorMu: []float64{0.0, 0.5, -0.3},
@@ -241,42 +241,42 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 			ok: true,
 		},
 		{
-			name: "unknown Prior rejected",
+			name: "unknown prior rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Prior: "horseshoe-vb"},
 			ok:   false,
 		},
 		{
-			name: "negative PriorPrecision rejected",
+			name: "negative prior_precision rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, PriorPrecision: types.PrecisionScalar(-1)},
 			ok:   false,
 		},
 		{
-			name: "negative PriorShape rejected",
+			name: "negative prior_shape rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, PriorShape: -1},
 			ok:   false,
 		},
 		{
-			name: "negative PriorRate rejected",
+			name: "negative prior_rate rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, PriorRate: -1},
 			ok:   false,
 		},
 		{
-			name: "CredibleLevel = 0 OK (defaults to 0.95)",
+			name: "credible_level = 0 OK (defaults to 0.95)",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, CredibleLevel: 0.0},
 			ok:   true,
 		},
 		{
-			name: "CredibleLevel <= 0 rejected",
+			name: "credible_level <= 0 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, CredibleLevel: -0.1},
 			ok:   false,
 		},
 		{
-			name: "CredibleLevel >= 1 rejected",
+			name: "credible_level >= 1 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, CredibleLevel: 1.0},
 			ok:   false,
 		},
 		{
-			name: "PriorMu wrong length rejected",
+			name: "prior_mu wrong length rejected",
 			spec: &types.RegressionSpec{
 				Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"},
 				PriorMu: []float64{0.0, 0.5}, // missing the third entry
@@ -320,23 +320,23 @@ func TestRegBayes_CompatibilityRejected(t *testing.T) {
 		spec *types.RegressionSpec
 	}{
 		{
-			name: "Penalty=l2 rejected",
+			name: "penalty=l2 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Penalty: "l2"},
 		},
 		{
-			name: "Alpha rejected",
+			name: "alpha rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Alpha: 0.1},
 		},
 		{
-			name: "L1Ratio rejected",
+			name: "l1_ratio rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, L1Ratio: 0.5},
 		},
 		{
-			name: "Family rejected",
+			name: "family rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Family: "binomial"},
 		},
 		{
-			name: "Link rejected",
+			name: "link rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, Link: "logit"},
 		},
 	}

@@ -18,7 +18,7 @@ import (
 )
 
 // The filter-to-file dedup identity of what a predicate reads beyond
-// the request itself (U34 E3-S6). A predicate naming a registered table
+// the request itself. A predicate naming a registered table
 // reads that table's CONTENT, which two instances may register under the
 // same name with different rows; a predicate running embedder Go code
 // (an extension filterer, an ExprFunction, a function-driven lookup

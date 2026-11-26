@@ -28,8 +28,8 @@ JSON-serializable value with a caller-chosen namespace tag.
   returns the original digest.
 - **Field-order invariant.** Struct field order normalised by the
   canonical encoder; map keys sorted.
-- **Default-normalising.** Explicit zero (`Limit: 0`) and the omitted
-  equivalent hash identically because the request struct tags carry
+- **Default-normalising.** An explicit zero value (`Label: ""`) and the
+  omitted field hash identically because the request struct tags carry
   `omitempty`.
 - **Negative-zero collapsing.** `-0.0` hashes identically to `0.0`.
 - **Type-namespaced.** A `Request` and a `ComposedRequest` with
@@ -37,11 +37,8 @@ JSON-serializable value with a caller-chosen namespace tag.
   namespace tag per request shape.
 - **Schema-free.** `Hash()` never reads a cohort, so a `vectors` entry
   hashes AS WRITTEN: a `pattern` and the explicit `fields` list it
-  resolves to hash differently. Resolved-member identity needs the
-  schema; inside the module `internal/vectors.Normalize(req, schema)`
-  rewrites every vector to its resolved `fields` (order = axis order,
-  `pattern` cleared), after which equivalent requests hash alike. A
-  request with no vectors hashes exactly as before the slot existed.
+  resolves to hash differently. To key a cache on resolved members,
+  write vectors as explicit `fields` lists.
 
 ## Use cases
 
@@ -84,8 +81,9 @@ foundation for shared materialization caches.
 
 1. `json.Marshal(v)` — produces canonical-ordered struct fields and
    sorted map keys.
-2. Walk the resulting JSON tree, dropping representational variants
-   (collapse `-0.0` → `0.0`, integer-valued floats keep integer form).
+2. Walk the resulting JSON tree, dropping representational variants:
+   `-0.0` becomes `0`, and a number with a fraction or exponent is
+   re-spelled in its shortest form, so `1.0`, `1e0` and `1` hash alike.
 3. Re-emit with sorted map keys and no whitespace.
 4. `SHA-256(tag + 0x00 + canonical)`.
 5. First 16 bytes as 32-character lowercase hex.

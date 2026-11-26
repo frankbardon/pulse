@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Chi-square independence of plan tier and a churned flag stored as packed_bool: the flag is read directly as levels \"0\" / \"1\", no recoded categorical column.",
+    "description": "Chi-square independence of plan tier and a churned flag stored as packed_bool: the flag is read directly as levels \"0\" / \"1\", no recoded categorical field.",
     "intents": [
       "relationship"
     ],

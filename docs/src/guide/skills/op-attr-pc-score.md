@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ```
 
-Row-level scalars; no `Response.Components`.
-
 ## Use when
 
 Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share.
@@ -18,7 +16,7 @@ Adds to every row its score on one principal component of several related numeri
 Questions it answers:
 
 - What is each respondent's score on the main dimension behind these rating questions?
-- Can I replace these five correlated measures with one summary column for a later model?
+- Can I replace these five correlated measures with one summary field for a later model?
 
 Use something else:
 
@@ -44,7 +42,7 @@ Slot: `vector` or `fields`, no `field` ([`vector-row-scores`](vector-row-scores.
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 

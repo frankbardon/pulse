@@ -1,8 +1,8 @@
-# pulse manifest
+# The manifest (`pulse --json`)
 
 **Audience:** CLI users (and orchestration agents) discovering Pulse's
-self-description — what commands exist, which aggregators are
-registered, which field types are supported, and what skills the
+self-description — what commands exist, which operators are
+registered, which field types are supported, and which skills the
 binary ships with.
 
 The manifest is the bare-`pulse` invocation with `--json`. It is
@@ -24,11 +24,12 @@ command's `--json` output.)
 
 ## Flags
 
-| Flag | Type | Default | Purpose |
-|---|---|---|---|
-| `--json` | bool | false | Emit the manifest as a JSON envelope |
-| `--slim` | bool | false | Blank every prose `description` in the manifest payload, at every depth — operators, params, `component_schema` keys, `components_schemas`, capability blocks — plus `streamable_hint` / `emits_type_note` (smaller for size-sensitive clients; the MCP payload) |
-| `--intent` | string | "" | Scope the manifest to one intent-taxonomy ID (see below) |
+`--json` emits the manifest envelope. `--slim` blanks every prose
+`description` at every depth — operators, params, `component_schema`
+keys, `components_schemas`, capability blocks — plus `streamable_hint` /
+`emits_type_note` (the smaller payload size-sensitive clients want).
+`--intent ID` scopes it to one intent (below). See
+[Global flags](reference.md#global-flags).
 
 ## Manifest shape
 
@@ -38,20 +39,37 @@ From [`internal/descriptor/manifest.go`](https://github.com/frankbardon/pulse/bl
 {
   "format_version": "1.1",
   "data": {
-    "commands":   [ /* every CLI leaf with a usage line */ ],
-    "operators":  [ /* every aggregator / attribute / filterer / grouper / window / feature */ ],
-    "tests":      [ /* every tier-1 statistical test */ ],
-    "post_tests": [ /* every tier-2 post-test variant */ ],
-    "distributions": [ /* every synth distribution kind */ ],
-    "errors":     [ /* every registered error code with a description */ ],
-    "mcp_tools":  [ /* every MCP tool name + description */ ],
-    "field_types":[ /* every .pulse field type */ ],
-    "skills":     [ /* every embedded skill with metadata */ ]
+    "format_version": "1.0",
+    "pulse_version": "…",
+    "commands":     [ /* each operation: name, description, annotations */ ],
+    "components":   { "aggregators": [], "attributes": [], "filterers": [],
+                      "groupers": [], "windows": [], "features": [] },
+    "tests":        [ /* statistical tests */ ],
+    "post_tests":   [ /* post-test variants */ ],
+    "regressions":  [], "matrices": [], "overlays": [],
+    "cohort_types": [ /* every field type + the aggregators it accepts */ ],
+    "synth_distributions": [ /* synth distribution kinds */ ],
+    "error_codes":  [ /* every registered error code */ ],
+    "mcp_tools":    [ /* MCP tool name + description */ ],
+    "skills":       [ /* embedded skill name + description */ ],
+    "intents": [], "limits": {}, "extensions": [], "...": "…"
   },
   "errors":   [],
   "warnings": []
 }
 ```
+
+`pulse --json | jq '.data | keys'` lists every section.
+
+The manifest carries **two** `format_version` fields, and they differ on
+purpose. The top-level one (`"1.1"`) is the envelope's: it versions the
+`{format_version, data, request, errors, warnings}` wrapper and the
+request / response payload contract, and is the value
+[`pulse schema`](schema.md) reports. `data.format_version` (`"1.0"`)
+versions the manifest document's own shape. Each moves only when its own
+document has a rename or removal; additions bump neither, and neither
+bumps within v1. Check each against its own document, never one against
+the other.
 
 Every list is sorted deterministically (alphabetical or category +
 alphabetical). The same Pulse binary always emits the same manifest
@@ -70,7 +88,7 @@ The fixed sections — `commands`, `operations`, the error-code lists,
 `cohort_types`, `mcp_tools`, `synth_distributions`, `extensions`,
 `limits`, `components_schemas` (each operator keeps its own
 `component_schema`) and the `facet` / `process_chain` / `join` /
-`export` / `import` blocks — are absent, never empty, and listed in
+`export` / `import` / `union` blocks — are absent, never empty, and listed in
 `elided`. `scope.intent` carries the full intent record (label, sample
 phrasings, data shapes). Versions, digests, `intents` and
 `return_presets` are kept, so a client caches a scoped manifest under
@@ -79,8 +97,7 @@ phrasings, data shapes). Versions, digests, `intents` and
 A scoped slim manifest is gated at no more than 15% of the full slim
 manifest for every analytic intent; `describe` (served by every summary
 aggregator) and `compare_groups` (every two-sample test and pairwise
-overlay) are the named exceptions, each with a measured ceiling. The
-unscoped manifest is unchanged.
+overlay) are the named exceptions, each with a measured ceiling.
 
 ## Param entries that name a column
 
@@ -101,11 +118,10 @@ with the flag (MAT_SEM's and ATTR_SEM_SCORE's `group`, a mean test's
 the flag sits beside `type` so no existing reading of `type` changes. A
 name of a result column (a post test's `n_col`, an overlay's `field` or
 `partition_by`) and an expression slot (`fit_on`, `holdout`) do not
-carry it. The flag is additive (omitted when false), so `format_version`
-is unchanged.
+carry it. The flag is omitted when false.
 
 ```bash
-pulse --json | jq '[.data.components[][] | {op: .name, p: [.params[] | select(.names_column) | .name]} | select(.p != [])]'
+pulse --json | jq '[.data.components[][] | {op: .name, p: [.params[]? | select(.names_column) | .name]} | select(.p != [])]'
 ```
 
 ## Determinism gates
@@ -128,10 +144,10 @@ Conventions](../contributing/testing.md). Notably:
 | Use case | Reach for |
 |---|---|
 | Discover what's available | `pulse --json` |
-| Confirm a specific operator's params and emit type | `jq '.data.operators[] | select(.name == "AGG_FOO")'` |
-| List embedded skills with their `applies_to` | `jq '.data.skills[]'` |
+| Confirm an operator's params and emitted type | `jq '.data.components[][] | select(.name == "AGG_COUNT")'` |
+| List embedded skills | `jq '.data.skills[].name'` (full text: `pulse skills show NAME`) |
 | Generate documentation or client stubs | Parse the full manifest once at boot |
-| Quick "is this name a real operator?" | `pulse --json --slim | jq '.data.operators[].name'` |
+| Quick "is this name a real operator?" | `pulse --json --slim | jq '.data.components[][].name'` |
 
 ## Exit codes
 
@@ -158,13 +174,13 @@ pulse --json --slim > manifest.slim.json
 ### List every aggregator with its emitted type
 
 ```bash
-pulse --json | jq '.data.operators[] | select(.category == "aggregation") | {name, emits_type}'
+pulse --json | jq '.data.components.aggregators[] | {name, emits_type_note}'
 ```
 
 ### Confirm a feature operator's parameters
 
 ```bash
-pulse --json | jq '.data.operators[] | select(.name == "FEAT_BUCKETIZE")'
+pulse --json | jq '.data.components.features[] | select(.name == "FEAT_BUCKETIZE") | .params'
 ```
 
 ## Related

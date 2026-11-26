@@ -397,7 +397,9 @@ type slotOwner struct {
 
 // slotRoots are the structs a slot root names, searched in order: a
 // `request` slot not on types.Request is looked up on
-// types.ComposedRequest (the Compose-level slots: sweep, base, fits, …).
+// types.ComposedRequest (the Compose-level slots: sweep, base, fits, …),
+// and a `response` slot not on types.Response on types.ComposedResponse
+// (optimizations, comparisons, fits, ranking, banner, sweep_trace, …).
 func slotRoots(which string) ([]string, error) {
 	switch strings.ToLower(which) {
 	case "request", "req":
@@ -405,7 +407,7 @@ func slotRoots(which string) ([]string, error) {
 	case "compose", "composed":
 		return []string{"ComposedRequest"}, nil
 	case "response", "resp":
-		return []string{"Response"}, nil
+		return []string{"Response", "ComposedResponse"}, nil
 	}
 	return nil, fmt.Errorf("slot root must be request, compose or response, got %q", which)
 }
@@ -805,6 +807,7 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, gatesFromDirs(why, testsByDir)...)
 	rep.Gates = append(rep.Gates, composeGates...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
+	r.wholeRepo(rep, classes, listed)
 	if len(owners) == 0 {
 		rep.Gates = append(rep.Gates, r.namedGates("payload contract gates", "TestPayloadSchemaGolden", "TestPublicAPIGolden", "TestUpdateDemandTableCovers")...)
 	}
@@ -814,6 +817,9 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 	case "Response":
 		rep.Manual = append(rep.Manual, slotManualResponse...)
 	case "ComposedRequest":
+		rep.Manual = append(rep.Manual, slotManualCompose...)
+	case "ComposedResponse":
+		rep.Manual = append(rep.Manual, slotManualResponse...)
 		rep.Manual = append(rep.Manual, slotManualCompose...)
 	}
 	return rep, nil

@@ -23,11 +23,11 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(cur - prev) / prev`, `prev` being `periods` rows back: a FRACTION (0.05 = 5%), never ×100. Rows `i < periods` within the partition emit `null`.
+One `float64` per row written to `label` (default `WIN_PCT_CHANGE_<field>`). `(cur - prev) / prev`, `prev` being `periods` rows back: a FRACTION (0.05 = 5%), never ×100. Rows `i < periods` within the partition emit `null`.
 
 <!-- generated: reading-the-output -->
 
@@ -38,7 +38,7 @@ One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(c
 - `periods <= 0` REJECTED (`PULSE_WINDOW_INVALID`, predict and runtime).
 - `prev == 0` emits `null` (no `+Inf`); a negative `prev` flips the sign.
 - Either side null emits `null`.
-- Result rows are NOT reordered — use `Request.Sort`.
+- Result rows are NOT reordered — use `sort`.
 
 ## See
 

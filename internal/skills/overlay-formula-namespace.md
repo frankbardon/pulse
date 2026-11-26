@@ -16,13 +16,21 @@ requires: [OVERLAY_FORMULA]
 
 | Host | `Scope` | Variables |
 |---|---|---|
+<!-- feature: capability:crosstab -->
 | crosstab (`Request.Overlays`, MATRIX) | `cell` | `cell`, `margin_row` / `margin_col` / `margin_grand`, `sd_row` / `sd_col` / `sd_grand` |
-| grouped Process (SERIES, empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
+<!-- /feature -->
+| SERIES host (empty `Ref`) | `group` | per row `value` (`params.field`, else `aggregations[0]`), `total` (the partition's sum), `prior` (previous present row; `null` on the first), `baseline` (only with `params.baseline_position`) |
+<!-- feature: capability:compose -->
 | Compose, MATRIX | `cell` | the crosstab variables + `ref_cell` |
+<!-- /feature -->
+<!-- feature: capability:compose -->
 | Compose, SERIES | `group` | `value`, `total`, `prior`, `ref_value` |
+<!-- /feature -->
+<!-- feature: capability:compose -->
 | Compose, SCALAR | `total` | `value`, `ref` |
+<!-- /feature -->
 
-On Compose the first target is scored against the reference of any shape, and `slot.<label>.cell` / `slot.<label>.value` read the reference and each target, aligned by key (missing → NaN → `null`). Over N ≥ 2 groups a SERIES host — Process or Compose (the first target's groups) — runs per partition (`params.partition_by`); Compose `params.field` picks each slot's scored aggregation. An ungrouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
+<!-- feature: capability:compose -->On Compose the first target is scored against the reference of any shape, and `slot.<label>.cell` / `slot.<label>.value` read the reference and each target, aligned by key (missing → NaN → `null`). <!-- /feature -->Over N ≥ 2 groups a SERIES host<!-- feature: capability:compose --> — Process or Compose (the first target's groups) —<!-- /feature --> runs per partition (`params.partition_by`)<!-- feature: capability:compose -->; Compose `params.field` picks each slot's scored aggregation<!-- /feature -->. An ungrouped request is `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## `baseline_position` (SERIES)
 

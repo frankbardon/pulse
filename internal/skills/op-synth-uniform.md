@@ -34,10 +34,9 @@ Per-row `float64` sample `min + U * (max - min)` where `U ~ Uniform[0, 1)`. Half
 
 ## Gotchas
 
-- `max <= min` → `SERVICE_VALIDATION` at spec parse.
+- `max <= min` → `SERVICE_VALIDATION` before any row is written.
 - Half-open, but integer fields ROUND — `max=10` over `u8` can store `10` (any draw ≥ 9.5).
 - For calendar dates use `uniform_date` — it parses ISO-8601 strings and is inclusive both ends.
-- Default `[0, 1)` is the lingua franca for noise injection / jitter columns.
 
 ## See
 

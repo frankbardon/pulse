@@ -1,6 +1,6 @@
 ```yaml
 name: op-test-wilcoxon-sr
-description: Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank.
+description: Wilcoxon signed-rank test on per-row difference d = field − field2; buffered tie-corrected sign-rank.
 kind: operator
 category: TEST
 operator: TEST_WILCOXON_SR
@@ -28,24 +28,23 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `partition_by` | list | — | Post-test over 2+ groupers: one run per partition, the rows sharing these leading group keys (default all but the last; `[]` = one run). |
 
-- `weight` — frequency only: a pair of weight w ranks as w identical pairs — equals the test on the expanded pairs. `Details` add `sum_weights` beside `n`; `n` and `zero_diffs` stay raw row counts.
+- `weight` — frequency only: a pair of weight w ranks as w identical pairs — equals the test on the expanded pairs. `details` add `sum_weights` beside `n`; `n` and `zero_diffs` stay raw row counts.
 
-Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre value).
 
 ## Inputs
 
-`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `Field2` — numeric (same set; paired per-row with Field).
+`field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `field2` (required, the pre value) — numeric (same set), on the same record.
 
 ## Output
 
-`Statistic` = min(W⁺, W⁻); `PValue` two-sided normal approx, tie-corrected. `Details`: `n` (non-zero pairs), `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`, `zero_diffs`; `effect_size.rank_biserial` = (W⁺ − W⁻)/(W⁺ + W⁻) — > 0 ⇒ Field tends to exceed Field2 (sign of `z`).
+`statistic` = min(W⁺, W⁻); `p_value` two-sided normal approx, tie-corrected. `details`: `n` (non-zero pairs), `w_plus`, `w_minus`, `mu_w`, `var_w`, `z`, `zero_diffs`; `effect_size.rank_biserial` = (W⁺ − W⁻)/(W⁺ + W⁻) — > 0 ⇒ `field` tends to exceed `field2` (sign of `z`).
 
 ## Reading the output
 
-- `statistic`: The smaller of the two signed-rank sums: rank the non-zero differences (Field - Field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
+- `statistic`: The smaller of the two signed-rank sums: rank the non-zero differences (field - field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.z`: The normal score the p-value is read from, with a continuity correction of one half.
 
@@ -61,11 +60,10 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 
 - Buffered — |d| ranked across the whole set.
 - ≥ 50% of |d| tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
-- Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
+- Zero-diff pairs are dropped (Wilcoxon convention); reported in `details.zero_diffs`.
 - Nonparametric alternative to a paired t-test when d is non-normal.
 - Asymptotic only; < 6 non-zero pairs is `PULSE_TEST_INSUFFICIENT_N`.
 - Tier-2 variant `asymptotic_post` runs over two result-row columns. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
-- Pairing is per row: both values sit on one record.
 
 ## See
 

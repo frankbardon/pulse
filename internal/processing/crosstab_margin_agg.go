@@ -23,7 +23,7 @@ import (
 //
 // The realistic buffered caller is not hypothetical: AGG_WELFORD and
 // AGG_MEDIAN are non-mergeable, so they force this path by
-// construction, and two BERA stat-test families are built on
+// construction, and embedder stat-test families are built on
 // AGG_WELFORD.
 
 // crosstabAuxMargins carries the buffered path's auxiliary margin

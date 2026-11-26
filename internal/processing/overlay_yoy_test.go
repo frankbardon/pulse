@@ -307,7 +307,7 @@ func TestOverlay_YoY_FrequencyMissingRejected(t *testing.T) {
 		spec types.OverlaySpec
 	}{
 		{
-			name: "Params nil",
+			name: "params nil",
 			spec: types.OverlaySpec{
 				Name:  "yoy",
 				Kind:  types.OverlayKindYoY,
@@ -316,7 +316,7 @@ func TestOverlay_YoY_FrequencyMissingRejected(t *testing.T) {
 			},
 		},
 		{
-			name: "Params empty object missing frequency",
+			name: "params empty object missing frequency",
 			spec: types.OverlaySpec{
 				Name:   "yoy",
 				Kind:   types.OverlayKindYoY,
@@ -582,14 +582,14 @@ func TestOverlay_YoY_FrequencyPromotedFromGroupParams_E2E(t *testing.T) {
 	// The promoted spec's Params slot must carry the frequency.
 	freq, ok := readYoYFrequencyFromParams(promoted[0].Params)
 	if !ok {
-		t.Fatalf("promoted spec.Params missing frequency entry: %s", string(promoted[0].Params))
+		t.Fatalf("promoted spec.params missing frequency entry: %s", string(promoted[0].Params))
 	}
 	if freq != "monthly" {
 		t.Errorf("promoted frequency = %q, want %q", freq, "monthly")
 	}
 	// The original request's overlays slice must NOT be mutated.
 	if _, ok := readYoYFrequencyFromParams(req.Overlays[0].Params); ok {
-		t.Errorf("original req.Overlays[0].Params was mutated by promotion")
+		t.Errorf("original req.Overlays[0].params was mutated by promotion")
 	}
 }
 
@@ -623,7 +623,7 @@ func TestOverlay_YoY_FrequencyPromotionSkipsWhenSpecHasOverride(t *testing.T) {
 	promoted := promoteYoYFrequencyFromGroupParams(req, nil)
 	freq, ok := readYoYFrequencyFromParams(promoted[0].Params)
 	if !ok {
-		t.Fatalf("spec.Params missing frequency entry: %s", string(promoted[0].Params))
+		t.Fatalf("spec.params missing frequency entry: %s", string(promoted[0].Params))
 	}
 	if freq != "quarterly" {
 		t.Errorf("promoted frequency = %q, want %q (spec override should win)", freq, "quarterly")

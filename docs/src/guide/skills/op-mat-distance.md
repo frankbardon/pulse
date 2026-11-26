@@ -32,14 +32,14 @@ Use something else:
 | `metric` | enum | `euclidean` | A `matrix.metrics` distance (consumer `MAT_DISTANCE`); a `kind` vector's default ([`vector-metrics`](vector-metrics.md)). |
 | `min_valid` | int | `1` | Fewest complete member pairs per distance; below → null. |
 | `standardize` | bool | `false` | z-score members over the bucketed rows (R `scale()`) first; refused with `hellinger` / `aitchison`. |
-| `missing` | `listwise` | `listwise` | Listwise only (pairwise refused). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `missing` | enum | `listwise` | `listwise` only (pairwise refused). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 
 `weight`, `encoding`: as [`op-mat-correlation`](op-mat-correlation.md). `fit` is refused (`fit_unsupported`: centroids are not one fitted state). Layout and metric detail: [`multivariate-outputs`](multivariate-outputs.md).
 
 ## Inputs
 
-Integer / float members.
+Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 ## Output
 

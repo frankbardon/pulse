@@ -16,28 +16,27 @@ The same payload works through `Compose`, `ComposeParallel`,
 `pulse_compose` and `pulse_predict` (`composed`). It is gated by
 `capability:compose_banner`.
 
-```json
+```json cohort=experiment
 {
   "multiplicity": {"method": "holm", "family": "compose"},
   "banner": {
     "request": {
-      "cohort": {"filename": "survey.pulse"},
+      "cohort": {"filename": "experiment.pulse"},
       "crosstab": {
-        "rows": [{"type": "GROUP_CATEGORY", "field": "brand"}],
-        "cell": {"type": "AGG_COUNT", "field": "brand"},
+        "rows": [{"type": "GROUP_CATEGORY", "field": "segment"}],
+        "cell": {"type": "AGG_COUNT", "field": "segment"},
         "normalize": "column",
         "margins": {"rows": true, "columns": true, "grand": true}
       }
     },
     "sections": [
       {"label": "all"},
-      {"label": "aware",
-       "filterers": [{"type": "FILTER_INCLUDE", "field": "aware", "values": ["yes"]}]}
+      {"label": "converted",
+       "filterers": [{"type": "FILTER_INCLUDE", "field": "converted", "values": ["yes"]}]}
     ],
     "groups": [
-      {"label": "Gender", "columns": [{"type": "GROUP_CATEGORY", "field": "gender"}]},
-      {"label": "Age",    "columns": [{"type": "GROUP_CATEGORY", "field": "age"}]},
-      {"label": "Region", "columns": [{"type": "GROUP_CATEGORY", "field": "region"}]}
+      {"label": "Treatment", "columns": [{"type": "GROUP_CATEGORY", "field": "treatment"}]},
+      {"label": "Region",    "columns": [{"type": "GROUP_CATEGORY", "field": "region"}]}
     ],
     "total": true,
     "overlays": [{"name": "sig", "kind": "OVERLAY_PAIRWISE_PROP_Z",
@@ -46,9 +45,9 @@ The same payload works through `Compose`, `ComposeParallel`,
 }
 ```
 
-That request runs eight slots: `all:Total`, `all:Gender`, `all:Age`,
-`all:Region`, `aware:Total`, `aware:Gender`, `aware:Age`,
-`aware:Region`.
+That request runs six slots: `all:Total`, `all:Treatment`,
+`all:Region`, `converted:Total`, `converted:Treatment`,
+`converted:Region`.
 
 ## Shape
 
@@ -59,13 +58,13 @@ That request runs eight slots: `all:Total`, `all:Gender`, `all:Age`,
   matrix). Its `labels` bindings are scoped per slot: a binding rides
   only the slots whose crosstab rows or columns group by its field, so a
   `region` binding labels the Region columns without warning
-  `PULSE_LABEL_NOT_APPLIED` on the Total, Gender and Age slots, and the
+  `PULSE_LABEL_NOT_APPLIED` on the Total and Treatment slots, and the
   stitched table carries the display labels. A binding that no slot
   groups by stays on every slot and warns there, as on a hand-written
   slot (its warning `index` is the slot's own `labels` position).
 - `sections` (at least one) each carry a unique `label` and may append
   their own `filterers` after the base's — so KPIs with different bases
-  (all adults, the aided-aware) share one table — and replace the base
+  (all respondents, the converted) share one table — and replace the base
   crosstab's `rows` and `cell` / `cells` (several cells are several
   measures as stub rows).
 - `groups` each carry a unique `label` and at least one column grouper.
@@ -107,8 +106,8 @@ one entry per such overlay, its cells on the stitched coordinates. A
 section with its own overlays letters from those instead: its entries
 carry `Section: true`, and `Overlay` indexes the section's `overlays`
 rather than the banner's. Under
-`column` scope the letters run on across the banner (Gender A and B, Age
-C to E, Region F to I) and every block keeps its own comparison groups,
+`column` scope the letters run on across the banner (Treatment A and B,
+Region C to F) and every block keeps its own comparison groups,
 so a column is only ever compared with columns of its own group. The
 Total block is compared to nothing: it never receives the banner
 overlays, so its columns carry no letter. Under `row` scope the cells are

@@ -26,7 +26,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `outcome` | field | (required) | Binary outcome column: packed_bool or 0/1 numeric. |
+| `outcome` | field | (required) | Binary outcome field: packed_bool or 0/1 numeric. |
 | `positive` | float | `1` | Event value, 0 or 1. |
 
 Missing `outcome` or another `positive` → `PROCESSING_CONFIG`; categorical / set / date → `PULSE_FIELD_TYPE_UNSUPPORTED` — predict and runtime alike. A scored outcome other than 0/1 fails the run: `PROCESSING_AUC_OUTCOME_NOT_BINARY`.
@@ -35,7 +35,7 @@ Weight-aware: Σwᵢwⱼψ / (Σw₊·Σw₋); `se` and the interval null, `se_n
 
 ## Inputs
 
-`Field` is the score: u4–u64, f32/f64, packed_bool. Split train/holdout with a filter or `GROUP_RANGE`.
+`field` is the score: u4–u64, f32/f64, packed_bool. Split train/holdout with a filter or `GROUP_RANGE`.
 
 ## Output
 
@@ -45,7 +45,7 @@ Scalar in [0, 1]; 0.5 = no discrimination, ties count half. An empty class or a 
 
 - `value`: The chance that a randomly picked positive row scores higher than a randomly picked negative row, a tie counting half. 0.5 is a coin flip; 1 means every positive outscores every negative; below 0.5 the score ranks backwards.
 - `components.gini`: The Gini coefficient (accuracy ratio) 2 x AUC - 1: 0 is no discrimination and 1 perfect. It is the credit-scoring convention for the same ranking power.
-- `components.ci_lower`: The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.
+- `components.ci_upper`: The upper end of the 95% DeLong confidence interval for the AUC, clipped to 1.
 
 ## Components
 

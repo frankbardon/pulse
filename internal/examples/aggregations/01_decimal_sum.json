@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Decimal-aware SUM, AVERAGE, MIN, and MAX on a money column with banker-rounded precision propagation.",
+    "description": "Decimal-aware AGG_SUM, AGG_AVERAGE, AGG_MIN and AGG_MAX on a decimal128 money field: each figure is a decimal string at the field scale (the average banker-rounded at a wider scale).",
     "intents": [
       "describe"
     ],

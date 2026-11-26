@@ -50,9 +50,8 @@ an explicit four-part wrapper:
 | `name` | no | Optional, and the file path is authoritative. A `name` that disagrees with the derived path name is rejected rather than silently renaming the author's template. |
 | `description` | no | Human-facing prose, surfaced in listings. |
 
-Unknown top-level keys are **rejected**. A typo'd `"varaibles"` that
-silently yielded zero variables is precisely the class of silent
-failure this feature exists to eliminate.
+Unknown top-level keys are **rejected**, so a typo'd `"varaibles"`
+fails instead of silently declaring zero variables.
 
 `target` is one of five lowercase values, each selecting a public
 request root:
@@ -115,7 +114,7 @@ resp, err := p.Process(ctx, req)
 
 The rendered request is:
 
-```json
+```json cohort=orders
 {
   "label": "total revenue",
   "cohort": {"filename": "sales.pulse"},
@@ -299,7 +298,7 @@ axis placeholder outside the sweep's `request` / `overlays` / `label`
 — in an explicit `requests` slot, or in `rank` — is an undeclared
 reference.
 
-## The nine variable types
+## Variable types
 
 | Type | Accepts | Extra declaration slot | Notes |
 |---|---|---|---|
@@ -307,7 +306,7 @@ reference.
 | `number` | any JSON number | — | integral or fractional |
 | `integer` | a JSON number with no fractional part | — | `1` and `1.0` qualify; `1.5` does not |
 | `boolean` | a JSON bool | — | |
-| `field` | a JSON string naming a cohort field | — | shape-identical to `string`; a distinct type so cohort-bound field-name constraining can be layered on later without a wire change |
+| `field` | a JSON string naming a cohort field | — | shape-identical to `string`; tells a form or an agent the value is a field name |
 | `enum` | a string in the declared set | `values` (required) | membership is exact and **case-sensitive** |
 | `list` | a JSON array | `items` (required) | `items` must be a **scalar** type — lists do not nest |
 | `date` | a string parsing as `YYYY-MM-DD` | — | a strict subset of `encoding.DateFormats`; `03/04/2024` is ambiguous and rejected |
@@ -361,7 +360,7 @@ leaks into the name.
 **Roots are a precedence list and the first root wins.** The same name
 under a later root is *shadowed*, not rejected — that is what makes an
 override layer possible. The losing entries are not discarded: their
-source paths are recorded on the winner's `Summary.Shadows`, so "why
+source paths are recorded on the winner's `TemplateSummary.Shadows`, so "why
 is my override not taking effect?" is answerable from
 `ListTemplates()` alone. A shadowed entry deliberately gets no summary
 of its own; a listing whose entries cannot all be fetched would be a
@@ -395,10 +394,8 @@ the working directory) read from the OS filesystem, independent of
 
 ## The hot-reload lifecycle
 
-Templates reload without a restart. A lookup whose cached snapshot has
-aged past the store's rescan interval (one second, a package constant
-rather than an `Option` — a dial nobody can set better than the store
-can is a permanent public surface bought for nothing) re-walks the
+Templates reload without a restart. A lookup whose cached snapshot is
+more than one second old (a fixed interval, not an option) re-walks the
 roots first. A file dropped into a scanned directory becomes
 renderable, a changed file starts serving its new content, and a
 deleted one stops resolving.
@@ -438,9 +435,8 @@ transient edit, so it must not be swallowed. A failed walk leaves the
 previously loaded templates entirely in place.
 
 Repairing a file clears its broken state on the next rescan.
-`Summary.Broken` and `Summary.Error` are both `omitempty`, so a
-healthy listing marshals byte-identically to the shape that predates
-per-file degradation.
+`TemplateSummary.Broken` and `TemplateSummary.Error` are both
+`omitempty`, so a healthy entry carries neither key.
 
 One scoping note: a broken file in a *lower-precedence* root that is
 shadowed by a healthy override is tracked internally but not surfaced
@@ -465,31 +461,30 @@ engine with no template directories configured lists nothing; that is
 an ordinary deployment, not a fault, though the other three lookup
 methods will answer `PULSE_TEMPLATE_NOT_FOUND`.
 
-`RenderTemplate` is the general form. Exactly one of `Rendered`'s
-typed pointers is populated, selected by `Rendered.Target` — read that
-pointer (or `Rendered.Typed()`) and hand it to the matching execution
-method. Every target and variable type has a root constant, so switch
+`RenderTemplate` is the general form. Exactly one of the
+`RenderedTemplate`'s typed pointers is populated, selected by its
+`Target`: read that pointer (or `Typed()`) and hand it to the matching
+execution method. Every target and variable type has a root constant, so switch
 on them directly: `pulse.TemplateTargetRequest`, `TemplateTargetComposed`,
 `TemplateTargetChain`, `TemplateTargetFacet`, `TemplateTargetSample` for
-`Template.Target` / `TemplateSummary.Target` / `Rendered.Target`, and
+`Template.Target` / `TemplateSummary.Target` / `RenderedTemplate.Target`, and
 `pulse.TemplateVarString` … `TemplateVarPeriod` (one per variable type)
-for `TemplateVariable.Type` / `Items`. There are deliberately no per-execution-mode convenience
-wrappers: N execution modes would mean N wrappers to keep in sync
-forever, for no capability gain.
+for `TemplateVariable.Type` / `Items`. `RenderTemplateRequest` is the
+only per-target shortcut.
 
-`Rendered.JSON` is the rendered body before decode, retained alongside
+`RenderedTemplate.JSON` is the rendered body before decode, retained alongside
 the typed value on purpose. **Re-marshaling the typed request would
 not reproduce it** — every request struct is dense with `omitempty`,
 so any slot that rendered to an explicit zero would silently vanish
 from a round trip. If you echo, log, or diff a render, use
-`Rendered.JSON`.
+`RenderedTemplate.JSON`.
 
 The returned template from `GetTemplate` is the engine's own copy and
 must be treated as read-only. Rendering never mutates it.
 
 ## The error family
 
-Eleven codes, all in the `PULSE` domain. Every one carries the template
+The `PULSE_TEMPLATE_*` codes below. Every one carries the template
 name under the `template` detail key; the variable-scoped members also
 carry `variable`. `pulse errors lookup <CODE>` is authoritative for
 the message and fixups.

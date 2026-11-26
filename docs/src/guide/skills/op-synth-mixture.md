@@ -17,7 +17,7 @@ Draws from two or more bell curves blended by weight, for data with several peak
 
 Questions it answers:
 
-- How do I simulate a column with two separate peaks?
+- How do I simulate a field with two separate peaks?
 - How do I generate order sizes where small and bulk orders form distinct groups?
 
 Use something else:
@@ -51,9 +51,9 @@ Per-row `float64` from the selected component's Gaussian. No `min`/`max` clamp �
 
 - Fewer than 2 `means` → `SERVICE_VALIDATION` (use `normal` for one component).
 - `stds`/`weights` length mismatch, any `std <= 0`, or negative/all-zero `weights` → `SERVICE_VALIDATION`.
-- `profile create --fit-shape` fits and emits `mixture` automatically, but fixed at 2 components via BIC-vs-normal selection (`internal/synth/shape.go`) — no sweep over component count. 3+ components are hand-written only.
+- `profile create --fit-shape` fits and emits `mixture` automatically, but always 2 components, chosen over a normal by BIC. 3+ components are hand-written only.
 - Excluded from `correlations`: unmodelled mixtures are pre-claimed before the copula bids, modelled ones refused there permanently; a modelled mixture correlates through `residual_correlations` instead.
-- Composes with `--fit-models`: a shape-fitted target draws through its model with the mixture as `Q` via a fixed-count bisection inverse, so coefficients are LATENT-scale — non-linear in value space. See [`synthetic-data`](synthetic-data.md).
+- Composes with `--fit-models`: a shape-fitted target draws through its model with the mixture as its quantile function, so coefficients are LATENT-scale — non-linear in value space. See [`synthetic-data`](synthetic-data.md).
 
 ## See
 

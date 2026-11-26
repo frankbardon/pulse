@@ -117,10 +117,10 @@ func TestRegGLM_Logistic_NumericalFixture(t *testing.T) {
 		t.Errorf("Type = %v, want REG_GLM", res.Type)
 	}
 	if res.Family != "binomial" {
-		t.Errorf("Family = %v, want binomial", res.Family)
+		t.Errorf("family = %v, want binomial", res.Family)
 	}
 	if res.Link != "logit" {
-		t.Errorf("Link = %v, want logit", res.Link)
+		t.Errorf("link = %v, want logit", res.Link)
 	}
 	if res.NObs != n {
 		t.Errorf("NObs = %d, want %d", res.NObs, n)
@@ -164,7 +164,7 @@ func TestRegGLM_Logistic_NumericalFixture(t *testing.T) {
 	}
 	// Penalty / Alpha / L1Ratio must be empty / zero on a GLM result.
 	if res.Penalty != "" {
-		t.Errorf("Penalty = %v, want \"\"", res.Penalty)
+		t.Errorf("penalty = %v, want \"\"", res.Penalty)
 	}
 }
 
@@ -227,10 +227,10 @@ func TestRegGLM_Poisson_NumericalFixture(t *testing.T) {
 	}
 
 	if res.Family != "poisson" {
-		t.Errorf("Family = %v, want poisson", res.Family)
+		t.Errorf("family = %v, want poisson", res.Family)
 	}
 	if res.Link != "log" {
-		t.Errorf("Link = %v, want log", res.Link)
+		t.Errorf("link = %v, want log", res.Link)
 	}
 	if res.NObs != n {
 		t.Errorf("NObs = %d, want %d", res.NObs, n)

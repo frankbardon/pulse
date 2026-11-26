@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "FacetSchema summarising a filtered customers cohort's income distribution (numeric arm with histogram + percentiles) decorated with an OVERLAY_KS_VS_POP scalar overlay that runs a Kolmogorov-Smirnov two-sample test against the resolver-supplied population numeric distribution. NUMERIC-arm-only FACET-host inferential kind — pairs with OVERLAY_CHISQ_VS_POP (18_facet_chisq_vs_pop.json) which serves the discrete arm. KS emits D = sup_x |F_subset(x) - F_pop(x)| plus the asymptotic p-value via the canonical kolmogorovSurvival helper backing TEST_KS (byte-equal for the same D + N). Reconstructs both empirical CDFs from histograms (preferred precision) or percentiles (fallback) since the FacetPopulationView discards raw values after the Welford fold. Inherently buffered (inferential FACET-host family). Empty distributions or missing histogram + percentile knobs emit NaN + PULSE_OVERLAY_REF_ZERO.",
+    "description": "Facet of income on the customers aged 50 and over (FILTER_RANGE on age; numeric arm with a 20-bin histogram and percentiles) decorated with an OVERLAY_KS_VS_POP scalar overlay: a two-sample Kolmogorov-Smirnov test of the subset's income distribution against the whole cohort's, D = max |F_subset - F_pop| with the asymptotic p TEST_KS reports for the same D and n (D about 0.05, p about 1.0 here: older customers earn like everyone else). Both distribution functions are rebuilt from the histograms, else from the percentiles, so set include_histogram or numeric_percentiles; with neither, or an empty side, the layer reads null with PULSE_OVERLAY_REF_ZERO. ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). Numeric fields only; OVERLAY_CHISQ_VS_POP (18_facet_chisq_vs_pop.json) serves a discrete one. Buffered.",
     "intents": [
       "distribution_shape",
       "benchmark"
     ],
     "name": "facet-ks-vs-pop",
-    "operators": [],
+    "operators": ["FILTER_RANGE"],
     "capabilities": [
       "capability:facet"
     ],
@@ -26,10 +26,29 @@
   "fields": [
     "income"
   ],
+  "filterers": [
+    {
+      "type": "FILTER_RANGE",
+      "field": "age",
+      "values": [
+        "50",
+        "90"
+      ]
+    }
+  ],
   "include_histogram": true,
   "histogram_bins": 20,
-  "histogram_range": [0, 250000],
-  "numeric_percentiles": [0.10, 0.25, 0.50, 0.75, 0.90],
+  "histogram_range": [
+    0,
+    250000
+  ],
+  "numeric_percentiles": [
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    0.9
+  ],
   "overlays": [
     {
       "name": "income_ks_vs_population",
@@ -37,7 +56,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": "customers_population.pulse"
+          "cohort": ".data/customers.pulse"
         }
       }
     }

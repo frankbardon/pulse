@@ -18,7 +18,7 @@ A model that carries state from one row to the next — an adstock, a lag, a sta
 
 | Key | Meaning |
 |---|---|
-| `field` | (required) The ordering field: an unsigned integer period index, a `date` (days) or a `datetime` (seconds); a cohort field or a derived column. |
+| `field` | (required) The ordering field: an unsigned integer period index, a `date` (days) or a `datetime` (seconds); a cohort field or a derived label. |
 | `partition` | Optional: the field splitting a panel into series (a categorical, unsigned integer, `date`, `datetime` or `packed_bool`). Each series is ordered and checked alone; ragged starts and ends are fine. |
 | `gaps` | `refuse` (the default and only policy). |
 
@@ -47,7 +47,7 @@ A filtered or null-target row inside the span leaves a gap — the adstock would
 
 A fit that adstocks raw spend in-model (`REG_MMM_BAYES`; `REG_MMM_HILL` with `params.adstock`) records `outputs.adstock_state`: per series, its last `max_lag` fitted periods of each channel's raw spend (`field`, `partition`, `kernel`, `max_lag`, `step`, `series [{key, order, spend}]`); a saved model keeps it. Scoring a later period carries that adstock in instead of restarting at zero, which would bias the first scored periods low.
 
-- **Engine `holdout`** (default): each held-out row's channel reads Σ w_l·spend(period − l·step) at the fit's kernel (its coefficients: `REG_MMM_BAYES` posterior means, population value on a panel; unnormalised), spend from the held-out rows or, for a train period, the state. `params.carryover: false` scores the held-out columns as given (the old figures); on `REG_MMM_HILL` it refuses the holdout (`adstock_holdout`).
+- **Engine `holdout`** (default): each held-out row's channel reads Σ w_l·spend(period − l·step) at the fit's kernel (its coefficients: `REG_MMM_BAYES` posterior means, population value on a panel; unnormalised), spend from the held-out rows or, for a train period, the state. `params.carryover: false` scores the held-out columns as given (no carry-in); on `REG_MMM_HILL` it refuses the holdout (`adstock_holdout`).
 - **Scoring** (`ATTR_REG_PREDICT`) such a fit needs `params.order {field, partition?}`: the frame's RAW spend, adstocked the same way (two-pass). Without it: `order_required`; `carryover: false` scores pre-adstocked columns as given (built with `WIN_DISTRIBUTED_LAG` from `adstock.<ch>`, `normalize: false`).
 - **Fitted / residual** (`ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL` with `params.fit`) take the same `carryover` / `order` and refusals: on the fit's own rows, its own fitted values and residuals (Σ r² = its deviance). Leverage / influence / the studentized kinds carry the same way over `REG_MMM_HILL`, the kernel parameters' partials through the carried lags; over `REG_MMM_BAYES` they are `type_unsupported` by design.
 - Scored series must be contiguous at the fit's `step`: a repeat or gap is `PROCESSING_REGRESSION_ORDER`. A row without `field` / `partition`, or a null own spend, scores null.

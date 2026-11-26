@@ -68,7 +68,7 @@ func applyPairwiseWeightedTwoMeansZ(spec *types.OverlaySpec, host *CrosstabHostV
 	if err != nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
+			"overlay "+string(spec.Kind)+" has malformed params: "+err.Error(),
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	if err := checkWeightedTwoMeansZParams(spec, params); err != nil {
@@ -222,7 +222,7 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 	if err != nil {
 		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
+			"overlay "+string(spec.Kind)+" has malformed params: "+err.Error(),
 			map[string]any{"kind": string(spec.Kind)})
 	}
 	// Significance letters (U47 #327): the alpha rule predict raises with
@@ -289,7 +289,7 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 			"overlay "+string(spec.Kind)+" requires AGG_WEIGHTED_MEAN or weighted AGG_AVERAGE cells (weighted moments "+
-				"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} on CellComponents); host matrix has none",
+				"{weighted_mean, m2_weighted, sum_weights, sum_weights_sq} in the cells' components); host matrix has none",
 			map[string]any{"kind": string(spec.Kind)})
 	}
 

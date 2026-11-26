@@ -10,7 +10,7 @@ requires: [capability:rake]
 
 # Computing survey weights
 
-A sample rarely matches its population. `Pulse.Rake` (MCP `pulse_rake`, CLI `pulse rake`) computes a weight per record so the weighted sample reproduces known margins (census shares), and writes a NEW cohort: every source column verbatim plus a nullable `f64` weight column (default `rake_weight`). Later requests name that column as their `weight` (see [`weighting`](weighting.md)). Weights are always a schema field, so computing them is its own step.
+A sample rarely matches its population. `Pulse.Rake` (MCP `pulse_rake`, CLI `pulse rake`) computes a weight per record so the weighted sample reproduces known margins (census shares), and writes a NEW cohort: every source field verbatim plus a nullable `f64` weight field (default `rake_weight`). Later requests name that field as their `weight` (see [`weighting`](weighting.md)). Weights are always a schema field, so computing them is its own step.
 
 ## Request
 
@@ -36,7 +36,7 @@ The MCP arguments and `pulse rake --request` take this object; the CLI also read
 | `missing` | `refuse` (default) or `base`: a record lacking a margin value keeps its factor for that margin |
 | `min_weight` / `max_weight` | caps relative to the group's MEAN weight (0 = none); need min ≤ 1 ≤ max |
 | `total` | weights sum to this per group; default the record count (mean weight 1) |
-| `weight_field`, `overwrite` | name the column; `overwrite` replaces an existing target and an existing column of that name |
+| `weight_field`, `overwrite` | name the field; `overwrite` replaces an existing target and an existing field of that name |
 
 Margin and `by` fields must be categorical, `packed_bool` or unsigned integers. Targets come inline — never from a population file (that holds a saved vector fit, not shares). Not `OVERLAY_RAKE` either: it rakes a crosstab table and writes nothing.
 
@@ -68,7 +68,7 @@ Raked weights are PROBABILITY weights: `{"weight": {"field": "rake_weight"}}` (k
 
 ## Refusals
 
-Nothing is written on any refusal: `PULSE_RAKE_INVALID` (`details.reason`), `PULSE_RAKE_UNKNOWN_CATEGORY` (a target the field cannot hold), `PULSE_RAKE_MISSING_VALUE` (null margin value under `refuse`, any null `by`), `PULSE_RAKE_UNTARGETED_CATEGORY` (a record's category has no target — add it, 0 zeroes those records), `PULSE_RAKE_EMPTY_CELL` (a positive target no record of the group can carry — collapse categories). An existing `out` without `overwrite` is `SERVICE_VALIDATION`. Source: a single file, a shard archive or an anchored shard; the output is one single-file cohort. The source's SPSS metadata sidecar is carried (value labels survive to `pulse export spss`); other sidecars are not.
+Nothing is written on any refusal: `PULSE_RAKE_INVALID` (`details.reason`), `PULSE_RAKE_UNKNOWN_CATEGORY` (a target the field cannot hold), `PULSE_RAKE_MISSING_VALUE` (null margin value under `refuse`, any null `by`), `PULSE_RAKE_UNTARGETED_CATEGORY` (a record's category has no target — add it, 0 zeroes those records), `PULSE_RAKE_EMPTY_CELL` (a positive target no record of the group can carry — collapse categories). An existing `out` without `overwrite` is `SERVICE_VALIDATION`. Source: a single file, a shard archive or an anchored shard; the output is one single-file cohort. The source's SPSS metadata sidecar is carried (value labels survive to `pulse export spss`); other sidecars are not, and an `overwrite` that leaves stale sidecars warns `PULSE_RAKE_SIDECARS_INVALIDATED` (`invalidated_sidecars` names each rebuild command).
 
 ## See
 

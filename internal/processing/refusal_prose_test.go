@@ -23,8 +23,8 @@ func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
 		"; use GROUP_SET_VALUE or GROUP_SET_PER_ELEMENT",
 		"; specify two groups via a FILTER_INCLUDE/FILTER_EXCLUDE upstream",
 		"; filter to two via FILTER_INCLUDE/FILTER_EXCLUDE",
-		"; specify a two-group SplitBy or use TEST_CHISQ",
-		"; specify a two-group SplitBy or use TEST_ANOVA_F",
+		"; specify a two-group split_by or use TEST_CHISQ",
+		"; specify a two-group split_by or use TEST_ANOVA_F",
 		"; use TEST_ANOVA_F for k>2",
 		" (typically lifted from a preceding TEST_ANOVA_F)",
 		", or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a separate n leg",
@@ -33,8 +33,8 @@ func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
 		"; use REG_OLS if you want resample-based uncertainty",
 		". Use REG_OLS for greedy AIC/BIC selection",
 		" or switch to REG_OLS",
-		"; Family is a REG_GLM knob",
-		"; Link is a REG_GLM knob",
+		"; family is a REG_GLM knob",
+		"; link is a REG_GLM knob",
 	}
 	rs := refusalRemedies()
 	if len(rs) != len(want) {
@@ -100,7 +100,7 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	build := func() *errors.CodedError {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"GROUP_RANGE: field tags is a set column (set_u8)"+remedyGrouperSetField(nil),
-			map[string]any{"alternts": []string{"GROUP_SET_VALUE", "GROUP_SET_PER_ELEMENT"}})
+			map[string]any{"alternates": []string{"GROUP_SET_VALUE", "GROUP_SET_PER_ELEMENT"}})
 	}
 
 	if got := (*ExtensionRegistry)(nil).ScopeRefusal(build()); got.(*errors.CodedError).Message != build().Message {
@@ -116,8 +116,8 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	if want := "GROUP_RANGE: field tags is a set column (set_u8); use GROUP_SET_VALUE"; ce.Message != want {
 		t.Errorf("message = %q, want %q", ce.Message, want)
 	}
-	if got := ce.Details["alternts"]; !reflect.DeepEqual(got, []string{"GROUP_SET_VALUE"}) {
-		t.Errorf("alternts = %v", got)
+	if got := ce.Details["alternates"]; !reflect.DeepEqual(got, []string{"GROUP_SET_VALUE"}) {
+		t.Errorf("alternates = %v", got)
 	}
 	// Idempotent.
 	again := r.ScopeRefusal(ce).(*errors.CodedError)
@@ -133,8 +133,8 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	if want := "GROUP_RANGE: field tags is a set column (set_u8)"; inner.Message != want {
 		t.Errorf("wrapped refusal = %q, want %q", inner.Message, want)
 	}
-	if got := inner.Details["alternts"]; !reflect.DeepEqual(got, []string{}) {
-		t.Errorf("wrapped alternts = %#v, want empty", got)
+	if got := inner.Details["alternates"]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("wrapped alternates = %#v, want empty", got)
 	}
 	if got := r2.ScopeRefusal(nil); got != nil {
 		t.Errorf("nil error became %v", got)
@@ -171,9 +171,9 @@ func TestRefusalRemedies_PartialRenderings(t *testing.T) {
 		{"ks none", remedyTwoGroupsFilterUpstream, hide("FILTER_EXCLUDE", "FILTER_INCLUDE"), "; restrict to exactly two"},
 		{"mwu none", remedyTwoGroupsFilterTo, hide("FILTER_EXCLUDE", "FILTER_INCLUDE"), "; restrict to exactly two"},
 		{"mwu one", remedyTwoGroupsFilterTo, hide("FILTER_INCLUDE"), "; filter to two via FILTER_EXCLUDE"},
-		{"propz", remedyTwoGroupsOrChiSq, hide("TEST_CHISQ"), "; specify a two-group SplitBy"},
-		{"z", remedyTwoGroupsOrAnova, hide("TEST_ANOVA_F"), "; specify a two-group SplitBy"},
-		{"t", remedyAnovaForK, hide("TEST_ANOVA_F"), "; specify a two-group SplitBy"},
+		{"propz", remedyTwoGroupsOrChiSq, hide("TEST_CHISQ"), "; specify a two-group split_by"},
+		{"z", remedyTwoGroupsOrAnova, hide("TEST_ANOVA_F"), "; specify a two-group split_by"},
+		{"t", remedyAnovaForK, hide("TEST_ANOVA_F"), "; specify a two-group split_by"},
 		{"tukey", remedyTukeyFromAnova, hide("TEST_ANOVA_F"), ""},
 		{"n leg one", remedyPairwiseNLeg, hide("OVERLAY_PAIRWISE_PROBIT_T"), ", or use OVERLAY_PAIRWISE_PROP_Z, which reads a separate n leg"},
 		{"n leg none", remedyPairwiseNLeg, hide("OVERLAY_PAIRWISE_PROBIT_T", "OVERLAY_PAIRWISE_PROP_Z"), ""},

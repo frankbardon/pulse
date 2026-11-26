@@ -1,6 +1,6 @@
 ```yaml
 name: response-components
-description: How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell
+description: How Response.Components carries the constituent parts of every aggregation, grouper, filterer, attribute, matrix and crosstab cell
 kind: design
 type: guide
 applies_to: process, compose, predict, sample, facet
@@ -23,7 +23,7 @@ Engine-filled: every slot carries it, even a floor-only operator.
 | `FiltererComponents` | `n_in`, `n_out`, `n_null_input` |
 | crosstab cell (`CellComponents[r][c]`) | `n`, `n_null` |
 
-Weighted slots (crosstab cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs (a paired-input slot: of `field` alone); a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
+Weighted slots (cells and margins too) add `sum_weights` / `n_eff` / `n_weight_invalid`. An aggregator's `n` counts NON-NULL inputs (a paired-input slot: of `field` alone); a grouper's `total_n` counts every post-filter record it partitioned and `n_null` those that took the null / skip path. Operator keys (`mean`, `mode_count`, …) ride `operator` on the aggregation / grouper shells, or the cell map directly.
 
 ## Sub-blocks
 
@@ -60,7 +60,7 @@ Mirrors the matrix coordinate-for-coordinate (cells, margins, grand total, axis 
 | `types.Request.DisableComponents *bool` | per request — `nil` inherits, `true` forces off, `false` forces ON even on an engine shipping them off |
 | `--no-components` | CLI, on `pulse api process` / [`process-chain`](process-chain.md) / `compose`; request JSON `"disable_components"` wins over it |
 
-Disabled ⇒ `Response.Components` is `nil` (byte-identical, work skipped); tolerate `nil`. Compose: per `requests[i]`. MCP never surfaces the knob.
+Disabled ⇒ `Response.Components` is `nil` (work skipped); tolerate `nil`. Compose: per `requests[i]`. MCP tools take the request key.
 
 ## Manifest declaration
 

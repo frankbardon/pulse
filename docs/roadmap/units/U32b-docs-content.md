@@ -4,7 +4,7 @@ slug: docs-content
 title: "Every surface a reader or agent reads is accurate, current, complete and concise, and the docs baselines are empty"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: [U32]
 soft_depends_on: []
 blocks: [U32c, U33]
@@ -31,40 +31,41 @@ It also owns the content half of #165 (terminology aligned to the glossary; pre-
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#162** (11. Documentation audit) Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/`
-- [ ] **#163** (11. Documentation audit) Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary
-- [ ] **#164** (11. Documentation audit) Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping)
-- [ ] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent; the showcase READMEs are re-verified after the units that simplify them land
-- [ ] **#504** (Handed on from U31) The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it
-- [ ] **#505** (Handed on from U31) `skills/session-bootstrap.md` does not mention the CLI `pulse examples search --intent`; the skill sits at its topical budget. Make room and add the line, or record why the CLI flag needs no bootstrap mention
-- [ ] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill
-- [ ] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM
-- [ ] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy; mirrored as a `STABILITY.md` MCP row
-- [ ] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
-- [ ] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
-- [ ] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
-- [ ] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
-- [ ] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
-- [ ] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling
-- [ ] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
-- [ ] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
-- [ ] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
-- [ ] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
-- [ ] **#766** (11. Documentation audit) The removed-name scan matches qualified `io.` entries whole-word only, so the `pio.` alias spelling slips through
+- [x] **#162** (11. Documentation audit) Accuracy and currency pass: mdBook site, `README.md` / `CONTRIBUTING.md` / `SECURITY.md` / `STABILITY.md`, `CLAUDE.md` and `.claude/reference/`
+- [x] **#163** (11. Documentation audit) Accuracy and currency pass: skills (atomic and topical), examples library, MCP tool / prompt / resource descriptions, error messages and fixups, manifest descriptions, `Purpose` / `Interpretation` / glossary
+- [x] **#164** (11. Documentation audit) Getting Started rewritten for v1 (install from GitHub Releases → first cohort → first analysis → first MCP session) and a single embedder guide (profiles, limits, observability, response shaping)
+- [x] **#371** (Follow-ups from the showcase examples) Docs: `--source-tz` accepts fixed `+HH:MM` offsets while request `time_zone` refuses them (state the asymmetry); projection's benefit is schema-dependent; the showcase READMEs are re-verified after the units that simplify them land
+- [x] **#504** (Handed on from U31) The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it
+- [x] **#505** (Handed on from U31) `skills/session-bootstrap.md` does not mention the CLI `pulse examples search --intent`; the skill sits at its topical budget. Make room and add the line, or record why the CLI flag needs no bootstrap mention
+- [x] **#557** The `compose-requests` skill has no route to `compose-optimize` (hard budget); make room or route through another skill
+- [x] **#666** Library doc pages for the embedder surfaces that have none: `extend`, `mcpserve` / `mcp/gosdk`, `synth` as a Go package, the `io` factory, lookup / range / label tables (`PULSE_LOOKUP_TABLES_DIR`, `PULSE_RANGE_TABLES_DIR`, `PULSE_LABEL_TABLES_DIR`, absent from `docs/src/library/options.md`) and SEM
+- [x] **#667** MCP protocol-version documentation: which protocol revision(s) the server speaks, how negotiation behaves, and the go-sdk upgrade policy; mirrored as a `STABILITY.md` MCP row
+- [x] **#165** (11. Documentation audit) Terminology made consistent with the glossary; pre-1.0 and removed names purged. [U32](U32-docs-audit.md) landed the scan (`TestNoRemovedNamesInDocs`); this unit does the content purge
+- [x] **#757** (11. Documentation audit) `make sites` misses whole-repo runners and floors (the every-example runner, the `ReadSchema` call-site floor) and the per-case-table attribution inside a shared generator (the rest of #453)
+- [x] **#758** (11. Documentation audit) `docs/src/examples/library.md` tag table drifted from `CanonicalTags`; stale per-section counts
+- [x] **#759** (11. Documentation audit) `flags.md` per-leaf granularity: the flags check is names-only across the tree
+- [x] **#760** (11. Documentation audit) Word-level capability prose in topical skills under a hidden feature (no token, so the served-text sweep cannot fence it)
+- [x] **#761** (11. Documentation audit) The removed-name scan does not reach MCP prompt bodies or the `ExportReference` output; add a heavy sibling
+- [x] **#762** (11. Documentation audit) Example `crosstab-share-of-col-and-total` names `ApplyOverlays` (the `removed-names.txt` entry)
+- [x] **#763** (11. Documentation audit) Twelve generated skill-page JSON blocks need `cohort=` / `norun` tags in the skill sources (`snippets.txt`)
+- [x] **#764** (11. Documentation audit) Retire `TestSkillSeeExampleTagsResolve`, superseded by `TestSkillExampleTagPointersResolve`
+- [x] **#765** (11. Documentation audit) The coverage matrix's mdBook column is near-vacuous for operator, field-type and MCP-tool rows (the generated guide names every one) and for Request / Response slot names that are common words; give it a stricter rule
+- [x] **#766** (11. Documentation audit) The removed-name scan matches qualified `io.` entries whole-word only, so the `pio.` alias spelling slips through
 
 ## Baseline burn-down
 
-The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U32's close (entries, header lines excluded). E1 takes each to zero:
+The allowlists U32 committed under `internal/doccheck/allowlists/`, counted at U32's close (entries, header lines excluded). Every one is now at zero, and `TestDocsBaselinesEmpty` keeps it there:
 
-| Check | Allowlist | Entries |
-|---|---|---|
-| `TestDocsLinksResolve` | `links.txt` | 6 |
-| `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 |
-| `TestDocsSnippetsRun` | `snippets.txt` | 31 (12 on generated skill pages, #763) |
-| `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 |
-| `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) |
-| `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 |
-| `TestNoRemovedNamesInDocs` | `removed-names.txt` | 1 (#762) |
+| Check | Allowlist | Entries at U32's close | Now |
+|---|---|---|---|
+| `TestDocsLinksResolve` | `links.txt` | 6 | 0 (done) |
+| `TestCliHelpMatchesFlagsDoc` | `cli-flags.txt` | 32 | 0 (done) |
+| `TestDocsSnippetsRun` | `snippets.txt` | 31 (12 on generated skill pages, #763) | 0 (done) |
+| `TestDocsSnippetsCompile` (heavy) | `snippets-go.txt` | 0 | 0 (done) |
+| `TestDocsCoverageNoGaps` | `coverage.txt` | 123 (84 `api`, 36 `error-code`, 2 `cli-flag`, 1 `mcp-tool`) | 0 (done; the gaps E1-S1's stricter rule added burned too) |
+| `TestProfileServedTextNoHiddenFeature` (heavy) | `served-text.txt` | 0 | 0 (done) |
+| `TestNoRemovedNamesInDocs` | `removed-names.txt` | 1 (#762) | 0 (done) |
+| `TestNoRemovedNamesInPromptsAndReference` (heavy, added in E1-S2) | `removed-names-prompts.txt` | — | 0 (done) |
 
 How the lists work: `docs/src/contributing/doc-checks.md`.
 
@@ -89,33 +90,37 @@ How the lists work: `docs/src/contributing/doc-checks.md`.
 
 ## Epics & stories
 
-Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-content/E<n>-S<m>): …`; close each epic with `milestone(docs-content/E<n>): vertical slice complete — <epic title>`.
+Each story is one commit, `feat|fix|docs|test(docs-content/E<n>-S<m>): …`, with a checkpoint after each test group. Epic completion is recorded in the PR's story list, not in a milestone commit.
 
-### E1 — The baselines are empty
-- S1: burn down each U32 allowlist (link, snippet, help-parity, removed-name, coverage matrix)
-- S2: `TestDocsBaselinesEmpty` and the gate-table row
-
-### E2 — Everything says what v1 actually does
-- S1: accuracy and currency: mdBook, README / CONTRIBUTING / SECURITY / STABILITY, `.claude/reference/`
-- S2: accuracy and currency: skills, examples, MCP text, fixups, manifest, `Purpose` / `Interpretation` / glossary
-- S3: terminology and removed-name purge
-
-### E3 — New users and agents succeed on the first try
-- S1: Getting Started and the embedder guide
-- S2: library pages and the protocol-version page
+- **E1 — The checks see everything** (5 stories)
+- **E2 — The baselines are empty** (4 stories)
+- **E3 — New users and embedders succeed first try** (3 stories)
+- **E4 — Known gaps closed** (4 stories)
+- **E5 — Read: human docs** (7 stories)
+- **E6 — Read: contributor reference** (5 stories)
+- **E7 — Read: skills** (5 stories)
+- **E8 — Read: agent surfaces, close-out** (5 stories)
 
 ## Acceptance criteria
 
-- [ ] Every baseline allowlist is empty and `TestDocsBaselinesEmpty` is green
-- [ ] Each item in `todo_items` is delivered and ticked, and #165 is ticked
-- [ ] The manifest / envelope `format_version` difference is reconciled or documented
-- [ ] The Arrow / Parquet wording matches what the code honours
-- [ ] Prose follows "informative but concise": no page restates code or another page without a reason
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Every baseline allowlist is empty and `TestDocsBaselinesEmpty` is green
+- [x] Each item in `todo_items` is delivered and ticked, and #165 is ticked
+- [x] The manifest / envelope `format_version` difference is reconciled or documented
+- [x] The Arrow / Parquet wording matches what the code honours
+- [x] Prose follows "informative but concise": no page restates code or another page without a reason
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
-- New: `TestDocsBaselinesEmpty`
+- New: `TestDocsBaselinesEmpty` — every allowlist under `internal/doccheck/allowlists/` is empty
+- New: `TestNoRemovedNamesInPromptsAndReference` (heavy) — no removed name in MCP prompts or the exported reference
+- New: `TestEmittedCodeLiteralsRegistered` — every error-code literal the code emits is registered
+- New: `TestRefusalMessagesUseWireKeys` — validator refusal messages name request keys as the wire spells them
+- New: `TestSupportedProtocolVersionsPinned` — the supported MCP protocol revisions match the pinned list and the protocol page
+- New: `TestInstallDocAssetNamesMatchRelease` — the install page's download table names exactly the release archives
+- New: `TestDocsExampleTagTableMatchesCanonicalTags` — the example-library tag table matches `CanonicalTags`
+- New: `TestCLIReferenceCurrent` — the generated CLI reference page matches the mounted command tree
+- New: `TestFlagUsageOneWordingPerName` — a flag name reads the same on every leaf that mounts it
 - Every U32 check, now with empty baselines
 
 ## Update Demand companions

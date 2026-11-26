@@ -116,7 +116,7 @@ func PriorComponentsRequiredMessage(kind types.OverlayKind) string {
 // PriorLevelWithinMessage is the PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
 // message of a prior-period kind whose Level or Within is non-zero.
 func PriorLevelWithinMessage(kind types.OverlayKind) string {
-	return "overlay " + string(kind) + " does not support Level / Within (the prior-period test walks the ordered period axis without a prefix-bucket denominator)"
+	return "overlay " + string(kind) + " does not support level / within (the prior-period test walks the ordered period axis without a prefix-bucket denominator)"
 }
 
 func measureName(t types.AggregationType) string {

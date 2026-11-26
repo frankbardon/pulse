@@ -3,12 +3,12 @@
 **Audience:** anyone designing a cohort schema, decoding a `.pulse`
 file by hand, or trying to understand which type to pick for a column.
 
-Every field type has a fixed type byte, a fixed (or bit-packed) byte
-size, and well-defined semantics. The registry is
+Every field type has a fixed type byte, a record width and
+well-defined semantics. The registry is
 [`encoding/field_type.go`](https://github.com/frankbardon/pulse/blob/main/encoding/field_type.go)
 — the `FieldType` const block gives the byte values (iota order),
 `ByteSize()` the widths and `String()` the names below. For the live
-list at runtime, read `cohort_types` out of `pulse manifest --json`
+list at runtime, read `cohort_types` out of `pulse --json`
 rather than counting rows in this page.
 
 > **LLM agents using MCP:** see the `cohort-schema-design` skill via
@@ -39,9 +39,9 @@ to add a type without invalidating every existing file.
 | `u64`             | 3  | 8  | Unsigned 64-bit integer |
 | `f32`             | 4  | 4  | 32-bit IEEE 754 float |
 | `f64`             | 5  | 8  | 64-bit IEEE 754 float |
-| `u4`              | 6  | 0  | **Bit-packed** 4-bit unsigned (0–15); shares a byte with a neighbour |
+| `u4`              | 6  | 0  | **Bit-packed** 4-bit unsigned (0–15); takes one record byte |
 | `date`            | 7  | 4  | Epoch **DAYS** as signed int32 |
-| `packed_bool`     | 8  | 0  | **Bit-packed** boolean; up to 8 share one byte |
+| `packed_bool`     | 8  | 0  | **Bit-packed** boolean; takes one record byte |
 | `categorical_u8`  | 9  | 1  | Dictionary-backed single value; ≤ 256 entries |
 | `categorical_u16` | 10 | 2  | ≤ 65,536 entries |
 | `categorical_u32` | 11 | 4  | ≤ 4,294,967,295 entries |
@@ -67,10 +67,10 @@ if the column carries missing values.
 ### Bit-packed types
 
 `u4` (a 4-bit unsigned) and `packed_bool` (one bit) both report
-`ByteSize() == 0` and share bytes with adjacent packed fields; the
-schema's `BitPosition` locates them. `ByteSize() == 0` is the reader's
-signal that a field shares bytes — a non-zero `ByteSize` field never
-does. See [Record Layout → Bit-packing](records.md#bit-packing).
+`ByteSize() == 0`, yet each still occupies one whole byte of the record;
+the schema's `BitPosition` locates the value inside that byte. Packed
+fields never share a byte. Size a field with `Schema.FieldWidth`, never
+`ByteSize()`. See [Record Layout → Bit-packing](records.md#bit-packing).
 
 ### Temporal types
 
@@ -112,6 +112,16 @@ makes these the landing type for an SPSS multiple-dichotomy battery.
   API: `ReadFieldValue` / `WriteFieldValue` refuse them with
   `ENCODING_TYPE_MISMATCH` rather than truncating to the low 64 bits
   (`FieldType.IsWideSet()`). Wide masks travel as `encoding.SetMask`.
+- **Operators that read a set** name labels, never bits. Filter with
+  `FILTER_SET_CONTAINS_ANY`, `FILTER_SET_CONTAINS_ALL`,
+  `FILTER_SET_CONTAINS_NONE` or `FILTER_SET_EQUALS`; group by the whole
+  mask (`GROUP_SET_VALUE`) or once per selected label
+  (`GROUP_SET_PER_ELEMENT`); derive `ATTR_SET_HAS` (is one label
+  selected) or `ATTR_SET_POPCOUNT` (how many are); aggregate with
+  `AGG_SET_FREQUENCY` (rows per label), `AGG_SET_UNION`,
+  `AGG_SET_INTERSECTION`, `AGG_SET_CARDINALITY_SUM`,
+  `AGG_SET_CARDINALITY_AVG` (mean selections per row) or
+  `AGG_SET_DISTINCT_VALUES` (distinct combinations).
 
 ### Decimal128
 

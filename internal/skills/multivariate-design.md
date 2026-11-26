@@ -95,9 +95,9 @@ Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monoto
 - A singular matrix fails its slot alone (`error` `PULSE_MATRIX_SINGULAR`: `rank`, `condition_number`, `dependent_fields`): drop or merge the named fields; never repair.
 - Pairwise inference sizes use a conservative N* (the smallest pair); `PULSE_MATRIX_PAIRWISE_N_STAR` says so on PCA and factor analysis.
 
+<!-- feature: capability:weighting -->
 ## Weights
 
-<!-- feature: capability:weighting -->
 Frequency weights work everywhere. Probability weights work on the co-moment operators (and use n_eff for sizes) but rank methods refuse them (`PULSE_WEIGHT_UNSUPPORTED`). Weight 0 counts toward `n` and adds no mass. See `weighting`.
 <!-- /feature -->
 

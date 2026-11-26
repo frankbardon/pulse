@@ -104,7 +104,7 @@ func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 		if spec.Target == "" {
 			return nil, errors.NewCodedErrorWithDetails(
 				errors.SERVICE_VALIDATION,
-				"REG_GLM requires a Target field",
+				"REG_GLM requires a target field",
 				map[string]any{"name": spec.Name},
 			)
 		}
@@ -120,7 +120,7 @@ func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, 
 	if spec.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.SERVICE_VALIDATION,
-			"REG_GLM requires a Target field",
+			"REG_GLM requires a target field",
 			map[string]any{"name": spec.Name},
 		)
 	}

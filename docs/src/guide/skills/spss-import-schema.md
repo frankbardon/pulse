@@ -1,6 +1,6 @@
 ```yaml
 name: spss-import-schema
-description: How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file.
+description: How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a field unexpectedly or refuses a file.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
@@ -10,11 +10,11 @@ requires: [io_format:spss]
 
 # SPSS import — schema and file reading
 
-Part of the SPSS surface; entry skill [`spss-cohorts`](spss-cohorts.md). Missing values: [`spss-missing-values`](spss-missing-values.md); response sets and derived columns: [`spss-response-sets`](spss-response-sets.md).
+Part of the SPSS surface; entry skill [`spss-cohorts`](spss-cohorts.md). Missing values: [`spss-missing-values`](spss-missing-values.md); response sets and derived fields: [`spss-response-sets`](spss-response-sets.md).
 
 ## Schema-authoritative import
 
-`.sav` declares every column ⇒ `internal/io/spss` implements `io.SchemaAwareReader`, `internal/io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
+`.sav` declares every variable ⇒ `internal/io/spss` implements `io.SchemaAwareReader`, `internal/io/infer.go`'s sample-and-vote pass skipped for `pulse import spss` / `pulse import auto` / `pulse_import` / `pulse convert` alike. Hence:
 
 - Inference-steering slots inert: `SampleRows`, `SetInferenceMinPct`, `SetDelimiters`. `ColumnTypeOverrides` is refused (`PULSE_IMPORT_OVERRIDE_INVALID`) — re-type via an explicit `ImportJob.Schema`.
 - **No null promotion** — declared nullability is a contract; an unexpected null is `PULSE_IMPORT_ROW_ERROR`, never a silent widening. `promoted_fields` always empty.
@@ -35,7 +35,7 @@ Part of the SPSS surface; entry skill [`spss-cohorts`](spss-cohorts.md). Missing
 | multiple-DICHOTOMY set (`7/5`, `7/7`, `7/19`) | every constituent PLUS a derived `set_*` | additive, never a replacement |
 | multiple-CATEGORY set | N `categorical_*`; definition sidecar-only | positional, duplicate-tolerant ⇒ not a set |
 
-**`@PulseType` hints restore a Pulse-written `.sav`.** A Pulse export records each column type SPSS cannot hold (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`, `categorical_u16`/`_u32`, a `set_*` rung) as a hidden record `7/18` variable attribute. The import restores it only when EVERY non-missing value fits exactly; else the plain mapping (`f64`) + `PULSE_SPSS_TYPE_NOT_RESTORED` naming the value (a hand-edited file; a `u64` ≥ 2^53, which no double holds exactly). No hint (any third-party file) ⇒ the table, unchanged.
+**`@PulseType` hints restore a Pulse-written `.sav`.** A Pulse export records each field type SPSS cannot hold (`u4`–`u64`, `f32`, `packed_bool`, `decimal128(p,s)`, `categorical_u16`/`_u32`, a `set_*` rung) as a hidden record `7/18` variable attribute. The import restores it only when EVERY non-missing value fits exactly; else the plain mapping (`f64`) + `PULSE_SPSS_TYPE_NOT_RESTORED` naming the value (a hand-edited file; a `u64` ≥ 2^53, which no double holds exactly). No hint (any third-party file) ⇒ the table above.
 
 **Labels naming only missing codes do NOT make a variable categorical** — `INCOME` labelled solely on 97/98/99 is continuous. Labels code the variable iff one names a value that is neither user-missing nor sysmis.
 
@@ -52,7 +52,7 @@ Dictionaries hold SPSS **codes**, not labels (two codes may share a label): reso
 **Damage has distinct codes because it has distinct fixes.**
 
 - Fatal: `PULSE_SPSS_FILE_EMPTY`, `_DICT_TRUNCATED`, `_DATA_TRUNCATED`, `_DICT_INVALID` (four damage shapes); `_COMPRESSION_INVALID` (a bytecode command landed where it cannot apply — stream lost sync with the dictionary); `_ZSAV_INVALID` (self-inconsistent `ZHEADER`/`ZTRAILER` index, naming the block) / `_ZSAV_BLOCK_CORRUPT`; `_ENDIANNESS_MISMATCH`; `_CHARSET_INVALID` / `_CHARSET_UNSUPPORTED`.
-- Warnings, because declining loses nothing: `_CHARSET_MISMATCH`, `_MAGIC_FLAG_MISMATCH`, `_VALUE_LABELS_DROPPED` (unbindable record `3`/`4` set — a label is display metadata, so refusing the file would cost the data to save the labels), `_VERY_LONG_STRING_INVALID` (unusable `7/14`; segments import as the columns the dictionary literally declares).
+- Warnings, because declining loses nothing: `_CHARSET_MISMATCH`, `_MAGIC_FLAG_MISMATCH`, `_VALUE_LABELS_DROPPED` (unbindable record `3`/`4` set — a label is display metadata, so refusing the file would cost the data to save the labels), `_VERY_LONG_STRING_INVALID` (unusable `7/14`; segments import as the variables the dictionary literally declares).
 - No input panics.
 
 **Warnings are load-bearing.** Every non-fatal `PULSE_SPSS_*` diagnostic changes what the cohort MEANS. They ride `ImportReport.SourceWarnings` / `ConvertReport.SourceWarnings` (the `io.SourceWarningEmitter` interface), the `--json` envelope's `warnings` array, and `Warning [CODE]` lines on the text path. `pulse errors lookup CODE` carries the fixup.

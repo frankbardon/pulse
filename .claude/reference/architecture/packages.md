@@ -16,7 +16,7 @@ Under Go module semantics every non-`internal/` package is public API, and `v1.0
 | `encoding/` | schema nouns + ungrouped (`0x01`) raw-byte primitives; `RecordLocator` is geometry only | split in place (`package-build.md`) |
 | `descriptor/` | result + envelope types only | split in place |
 | `io/`, `synth/` | alias facades over `internal/io` (+ `internal/iocore`) and `internal/synth` | `package-build.md` (The `io` import boundary) |
-| `extend/` | extension-authoring contract (`Record`, `Rows`, factories, instance interfaces, the finalize-only `MatrixOperator`) | leaf over `encoding` / `types` / `errors` / `linalg` (`TestExtendImportBoundary`) |
+| `extend/` | extension-authoring contract (`Record`, `Rows`, factories, instance interfaces, the finalize-only `MatrixOperator`) | leaf over `encoding` / `types` / `linalg` (`TestExtendImportBoundary` also admits `errors`) |
 | `linalg/` | Pulse-owned `Matrix` / `Sym` / `Vec`, FMA-free reference kernels, gonum-backed decompositions | leaf; gonum never appears on the surface (`TestLinalgImportBoundary`, `TestLinalgSurfaceNamesNoGonum`). Contract: `.claude/reference/matrix-and-vectors.md` |
 | `linalg/detmath/` | FMA-free pure-Go ports of the `math` transcendentals + ziggurat normal / exponential variates, identical bits on every GOARCH | stdlib-only leaf; `TestDetmath_GoldenBits`, `TestDetmath_NoFMAContraction`. Use it, never `math.*`, wherever a value feeds a bit-exact result |
 | `linalg/metric/` | the ONE distance / similarity metric registry (`Resolve`, `Eval` under one pairwise-complete NaN policy) | leaf (`TestMetricImportBoundary`). Contract: `matrix-and-vectors.md` (Metric registry) |

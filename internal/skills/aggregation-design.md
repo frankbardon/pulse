@@ -22,7 +22,7 @@ Request order: `features → filterers → attributes → groups → aggregation
 
 ## Shapes
 
-`aggregations` entry: `{type, field, label, params?}`. `type` is the aggregator constant; `field` is the source column; `label` names the output cell; `params` carries op-specific knobs.
+`aggregations` entry: `{type, field, label, params?}`. `type` is the aggregator constant; `field` is the source field; `label` names the output cell; `params` carries op-specific knobs.
 
 `filterers` entry: `{type, field?, values?, expression?, label}`; only the keys its `type` reads are consulted.
 
@@ -32,24 +32,26 @@ Pick by the question, then let each operator's guidance name its alternatives. `
 
 - **Unit** — every row, each distinct key, or one particular value's rows?
 - **Shape** — skewed or extreme values favour an order statistic over a mean.
+<!-- feature: capability:weighting -->
 - **Weights** — rows carrying weights need a weighted form.
+<!-- /feature -->
 - **Uncertainty** — need spread or an interval, not just a centre? Pick the Welford triple or CI bounds, which also feed tests.
 
 ## Chaining
 
 Without `groups`, one aggregation yields ONE scalar per Request; with `groups`, one per group key.
 
-`filterers` chain in declared order — the next filterer sees only rows the previous kept. Counters fold: `n_in[i] == n_out[i-1]`, `n_in[0]` == decoded record count. The funnel reconstructs without re-reading the Request.
+`filterers` chain in declared order — the next filterer sees only rows the previous kept. Counters fold: `n_in[i] == n_out[i-1]`, `n_in[0]` == decoded record count.
 
 ## Smart defaults
 
-When an `aggregations` entry names `field` but omits `type`, the engine infers from schema type: numeric → a sum, categorical / packed-bool → the modal count, `set_*` → the per-member set frequency, `date` → never defaulted. `filterers` are never defaulted.
+When an `aggregations` entry names `field` but omits `type`, the engine infers from schema type: numeric → a sum, categorical / packed-bool → the modal count, `set_*` → the per-member set frequency, `date` / `datetime` → never defaulted. `filterers` are never defaulted.
 
 Predict reports filled slots under `data.defaults_applied`. Disable via `pulse.Options{DisableDefaults: true}` / `--no-defaults`. Full table: `request-envelope`.
 
 ## `attributes` vs `aggregations`
 
-**`attributes`** add a derived COLUMN per row and never collapse groups; **`aggregations`** collapse a group's rows to a SCALAR (or rich payload). To aggregate a derived column, declare the attribute (it runs before `groups`) and aggregate its label — `attribute-composition`.
+**`attributes`** add a derived VALUE per row and never collapse groups; **`aggregations`** collapse a group's rows to a SCALAR (or rich payload). To aggregate a derived value, declare the attribute (it runs before `groups`) and aggregate its label — `attribute-composition`.
 
 ## Components contract
 
@@ -59,17 +61,17 @@ Each aggregator declares one class (`components_schemas.aggregators[<op>].mergea
 
 - **`Mergeable`** — fixed-size running state (sums, counts, extrema, the Welford triple, CI bounds, one value's count). Folds across chunks via the same `MergeOnline` path as the scalar; streaming chunks carry `ComponentsDelta`.
 - **`Partial`** — state is a map or set of values (modes, distinct counts / sums, per-member set frequencies); the merge is staged at terminal flush.
-- **`None`** — needs every value at once (order statistics: median, percentiles); components emit only on terminal buffered flush and predict surfaces `BufferedComponents=true`.
+- **`None`** — needs every value at once (order statistics: median, percentiles); components emit only on terminal buffered flush and predict reports `buffered_components: true`.
 
 The same floor surfaces different `Operator` payloads — a sum carries `{sum}`; the Welford aggregator `{mean, m2, variance, stddev}` (its `(mean, variance, n)` byte-equal to the Welch t-test's numerators).
 
-`Response.Components.Filterers[i]` carries a uniform `{n_in, n_out, n_null_input}` floor across every filterer; no per-operator slot today.
+`Response.Components.Filterers[i]` carries a uniform `{n_in, n_out, n_null_input}` floor across every filterer; there is no per-operator map.
 
 Full Components contract: `response-components`.
 
 ## Type admissibility
 
-Numeric-only ops on a categorical field (its dictionary index) are refused `PULSE_FIELD_TYPE_UNSUPPORTED`; count / frequency / mode accept any type. Opt-in `params.ordered` / `levels` let min / max / median / percentile read a categorical as an ordered scale; the figure is a level's dictionary index (a code). Decimal inputs may fall back to `f64` with `PULSE_PRECISION_LOSS` — see `financial-cohorts`.
+Numeric-only ops on a categorical field (its dictionary index) are refused `PULSE_FIELD_TYPE_UNSUPPORTED`; count / frequency / mode accept any type. Opt-in `params.ordered` / `levels` let min / max / median / percentile read a categorical as an ordered scale; the figure is a level's dictionary index (a code). Decimal inputs may fall back to `f64` with `PULSE_DECIMAL_PRECISION_LOSS` — see `financial-cohorts`.
 
 ## Gotchas
 
@@ -85,5 +87,5 @@ Numeric-only ops on a categorical field (its dictionary index) are refused `PULS
 - `request-envelope` — slot keys, defaults, streaming.
 - `response-components` — the Components contract.
 - `vector-aggregates` — vector arrays, `expand`, `element`.
-- `attribute-composition` — derive a column instead of aggregating.
+- `attribute-composition` — derive a per-row value instead of aggregating.
 - `grouper-design`, `financial-cohorts`, `cohort-schema-design` — partitions, decimal rules, `set_*` + sharded buffered-op memory.

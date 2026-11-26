@@ -32,7 +32,7 @@ Field `type:` — `datetime` only (epoch SECONDS, `int64`). Refused on any other
 
 ## Output
 
-Per row a local wall-clock reading (weekday weight × days in range, then hour, then a uniform second; four RNG draws, three with `month_weights`), converted to its UTC instant in the row's zone; the file stores the instant.
+Per row a local wall-clock reading (a day by weekday × month weight, then an hour, then a uniform second), converted to its UTC instant in the row's zone; the file stores the instant.
 
 <!-- generated: contract -->
 

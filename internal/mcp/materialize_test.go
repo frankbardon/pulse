@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -85,8 +86,13 @@ func TestPulseMaterialize_WritesDerivedColumns(t *testing.T) {
 	again := `{"request":{"cohort":{"filename":"` + src + `"},
 		"windows":[{"type":"WIN_ROW_NUMBER","label":"rn","order_by":[{"field":"id"}]}]},
 		"out":"derived.pulse"`
-	if _, err := invokeMaterialize(t, p, again+`}`); codeOf(err) != perr.SERVICE_VALIDATION {
+	_, err = invokeMaterialize(t, p, again+`}`)
+	if codeOf(err) != perr.SERVICE_VALIDATION {
 		t.Fatalf("existing out: err %v, want SERVICE_VALIDATION", err)
+	}
+	// The refusal names the wire key the caller sets, not a Go field.
+	if msg := err.Error(); !strings.Contains(msg, "pass overwrite") {
+		t.Errorf("existing out: message %q does not name the overwrite key", msg)
 	}
 	if _, err := invokeMaterialize(t, p, again+`,"overwrite":true}`); err != nil {
 		t.Fatalf("overwrite: %v", err)

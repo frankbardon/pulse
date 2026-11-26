@@ -85,7 +85,7 @@ func newMultinomialEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 	}
 	if spec.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"REG_MULTINOMIAL requires a Target field", map[string]any{"name": spec.Name})
+			"REG_MULTINOMIAL requires a target field", map[string]any{"name": spec.Name})
 	}
 	if cerr := regmultinom.CheckTarget(spec, schema); cerr != nil {
 		return nil, cerr
@@ -662,7 +662,7 @@ func (e *multinomialEngine) failure(pr *multinomialProblem, beta []float64, hist
 			map[string]any{"coefficients": growing, "n": pr.n, "p": pr.q - 1, "n_boundary": boundary, "iters": iters})
 	}
 	return errors.NewCodedErrorWithDetails(errors.PROCESSING_REGRESSION_NO_CONVERGE,
-		"REG_MULTINOMIAL Newton-Raphson failed to converge within MaxIters",
+		"REG_MULTINOMIAL Newton-Raphson failed to converge within max_iters",
 		map[string]any{"n": pr.n, "p": pr.q - 1, "max_iters": maxIters, "tol": tol, "converged_iters": iters, "reason": reason})
 }
 

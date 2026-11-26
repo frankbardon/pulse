@@ -78,10 +78,10 @@ type PredictResult struct {
 	Suggestions []Suggestion `json:"suggestions"`
 	// DefaultsApplied lists every operator slot whose Type was inferred
 	// from the named field's schema type. Predict computes this on a
-	// clone of the request, so the echoed Request reflects exactly what
-	// the engine would run; the DefaultsApplied list shows what would
-	// have been filled in. Empty when no defaults fire; never nil in
-	// JSON output.
+	// clone of the request, so the echoed Request is the request as
+	// submitted (a defaulted slot keeps `type: ""`); the resolved type
+	// is here and on the per-slot Aggregations / Groups entries. Empty
+	// when no defaults fire; never nil in JSON output.
 	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
 
 	// Aggregations mirrors req.Aggregations in order, attaching the
@@ -126,10 +126,10 @@ type PredictResult struct {
 	// table — same projection ComponentsSchemas.Filterers uses) plus
 	// the BufferedComponents flag.
 	//
-	// Filterer components in v1 are uniform across every registered
+	// Filterer components are uniform across every registered
 	// filterer — the orchestrator emits the universal floor
 	// {n_in, n_out, n_null_input} from the filter pass's per-record
-	// counters. Mergeability is Mergeable for every entry today
+	// counters. Mergeability is Mergeable for every entry
 	// (counters fold trivially via integer addition), so
 	// BufferedComponents is always false. The flag is still surfaced
 	// on the predict struct for symmetry with AggregationPredict and
@@ -147,7 +147,7 @@ type PredictResult struct {
 	// buffered/streaming routing decision without re-parsing the spec.
 	// Empty when req.Overlays is empty; never nil in JSON output.
 	//
-	// Per kind-catalog-v1 PRD §I-FR-I3 the predict surface is
+	// The overlay predict surface is
 	// `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`.
 	// Predict emits one descriptor per spec in matching order across
 	// the full overlay catalog; new kinds appended to
@@ -165,9 +165,8 @@ type PredictResult struct {
 	// slot pair that produced incompatible result-schema shapes. Empty
 	// for the Request-only Predict surface — divergence detection lives
 	// on the Compose-host validator (ValidateCompose) — but the field is
-	// present so consumers can rely on the shape today. Per PRD §I-FR-I3
-	// the placeholder is honoured as "this slot is reserved and shipped
-	// empty".
+	// present so consumers can rely on the shape: on a Request predict
+	// the slot is reserved and empty.
 	OverlaysSchemaDivergence []SlotPair `json:"overlays_schema_divergence"`
 
 	// OverlayCost maps each overlay-spec Name to a coarse cost score
@@ -176,8 +175,7 @@ type PredictResult struct {
 	// fold inside the existing streaming pass (one extra accumulator per
 	// record) and carry overlayCostStreamable; buffered kinds force a
 	// post-host re-traversal of the materialised payload and carry
-	// overlayCostBuffered. Per kind-catalog-v1 PRD §I-FR-I3 the value is
-	// intentionally coarse — callers budgeting cost across slots sum the
+	// overlayCostBuffered. The value is intentionally coarse — callers budgeting cost across slots sum the
 	// map values; renderers showing a "this overlay will buffer the
 	// host" warning branch on >= overlayCostBuffered. The map key is
 	// the overlay spec's Name when set, and the synthesised default
@@ -789,7 +787,7 @@ type GroupPredict struct {
 // populator at orchestrator emission time still attaches
 // {"n_in", "n_out", "n_null_input"} at runtime.
 //
-// Components are uniform across every built-in filterer in v1: the
+// Components are uniform across every built-in filterer: the
 // universal floor {n_in, n_out, n_null_input} is the entire schema and
 // Mergeability is Mergeable (counters fold trivially via integer
 // addition). The struct mirrors AggregationPredict / GroupPredict so
@@ -817,10 +815,9 @@ type FiltererPredict struct {
 	// BufferedComponents is true iff ComponentSchema.Mergeability is
 	// descriptor.None. The flag advertises that the slot's Components
 	// block will arrive only on the terminal buffered flush in a
-	// streaming run; it does NOT flip the overall Streamable axis. In
-	// v1 every built-in filterer is Mergeable so this flag is always
-	// false; the surface exists for future per-filter specifics that
-	// may downgrade individual entries.
+	// streaming run; it does NOT flip the overall Streamable axis. Every
+	// built-in filterer is Mergeable, so the flag is false for each of
+	// them.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
 }
 
@@ -898,7 +895,7 @@ type OverlayAppliedDescriptor struct {
 // ComposeValidationResult.OverlaysSchemaDivergence slot can share one
 // renderer-side shape.
 //
-// PRD §I-FR-I3: the predict surface for Compose overlays is
+// The predict surface for Compose overlays is
 // `OverlaysApplied + OverlaysSchemaDivergence + OverlayCost`. The
 // divergence slot carries the per-spec failure reason alongside the
 // envelope error entry so LLM planners can budget reshapes without

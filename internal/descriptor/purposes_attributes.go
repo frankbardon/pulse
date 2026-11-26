@@ -61,7 +61,7 @@ const (
 
 var (
 	purposeAttrDatePart = descriptor.Purpose{
-		Plain:   "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.",
+		Plain:   "Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour.",
 		Intents: []string{IntentPrepare, IntentChangeOverTime},
 		Questions: []string{
 			"Which month of the year does each order fall in, so seasons can be compared across years?",
@@ -69,12 +69,12 @@ var (
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Tag each response with its fieldwork year-month.",
-			descriptor.DomainOps:     "Month-of-year column for comparing seasonal order volume.",
+			descriptor.DomainOps:     "Month-of-year field for comparing seasonal order volume.",
 			descriptor.DomainScience: "Collection year per sample for a by-year breakdown.",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you only want rows grouped by day, week, month or year", Use: "GROUP_DATE"},
-			{When: "you want several calendar columns at once, including weekday", Use: "FEAT_DATE_FEATURES"},
+			{When: "you want several calendar fields at once, including weekday", Use: "FEAT_DATE_FEATURES"},
 		},
 		Assumptions: []string{
 			"Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.",
@@ -90,7 +90,7 @@ var (
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"What is each order's line total from its price and quantity?",
-			"Which rows meet a combined rule, as a 0/1 column for counting?",
+			"Which rows meet a combined rule, as a 0/1 field for counting?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Sum of several rating items into one score per respondent.",
@@ -98,25 +98,25 @@ var (
 			descriptor.DomainScience: "Body-mass index from recorded weight and height.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "you want to keep or drop rows by a rule rather than add a column", Use: "FILTER_EXPRESSION"},
+			{When: "you want to keep or drop rows by a rule rather than add a field", Use: "FILTER_EXPRESSION"},
 			{When: "you want the logarithm of a field", Use: "FEAT_LOG"},
 		},
 		Assumptions: []string{
 			"A missing field enters the expression as nil, and an operator that cannot take nil fails the request. A guard such as x ?? 0 turns each missing value " +
 				"into a real 0, which pulls averages down, so prefer dropping those rows with FILTER_NULL or pick a fallback that means something.",
 			"True / false results become 1 / 0.",
-			"It cannot read another attribute's column from the same request.",
+			"It cannot read another attribute's output from the same request.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"missing-value"},
 	}
 
 	purposeAttrCodeIn = descriptor.Purpose{
-		Plain:   "Adds a 1 / 0 column saying whether each row's code is one of a listed set, keeping every row in the base.",
+		Plain:   "Adds a 1 / 0 field saying whether each row's code is one of a listed set, keeping every row in the base.",
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"What share of all respondents gave a top-two-box answer (codes 4 or 5)?",
-			"Which orders carry one of the priority status codes, as a column to average by region?",
+			"Which orders carry one of the priority status codes, as a field to average by region?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey: "Top-box flag to average as a share of the whole weighted base: non-answers stay in the denominator unless FILTER_NULL drops them first.",
@@ -136,10 +136,10 @@ var (
 	}
 
 	purposeAttrSetHas = descriptor.Purpose{
-		Plain:   "Adds a 1 / 0 column saying whether each row's multi-select field includes one named option.",
+		Plain:   "Adds a 1 / 0 field saying whether each row's multi-select field includes one named option.",
 		Intents: []string{IntentPrepare},
 		Questions: []string{
-			"Which respondents ticked 'price' among their reasons, as a column to cross with other answers?",
+			"Which respondents ticked 'price' among their reasons, as a field to cross with other answers?",
 			"Which tickets carry the 'urgent' tag?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -276,7 +276,7 @@ var (
 			descriptor.DomainScience: "Pair each visit's disease stage with the stage at the same patient's previous visit.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "the data already holds one row per subject with a from column and a to column", Use: "GROUP_CATEGORY"},
+			{When: "the data already holds one row per subject with a from field and a to field", Use: "GROUP_CATEGORY"},
 			{When: "you want the previous value of a number on result rows", Use: "WIN_LAG"},
 		},
 		Assumptions: []string{
@@ -366,7 +366,7 @@ var (
 		},
 		Assumptions: []string{
 			"The model is fitted once, on the fit request's own rows, before any slot runs; scoring never refits.",
-			"The scoring rows must carry every predictor column the fit used, built the same way (same features); an absent one-hot column is the reference level.",
+			"The scoring rows must carry every predictor field the fit used, built the same way (same features); an absent one-hot field is the reference level.",
 			"A row missing any predictor the score reads gets no value (null), never 0.",
 			"A prediction reflects association in the fitted rows, never what would happen if a predictor were changed.",
 		},
@@ -574,11 +574,11 @@ var (
 		Intents: []string{IntentMeasureConstruct, IntentPrepare},
 		Questions: []string{
 			"What is each respondent's score on the main dimension behind these rating questions?",
-			"Can I replace these five correlated measures with one summary column for a later model?",
+			"Can I replace these five correlated measures with one summary field for a later model?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Score each respondent on the leading dimension of an attitude battery, to segment or chart by it.",
-			descriptor.DomainScience: "Reduce many correlated measurements of each specimen to a few component columns before further analysis.",
+			descriptor.DomainScience: "Reduce many correlated measurements of each specimen to a few component scores before further analysis.",
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "you want how many dimensions there are and which fields load on each", Use: "MAT_PCA"},

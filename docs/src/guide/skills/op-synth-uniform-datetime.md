@@ -13,7 +13,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Use when
 
-Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
+Draws datetime values on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
 
 Questions it answers:
 
@@ -23,7 +23,7 @@ Questions it answers:
 Use something else:
 
 - `uniform_date` when only the calendar day matters.
-- `constant` when every row shares one timestamp.
+- `constant` when every row shares one datetime.
 
 ## Params
 
@@ -44,7 +44,7 @@ Field `type:` — `datetime` only (epoch SECONDS, `int64`). Refused on any other
 
 ## Output
 
-Per row a local wall-clock reading (weekday weight × days in range, then hour, then a uniform second; four RNG draws, three with `month_weights`), converted to its UTC instant in the row's zone; the file stores the instant.
+Per row a local wall-clock reading (a day by weekday × month weight, then an hour, then a uniform second), converted to its UTC instant in the row's zone; the file stores the instant.
 
 ## Contract
 

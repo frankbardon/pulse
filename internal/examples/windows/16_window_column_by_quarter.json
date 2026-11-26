@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Group by a date bucket and aggregate a window column (windows-first): WIN_RUNNING_SUM writes cumulative revenue over the date-ordered orders, then GROUP_DATE buckets by quarter and AGG_MAX reads the running total reached by each quarter's end beside the quarter's own AGG_SUM.",
+    "description": "Group by a date bucket and aggregate a window output (windows-first): WIN_RUNNING_SUM writes cumulative revenue over the date-ordered orders, then GROUP_DATE buckets by quarter and AGG_MAX reads the running total reached by each quarter's end beside the quarter's own AGG_SUM.",
     "intents": [
       "change_over_time"
     ],

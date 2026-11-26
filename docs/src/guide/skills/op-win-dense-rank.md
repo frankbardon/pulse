@@ -30,11 +30,11 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-- `Field` — must be empty / omitted — reads ranking from `order_by` keys only
+- `field` — must be empty / omitted — reads ranking from `order_by` keys only
 
 ## Output
 
-One `int64` per row written to `Label` (default `WIN_DENSE_RANK`). Ties share a rank; next distinct row advances by exactly 1 — `(1, 2, 2, 3, 4)`. Rank resets per partition.
+One integer per row written to `label` (default `WIN_DENSE_RANK`). Ties share a rank; next distinct row advances by exactly 1 — `(1, 2, 2, 3, 4)`. Rank resets per partition.
 
 ## Reading the output
 
@@ -50,8 +50,8 @@ One `int64` per row written to `Label` (default `WIN_DENSE_RANK`). Ties share a 
 ## Gotchas
 
 - Tie comparison uses every `order_by` key; tie only when ALL keys equal.
-- `WIN_DENSE_RANK` does NOT distinguish row count from rank count.
-- Result rows are NOT reordered — use `Request.Sort` for response order.
+- The last rank counts distinct keys, not rows.
+- Result rows are NOT reordered — use `sort` for response order.
 
 ## See
 

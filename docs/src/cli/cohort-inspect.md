@@ -1,8 +1,8 @@
 # pulse cohort inspect
 
 **Audience:** CLI users reading a `.pulse` file's schema without
-running a query — the human-side counterpart of the `inspect` library
-method and the `pulse_inspect` MCP tool. Defined in
+running a query — the human-side counterpart of `Pulse.Inspect` and
+the `pulse_inspect` MCP tool. Defined in
 [`internal/cli/cohort.go`](https://github.com/frankbardon/pulse/blob/main/internal/cli/cohort.go).
 
 `pulse cohort inspect` reads only the file's header and schema, plus
@@ -27,11 +27,9 @@ cohort. Every mode resolves the anchor — text, `--json` and
 
 ## Flags
 
-| Flag | Type | Default | Purpose |
-|---|---|---|---|
-| `--input`, `-i` | string | (none) | Cohort path; alternative to the positional `PATH` |
-| `--json`      | bool | false | Emit the standard envelope |
-| `--full-dict` | bool | false | Print every categorical dictionary entry (default truncates at 100) |
+`--json` emits the envelope; `--full-dict` prints every categorical
+dictionary entry (the default truncates at 100). See the
+[Command & flag reference](reference.md#pulse-cohort-inspect).
 
 ## Output (text mode)
 
@@ -62,6 +60,16 @@ Fields: 3
     nullable: yes
   amt                            decimal128           Decimal field: amt
     decimal: precision 12, scale 2
+```
+
+A vector field prints its dim, declared kind and range, and element
+labels; any format `0x02` cohort ends with a `Format:` line:
+
+```
+  bat                            vec_f64              Vector field: bat (6 elements)
+    vector: dim 6, kind scale, scale 1..5
+    labels: energy, proud, absorbed, recommend, time_flies, dread
+Format: 0x02 (record stride 50 bytes physical, 50 logical)
 ```
 
 A shard archive additionally prints the per-shard breakdown under the
@@ -228,9 +236,11 @@ raises no warning: it has no warning channel, and a half-written
 trailing record must not stop a cohort that still processes from
 reporting its whole-record count. `inspect` is the arm that tells you.
 
-A grouped (`0x02`) cohort adds `layout` and `groups` to `data` and a
-`group` marker to each member field — all three keys are omitted for a
-`0x01` cohort, whose envelope is unchanged:
+Any `0x02` cohort adds `layout` to `data`; a cohort with a default
+zone field adds `zone_field` (the field name), and a vector field
+carries a `vector` object (`dim`, `kind`, `scale_min` / `scale_max`,
+`labels`). A grouped cohort adds `groups` and a `group` marker to each
+member field. A `0x01` cohort carries none of these keys:
 
 ```json
     "layout": {"pulse_format_version": 2, "physical_record_stride": 7, "logical_record_stride": 11},
@@ -248,15 +258,16 @@ A grouped (`0x02`) cohort adds `layout` and `groups` to `data` and a
 ```
 
 Fields with empty descriptions on disk get a synthesised fallback
-(`"Categorical field: <name>"` / `"Numeric field: <name>"`); their
-`description_source` is `"synthesized"` rather than `"schema"`.
+(`"Categorical field: <name>"`, `"Numeric field: <name>"`,
+`"Vector field: <name> (N elements)"`, …); their `description_source`
+is `"synthesized"` rather than `"schema"`.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Success (a truncated-tail warning included) |
-| 1 | File not found, truncated, magic-byte mismatch, or unsupported format version — in the envelope's `errors` under `--json` |
+| 1 | Any coded error (file not found, magic-byte mismatch, unsupported format version, …) — in the envelope's `errors` under `--json` |
 | 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples

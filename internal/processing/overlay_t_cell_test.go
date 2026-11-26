@@ -84,7 +84,7 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	}
 	layer, warnings := captureLayerTCell(t, spec, ref, target)
 	if len(warnings) != 0 {
-		t.Errorf("warnings = %+v, want none for scalar+Params path", warnings)
+		t.Errorf("warnings = %+v, want none for scalar+params path", warnings)
 	}
 	got := snapshotJSON(t, layer)
 
@@ -98,7 +98,7 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	want := buildExpectedTCellMatrixJSON(t, gotP, 0.99)
 
 	if string(got) != string(want) {
-		t.Errorf("byte-identity violated for scalar+Params path:\n got: %s\nwant: %s",
+		t.Errorf("byte-identity violated for scalar+params path:\n got: %s\nwant: %s",
 			string(got), string(want))
 	}
 
@@ -133,7 +133,7 @@ func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	}
 	layer, warnings := captureLayerTVsRef(t, spec, ref, target)
 	if len(warnings) != 0 {
-		t.Errorf("warnings = %+v, want none for scalar+Params series path", warnings)
+		t.Errorf("warnings = %+v, want none for scalar+params series path", warnings)
 	}
 	got := snapshotJSON(t, layer)
 
@@ -141,7 +141,7 @@ func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	want := buildExpectedTVsRefSeriesJSON(t, gotP, keys)
 
 	if string(got) != string(want) {
-		t.Errorf("byte-identity violated for scalar+Params series path:\n got: %s\nwant: %s",
+		t.Errorf("byte-identity violated for scalar+params series path:\n got: %s\nwant: %s",
 			string(got), string(want))
 	}
 

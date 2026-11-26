@@ -241,11 +241,11 @@ func ExtensionRegressionFieldTypeRefusal(spec *types.RegressionSpec, decl Extens
 // built-in shape, with p_values null on every coefficient for a model
 // that declares no PValues.
 func extensionRegressionEmitsNote(pValues bool) string {
-	p := "p_values (null on every coefficient: the model declares no PValues, so a multiplicity block takes only method none)"
+	p := "p_values (null on every coefficient: the model declares no p-values, so a multiplicity block takes only method none)"
 	if pValues {
 		p = "p_values (null where the model reports none, key kept; a multiplicity block corrects the p-valued ones)"
 	}
-	return "RegressionResult in the built-in shape: coefficients with std_errors / statistics / " + p + ", the fit statistics it reports, and outputs keyed by output_schema."
+	return "A regression result in the built-in shape: coefficients with std_errors / statistics / " + p + ", the fit statistics it reports, and outputs keyed by output_schema."
 }
 
 // extensionRegressionMetas projects the snapshot's extension REG_*

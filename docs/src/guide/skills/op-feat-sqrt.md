@@ -1,6 +1,6 @@
 ```yaml
 name: op-feat-sqrt
-description: Per-row sqrt(x) of a numeric field; emits one f64 column.
+description: Per-row sqrt(x) of a numeric field into one derived field.
 kind: operator
 category: FEAT
 operator: FEAT_SQRT
@@ -9,11 +9,11 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, distribution-shape, pre-filter, streaming-friendly]
 ```
 
-Feature operators emit derived columns; no `Response.Components`.
+Feature operators write derived fields before filters run; no `Response.Components`.
 
 ## Use when
 
-Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
+Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
 
 Questions it answers:
 
@@ -26,22 +26,22 @@ Use something else:
 
 ## Params
 
-None. `Field` (required, numeric) — `params` block is unused.
+None; `params` is unused.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` (required) — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
-One `f64` column written to `Label` (default `SQRT_<field>`). Formula `sqrt(x)`.
+One derived field at `label` (default `SQRT_<field>`). Formula `sqrt(x)`.
 
 ## Reading the output
 
 - `value`: The square root of the value: 4 reads 2, 100 reads 10, 10,000 reads 100. Large values are pulled in more than small ones, but less sharply than a log.
   - Caveat: A negative value has no real square root and reads missing, with no error raised; 0 reads 0.
   - Caveat: Between 0 and 1 the root is LARGER than the value (0.25 reads 0.5), so a field of fractions is stretched, not squeezed.
-  - Caveat: Averages, sums and differences of the transformed column are on the new scale: transforming them back does not give the average of the original values.
+  - Caveat: Averages, sums and differences of the transformed field are on the new scale: transforming them back does not give the average of the original values.
 
 ## Contract
 

@@ -171,26 +171,26 @@ func CrosstabSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index
 	case refEmpty:
 		if spec.Ref != (types.OverlayRef{}) {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" must leave Ref empty ("+rule.why+")", details())
+				"overlay "+kind+" must leave ref empty ("+rule.why+")", details())
 		}
 	case refMargin:
 		if spec.Ref.Margin == nil {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" requires Ref.Margin (axis-margin reference)", details())
+				"overlay "+kind+" requires ref.margin (axis-margin reference)", details())
 		}
 		other := spec.Ref
 		other.Margin = nil
 		if other != (types.OverlayRef{}) {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" reads only Ref.Margin (axis-margin reference); leave every other Ref arm empty", details())
+				"overlay "+kind+" reads only ref.margin (axis-margin reference); leave every other ref arm empty", details())
 		}
 		if axis := spec.Ref.Margin.Axis; !knownMarginAxes[axis] {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" Ref.Margin.Axis is not a known MarginAxis: "+string(axis), details("axis", string(axis)))
+				"overlay "+kind+" ref.margin.axis is not a known MarginAxis: "+string(axis), details("axis", string(axis)))
 		}
 		if axis := spec.Ref.Margin.Axis; lockedMarginAxes[route] != "" && axis != lockedMarginAxes[route] {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-				"overlay "+kind+" Ref.Margin.Axis must be "+string(lockedMarginAxes[route])+" (the kind is "+string(lockedMarginAxes[route])+"-axis-locked), got: "+string(axis), details("axis", string(axis)))
+				"overlay "+kind+" ref.margin.axis must be "+string(lockedMarginAxes[route])+" (the kind is "+string(lockedMarginAxes[route])+"-axis-locked), got: "+string(axis), details("axis", string(axis)))
 		}
 	}
 	for _, s := range rule.scopes {

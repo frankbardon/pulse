@@ -55,7 +55,7 @@ Unweighted forms (the slot carries no prior weight); on a Gaussian fit every kin
 
 ## The fit's predictor list is authoritative
 
-Build the same columns in the scoring slot. An absent one-hot column is the reference level. Under selection a dropped predictor scores 0. A null predictor nulls the row.
+Build the same predictors in the scoring slot. An absent one-hot dummy is the reference level. Under selection a dropped predictor scores 0. A null predictor nulls the row.
 
 On the predict attribute, `terms` scores a subset (`(intercept)` opt-in) and `bound` reads a coefficient's `lower` / `upper` for one term: a coefficient bound is NOT a prediction interval, and a term with no bound scores null.
 
@@ -82,7 +82,7 @@ A `holdout` scores each held-out row's probability vector p against its outcome 
 
 ## Save, then load
 
-`save: "models/m.pulse-model.json"` on the fit; a later request declares `models: [{name: "m", path: "models/m.pulse-model.json"}]` and scores `fit: "m"` — bit-equal to the in-compose fit, on any cohort with the same predictor columns.
+`save: "models/m.pulse-model.json"` on the fit; a later request declares `models: [{name: "m", path: "models/m.pulse-model.json"}]` and scores `fit: "m"` — bit-equal to the in-compose fit, on any cohort with the same predictor fields.
 
 ## See
 

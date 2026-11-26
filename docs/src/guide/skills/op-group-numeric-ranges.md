@@ -41,7 +41,7 @@ Integer split idiom — 0..90 train, 91..103 holdout, ends meet:
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; dates take `GROUP_DATE_RANGES`.
+`field` — admitted types: see `## Contract`; dates take `GROUP_DATE_RANGES`.
 
 ## Output
 
@@ -63,7 +63,7 @@ Range label per row, else `unmatched_label`. Rows emit in supplied range order, 
 - `[0,91)` + `[91,104)` adjacent, not overlap; `start >= end` → `PULSE_RANGE_INVALID`.
 - Overlap / dup label → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`.
 - Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; a date table → `PULSE_RANGE_TABLE_KIND_MISMATCH`.
-- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`); a crosstab axis keeps it for order.
+- `include` on `groups` is refused (`PROCESSING_CONFIG`); a crosstab axis keeps it for order.
 
 ## See
 

@@ -1,6 +1,6 @@
 ---
 name: op-attr-tscore
-description: Per-row T-score column — z-score rescaled to mean 50, stddev 10.
+description: Per-row T-score — z-score rescaled to mean 50, stddev 10.
 kind: operator
 category: ATTR
 operator: ATTR_TSCORE
@@ -8,8 +8,6 @@ type: reference
 applies_to: process, compose, predict
 examples_tags: [distribution-shape, buffered-pipeline]
 ---
-
-Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -19,9 +17,9 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
-- `Label` — required — new column name
+- `label` — derived field name; default `<TYPE>_<field>`
 
 ## Output
 
@@ -34,7 +32,7 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `null` (counted
 ## Gotchas
 
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
-- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`; the run warns `PULSE_ATTR_ZERO_SPREAD` (details `n`, `spread: stddev`, `reason` `constant` / `single_value` / `no_mass` (no weighted mass)) — under Strict it fails with that code. Runtime only: predict cannot see the data.
+- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`; the run warns `PULSE_ATTR_ZERO_SPREAD` (details `n`, `spread: stddev`, `reason` `constant` / `single_value` / `no_mass` (no weighted mass)) — under `--strict` it fails with that code. Runtime only: predict cannot see the data.
 - Not a percentile — same shape as the underlying distribution.
 
 ## See

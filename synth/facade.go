@@ -1,4 +1,4 @@
-// Public alias facade over internal/synth, narrowed to the v1 kept
+// Public alias facade over internal/synth, narrowed to the public
 // subset: the Spec and Profile document families, Options / Result /
 // ProfileOptions, the FidelityReport family, the distribution and
 // model-predictor vocabulary constants, and the entry points Synth,
@@ -834,9 +834,9 @@ type SetSetPairFidelity = isynth.SetSetPairFidelity
 // bounded 2x2-cell contingency table of
 // {"selected","not_selected"} x {"selected","not_selected"}
 // co-occurrence counts for one option of each field. Never captured
-// between two options of the SAME set field — E5-S2's scope is
-// cross-field option association only, per the PRD's "do two different
-// set_* fields' option selections correlate with each other?" framing.
+// between two options of the SAME set field — the profile captures
+// cross-field option association only ("do two different set_* fields'
+// option selections correlate with each other?").
 type SetSetPairProfile = isynth.SetSetPairProfile
 
 // SetSetPairSpec is one option x option pair's generation-time

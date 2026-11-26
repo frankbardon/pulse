@@ -12,7 +12,7 @@ same overlay fold, serial or parallel. The same payload works through
 `pulse api predict-compose`, `pulse_compose` and `pulse_predict`
 (`composed`). It is gated by `capability:compose_sweep`.
 
-```json
+```json cohort=experiment
 {
   "sweep": {
     "axes": [
@@ -22,7 +22,7 @@ same overlay fold, serial or parallel. The same payload works through
     "mode": "grid",
     "label": "{{region}}_{{cut}}",
     "request": {
-      "cohort": {"filename": "sales.pulse"},
+      "cohort": {"filename": "experiment.pulse"},
       "filterers": [{"type": "FILTER_INCLUDE", "field": "region", "values": [{"$var": "region"}]}],
       "aggregations": [{"type": "AGG_SUM", "field": "revenue", "label": "rev_{{cut}}"}]
     }
@@ -44,7 +44,7 @@ To search a continuous space without enumerating a grid, set `mode` to
 `random` or `lhs`, a `samples` count, and give every axis a `range`
 instead of `values`:
 
-```json
+```json norun elided-request
 {"sweep": {"mode": "lhs", "samples": 64, "rng_seed": 7,
   "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.9}},
            {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}}],
@@ -103,7 +103,7 @@ from the ranked values of the rounds before, so most of the budget lands
 near the best region. Use it to find an optimum of one ranked number;
 use `lhs` / `random` to map the whole space evenly.
 
-```json
+```json norun elided-request
 {"sweep": {"mode": "bo", "budget": 40, "bo": {"n_init": 8, "batch": 2},
   "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.95}},
            {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}},
@@ -232,7 +232,7 @@ the batch's top-level one — so the body needs no placeholder:
 ```
 
 The `{"$var"}` route — `"params": {"w": {"$var": "w"}}` with an
-untargeted axis — still works and runs the same slots. The two never
+untargeted axis — runs the same slots. The two never
 mix on one value: a `{"$var"}` marker naming a targeted axis, or one
 standing as the body's own value at a targeted param, is
 `PULSE_SWEEP_INVALID` reason `axis_target_conflict`. A target must be
@@ -363,7 +363,7 @@ refused. When no slot is ranked, the fit binds failed: its entry carries
 `PULSE_SWEEP_RANK_PATH` (`reason: "empty"`), a `PULSE_SLOT_FAILED`
 warning names it under `details.fit`, slots scoring it read null
 (`PULSE_FIT_UNAVAILABLE`), and `Strict` fails the batch. A batch with no
-binding runs and answers exactly as before. Skill: `compose-sweep-bind`.
+binding is unaffected. Skill: `skills/compose-sweep-bind.md`.
 
 The winner's axis values are readable in the same batch:
 `sweep_axis("<fit>", "<axis>")` in an explicit slot's formula or filter
@@ -372,7 +372,7 @@ axis (a number as a float, a string or bool `values` entry as is) — the
 decay a hand-written steady-state multiplier such as
 `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`
 needs, which no coefficient carries (`response()` reads the bound fit's
-adstock record instead: see Media-Mix Models). Its refusals mirror `coef()` and
+adstock record instead: see [Media-Mix Models](mmm.md)). Its refusals mirror `coef()` and
 predict raises them too: an unbound name is `PULSE_MODEL_UNKNOWN`; a fit
 not bound from the sweep is `PULSE_MODEL_TERM_UNKNOWN` with
 `details.reason: "not_sweep_bound"`, an axis the sweep lacks the same
@@ -398,7 +398,8 @@ With `Options.EchoRequest` / `--echo-request` the echo carries the
 expanded slots the service ran (`ComposedResponse.NormalizedRequest`,
 not on the wire). The MCP `pulse_compose` default `return` of `standard`
 also fills a sweep body that sets no `return`; an authored one is never
-overwritten. The library default is unchanged.
+overwritten. Library calls follow the instance default
+([Response Shaping](response-shaping.md#defaults-and-precedence)).
 
 See also: [Parallel Compose](parallel-compose.md), the
 [payload schema](../contract/payload-schema.md#compose-sweep).

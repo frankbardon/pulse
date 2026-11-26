@@ -21,7 +21,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Inputs
 
-field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. Cast at write time — `u4` overflows silently if `lambda` is large.
+field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. Cast at write time; an integer field saturates silently at its maximum (`u4` 15) when `lambda` is large.
 
 ## Output
 
@@ -35,9 +35,9 @@ Per-row non-negative integer (returned as `float64`). Two algorithms:
 ## Gotchas
 
 - Knuth runtime is `O(lambda)` per row — large lambda would dominate without the normal-approx switch.
-- `lambda <= 0` → `SERVICE_VALIDATION` at spec parse.
+- `lambda <= 0` → `SERVICE_VALIDATION` before any row is written.
 - Variance equals mean; for over-dispersed counts pair with a `lognormal` mixer or use rejection sampling via `constraints`.
-- Same `(spec, opts.Seed)` is deterministic across both algorithm branches.
+- Same spec and seed ⇒ the same rows, on both branches.
 
 ## See
 

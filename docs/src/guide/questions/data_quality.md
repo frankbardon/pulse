@@ -142,7 +142,7 @@ The result:
 }
 ```
 
-Not evenly. Every channel has some blank incomes, but about two in five paper forms leave income blank, far more than the web forms, with phone in between, while age is blank on only a handful of forms in every channel. Missing income therefore depends on how the form arrived, so an average income over the present rows leans towards web applicants; compare the channels, or weight them back, before you report one figure for everyone. A null here is a blank answer, not a zero income: the counts of present values leave the blanks out instead of treating them as nothing earned.
+Not evenly. Every channel has some blank incomes, but about two in five paper forms leave income blank, far more than the web forms, with phone in between, while age is blank on only a handful of forms in every channel. Whether income is blank therefore depends on how the form arrived, so an average income over the present rows leans towards web applicants; compare the channels, or weight them back, before you report one figure for everyone. A null here is a blank answer, not a zero income: the counts of present values leave the blanks out instead of treating them as nothing earned.
 
 ## How to read the result
 

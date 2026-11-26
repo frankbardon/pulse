@@ -6,10 +6,12 @@ This page shows, for every public thing Pulse ships, where it is documented. Row
 
 ## Rules
 
-- **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it.
+- **Verbatim mention.** A row counts as documented in the **mdBook** (every page under `docs/src`, the generated Analysis Guide included, this page excluded) or the **Skill pack** (every skill as the default instance serves it) when its identifier appears there exactly as spelled below, as a whole token: no letter, digit, `_` or `-` directly before or after it. An `io.<Name>` row also counts when spelled with the public io package's import alias, `pio.<Name>`.
+- **Stricter mdBook rule.** Operators, field types and MCP tools count only hand-written pages: the generated Analysis Guide (`docs/src/guide`) names every one by construction.
+- **Slot rule.** In the mdBook and the Skill pack, a Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.
 - **GoDoc** is present when the declaration carries a non-empty doc comment. A declaration inside a grouped `const` / `var` / `type` block also counts the group's doc comment and its own trailing line comment; a method on an alias resolves to the aliased type, a promoted method to the embedded type that declares it.
 - **CLI help** is present for a leaf or a flag when it carries usage text (a flag on every command that mounts it); for an environment variable, when it appears verbatim in the help text.
-- Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on a gap the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` does not name, and on an entry whose gap is closed.
+- Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on any gap: its allowlist `internal/doccheck/allowlists/coverage.txt` is locked empty (`TestDocsBaselinesEmpty`), so a gap closes only by documenting the identifier.
 
 Legend: `yes` documented; **gap** required and missing; blank optional and missing; `—` not applicable.
 
@@ -17,8 +19,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|---|---|---|---|
 | Go API symbols | `internal/apigolden/testdata/public_api.txt` (types, funcs, consts, vars, methods; struct fields are covered by their type) | `<package>.<Name>`, methods `<package>.<Type>.<Method>` | optional | optional | required | — |
 | Options fields | the `pulse.Options` fields in `public_api.txt` | the Go field name (`DataDir`) | required | optional | required | — |
-| Request slots | the `types.Request` fields in `public_api.txt` | the JSON key (`group_by`) | required | required | required | — |
-| Response slots | the `types.Response` fields in `public_api.txt` | the JSON key | required | optional | required | — |
+| Request slots | the `types.Request` fields in `public_api.txt` | the JSON key (`group_by`); in the mdBook and skills a code span or `Request.<Field>` | required | required | required | — |
+| Response slots | the `types.Response` fields in `public_api.txt` | the JSON key; in the mdBook and skills a code span or `Response.<Field>` | required | optional | required | — |
 | CLI leaves | every runnable command in the tree `internal/cli.App` builds | the full invocation path (`pulse cohort inspect`) | required | optional | — | required |
 | CLI flags | every flag name (aliases included) mounted anywhere in that tree | `--name`, or `-x` for a one-letter name | required | optional | — | required |
 | MCP tools | the default instance's manifest `mcp_tools` | the tool name | required | required | — | — |
@@ -33,18 +35,18 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2856 | 84 |
+| [Go API symbols](#go-api-symbols) | 2859 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
 | [CLI leaves](#cli-leaves) | 77 | 0 |
-| [CLI flags](#cli-flags) | 137 | 2 |
-| [MCP tools](#mcp-tools) | 27 | 1 |
+| [CLI flags](#cli-flags) | 137 | 0 |
+| [MCP tools](#mcp-tools) | 27 | 0 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
 | [Field types](#field-types) | 22 | 0 |
-| [Error codes](#error-codes) | 492 | 36 |
+| [Error codes](#error-codes) | 495 | 0 |
 | [Environment variables](#environment-variables) | 10 | 0 |
 
 ## Go API symbols
@@ -59,9 +61,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.AggregatorRegistration` | yes |  | yes |
 | `pulse.AttributeComponentsFunc` | yes |  | yes |
 | `pulse.AttributeDictionarySource` | yes |  | yes |
-| `pulse.AttributeEmitBool` |  |  | **gap** |
-| `pulse.AttributeEmitFloat64` | yes |  | **gap** |
-| `pulse.AttributeEmitString` |  |  | **gap** |
+| `pulse.AttributeEmitBool` |  |  | yes |
+| `pulse.AttributeEmitFloat64` | yes |  | yes |
+| `pulse.AttributeEmitString` |  |  | yes |
 | `pulse.AttributeEmitType` |  |  | yes |
 | `pulse.AttributeMode` |  |  | yes |
 | `pulse.AttributeModeBuffered` |  |  | yes |
@@ -71,7 +73,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.BuildIndexResult` | yes |  | yes |
 | `pulse.ChainOverlaySchemaDivergence` |  |  | yes |
 | `pulse.ChainPredictResult` |  |  | yes |
-| `pulse.ChainRequest` | yes | yes | yes |
+| `pulse.ChainRequest` | yes |  | yes |
 | `pulse.ChainRequest.Hash` |  |  | yes |
 | `pulse.ChainResponse` |  |  | yes |
 | `pulse.ChainResponse.MarshalJSON` |  |  | yes |
@@ -92,7 +94,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Cohort.RecordCount` |  |  | yes |
 | `pulse.Cohort.Schema` |  |  | yes |
 | `pulse.Cohort.Shards` |  |  | yes |
-| `pulse.CohortBuildResult` |  |  | yes |
+| `pulse.CohortBuildResult` | yes |  | yes |
 | `pulse.CohortBuilder` |  |  | yes |
 | `pulse.CohortBuilder.Abort` |  |  | yes |
 | `pulse.CohortBuilder.Append` |  |  | yes |
@@ -111,7 +113,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.ComposeStreamOptions` | yes |  | yes |
 | `pulse.ComposedRequest` | yes |  | yes |
 | `pulse.ComposedRequest.Hash` |  |  | yes |
-| `pulse.ComposedResponse` | yes | yes | yes |
+| `pulse.ComposedResponse` |  |  | yes |
 | `pulse.ComposedResponse.MarshalJSON` |  |  | yes |
 | `pulse.CreateShardArchiveResult` |  |  | yes |
 | `pulse.DateRangeSpec` |  |  | yes |
@@ -150,7 +152,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.FacetHistogram` |  |  | yes |
 | `pulse.FacetNumeric` |  |  | yes |
 | `pulse.FacetPredictResult` |  |  | yes |
-| `pulse.FacetRequest` | yes | yes | yes |
+| `pulse.FacetRequest` | yes |  | yes |
 | `pulse.FacetRequest.Hash` |  |  | yes |
 | `pulse.FacetResult` |  |  | yes |
 | `pulse.FacetResult.MarshalJSON` |  |  | yes |
@@ -217,7 +219,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.MatrixOpRegistration` | yes |  | yes |
 | `pulse.MemberSet` |  |  | yes |
 | `pulse.New` | yes | yes | yes |
-| `pulse.NumericRangeSpec` |  |  | yes |
+| `pulse.NumericRangeSpec` | yes |  | yes |
 | `pulse.Options` | yes | yes | yes |
 | `pulse.OverlayRegistration` | yes |  | yes |
 | `pulse.ParamMeta` | yes |  | yes |
@@ -349,7 +351,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.RakeRequest` | yes |  | yes |
 | `pulse.RakeResult` |  |  | yes |
 | `pulse.RakeResult.MarshalJSON` |  |  | yes |
-| `pulse.RangeTable` |  |  | yes |
+| `pulse.RangeTable` | yes |  | yes |
 | `pulse.RangeTable.Kind` |  |  | yes |
 | `pulse.RangeTableInfo` |  |  | yes |
 | `pulse.Record` |  |  | yes |
@@ -360,10 +362,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.RenderedTemplate.Typed` |  |  | yes |
 | `pulse.Request` | yes |  | yes |
 | `pulse.Request.Hash` |  |  | yes |
-| `pulse.Response` | yes | yes | yes |
+| `pulse.Response` |  |  | yes |
 | `pulse.Response.MarshalJSON` |  |  | yes |
 | `pulse.Row` | yes |  | yes |
-| `pulse.RowIter` |  |  | yes |
+| `pulse.RowIter` | yes |  | yes |
 | `pulse.SampleRequest` |  |  | yes |
 | `pulse.SampleResult` |  |  | yes |
 | `pulse.SampleWarning` |  |  | yes |
@@ -429,8 +431,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.TemplateVariable` |  |  | yes |
 | `pulse.TestRegistration` | yes |  | yes |
 | `pulse.TestTier` |  |  | yes |
-| `pulse.TestTierPost` | yes |  | **gap** |
-| `pulse.TestTierRow` | yes |  | **gap** |
+| `pulse.TestTierPost` | yes |  | yes |
+| `pulse.TestTierRow` | yes |  | yes |
 | `pulse.Unlimited` | yes |  | yes |
 | `pulse.VerifyIndexResult` |  |  | yes |
 | `pulse.VerifyResult` |  |  | yes |
@@ -490,16 +492,16 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.ExplainRequestRoots` |  |  | yes |
 | `descriptor.ExplainResult` |  |  | yes |
 | `descriptor.ExplainRoot` |  |  | yes |
-| `descriptor.ExplainRootChain` |  |  | **gap** |
+| `descriptor.ExplainRootChain` |  |  | yes |
 | `descriptor.ExplainRootChainResponse` |  |  | yes |
-| `descriptor.ExplainRootComposed` |  |  | **gap** |
+| `descriptor.ExplainRootComposed` |  |  | yes |
 | `descriptor.ExplainRootComposedResponse` |  |  | yes |
-| `descriptor.ExplainRootFacet` |  |  | **gap** |
+| `descriptor.ExplainRootFacet` |  |  | yes |
 | `descriptor.ExplainRootFacetResult` |  |  | yes |
 | `descriptor.ExplainRootOperator` |  |  | yes |
-| `descriptor.ExplainRootRequest` |  |  | **gap** |
+| `descriptor.ExplainRootRequest` |  |  | yes |
 | `descriptor.ExplainRootResponse` |  |  | yes |
-| `descriptor.ExplainRootSample` |  |  | **gap** |
+| `descriptor.ExplainRootSample` |  |  | yes |
 | `descriptor.ExplainStep` |  |  | yes |
 | `descriptor.ExplainTerse` |  |  | yes |
 | `descriptor.ExportCapability` |  |  | yes |
@@ -562,7 +564,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.MultiplicityTriggerThreshold` | yes |  | yes |
 | `descriptor.NewEnvelope` |  |  | yes |
 | `descriptor.NewEnvelopeWithRequest` |  |  | yes |
-| `descriptor.None` |  |  | yes |
+| `descriptor.None` | yes |  | yes |
 | `descriptor.Ontology` | yes |  | yes |
 | `descriptor.OntologyEdge` |  |  | yes |
 | `descriptor.OntologyEdgeDocumentedBy` |  |  | yes |
@@ -655,14 +657,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.VectorFitSummary` |  |  | yes |
 | `descriptor.VectorKindMeta` |  |  | yes |
 | `descriptor.Verdict` |  |  | yes |
-| `descriptor.VerdictDescriptive` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfAssociation` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfDifference` |  |  | **gap** |
-| `descriptor.VerdictEvidenceOfEffect` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfAssociation` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfDifference` |  |  | **gap** |
-| `descriptor.VerdictNoEvidenceOfEffect` |  |  | **gap** |
-| `descriptor.VerdictNotComputable` |  |  | **gap** |
+| `descriptor.VerdictDescriptive` |  |  | yes |
+| `descriptor.VerdictEvidenceOfAssociation` |  |  | yes |
+| `descriptor.VerdictEvidenceOfDifference` |  |  | yes |
+| `descriptor.VerdictEvidenceOfEffect` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfAssociation` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfDifference` |  |  | yes |
+| `descriptor.VerdictNoEvidenceOfEffect` |  |  | yes |
+| `descriptor.VerdictNotComputable` |  |  | yes |
 | `descriptor.Verdicts` |  |  | yes |
 | `descriptor.WeightSourceNone` |  |  | yes |
 | `descriptor.WeightSourceOptions` |  |  | yes |
@@ -689,7 +691,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `encoding.CanonicalDateTimeLayout` | yes | yes | yes |
 | `encoding.CompressedCohortError` |  |  | yes |
 | `encoding.DateDays` | yes | yes | yes |
-| `encoding.DateFormats` | yes |  | yes |
+| `encoding.DateFormats` | yes | yes | yes |
 | `encoding.DateTimeFormats` | yes | yes | yes |
 | `encoding.DateTimeSeconds` | yes | yes | yes |
 | `encoding.DateTimeToDay` | yes |  | yes |
@@ -799,7 +801,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `encoding.ReadBitmap` | yes |  | yes |
 | `encoding.ReadDecimal128` |  |  | yes |
 | `encoding.ReadDescription` |  |  | yes |
-| `encoding.ReadFieldValue` | yes | yes | yes |
+| `encoding.ReadFieldValue` | yes |  | yes |
 | `encoding.ReadHeader` | yes |  | yes |
 | `encoding.ReadNibble` |  |  | yes |
 | `encoding.ReadSchema` | yes |  | yes |
@@ -892,6 +894,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.AllDomains` |  |  | yes |
 | `errors.ByDomain` |  |  | yes |
 | `errors.CLI_COMMAND` |  |  | yes |
+| `errors.CLI_ERROR` |  |  | yes |
 | `errors.CLI_INPUT` |  |  | yes |
 | `errors.CLI_INTERNAL` |  |  | yes |
 | `errors.CLI_OUTPUT` |  |  | yes |
@@ -969,6 +972,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PROCESSING_REGRESSION_NO_CONVERGE` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_ORDER` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_RANK_DEFICIENT` |  |  | yes |
+| `errors.PROCESSING_REGRESSION_REGULARIZED_SELECTION` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_SEPARATION` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_SINGULAR_GRAM` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED` |  |  | yes |
@@ -1272,6 +1276,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_RETURN_PATH_UNKNOWN` |  |  | yes |
 | `errors.PULSE_RETURN_PATH_UNMATCHED` |  |  | yes |
 | `errors.PULSE_SEM_SCORE_LEVEL_UNSEEN` |  |  | yes |
+| `errors.PULSE_SHARD_AGGREGATE_DRIFT` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_INCOMPLETE` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_REFUSED` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_ROLLED_BACK` |  |  | yes |
@@ -1537,16 +1542,16 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 |---|---|---|---|
 | `io.BufferWriter` |  |  | yes |
 | `io.CohortSource` |  |  | yes |
-| `io.CohortValidator` | yes |  | yes |
-| `io.CohortWriter` | yes |  | yes |
+| `io.CohortValidator` | yes | yes | yes |
+| `io.CohortWriter` | yes | yes | yes |
 | `io.ColumnAwareWriter` | yes |  | yes |
 | `io.ColumnFields` | yes |  | yes |
-| `io.ConvertJob` |  |  | yes |
+| `io.ConvertJob` | yes |  | yes |
 | `io.ConvertJob.Hash` |  |  | yes |
 | `io.ConvertJob.Predict` |  |  | yes |
 | `io.ConvertJob.Run` |  |  | yes |
 | `io.ConvertReport` |  |  | yes |
-| `io.ConvertSource` |  |  | yes |
+| `io.ConvertSource` | yes | yes | yes |
 | `io.DSTPolicies` |  |  | yes |
 | `io.DSTPolicy` |  |  | yes |
 | `io.DSTPolicyEarlier` |  |  | yes |
@@ -1608,10 +1613,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.ListNull` | yes |  | yes |
 | `io.ListState` |  |  | yes |
 | `io.ListValues` | yes |  | yes |
-| `io.NewExportJob` |  |  | yes |
-| `io.NewImportJob` |  |  | yes |
+| `io.NewExportJob` | yes |  | yes |
+| `io.NewImportJob` | yes |  | yes |
 | `io.NewReader` | yes | yes | yes |
-| `io.NewReaderFromBytes` |  |  | yes |
+| `io.NewReaderFromBytes` | yes |  | yes |
 | `io.NewWriter` | yes |  | yes |
 | `io.NewWriterToBuffer` |  |  | yes |
 | `io.NullAwareReader` | yes | yes | yes |
@@ -1635,14 +1640,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.SchemaAwareReader` | yes | yes | yes |
 | `io.SchemaAwareWriter` | yes |  | yes |
 | `io.SidecarEmitter` | yes | yes | yes |
-| `io.SourceAwareWriter` | yes |  | yes |
+| `io.SourceAwareWriter` | yes | yes | yes |
 | `io.SourceWarningEmitter` | yes | yes | yes |
 | `io.TargetWarningEmitter` | yes |  | yes |
-| `io.TransferExportJob` |  |  | yes |
+| `io.TransferExportJob` | yes |  | yes |
 | `io.TransferExportJob.Run` |  |  | yes |
-| `io.TransferImportJob` |  |  | yes |
+| `io.TransferImportJob` | yes |  | yes |
 | `io.TransferImportJob.Run` |  |  | yes |
-| `io.TransferReport` |  |  | yes |
+| `io.TransferReport` | yes |  | yes |
 | `io.VectorDecl` |  |  | yes |
 | `io.Writer` | yes |  | yes |
 | `io.WriterOptions` | yes | yes | yes |
@@ -1783,7 +1788,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Domain` |  |  | yes |
 | `metric.DomainBinary` |  |  | yes |
 | `metric.DomainError` | yes |  | yes |
-| `metric.DomainError.Error` |  |  | **gap** |
+| `metric.DomainError.Error` |  |  | yes |
 | `metric.DomainError.Is` |  |  | yes |
 | `metric.DomainNonNegative` |  |  | yes |
 | `metric.DomainReal` |  |  | yes |
@@ -1803,7 +1808,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Kind` |  |  | yes |
 | `metric.Kinds` |  |  | yes |
 | `metric.LengthMismatchError` | yes |  | yes |
-| `metric.LengthMismatchError.Error` |  |  | **gap** |
+| `metric.LengthMismatchError.Error` |  |  | yes |
 | `metric.LengthMismatchError.Is` |  |  | yes |
 | `metric.Lookup` |  |  | yes |
 | `metric.Measure` |  |  | yes |
@@ -1843,7 +1848,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `metric.Similarity` | yes |  | yes |
 | `metric.Stats` | yes |  | yes |
 | `metric.StatsError` |  |  | yes |
-| `metric.StatsError.Error` |  |  | **gap** |
+| `metric.StatsError.Error` |  |  | yes |
 | `metric.StatsError.Is` |  |  | yes |
 
 ### Go API symbols pulse/mcmc
@@ -2053,7 +2058,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `optimize.LeastSquaresStatus.String` |  |  | yes |
 | `optimize.Minimize` | yes |  | yes |
 | `optimize.MinimizeOptions` | yes |  | yes |
-| `optimize.MinimizeResult` |  |  | yes |
+| `optimize.MinimizeResult` | yes |  | yes |
 | `optimize.NotActive` |  |  | yes |
 | `optimize.Status` |  |  | yes |
 | `optimize.Status.String` |  |  | yes |
@@ -2121,7 +2126,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `synth.FieldModel` |  |  | yes |
 | `synth.FieldModelSpec` |  |  | yes |
 | `synth.FieldProfile` |  |  | yes |
-| `synth.FieldSpec` |  |  | yes |
+| `synth.FieldSpec` | yes |  | yes |
 | `synth.LookupDigest` | yes | yes | yes |
 | `synth.LookupTable` |  |  | yes |
 | `synth.ModelFidelity` |  |  | yes |
@@ -2138,11 +2143,11 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `synth.ModelResidualUnmeasuredPair` |  |  | yes |
 | `synth.NumericPairProfile` |  |  | yes |
 | `synth.NumericProfile` |  |  | yes |
-| `synth.Options` |  |  | yes |
+| `synth.Options` | yes |  | yes |
 | `synth.PairArbitrationDeclared` |  |  | yes |
 | `synth.PairArbitrationStrength` |  |  | yes |
 | `synth.PairwiseFidelity` |  |  | yes |
-| `synth.ParseSpec` |  |  | yes |
+| `synth.ParseSpec` | yes |  | yes |
 | `synth.Profile` | yes | yes | yes |
 | `synth.Profile.FittedModels` | yes | yes | yes |
 | `synth.Profile.MarshalJSON` |  |  | yes |
@@ -2214,51 +2219,51 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | Identifier | mdBook | Skill pack | GoDoc |
 |---|---|---|---|
 | `types.AGG_AUC` |  |  | yes |
-| `types.AGG_AVERAGE` | yes |  | **gap** |
+| `types.AGG_AVERAGE` | yes |  | yes |
 | `types.AGG_CI_LOWER` |  |  | yes |
-| `types.AGG_CI_UPPER` |  |  | **gap** |
+| `types.AGG_CI_UPPER` |  |  | yes |
 | `types.AGG_CONSTANT` |  |  | yes |
-| `types.AGG_COUNT` |  |  | **gap** |
-| `types.AGG_DISTINCT_COUNT` |  |  | **gap** |
+| `types.AGG_COUNT` |  |  | yes |
+| `types.AGG_DISTINCT_COUNT` |  |  | yes |
 | `types.AGG_DISTINCT_SUM` |  |  | yes |
 | `types.AGG_FREQUENCY` |  |  | yes |
-| `types.AGG_KURTOSIS` |  |  | **gap** |
-| `types.AGG_MAE` |  |  | **gap** |
+| `types.AGG_KURTOSIS` |  |  | yes |
+| `types.AGG_MAE` |  |  | yes |
 | `types.AGG_MAPE` |  |  | yes |
-| `types.AGG_MAX` |  |  | **gap** |
-| `types.AGG_MEDIAN` |  |  | **gap** |
-| `types.AGG_MIN` |  |  | **gap** |
-| `types.AGG_MODE` |  |  | **gap** |
-| `types.AGG_MODE_COUNT` |  |  | **gap** |
+| `types.AGG_MAX` |  |  | yes |
+| `types.AGG_MEDIAN` |  |  | yes |
+| `types.AGG_MIN` |  |  | yes |
+| `types.AGG_MODE` |  |  | yes |
+| `types.AGG_MODE_COUNT` |  |  | yes |
 | `types.AGG_NULL_COUNT` |  |  | yes |
-| `types.AGG_PERCENTILE` |  |  | **gap** |
-| `types.AGG_RANGE` |  |  | **gap** |
+| `types.AGG_PERCENTILE` |  |  | yes |
+| `types.AGG_RANGE` |  |  | yes |
 | `types.AGG_RATIO` |  |  | yes |
-| `types.AGG_RMSE` |  |  | **gap** |
+| `types.AGG_RMSE` |  |  | yes |
 | `types.AGG_SET_CARDINALITY_AVG` |  |  | yes |
 | `types.AGG_SET_CARDINALITY_SUM` |  |  | yes |
 | `types.AGG_SET_DISTINCT_VALUES` |  |  | yes |
 | `types.AGG_SET_FREQUENCY` |  |  | yes |
 | `types.AGG_SET_INTERSECTION` |  |  | yes |
 | `types.AGG_SET_UNION` |  |  | yes |
-| `types.AGG_SKEWNESS` |  |  | **gap** |
-| `types.AGG_STDDEV` |  |  | **gap** |
-| `types.AGG_SUM` |  |  | **gap** |
-| `types.AGG_VARIANCE` |  |  | **gap** |
+| `types.AGG_SKEWNESS` |  |  | yes |
+| `types.AGG_STDDEV` |  |  | yes |
+| `types.AGG_SUM` |  |  | yes |
+| `types.AGG_VARIANCE` |  |  | yes |
 | `types.AGG_VEC_MEAN` |  |  | yes |
-| `types.AGG_VEC_SD` |  |  | **gap** |
-| `types.AGG_VEC_SUM` |  |  | **gap** |
+| `types.AGG_VEC_SD` |  |  | yes |
+| `types.AGG_VEC_SUM` |  |  | yes |
 | `types.AGG_WEIGHTED_MEAN` |  |  | yes |
 | `types.AGG_WELFORD` |  |  | yes |
-| `types.AGG_ZSCORE` |  |  | **gap** |
+| `types.AGG_ZSCORE` |  |  | yes |
 | `types.ATTR_CODE_IN` |  |  | yes |
-| `types.ATTR_DATE_PART` |  |  | **gap** |
+| `types.ATTR_DATE_PART` |  |  | yes |
 | `types.ATTR_FACTOR_SCORE` |  |  | yes |
-| `types.ATTR_FORMULA` | yes |  | **gap** |
+| `types.ATTR_FORMULA` | yes |  | yes |
 | `types.ATTR_MAHALANOBIS` |  |  | yes |
-| `types.ATTR_NORMALIZED` |  |  | **gap** |
+| `types.ATTR_NORMALIZED` |  |  | yes |
 | `types.ATTR_PC_SCORE` |  |  | yes |
-| `types.ATTR_PERCENTILE` |  |  | **gap** |
+| `types.ATTR_PERCENTILE` |  |  | yes |
 | `types.ATTR_PREVIOUS_STATE` |  |  | yes |
 | `types.ATTR_PROFILE_SIMILARITY` |  |  | yes |
 | `types.ATTR_REG_FITTED` |  |  | yes |
@@ -2270,9 +2275,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ATTR_SEM_SCORE` |  |  | yes |
 | `types.ATTR_SET_HAS` |  |  | yes |
 | `types.ATTR_SET_POPCOUNT` |  |  | yes |
-| `types.ATTR_TSCORE` |  |  | **gap** |
+| `types.ATTR_TSCORE` |  |  | yes |
 | `types.ATTR_VEC_DISTANCE` |  |  | yes |
-| `types.ATTR_ZSCORE` |  |  | **gap** |
+| `types.ATTR_ZSCORE` |  |  | yes |
 | `types.Advisory` |  |  | yes |
 | `types.Aggregation` | yes | yes | yes |
 | `types.AggregationComponents` |  |  | yes |
@@ -2378,9 +2383,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ComponentsNone` |  |  | yes |
 | `types.ComponentsPartial` |  |  | yes |
 | `types.ComposeOverlaySpec` | yes |  | yes |
-| `types.ComposedRequest` | yes | yes | yes |
+| `types.ComposedRequest` | yes |  | yes |
 | `types.ComposedRequest.Hash` |  |  | yes |
-| `types.ComposedResponse` |  |  | yes |
+| `types.ComposedResponse` | yes |  | yes |
 | `types.ComposedResponse.MarshalJSON` |  |  | yes |
 | `types.CovarianceClassical` |  |  | yes |
 | `types.CovarianceCluster` |  |  | yes |
@@ -2450,29 +2455,29 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.DefaultProfileBins` |  |  | yes |
 | `types.DefaultUnionSourceField` | yes |  | yes |
 | `types.ExtensionGroupFanOutFunc` |  |  | yes |
-| `types.FEAT_BUCKETIZE` |  |  | **gap** |
-| `types.FEAT_DATE_FEATURES` |  |  | **gap** |
-| `types.FEAT_FREQUENCY_ENCODE` |  |  | **gap** |
-| `types.FEAT_LOG` | yes |  | **gap** |
-| `types.FEAT_ONE_HOT` |  |  | **gap** |
-| `types.FEAT_POLY` |  |  | **gap** |
-| `types.FEAT_SQRT` |  |  | **gap** |
-| `types.FEAT_TARGET_ENCODE` |  |  | **gap** |
-| `types.FEAT_TRAIN_TEST_SPLIT` |  |  | **gap** |
+| `types.FEAT_BUCKETIZE` |  |  | yes |
+| `types.FEAT_DATE_FEATURES` |  |  | yes |
+| `types.FEAT_FREQUENCY_ENCODE` |  |  | yes |
+| `types.FEAT_LOG` | yes |  | yes |
+| `types.FEAT_ONE_HOT` |  |  | yes |
+| `types.FEAT_POLY` |  |  | yes |
+| `types.FEAT_SQRT` |  |  | yes |
+| `types.FEAT_TARGET_ENCODE` |  |  | yes |
+| `types.FEAT_TRAIN_TEST_SPLIT` |  |  | yes |
 | `types.FILTER_DATE_RANGES` |  |  | yes |
-| `types.FILTER_EXCLUDE` |  |  | **gap** |
-| `types.FILTER_EXPRESSION` |  |  | **gap** |
+| `types.FILTER_EXCLUDE` |  |  | yes |
+| `types.FILTER_EXPRESSION` |  |  | yes |
 | `types.FILTER_FALSE` |  |  | yes |
-| `types.FILTER_INCLUDE` | yes |  | **gap** |
+| `types.FILTER_INCLUDE` | yes |  | yes |
 | `types.FILTER_NULL` | yes |  | yes |
-| `types.FILTER_RANGE` | yes |  | **gap** |
+| `types.FILTER_RANGE` | yes |  | yes |
 | `types.FILTER_SET_CONTAINS_ALL` |  |  | yes |
 | `types.FILTER_SET_CONTAINS_ANY` |  |  | yes |
 | `types.FILTER_SET_CONTAINS_NONE` |  |  | yes |
 | `types.FILTER_SET_EQUALS` |  |  | yes |
 | `types.FILTER_TRUE` |  |  | yes |
 | `types.FacetDiscrete` |  |  | yes |
-| `types.FacetField` |  |  | yes |
+| `types.FacetField` | yes |  | yes |
 | `types.FacetField.MarshalJSON` |  |  | yes |
 | `types.FacetHistogram` |  |  | yes |
 | `types.FacetNumeric` |  |  | yes |
@@ -2505,14 +2510,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ForEach` |  |  | yes |
 | `types.FormulaNamespace` |  |  | yes |
 | `types.FrameSpec` | yes |  | yes |
-| `types.GROUP_CATEGORY` |  |  | **gap** |
-| `types.GROUP_DATE` |  |  | **gap** |
+| `types.GROUP_CATEGORY` |  |  | yes |
+| `types.GROUP_DATE` |  |  | yes |
 | `types.GROUP_DATE_RANGES` |  |  | yes |
 | `types.GROUP_KMEANS` |  |  | yes |
 | `types.GROUP_NUMERIC_RANGES` |  |  | yes |
-| `types.GROUP_QUANTILE` |  |  | **gap** |
-| `types.GROUP_RANGE` |  |  | **gap** |
-| `types.GROUP_ROUNDED` |  |  | **gap** |
+| `types.GROUP_QUANTILE` |  |  | yes |
+| `types.GROUP_RANGE` |  |  | yes |
+| `types.GROUP_ROUNDED` |  |  | yes |
 | `types.GROUP_SET_PER_ELEMENT` |  |  | yes |
 | `types.GROUP_SET_VALUE` |  |  | yes |
 | `types.Group` | yes |  | yes |
@@ -2533,8 +2538,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.LabelBinding.AugmentFieldName` |  |  | yes |
 | `types.LabelBinding.LabelModeOrDefault` |  |  | yes |
 | `types.LabelMode` |  |  | yes |
-| `types.LabelModeAugment` |  |  | **gap** |
-| `types.LabelModeReplace` |  |  | **gap** |
+| `types.LabelModeAugment` |  |  | yes |
+| `types.LabelModeReplace` |  |  | yes |
 | `types.LagsAuto` |  |  | yes |
 | `types.LagsOf` |  |  | yes |
 | `types.LookupKey` |  |  | yes |
@@ -2542,10 +2547,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.LookupMultiplicityAll` |  |  | yes |
 | `types.LookupMultiplicityAssertUnique` |  |  | yes |
 | `types.LookupMultiplicityFirst` |  |  | yes |
-| `types.LookupRequest` | yes | yes | yes |
+| `types.LookupRequest` |  |  | yes |
 | `types.LookupRequest.Hash` |  |  | yes |
 | `types.LookupRequest.KeyComponents` |  |  | yes |
-| `types.LookupResult` | yes | yes | yes |
+| `types.LookupResult` |  |  | yes |
 | `types.MAT_COLLINEARITY` |  |  | yes |
 | `types.MAT_CORRELATION` |  |  | yes |
 | `types.MAT_COVARIANCE` |  |  | yes |
@@ -2554,7 +2559,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.MAT_PARTIAL_CORRELATION` |  |  | yes |
 | `types.MAT_PCA` |  |  | yes |
 | `types.MAT_RELIABILITY` |  |  | yes |
-| `types.MAT_SEM` |  |  | yes |
+| `types.MAT_SEM` | yes |  | yes |
 | `types.MarginAggregationFault` |  |  | yes |
 | `types.MarginAggregationFaultDuplicateLabel` |  |  | yes |
 | `types.MarginAggregationFaultKind` |  |  | yes |
@@ -2716,7 +2721,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.OverlayKindPanelIndexVsRef` |  |  | yes |
 | `types.OverlayKindPropZCell` |  |  | yes |
 | `types.OverlayKindPropZPanel` |  |  | yes |
-| `types.OverlayKindPropZVsPrior` |  |  | **gap** |
+| `types.OverlayKindPropZVsPrior` |  |  | yes |
 | `types.OverlayKindRake` |  |  | yes |
 | `types.OverlayKindRank` |  |  | yes |
 | `types.OverlayKindRetention` |  |  | yes |
@@ -2734,7 +2739,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.OverlayKindZScoreVsPop` |  |  | yes |
 | `types.OverlayKindZScoreVsRolling` |  |  | yes |
 | `types.OverlayKindZScoreVsTotal` |  |  | yes |
-| `types.OverlayKindZVsPrior` |  |  | **gap** |
+| `types.OverlayKindZVsPrior` |  |  | yes |
 | `types.OverlayKindZVsRef` |  |  | yes |
 | `types.OverlayLayer` |  |  | yes |
 | `types.OverlayLayer.MarshalJSON` |  |  | yes |
@@ -2871,18 +2876,18 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.Response.MarshalJSON` |  |  | yes |
 | `types.ResponseComponents` | yes | yes | yes |
 | `types.ResponseComponents.MarshalJSON` |  |  | yes |
-| `types.ResponseMetadata` |  |  | yes |
+| `types.ResponseMetadata` | yes |  | yes |
 | `types.ResponseWarning` | yes |  | yes |
 | `types.Return` | yes |  | yes |
 | `types.ReturnPreset` |  |  | yes |
 | `types.ReturnPresetFull` |  |  | yes |
 | `types.ReturnPresetMinimal` | yes |  | yes |
 | `types.ReturnPresetStandard` | yes |  | yes |
-| `types.ReturnedMarker` | yes |  | yes |
+| `types.ReturnedMarker` | yes | yes | yes |
 | `types.RunComponents` |  |  | yes |
 | `types.SEMFitGroup` |  |  | yes |
 | `types.SEMFitGroupLevel` |  |  | yes |
-| `types.SEMFitResult` |  |  | yes |
+| `types.SEMFitResult` | yes |  | yes |
 | `types.SEMFitResult.MarshalJSON` |  |  | yes |
 | `types.SampleRequest` | yes |  | yes |
 | `types.SeriesEntry` |  |  | yes |
@@ -2967,25 +2972,25 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.VectorKindComposition` |  |  | yes |
 | `types.VectorKindMeasure` |  |  | yes |
 | `types.VectorKindScale` |  |  | yes |
-| `types.VectorSpec` |  |  | yes |
+| `types.VectorSpec` | yes |  | yes |
 | `types.VectorStandardize` |  |  | yes |
 | `types.VectorStandardizeZScore` |  |  | yes |
 | `types.VersionResponse` |  |  | yes |
-| `types.WIN_DELTA` |  |  | **gap** |
-| `types.WIN_DENSE_RANK` |  |  | **gap** |
-| `types.WIN_DISTRIBUTED_LAG` |  |  | **gap** |
-| `types.WIN_EWMA` |  |  | **gap** |
+| `types.WIN_DELTA` |  |  | yes |
+| `types.WIN_DENSE_RANK` |  |  | yes |
+| `types.WIN_DISTRIBUTED_LAG` |  |  | yes |
+| `types.WIN_EWMA` |  |  | yes |
 | `types.WIN_FORMULA` |  |  | yes |
-| `types.WIN_LAG` | yes |  | **gap** |
-| `types.WIN_LEAD` |  |  | **gap** |
-| `types.WIN_LIFT` |  |  | **gap** |
-| `types.WIN_MOVING_AVG` |  |  | **gap** |
-| `types.WIN_PCT_CHANGE` |  |  | **gap** |
-| `types.WIN_RANK` |  |  | **gap** |
-| `types.WIN_ROW_NUMBER` |  |  | **gap** |
-| `types.WIN_RUNNING_AVG` |  |  | **gap** |
-| `types.WIN_RUNNING_SUM` | yes |  | **gap** |
-| `types.WIN_SHARE` |  |  | **gap** |
+| `types.WIN_LAG` | yes |  | yes |
+| `types.WIN_LEAD` |  |  | yes |
+| `types.WIN_LIFT` |  |  | yes |
+| `types.WIN_MOVING_AVG` |  |  | yes |
+| `types.WIN_PCT_CHANGE` |  |  | yes |
+| `types.WIN_RANK` |  |  | yes |
+| `types.WIN_ROW_NUMBER` |  |  | yes |
+| `types.WIN_RUNNING_AVG` |  |  | yes |
+| `types.WIN_RUNNING_SUM` | yes |  | yes |
+| `types.WIN_SHARE` |  |  | yes |
 | `types.WeightKind` |  |  | yes |
 | `types.WeightKindFrequency` | yes |  | yes |
 | `types.WeightKindProbability` |  |  | yes |
@@ -3014,7 +3019,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `DisableShardDistinct` | yes |  | yes |
 | `EchoRequest` | yes |  | yes |
 | `Extensions` | yes | yes | yes |
-| `FS` | yes | yes | yes |
+| `FS` | yes |  | yes |
 | `FeatureProfile` | yes |  | yes |
 | `FeatureProfileFile` | yes |  | yes |
 | `Hooks` | yes |  | yes |
@@ -3100,13 +3105,13 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse api materialize` | yes | yes | yes |
 | `pulse api predict` | yes | yes | yes |
 | `pulse api predict-chain` | yes |  | yes |
-| `pulse api predict-compose` | yes |  | yes |
+| `pulse api predict-compose` | yes | yes | yes |
 | `pulse api predict-facet` | yes |  | yes |
 | `pulse api process` | yes | yes | yes |
 | `pulse api process-chain` | yes | yes | yes |
 | `pulse api sample` | yes | yes | yes |
 | `pulse cohort filter` | yes | yes | yes |
-| `pulse cohort inspect` | yes |  | yes |
+| `pulse cohort inspect` | yes | yes | yes |
 | `pulse cohort zone clear` | yes | yes | yes |
 | `pulse cohort zone set` | yes | yes | yes |
 | `pulse completion bash` | yes |  | yes |
@@ -3190,7 +3195,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--data-dir` | yes |  | yes |
 | `--decode-workers` | yes |  | yes |
 | `--dedup-ratio-floor` | yes | yes | yes |
-| `--detail` | yes | yes | yes |
+| `--detail` | yes |  | yes |
 | `--disclosure-sample` | yes | yes | yes |
 | `--domain` | yes |  | yes |
 | `--dst-policy` | yes | yes | yes |
@@ -3303,10 +3308,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--weight-field` | yes |  | yes |
 | `--zone-field` | yes | yes | yes |
 | `-f` | yes |  | yes |
-| `-h` | **gap** |  | yes |
+| `-h` | yes |  | yes |
 | `-i` | yes | yes | yes |
 | `-k` | yes |  | yes |
-| `-m` | **gap** |  | yes |
+| `-m` | yes |  | yes |
 | `-n` | yes |  | yes |
 | `-o` | yes | yes | yes |
 | `-p` | yes |  | yes |
@@ -3333,7 +3338,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse_label_resolve` | yes | yes |
 | `pulse_label_tables` | yes | yes |
 | `pulse_lookup` | yes | yes |
-| `pulse_lookup_tables` | yes | **gap** |
+| `pulse_lookup_tables` | yes | yes |
 | `pulse_manifest` | yes | yes |
 | `pulse_materialize` | yes | yes |
 | `pulse_predict` | yes | yes |
@@ -3679,16 +3684,17 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Identifier | mdBook | Skill pack |
 |---|---|---|
-| `CLI_COMMAND` | **gap** |  |
+| `CLI_COMMAND` | yes |  |
+| `CLI_ERROR` | yes |  |
 | `CLI_INPUT` | yes | yes |
-| `CLI_INTERNAL` | **gap** |  |
-| `CLI_OUTPUT` | **gap** |  |
-| `DATA_CALCULATION` | **gap** |  |
-| `DATA_CONFIG` | **gap** |  |
+| `CLI_INTERNAL` | yes |  |
+| `CLI_OUTPUT` | yes |  |
+| `DATA_CALCULATION` | yes |  |
+| `DATA_CONFIG` | yes |  |
 | `DATA_FILE` | yes | yes |
-| `DATA_INTERNAL` | **gap** |  |
-| `DATA_PARSE` | **gap** |  |
-| `ENCODING_INTERNAL` | **gap** |  |
+| `DATA_INTERNAL` | yes |  |
+| `DATA_PARSE` | yes |  |
+| `ENCODING_INTERNAL` | yes |  |
 | `ENCODING_INVALID` | yes | yes |
 | `ENCODING_IO` | yes |  |
 | `ENCODING_TYPE_MISMATCH` | yes | yes |
@@ -3704,11 +3710,12 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PROCESSING_REGRESSION_NO_CONVERGE` | yes | yes |
 | `PROCESSING_REGRESSION_ORDER` | yes | yes |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT` | yes | yes |
+| `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | yes | yes |
 | `PROCESSING_REGRESSION_SEPARATION` | yes | yes |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM` | yes |  |
 | `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` | yes | yes |
 | `PROCESSING_RUNTIME` | yes | yes |
-| `PROCESSING_STATE` | **gap** |  |
+| `PROCESSING_STATE` | yes |  |
 | `PROCESSING_VECTOR_LENGTH_MISMATCH` | yes | yes |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | yes | yes |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | yes | yes |
@@ -3736,7 +3743,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_ATTR_ZERO_SPREAD` | yes | yes |
 | `PULSE_AUC_DELONG_WEIGHTED` | yes | yes |
 | `PULSE_BANNER_INVALID` | yes | yes |
-| `PULSE_CHAIN_EMPTY` | **gap** |  |
+| `PULSE_CHAIN_EMPTY` | yes |  |
 | `PULSE_CHAIN_NOT_MERGEABLE` | yes | yes |
 | `PULSE_CHAIN_STAGE_JOIN` | yes | yes |
 | `PULSE_COHORT_COMPRESSED` | yes | yes |
@@ -3744,31 +3751,31 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_COMPARISON_ROWS_DIFFER` | yes | yes |
 | `PULSE_COMPOSE_BASE_COLLISION` | yes | yes |
 | `PULSE_COMPOSE_LABEL_COLLISION` | yes | yes |
-| `PULSE_CROSSTAB_AGG_UNCLASSIFIED` | **gap** |  |
+| `PULSE_CROSSTAB_AGG_UNCLASSIFIED` | yes |  |
 | `PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL` | yes | yes |
 | `PULSE_CROSSTAB_CELLS_INVALID` | yes | yes |
 | `PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS` | yes | yes |
-| `PULSE_CROSSTAB_EMPTY_COLUMNS` | **gap** |  |
+| `PULSE_CROSSTAB_EMPTY_COLUMNS` | yes |  |
 | `PULSE_CROSSTAB_EMPTY_ROWS` | yes | yes |
 | `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL` | yes | yes |
 | `PULSE_CROSSTAB_MARGIN_AGG_INVALID` | yes | yes |
 | `PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED` | yes | yes |
-| `PULSE_CROSSTAB_MISSING_CELL` | **gap** |  |
-| `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` | **gap** |  |
-| `PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE` | **gap** |  |
-| `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` | **gap** |  |
+| `PULSE_CROSSTAB_MISSING_CELL` | yes |  |
+| `PULSE_CROSSTAB_NORMALIZE_LEVEL_INCOMPATIBLE` | yes |  |
+| `PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE` | yes |  |
+| `PULSE_CROSSTAB_NORMALIZE_LEVEL_WITHOUT_NESTED_AXIS` | yes |  |
 | `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED` | yes | yes |
 | `PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE` | yes |  |
-| `PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE` | **gap** |  |
-| `PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE` | **gap** |  |
-| `PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS` | **gap** |  |
+| `PULSE_CROSSTAB_NORMALIZE_WITHIN_INCOMPATIBLE` | yes |  |
+| `PULSE_CROSSTAB_NORMALIZE_WITHIN_OUT_OF_RANGE` | yes |  |
+| `PULSE_CROSSTAB_NORMALIZE_WITHIN_WITHOUT_AXIS` | yes |  |
 | `PULSE_DECIMAL_DIVIDE_BY_ZERO` | yes | yes |
 | `PULSE_DECIMAL_OVERFLOW` | yes | yes |
 | `PULSE_DECIMAL_PRECISION_LOSS` | yes | yes |
 | `PULSE_DEDUP_LOW_RATIO` | yes | yes |
 | `PULSE_DOCS_EXPORT_DIR_NOT_EMPTY` | yes |  |
 | `PULSE_EXPORT_COLUMN_COLLISION` | yes | yes |
-| `PULSE_EXPORT_FIELD_UNKNOWN` | **gap** |  |
+| `PULSE_EXPORT_FIELD_UNKNOWN` | yes |  |
 | `PULSE_EXPORT_ROW_ERROR` | yes | yes |
 | `PULSE_EXTENSION_ARRAY_VALUED_MISMATCH` | yes |  |
 | `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | yes |  |
@@ -3829,7 +3836,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_IMPORT_OVERRIDE_INVALID` | yes | yes |
 | `PULSE_IMPORT_ROWS_DROPPED` | yes | yes |
 | `PULSE_IMPORT_ROW_ERROR` | yes | yes |
-| `PULSE_IMPORT_SCHEMA_AMBIGUOUS` | **gap** |  |
+| `PULSE_IMPORT_SCHEMA_AMBIGUOUS` | yes |  |
 | `PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED` | yes | yes |
 | `PULSE_IMPORT_SCHEMA_DUPLICATE` | yes | yes |
 | `PULSE_IMPORT_SCHEMA_FIELD_MISSING` | yes | yes |
@@ -3846,7 +3853,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_INDEX_MANIFEST_STALE` | yes | yes |
 | `PULSE_INDEX_MISSING` | yes | yes |
 | `PULSE_INDEX_STALE` | yes | yes |
-| `PULSE_INDEX_UNSUPPORTED_SHARDED` | **gap** |  |
+| `PULSE_INDEX_UNSUPPORTED_SHARDED` | yes |  |
 | `PULSE_IO_FORMAT_UNSUPPORTED` | yes | yes |
 | `PULSE_JOIN_FIELD_COLLISION` | yes | yes |
 | `PULSE_JOIN_FIELD_UNKNOWN` | yes | yes |
@@ -3919,7 +3926,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_MMM_LIFT_PRIOR_OVERLAP` | yes | yes |
 | `PULSE_MODEL_FILE_INVALID` | yes | yes |
 | `PULSE_MODEL_FILE_UNREADABLE` | yes | yes |
-| `PULSE_MODEL_INTERVALS_UNAVAILABLE` | **gap** |  |
+| `PULSE_MODEL_INTERVALS_UNAVAILABLE` | yes |  |
 | `PULSE_MODEL_KIND_MISMATCH` | yes | yes |
 | `PULSE_MODEL_NAME_COLLISION` | yes | yes |
 | `PULSE_MODEL_OVERWRITTEN` | yes | yes |
@@ -3929,7 +3936,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_MODEL_REGRESSION_UNREGISTERED` | yes | yes |
 | `PULSE_MODEL_SAVE_INVALID` | yes | yes |
 | `PULSE_MODEL_SCORE_INVALID` | yes | yes |
-| `PULSE_MODEL_STAT_UNKNOWN` | **gap** |  |
+| `PULSE_MODEL_STAT_UNKNOWN` | yes |  |
 | `PULSE_MODEL_TERM_UNKNOWN` | yes | yes |
 | `PULSE_MODEL_UNKNOWN` | yes | yes |
 | `PULSE_MODEL_VERSION_UNSUPPORTED` | yes | yes |
@@ -3944,7 +3951,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_OPTIMIZE_VARIABLE_INVALID` | yes |  |
 | `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` | yes | yes |
 | `PULSE_OVERLAY_COMPONENTS_REQUIRED` | yes | yes |
-| `PULSE_OVERLAY_DICT_PREFIX_DRIFT` | **gap** |  |
+| `PULSE_OVERLAY_DICT_PREFIX_DRIFT` | yes |  |
 | `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` | yes | yes |
 | `PULSE_OVERLAY_EXPECTED_LOW` | yes | yes |
 | `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED` | yes |  |
@@ -3972,7 +3979,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_OVERLAY_SCHEMA_DIVERGENT` | yes | yes |
 | `PULSE_OVERLAY_SCOPE_UNSUPPORTED` | yes | yes |
 | `PULSE_OVERLAY_SLOT_NOT_CROSSTAB` | yes | yes |
-| `PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT` | **gap** |  |
+| `PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT` | yes |  |
 | `PULSE_OVERLAY_TARGET_UNKNOWN` | yes | yes |
 | `PULSE_OVERLAY_YOY_FREQUENCY_MISSING` | yes | yes |
 | `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY` | yes | yes |
@@ -3987,10 +3994,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_RAKE_INVALID` | yes | yes |
 | `PULSE_RAKE_MISSING_VALUE` | yes | yes |
 | `PULSE_RAKE_NOT_CONVERGED` | yes | yes |
-| `PULSE_RAKE_SIDECARS_INVALIDATED` | yes |  |
+| `PULSE_RAKE_SIDECARS_INVALIDATED` | yes | yes |
 | `PULSE_RAKE_UNKNOWN_CATEGORY` | yes | yes |
 | `PULSE_RAKE_UNTARGETED_CATEGORY` | yes | yes |
-| `PULSE_RANGE_DUPLICATE_LABEL` | **gap** |  |
+| `PULSE_RANGE_DUPLICATE_LABEL` | yes |  |
 | `PULSE_RANGE_EMPTY` | yes |  |
 | `PULSE_RANGE_INVALID` | yes | yes |
 | `PULSE_RANGE_OVERLAP` | yes | yes |
@@ -3998,7 +4005,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_RANGE_TABLE_KIND_MISMATCH` | yes | yes |
 | `PULSE_RANGE_TABLE_UNKNOWN` | yes | yes |
 | `PULSE_RECOMMEND_INTENT_UNKNOWN` | yes | yes |
-| `PULSE_REGRESSION_INVALID` | **gap** |  |
+| `PULSE_REGRESSION_INVALID` | yes |  |
 | `PULSE_REGRESSION_WINDOW_UNAVAILABLE` | yes | yes |
 | `PULSE_REQUEST_PARAM_INVALID` | yes | yes |
 | `PULSE_REQUEST_UNKNOWN_FIELD` | yes | yes |
@@ -4007,6 +4014,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_RETURN_PATH_UNKNOWN` | yes | yes |
 | `PULSE_RETURN_PATH_UNMATCHED` | yes | yes |
 | `PULSE_SEM_SCORE_LEVEL_UNSEEN` | yes | yes |
+| `PULSE_SHARD_AGGREGATE_DRIFT` | yes |  |
 | `PULSE_SHARD_APPEND_INCOMPLETE` | yes | yes |
 | `PULSE_SHARD_APPEND_REFUSED` | yes | yes |
 | `PULSE_SHARD_APPEND_ROLLED_BACK` | yes | yes |
@@ -4016,7 +4024,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_SHARD_DICT_DIVERGENCE` | yes | yes |
 | `PULSE_SHARD_DICT_WIDTH_OVERFLOW` | yes | yes |
 | `PULSE_SHARD_GROUPS_REWRITTEN` | yes | yes |
-| `PULSE_SHARD_HEADER_INVALID` | **gap** |  |
+| `PULSE_SHARD_HEADER_INVALID` | yes |  |
 | `PULSE_SHARD_INDEXES_UPDATED` | yes | yes |
 | `PULSE_SHARD_MISSING` | yes | yes |
 | `PULSE_SHARD_NAME_COLLISION` | yes |  |
@@ -4112,7 +4120,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEMPLATE_VAR_UNKNOWN` | yes |  |
 | `PULSE_TEST_BALANCED_DESIGN_REQUIRED` | yes | yes |
 | `PULSE_TEST_CONTINGENCY_DEGENERATE` | yes | yes |
-| `PULSE_TEST_CORRELATION_UNDEFINED` | **gap** |  |
+| `PULSE_TEST_CORRELATION_UNDEFINED` | yes |  |
 | `PULSE_TEST_COVARIATE_INVALID` | yes | yes |
 | `PULSE_TEST_EXACT_UNAVAILABLE` | yes | yes |
 | `PULSE_TEST_EXPECTED_COUNT_TOO_LOW` | yes | yes |
@@ -4120,21 +4128,21 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEST_EXPECTED_LABEL_MISSING` | yes | yes |
 | `PULSE_TEST_FIELD2_NOT_NUMERIC` | yes | yes |
 | `PULSE_TEST_FIELD_NOT_NUMERIC` | yes | yes |
-| `PULSE_TEST_FISHER_R_OR_C_GT_2` | **gap** |  |
+| `PULSE_TEST_FISHER_R_OR_C_GT_2` | yes |  |
 | `PULSE_TEST_INSUFFICIENT_N` | yes | yes |
 | `PULSE_TEST_INVALID_ALPHA` | yes | yes |
 | `PULSE_TEST_P0_INVALID` | yes | yes |
-| `PULSE_TEST_PAIRED_LENGTH_MISMATCH` | **gap** |  |
+| `PULSE_TEST_PAIRED_LENGTH_MISMATCH` | yes |  |
 | `PULSE_TEST_PARTITION_INVALID` | yes |  |
 | `PULSE_TEST_REFERENCE_INVALID` | yes | yes |
 | `PULSE_TEST_REFERENCE_MISSING` | yes | yes |
 | `PULSE_TEST_SHAPIRO_N_BOUND` | yes | yes |
 | `PULSE_TEST_SPLIT_GROUPS_LT_2` | yes | yes |
-| `PULSE_TEST_SUBJECT_MISSING` | **gap** |  |
+| `PULSE_TEST_SUBJECT_MISSING` | yes | yes |
 | `PULSE_TEST_SUCCESS_VALUE_MISSING` | yes | yes |
 | `PULSE_TEST_TIES_DOMINATE` | yes | yes |
-| `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | **gap** |  |
-| `PULSE_TEST_UNKNOWN_TYPE` | **gap** |  |
+| `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | yes |  |
+| `PULSE_TEST_UNKNOWN_TYPE` | yes |  |
 | `PULSE_TEST_VARIANCE_ZERO` | yes | yes |
 | `PULSE_TIMEZONE_UNKNOWN` | yes | yes |
 | `PULSE_TRANSFER_INVALID` | yes |  |
@@ -4168,7 +4176,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_WEIGHT_UNSUPPORTED` | yes | yes |
 | `PULSE_WINDOW_INVALID` | yes | yes |
 | `SERVICE_INTERNAL` | yes | yes |
-| `SERVICE_REGISTRY` | **gap** |  |
+| `SERVICE_REGISTRY` | yes |  |
 | `SERVICE_RESOURCE` | yes | yes |
 | `SERVICE_VALIDATION` | yes | yes |
 

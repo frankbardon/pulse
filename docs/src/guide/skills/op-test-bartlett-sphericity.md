@@ -28,8 +28,8 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
+| `missing` | enum | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields`, ≥ 2 members; no `field`, `vector2` / `fields2` or `split_by`.
@@ -37,11 +37,11 @@ Slot: exactly one of `vector` (a `vectors` entry) / `fields`, ≥ 2 members; no 
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`.
+Members: numeric (`## Contract`).
 
 ## Output
 
-`Statistic` = χ² = −ln|R|·(N* − 1 − (2p + 5)/6), `DF` = p(p − 1)/2, `PValue`. `Details`: `members`, `n`, `n_dropped`, `determinant` (|R|).
+`statistic` = χ² = −ln|R|·(N* − 1 − (2p + 5)/6), `df` = p(p − 1)/2, `p_value`. `details`: `members`, `n`, `n_dropped`, `determinant` (|R|).
 
 ## Reading the output
 

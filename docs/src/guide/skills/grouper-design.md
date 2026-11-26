@@ -15,7 +15,7 @@ covers: [GROUP, Crosstab, groups]
 
 `groups` entry: `{type, field, interval?, params?, include?}`. Output rows carry the bucket key as `<field>`.
 
-Pipeline: `features → filterers → attributes → groups → aggregations → windows → sort`; grouping runs AFTER attributes, so derived columns work as `field`.
+Pipeline: `features → filterers → attributes → groups → aggregations → windows → sort`; grouping runs AFTER attributes, so attribute labels work as `field`.
 
 ## Choosing a grouper
 
@@ -37,7 +37,7 @@ With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the can
 - **Null key** at any position drops the record from every row; each grouper still sees it once, so `n_null` matches its single-grouper run.
 - **Fan-out** groupers multiply: a record lands in each key-set product.
 - **Fit:** `GROUP_QUANTILE` / `GROUP_KMEANS` fit once over the filtered set (`params.fit` `global`); `within` refits per bucket of the keys before it.
-- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); `OVERLAY_YOY` without exactly one date grouper (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
+- **Refused:** two entries on one field (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); `OVERLAY_YOY` without exactly one date grouper (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
 - **Downstream:** `sort`, `return`, windows, post-tests and grouped matrices follow the composite rows. Series overlays (YoY aside) run once per partition: the leading keys (`params.partition_by`; default all but the last, so put the date grouper last), never crossing a segment ([`overlay-system`](overlay-system.md)).
 
@@ -82,7 +82,7 @@ Mergeability is in the manifest: `mergeable` groupers fold across streaming chun
 
 - Fan-out: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-option row counts 3× across row margins, once in the grand total).
 - Empty-mask `set_*`: the combination grouper buckets it under the empty key; the per-option grouper skips it. Neither increments `n_null`.
-- `GROUP_DATE` `day_of_week` buckets are Monday-first; a sort on a grouper key keeps its order. Only a free-text weekday column lex-sorts.
+- `GROUP_DATE` `day_of_week` buckets are Monday-first; a sort on a grouper key keeps its order. Only a free-text weekday field lex-sorts.
 
 ## See
 

@@ -15,7 +15,7 @@ covers: [GROUP, Crosstab, groups]
 
 `groups` entry: `{type, field, interval?, params?, include?}`. Output rows carry the bucket key as `<field>`.
 
-Pipeline: `features → filterers → attributes → groups → aggregations → windows → sort`; grouping runs AFTER attributes, so derived columns work as `field`.
+Pipeline: `features → filterers → attributes → groups → aggregations → windows → sort`; grouping runs AFTER attributes, so attribute labels work as `field`.
 
 ## Choosing a grouper
 
@@ -31,13 +31,13 @@ Read the intent first (`pulse_skills_get intents`): `compare_groups`, `compositi
 
 ## Composition (key product)
 
-With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the canonical cross-tab mechanism (`Request.Crosstab` only when margins or normalisation matter<!-- feature: capability:crosstab --> — `crosstab-guide`<!-- /feature -->). Empty `groups` = one bucket.
+With N ≥ 2 entries a row's key is the tuple `(g0, ..., gN-1)`; this is the canonical cross-tab mechanism<!-- feature: capability:crosstab --> (`Request.Crosstab` only when margins or normalisation matter — `crosstab-guide`)<!-- /feature -->. Empty `groups` = one bucket.
 
 - **Rows:** one per OBSERVED combination (never an empty one), in each grouper's native key order, outer → inner. Every row carries every grouper's key column.
 - **Null key** at any position drops the record from every row; each grouper still sees it once, so `n_null` matches its single-grouper run.
 - **Fan-out** groupers multiply: a record lands in each key-set product.
 - **Fit:** <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> fit once over the filtered set (`params.fit` `global`); `within` refits per bucket of the keys before it.
-- **Refused:** two entries on one key column (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> without exactly one date grouper (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
+- **Refused:** two entries on one field (`SERVICE_VALIDATION`); an extension key containing NUL (`PROCESSING_GROUP`); <!-- feature: OVERLAY_YOY -->`OVERLAY_YOY`<!-- /feature --> without exactly one date grouper (`PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`).
 - **`max_groups`:** predict reports the PRODUCT of per-grouper estimates, an upper bound; the run enforces it on observed ones.
 - **Downstream:** `sort`, `return`, windows, post-tests<!-- feature: capability:matrices --> and grouped matrices<!-- /feature --> follow the composite rows. Series overlays (YoY aside) run once per partition: the leading keys (`params.partition_by`; default all but the last, so put the date grouper last), never crossing a segment (`overlay-system`).
 
@@ -74,7 +74,7 @@ Never overrides an explicit `type`; predict reports filled slots at `data.defaul
 
 Other groupers refuse it on `groups` (`PROCESSING_CONFIG`); filter instead.
 
-**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component, each crosstab axis — any grouper). Empty keeps the native key order. Zero-record values drop.
+**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component<!-- feature: capability:crosstab -->, each crosstab axis<!-- /feature --> — any grouper). Empty keeps the native key order. Zero-record values drop.
 
 ## Fused crosstab eligibility
 
@@ -88,9 +88,9 @@ Mergeability is in the manifest: `mergeable` groupers fold across streaming chun
 
 ## Gotchas
 
-- Fan-out: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-option row counts 3× across row margins, once in the grand total).
+- Fan-out: `sum(buckets[].count) > total_n` is correct; <!-- feature: capability:crosstab -->on a crosstab axis its margins are non-additive<!-- /feature --> (a 3-option row counts 3× across row margins, once in the grand total).
 - Empty-mask `set_*`: the combination grouper buckets it under the empty key; the per-option grouper skips it. Neither increments `n_null`.
-- <!-- feature: GROUP_DATE -->`GROUP_DATE` `day_of_week` buckets are Monday-first; a sort on a grouper key keeps its order. Only a free-text weekday column lex-sorts.<!-- /feature -->
+- <!-- feature: GROUP_DATE -->`GROUP_DATE` `day_of_week` buckets are Monday-first; a sort on a grouper key keeps its order. Only a free-text weekday field lex-sorts.<!-- /feature -->
 
 ## See
 

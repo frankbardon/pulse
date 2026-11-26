@@ -23,8 +23,8 @@ Domain guidance for a less common operator, or session bootstrap. Knowing the ki
 
 - The skill pack is the authoritative reference for HOW to use operators (params, gotchas, recipes) — prefer it over external documentation, blog posts, or source-code inspection, which may be out of date for this Pulse deployment.
 - A deployment may add skills for its own operators (`op-*`) and its own guides (`ext-*`); they list, read and route exactly like the built-in ones.
-- Atomic skills (filename prefix `op-`, `type-`, `tool-`) are intentionally short (≤2000 chars body). Cross-link via the `## See` section to the topical design skill.
-- `applies_to` only carries valid CLI leaves (`process`<!-- feature: capability:process_chain -->, `process-chain`<!-- /feature -->, `compose`, `sample`, `facet`, `inspect`, `predict`, `manifest`, `mcp`). Invalid entries fail `TestSkillsManifestConsistent`.
+- Atomic skills (`op-`, `type-`, `tool-`) are short references; each one's `## See` routes to the design skill that explains how it composes.
+- `applies_to` names the surfaces a skill is for (CLI leaves such as `process` or `predict`, or `mcp` for a `tool-*` skill); `glossary` and `intents` carry none.
 
 ## See
 

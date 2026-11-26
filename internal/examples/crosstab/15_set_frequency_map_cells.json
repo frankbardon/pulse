@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "crosstab",
-    "description": "Map-valued crosstab cells: region (rows) × age-decile (columns) with AGG_SET_FREQUENCY as the cell aggregator. Each cell carries a {label: count} map of credit-card issuer occurrences within that region/age bucket. Exercises the MatrixCell.Value=any contract and the RichAggregator dispatch path — normalize must stay 'none' because per-bit maps cannot be normalized as scalars.",
+    "description": "Map-valued crosstab cells: region (rows) × 10-year age band (columns) with AGG_SET_FREQUENCY as the cell aggregator, so each cell carries a {label: count} map of the card issuers selected in that region and age band; margins are maps too. normalize must stay none: a map-valued cell under any other normalize is refused with PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
     "intents": [
       "composition"
     ],

@@ -1,6 +1,6 @@
 # Bayesian Sampling (`mcmc`)
 
-`github.com/frankbardon/pulse/mcmc` is Pulse's seeded Markov chain Monte Carlo core: a No-U-Turn sampler (NUTS), static Hamiltonian Monte Carlo (HMC), change-of-variables helpers and convergence diagnostics. It knows nothing about any particular statistical model. It imports only the standard library and Pulse's `linalg` and deterministic-math packages.
+`github.com/frankbardon/pulse/mcmc` is Pulse's seeded Markov chain Monte Carlo core: a No-U-Turn sampler (NUTS), static Hamiltonian Monte Carlo (HMC), change-of-variables helpers and convergence diagnostics. It knows nothing about any particular statistical model. It imports only the standard library, Pulse's `errors` and the deterministic-math package `linalg/detmath`.
 
 ```go
 import "github.com/frankbardon/pulse/mcmc"
@@ -41,7 +41,7 @@ res, err := mcmc.NUTS{}.Sample(ctx, model, 42, mcmc.Options{Chains: 4, Warmup: 5
 | `Options.Draws` | `DefaultDraws` (1000) |
 | `Options.Init` | each chain draws Uniform(−2, 2) per coordinate until the density and gradient are finite |
 
-`Result.Draws` is indexed `[chain][parameter][draw]`; `Result.Param(j)` returns parameter `j` as `[chain][draw]`. `Result.Diagnostics.Chains[c]` holds each chain's `StepSize`, adapted `Metric`, `MeanAcceptStat`, `Divergences`, `TreeDepthSaturated` and per-transition `TreeDepth` / `Divergent`. The realised `MeanAcceptStat` sits above `TargetAccept` (about 0.89 at 0.8) because the retained step size is the averaged iterate; Stan does the same. E-BFMI and per-draw energy are not recorded.
+`Result.Draws` is indexed `[chain][parameter][draw]`; `Result.Param(j)` returns parameter `j` as `[chain][draw]`. `Result.Diagnostics.Chains[c]` holds each chain's `StepSize`, adapted `Metric`, `MeanAcceptStat`, `Divergences`, `TreeDepthSaturated`, `GradientEvals` and per-transition `TreeDepth` / `Divergent`. The realised `MeanAcceptStat` sits above `TargetAccept` (about 0.89 at 0.8) because the retained step size is the averaged iterate; Stan does the same. E-BFMI and per-draw energy are not recorded.
 
 One deliberate departure from Stan's source: when warmup is under 150 iterations, Stan's short-warmup branch never re-initialises the slow adaptation window, so the metric never adapts. Pulse sets the window up as intended, so the metric adapts.
 

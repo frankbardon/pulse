@@ -15,19 +15,18 @@ As `op-mat-covariance`; always correlation.
 
 ## Params
 
-
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `factors` | any | `kaiser` | k ≤ p, or `"kaiser"` (eigenvalues > 1). |
-| `extraction` | `minres` \| `principal_axis` \| `ml` | `minres` | psych `fm` (`multivariate-outputs`). |
+| `extraction` | enum | `minres` | `minres`, `principal_axis` or `ml` (`multivariate-outputs`). |
 | `rotation` | enum | `none` | Orthogonal `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; oblique `promax`, `oblimin`, `geomin`. |
-| `kappa` | float | `4` | Promax power, > 1. |
-| `gamma` | float | `0` | Oblimin: 0 quartimin, 0.5 biquartimin, 1 covarimin. |
+| `kappa` | float | `4` | Promax only: power, > 1. |
+| `gamma` | float | `0` | Oblimin only: 0 quartimin, 0.5 biquartimin, 1 covarimin. |
 | `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
 | `conf_level` | float | `0.9` | `ml` only: RMSEA interval coverage. |
-| `repair` | `nearest` | — | Factor the nearest correlation matrix (`multivariate-design`). |
-| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `repair` | enum | — | `nearest`: factor the nearest correlation matrix (`multivariate-design`). |
+| `missing` | enum | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | float | — | 0–1: listwise drop-share warning. |
 | `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
 
 `weight`, `encoding`: as `op-mat-correlation`.

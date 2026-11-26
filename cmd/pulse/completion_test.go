@@ -7,7 +7,7 @@ package main
 // and reads the candidates from stdout. These tests drive that protocol
 // in-process through run(), the same entry point main uses.
 //
-// The tree walk (walkCompletionTree / completionTree) is shared with
+// The tree walk (pcli.WalkCommands over completionTree) is shared with
 // cliLeaves: TestCompletion_TreeCoverage visits every leaf and every
 // flag of it, and requires every value-taking flag to be classified in
 // internal/cli/completion_values.go (vocab, file, cohort, field, free).
@@ -34,37 +34,9 @@ import (
 const completionMarker = "--generate-shell-completion"
 
 // completionTree returns buildApp()'s root after urfave/cli has set it up
-// (one --help run), so the built-in `completion` command and its shell
+// (pcli.SetUpTree), so the built-in `completion` command and its shell
 // leaves are mounted exactly as the binary mounts them.
-func completionTree() *cli.Command {
-	app := buildApp()
-	app.Writer, app.ErrWriter = io.Discard, io.Discard
-	_ = app.Run(context.Background(), []string{"pulse", "--help"})
-	return app
-}
-
-// isHelpCommand reports whether c is urfave/cli's auto-added `help`
-// command (mounted under every command at setup). It is framework
-// furniture, not a Pulse leaf, so the walks skip it.
-func isHelpCommand(c *cli.Command) bool { return c.Name == "help" }
-
-// walkCompletionTree calls fn for every command under root (root
-// excluded), depth first, with its invocation path ("pulse" first) and
-// its parent. urfave's help commands are skipped.
-func walkCompletionTree(root *cli.Command, fn func(path []string, parent, c *cli.Command)) {
-	var walk func(path []string, parent *cli.Command)
-	walk = func(path []string, parent *cli.Command) {
-		for _, c := range parent.Commands {
-			if isHelpCommand(c) {
-				continue
-			}
-			p := append(slices.Clone(path), c.Name)
-			fn(p, parent, c)
-			walk(p, c)
-		}
-	}
-	walk([]string{root.Name}, root)
-}
+func completionTree() *cli.Command { return pcli.SetUpTree(buildApp()) }
 
 // completeWords runs one completion request for words (program name
 // first, the marker appended) and returns stdout, stderr and the exit
@@ -158,7 +130,7 @@ func TestCompletion_Scripts(t *testing.T) {
 	}
 	var shells []string
 	for _, c := range comp.Commands {
-		if !isHelpCommand(c) {
+		if !pcli.IsHelpCommand(c) {
 			shells = append(shells, c.Name)
 		}
 	}
@@ -264,7 +236,7 @@ func TestCompletion_TreeCoverage(t *testing.T) {
 	}
 
 	leaves, vocabFlags := 0, 0
-	walkCompletionTree(root, func(path []string, _, c *cli.Command) {
+	pcli.WalkCommands(root, func(path []string, _, c *cli.Command) {
 		if c.Hidden {
 			return
 		}

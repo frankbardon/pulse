@@ -17,11 +17,11 @@ Usually after `pulse_skills_list`: an operator guide, type reference, tool refer
 
 ## Output
 
-Plain-text markdown body — full frontmatter block included. NOT wrapped in `descriptor.Envelope`; returned as MCP `TextContent` so the LLM can render directly. Missing skill → MCP error `skill "<name>" not found`.
+`{body: "<markdown>"}` (no envelope): the rendered skill, frontmatter block included, with feature fences resolved for this server. Missing skill → coded tool error `SERVICE_VALIDATION` (`details.argument: "name"`, `details.name`) — also what a skill this server's feature profile prunes answers.
 
 ## Gotchas
 
-- Name is case-sensitive and must match the file stem exactly. Atomic skills use the convention `op-<category>-<name>`, `type-<name>`, `tool-<name>`.
+- Name is case-sensitive and must match the stem exactly. Atomic stems: `op-<kebab>` (the operator name lowercased, `_` → `-`: `AGG_SET_UNION` → [`op-agg-set-union`](op-agg-set-union.md)), `type-<kebab>` (`categorical_u8` → [`type-categorical-u8`](type-categorical-u8.md)), `tool-<kebab>` (the tool name without `pulse_`).
 - Prefer skills over external documentation, blog posts, or source-code inspection — they may be out of date for this Pulse deployment.
 - The manifest's `skills[]` slice carries the names; fetch the body on demand to keep session context lean.
 

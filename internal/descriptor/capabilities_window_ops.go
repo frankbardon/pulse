@@ -24,7 +24,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_LAG),
 			Category:    "window",
-			Description: "Return the value of Field from the row N positions before the current row in the ordered partition.",
+			Description: "Return the value of field from the row N positions before the current row in the ordered partition.",
 			Params: []descriptor.Param{
 				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 0; 0 reads the current row itself)."},
 				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookback row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."},
@@ -39,7 +39,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_LEAD),
 			Category:    "window",
-			Description: "Return the value of Field from the row N positions after the current row in the ordered partition.",
+			Description: "Return the value of field from the row N positions after the current row in the ordered partition.",
 			Params: []descriptor.Param{
 				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookahead offset (≥ 0; 0 reads the current row itself)."},
 				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookahead row does not exist; over a categorical field, a label of its dictionary (anything else is refused)."},
@@ -88,7 +88,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.WIN_RUNNING_SUM),
 			Category:      "window",
-			Description:   "Running total of Field over the configured Frame within the ordered partition.",
+			Description:   "Running total of field over the configured frame within the ordered partition.",
 			AcceptsTypes:  tableAcceptsTypes(types.WIN_RUNNING_SUM),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per row",
@@ -97,7 +97,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.WIN_RUNNING_AVG),
 			Category:      "window",
-			Description:   "Running average of Field over the configured Frame within the ordered partition.",
+			Description:   "Running average of field over the configured frame within the ordered partition.",
 			AcceptsTypes:  tableAcceptsTypes(types.WIN_RUNNING_AVG),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per row",
@@ -106,7 +106,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.WIN_MOVING_AVG),
 			Category:      "window",
-			Description:   "Moving average of Field over the configured Frame; Frame width must be bounded.",
+			Description:   "Moving average of field over the configured frame; the frame must be bounded on both ends.",
 			AcceptsTypes:  tableAcceptsTypes(types.WIN_MOVING_AVG),
 			EmitsType:     "f64",
 			EmitsTypeNote: "one float per row (null when every value in the frame is missing)",
@@ -149,7 +149,7 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_PCT_CHANGE),
 			Category:    "window",
-			Description: "Fractional change, (current − previous) / previous, against the row Periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
+			Description: "Fractional change, (current − previous) / previous, against the row periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
 			Params: []descriptor.Param{
 				{Name: "periods", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 1) for the comparison row."},
 			},
@@ -161,13 +161,13 @@ func windowCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.WIN_DELTA),
 			Category:    "window",
-			Description: "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
+			Description: "Point DIFFERENCE (current minus the row periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
 			Params: []descriptor.Param{
 				{Name: "periods", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 1) for the comparison row."},
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.WIN_DELTA),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
+			EmitsTypeNote: "one float per row; null (not NaN) when no comparison row exists — the first periods rows of each partition, or a missing value on either side",
 			Streamable:    false,
 		},
 		{

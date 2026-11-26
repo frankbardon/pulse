@@ -1,6 +1,6 @@
 ```yaml
 name: op-filter-include
-description: Keep records whose field value appears in the supplied Values list.
+description: Keep records whose field value appears in the supplied `values` list.
 kind: operator
 category: FILTER
 operator: FILTER_INCLUDE
@@ -27,15 +27,15 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[]string` | (required) | Allow-list. Categorical fields resolve labels through the dictionary; numeric fields parse each entry via `strconv.ParseFloat`. |
+| `values` | array | (required) | Allow-list of strings: labels on a categorical field, numbers otherwise. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Row-level predicate. Pass when `Field`'s value is in `Values`; drop otherwise. No emitted column.
+Row-level predicate. Pass when `field`'s value is in `values`; drop otherwise. No emitted column.
 
 ## Contract
 
@@ -47,7 +47,7 @@ Row-level predicate. Pass when `Field`'s value is in `Values`; drop otherwise. N
 ## Gotchas
 
 - Null rows fail the predicate (dropped).
-- Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
+- Unknown categorical label in `values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
 - Non-numeric values on a numeric field → `PROCESSING_CONFIG` (parse error), surfaced via predict.
 - Filters chain in declared order; this one sees only rows the previous kept.
 

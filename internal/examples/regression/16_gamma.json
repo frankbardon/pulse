@@ -11,7 +11,7 @@
     "operators": [
       "REG_GLM"
     ],
-    "description": "Gamma regression: REG_GLM with family=gamma + link=inverse models a strictly-positive continuous outcome whose conditional mean is a reciprocal-linear function of the predictors. Sibling family to Poisson (15_poisson.json) — Gamma fits continuous skewed positives (income, claim sizes, durations) where Poisson would over-restrict variance. The canonical Gamma link is inverse (the GLM theory's natural link); v1 reserves link=log as a future implementation. Uses customers.pulse income (a strictly-positive log-normally distributed outcome — the canonical Gamma fit target).",
+    "description": "Gamma regression: REG_GLM with family gamma for a strictly positive, right-skewed continuous outcome (income on customers.pulse) whose spread grows with its mean, where a Poisson (15_poisson.json) would pin the variance to the mean. Link log makes exp(coefficient) a multiplicative effect: each year of age multiplies expected income by about 0.998 (no effect here, p about 0.43). link inverse, the canonical gamma link, also fits.",
     "intents": [
       "drivers"
     ]
@@ -25,9 +25,11 @@
       "type": "REG_GLM",
       "name": "income_gamma",
       "target": "income",
-      "predictors": ["age"],
+      "predictors": [
+        "age"
+      ],
       "family": "gamma",
-      "link": "inverse"
+      "link": "log"
     }
   ]
 }

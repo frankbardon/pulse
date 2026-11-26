@@ -182,7 +182,7 @@ func TestExtensions_RegressionPValuesManifest(t *testing.T) {
 		if listed != declared {
 			t.Errorf("%s: multiplicity slot listed %v, want %v", row.Name, listed, declared)
 		}
-		if note := strings.Contains(row.EmitsTypeNote, "declares no PValues"); note == declared {
+		if note := strings.Contains(row.EmitsTypeNote, "declares no p-values"); note == declared {
 			t.Errorf("%s: emits note %q", row.Name, row.EmitsTypeNote)
 		}
 	}

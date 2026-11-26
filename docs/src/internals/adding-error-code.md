@@ -6,8 +6,8 @@ code, or renaming / removing one.
 
 The Pulse error system runs under six domains. Every code carries a
 typed `CodedError`, a human-readable `Message`, and at least one
-`Fixup` template explaining how to recover. The full taxonomy is in
-[The Update Demand](update-demand.md).
+`Fixup` template explaining how to recover. `pulse errors list` prints
+every registered code.
 
 ## 1. Declare the code constant
 
@@ -37,19 +37,33 @@ Every code MUST have either:
 `TestCodesHaveFixups` enforces that every code has either fixups or
 the explicit `FixupNotApplicable: true` flag. The fixup templates are
 surfaced to MCP clients via `pulse_errors_lookup` and to CLI users via
-`pulse errors lookup CODE` — no separate skill-file edit is required.
+`pulse errors lookup CODE`.
 
-## 3. Wire any test that emits the new code
+## 3. Name its owner and document it
+
+- Add an owner entry in `internal/descriptor/error_owners.go`: the
+  feature names that can raise it, or `shared`. A profile that hides
+  every owner hides the code, and the Message may name only owning
+  features (`TestErrorOwners_Complete`,
+  `TestErrorMessagesNameOnlyOwners`).
+- Mention the code verbatim on a book page or in the skill that
+  describes the failure (the skill renders into the guide):
+  `TestDocsCoverageNoGaps` requires an mdBook mention for every code.
+- Regenerate the manifest golden (`go test -count=1 ./descriptor/
+  -update`, then rerun without `-update`) and run `make docs`.
+
+## 4. Wire any test that emits the new code
 
 If your change introduces the code as part of a new failure mode,
 make sure the test that exercises that mode asserts on the code
 constant rather than the error message.
 
-## 4. Run the gates
+## 5. Run the gates
 
 ```bash
-go test ./errors/ -run 'TestCodesHaveFixups|TestErrorsLookup'
-go test ./internal/descriptor/ -run 'TestManifestErrorCodesComplete|TestManifest_ErrorCodesSlim'
+go test -count=1 ./errors/ -run 'TestCodesHaveFixups|TestErrorsLookup'
+go test -count=1 ./internal/descriptor/ -run 'TestManifestErrorCodesComplete|TestManifest_ErrorCodesSlim|TestErrorOwners_Complete|TestErrorMessagesNameOnlyOwners'
+make doc-checks
 ```
 
 The Update Demand row for error codes covers all of these in one PR;

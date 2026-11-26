@@ -8,9 +8,10 @@
 operator — a bucketing function that maps each record to a group key
 the orchestrator uses to partition the aggregation.
 
-The recipe mirrors the aggregator recipe; the grouper-specific moving
-parts are the per-bucket key contract, the grouper registry, and the
-v0.20.0 `ComponentSchema` / `MetaGrouper` emission path.
+The recipe mirrors the [aggregator recipe](adding-aggregator.md); the
+grouper-specific moving parts are the per-bucket key contract, the
+grouper registry, and the `ComponentSchema` / `MetaGrouper` emission
+path.
 
 ## 1. Declare the type constant
 
@@ -23,13 +24,11 @@ const (
     GROUP_DECILE GroupType = "GROUP_DECILE"
 )
 
-func AllGroupTypes() []GroupType {
-    return []GroupType{
-        // ... existing entries, alphabetised ...
-        GROUP_DECILE,
-    }
-}
 ```
+
+Append it to `types.AllGroupTypes()` and classify it in
+`GroupType.Streamable()` / `Mergeable()` (`types/streamability.go`, plus
+the `types/streamability_test.go` row).
 
 ## 2. Implement and register
 
@@ -37,13 +36,13 @@ Implement the grouper in `internal/processing/`. Register the factory in
 `grouperRegistry` (`internal/processing/registry.go`). The interface choice
 depends on whether the grouper can run in the streaming path:
 
-- **`Grouper`** — buffered-only. `Group(rows)` returns a slice of
-  bucket assignments. Used by quantile-class groupers that need the
-  full sorted view.
-- **`StreamingGrouper` / `StreamableGrouper`** — streaming. The
-  per-record `KeyFor(record)` / `KeyForRow(record)` returns a bucket
-  key as the iterator walks rows; the orchestrator accumulates per
-  key.
+- **`Grouper`** — every grouper. `Group(records, field)` returns the
+  records partitioned by bucket key (`map[string][]*Record`). A grouper
+  that implements only this (quantile-class groupers, which need the
+  full sorted view) runs buffered.
+- **`StreamableGrouper` / `StreamingGrouper`** — streaming.
+  `KeyFor(record)` / `KeyForRow(record, field)` returns a bucket key as
+  the iterator walks rows; the orchestrator accumulates per key.
 - **`MultiKeyStreamingGrouper`** — multi-emit streaming. `KeysForRow`
   returns N keys per row; used by set-typed groupers
   (`GROUP_SET_PER_ELEMENT`).
@@ -85,10 +84,10 @@ those keys in your `extra` slice:
     Name:        string(types.GROUP_DECILE),
     Category:    "grouper",
     Description: "Partition the numeric field into ten equally-sized quantile buckets.",
-    AcceptsTypes: numericFieldTypesAnalyticsNoDecimal,
-    ComponentSchema: groupSchema(None,
-        ComponentKey{Name: "edges", Type: "[]float64", Description: "Decile boundary values (length 9)."},
-        ComponentKey{Name: "buckets", Type: "map[string]int", Description: "Per-decile record counts keyed by label."},
+    AcceptsTypes: tableAcceptsTypes(types.GROUP_DECILE),
+    ComponentSchema: groupSchema(descriptor.None,
+        descriptor.ComponentKey{Name: "edges", Type: "[]float64", Description: "Decile boundary values (length 9)."},
+        descriptor.ComponentKey{Name: "buckets", Type: "map[string]int", Description: "Per-decile record counts keyed by label."},
     ),
 },
 ```
@@ -165,8 +164,8 @@ The full Response.Components contract for groupers — streaming
 behaviour by mergeability class, the orchestrator-owned floor, the
 extension-side parity contract — lives in the [response-components
 skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-components.md).
-Embedder extensions implement the same `MetaGrouper` interface via
-`ComponentsFunc` or directly; see
+Embedder extensions emit components through the public `extend`
+contract (a `ComponentsFunc` or a `Components()` method); see
 [Extension Points](extension-points.md).
 
 ## 7. The `Include` inclusion-list slot
@@ -175,7 +174,8 @@ If your grouper honours an `Include` whitelist of allowed bucket
 labels, update `internal/processing/grouper.go` + `internal/processing/grouper_set.go`
 so the include filter is applied at key-emission time, not on the
 output table after the fact. The contract is enforced by the
-following gates:
+following gates (and `TestIncludeGroupers_MatchRuntime`, which pins
+predict's list of include-honouring groupers to the runtime):
 
 - `TestGroupCategory_IncludeFiltersLabels`
 - `TestGroupSetValue_IncludeFiltersCompositeKey`
@@ -195,30 +195,39 @@ explicit `Include` and `Request.Sort` still win. Pin it with a shuffled
 `orderKeysByInclude(includeFilterOf(g), keys)` case and a fused-vs-
 buffered crosstab case (`grouper_bucket_order_test.go`).
 
-## 8. Update the grouper-design skill
+## 8. The other per-operator tables
 
-Add a section in `skills/grouper-design.md` covering the new
-grouper's bucket-naming convention, the params it accepts, the
-streamability classification, and any cardinality bound.
+Every grouper also has an entry in `builtinFeatures`
+(`internal/descriptor/features.go`), `internal/descriptor/purposes_groupers.go`,
+`internal/descriptor/interpretation_reading.go`, the chain allowlist in
+`processChainCapability` (`internal/descriptor/capabilities_chain.go`),
+the crosstab fuse gate (`internal/crosstabfuse/gate.go`), the group-count
+limit table (`internal/descriptor/limits.go`) and the accepted-types table
+(`internal/fieldaccept/fieldaccept.go`); most also appear in the MCP
+binding (`internal/mcp/bind.go`, `internal/mcp/toolmeta/meta.go`).
+`make sites ARGS="new-op grouper"` names each with an exemplar line.
 
-## 9. Update CLAUDE.md
+## 9. Skill and example
 
-There is **no registered-grouper count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-group-<kebab>.md`, the capability declaration in
-`internal/descriptor/capabilities_groupers.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
-names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+Write the atomic skill `skills/op-group-decile.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
+(`.claude/reference/skill-pack.md`; copy `skills/op-group-category.md`),
+add the grouper to the topical `skills/grouper-design.md` (bucket
+naming, streamability, cardinality bound), and add an
+`internal/examples/groupers/NN_<name>.json` example whose
+`_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`).
+CLAUDE.md is not a companion.
 
 ## 10. Run the gates
 
+`make sites ARGS="op GROUP_DECILE"` prints the full gate set. At minimum:
+
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllComponents
-go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./internal/processing/ -run TestGroup
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestSkillsCoverAllComponents'
+go test -count=1 ./internal/descriptor/ -run TestManifestOperatorsComplete
+go test -count=1 ./internal/processing/ -run 'TestGroup|TestIncludeGroupers_MatchRuntime'
+go test -count=1 ./types/ ./internal/crosstabfuse/ ./internal/fieldaccept/ ./internal/mcp/
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
-The Update Demand row for groupers (and the `Group.Include` slot) covers
-all of these in one PR; see [The Update Demand](update-demand.md).
+See [The Update Demand](update-demand.md).

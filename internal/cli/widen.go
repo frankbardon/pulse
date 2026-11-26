@@ -33,7 +33,7 @@ func WidenCommand() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path (or pass as the positional argument)"},
 			&cli.StringFlag{Name: "field", Aliases: []string{"f"}, Usage: "Name of the set column to widen", Required: true},
 			&cli.StringFlag{Name: "to", Usage: "Target set type: " + orList(pulse.WidenSetFieldTargets()) + ". Must be WIDER than the column's current rung", Required: true},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -66,10 +66,10 @@ func WidenCommand() *cli.Command {
 			if err != nil {
 				// The refusals a user actually hits here — a narrower
 				// target, a non-set column, a shard archive, a missing
-				// field — all carry their own code. WIDEN_ERROR is only
-				// ever reached by an UNCODED failure, so `pulse errors
-				// lookup` works on everything this leaf can print.
-				return cliCodedError(cmd, jsonOut, "WIDEN_ERROR", err)
+				// field — all carry their own code; CLI_ERROR is only
+				// reached by an uncoded failure, so `pulse errors lookup`
+				// works on everything this leaf can print.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			out := widenOutput{
@@ -155,7 +155,7 @@ type widenOutput struct {
 // envelope's warnings array, preserving the coded error's own code when
 // it carries one so `pulse errors lookup` still works on it.
 func addSidecarScanWarning(env *descriptor.Envelope, cohort string, err error) {
-	code := "WIDEN_SIDECAR_SCAN"
+	code := "CLI_ERROR"
 	var coded *errors.CodedError
 	if stderrors.As(err, &coded) {
 		code = string(coded.Code)

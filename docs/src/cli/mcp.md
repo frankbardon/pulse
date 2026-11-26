@@ -25,19 +25,15 @@ to stdout.
 
 ## Flags
 
-| Flag | Type | Default | Purpose |
-|---|---|---|---|
-| `--data-dir`     | string | from `PULSE_DATA_DIR` env var | Cohort base directory |
-| `--bind-on-open` | bool   | true | Register session-scoped JSON-schema-bound tool variants on successful `pulse_inspect` |
-| `--no-cohort-scan` | bool | false | Skip the startup walk that enumerates `.pulse` files as `pulse://` resources (env: `PULSE_MCP_NO_COHORT_SCAN`) |
-| `--feature-profile` | string | from `PULSE_FEATURE_PROFILE` env var | Feature profile JSON file — an OS path, not resolved under the data dir. An invalid profile fails startup |
-| `--return` | string | unset (instance / profile default, else `standard`) | `return` preset (`full`, `standard`, `minimal`) for a tool request without its own `return` block. An unknown preset fails startup (`PULSE_RETURN_INVALID`) |
-| `--limit` | string, repeatable | unset (profile `limits`, else the built-in defaults) | Instance resource limit as `name=value` (e.g. `max_groups=1000000`, `request_timeout=30s`). An unknown name or bad value fails startup (`CLI_INPUT`) |
-| `--metrics-addr` | string | unset (no port opened) | Serve Prometheus text-format metrics on `GET /metrics` at `host:port` (`:0` picks a free port). A bad or busy address fails startup (`CLI_INPUT`) |
-| `--log-level` / `--log-format` | string | `off` / `text` | Root persistent flags ([Global flags](flags.md#global-flags)): structured logs on stderr |
+Each flag's type and default is in the
+[Command & flag reference](reference.md#pulse-mcp); the sections below
+explain the ones that need more than a line. `--data-dir` falls back to
+`PULSE_DATA_DIR`, `--feature-profile` to `PULSE_FEATURE_PROFILE` and
+`--no-cohort-scan` to `PULSE_MCP_NO_COHORT_SCAN`; `--log-level` /
+`--log-format` are [global flags](flags.md#global-flags).
 
-`--data-dir` is **required** in one of its two forms (env var or
-flag). The MCP server fails to start otherwise:
+A data directory is **required** in one of its two forms (env var or
+flag). The MCP server fails to start (exit 1) otherwise:
 
 ```
 data directory required: set PULSE_DATA_DIR or pass --data-dir
@@ -79,7 +75,8 @@ MCP agents pay tokens for every key they receive, so the request-carrying
 tools (`pulse_process`, `pulse_predict`, every `pulse_compose` slot, every
 `pulse_process_chain` stage) shape a request WITHOUT its own `return` block
 by the `standard` preset: the primary result plus metadata, tests, crosstab
-and overlays, never `components`. The library default stays `full`.
+and overlays, never `components`. The library default is `full`. An
+unknown preset fails startup (`PULSE_RETURN_INVALID`, exit 1).
 Precedence, highest first:
 
 1. the request's own `return` block (a slot's, a stage's);
@@ -88,7 +85,8 @@ Precedence, highest first:
    profile's `return`;
 4. the built-in `standard`.
 
-`--return full` restores the unshaped (pre-default) output byte for byte.
+`--return full` returns the unshaped output, byte for byte what the
+library returns.
 The startup notice always names the effective preset (`return: standard`;
 `(custom)` when the instance default is a preset-less include/exclude
 selection), and `ServeInfo.DefaultReturn` carries the same value.
@@ -194,7 +192,7 @@ Embedders running `mcpserve` wire OpenTelemetry themselves through
 
 ## --bind-on-open
 
-When a session calls `pulse_inspect` successfully, the server can
+When a session calls `pulse_inspect` or `pulse_import` successfully, the server can
 register session-scoped tool variants whose JSON Schemas constrain
 field-name parameters to the cohort's actual fields. This narrows
 the LLM's choices and prevents typos at parameter-binding time.
@@ -252,14 +250,11 @@ or `mcpserve.Options{DisableCohortScan: true}`; both default to scanning.
 }
 ```
 
-Restart the client. The Pulse tools (`pulse_manifest`, `pulse_inspect`,
-`pulse_predict`, `pulse_process`, `pulse_compose`, `pulse_sample`,
-`pulse_facet`, `pulse_import`, `pulse_dedup`, `pulse_materialize`, `pulse_rake`, `pulse_recommend`, `pulse_explain`, `pulse_drop`, `pulse_imports_list`,
-`pulse_examples_search`, `pulse_examples_get`, `pulse_errors_lookup`,
-`pulse_skills_list`, `pulse_skills_get`) and resources
-(`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource
-list. The per-cohort `pulse://*.pulse` entries come from the startup
-scan — see [`--no-cohort-scan`](#--no-cohort-scan).
+Restart the client. The Pulse tools (`pulse --json | jq -r
+'.data.mcp_tools[].name'` lists them) and resources (`pulse://schema`,
+`pulse://*.pulse`, `pulse-skill://*`) appear in the tool/resource list.
+The per-cohort `pulse://*.pulse` entries come from the startup scan —
+see [`--no-cohort-scan`](#no-cohort-scan).
 
 ## Wiring it into Claude Code
 
@@ -284,7 +279,9 @@ and [Wiring an MCP client](../internals/wiring-mcp-client.md).
 ## Exit codes
 
 `pulse mcp` is a long-running process. It exits non-zero only on
-fatal startup failure (missing data dir, transport error). Once
+fatal startup failure: 2 for a usage error (a bad `--limit`, an unknown
+flag), 1 for any other (no data directory, an invalid feature profile or
+`--return`, a busy `--metrics-addr`, a transport error). Once
 serving, an MCP client controls the lifecycle. It is the one command
 outside the CLI's [exit-status rule](flags.md#exit-status).
 

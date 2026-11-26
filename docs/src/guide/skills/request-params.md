@@ -12,10 +12,11 @@ requires: [capability:params]
 
 `"params": {...}` on a request declares constants; an expression reads one as `params.name` (or `params["name"]`). Change the value, never the expression text: no string splicing, no quoting bugs, one expression shape per question.
 
-```json
+```json cohort=customers
 {
-  "params": {"from_wave": "a", "min_age": 30},
-  "filterers": [{"type": "FILTER_EXPRESSION", "expression": "panel == params.from_wave && age >= params.min_age"}]
+  "cohort": {"filename": "customers.pulse"},
+  "params": {"region": "north", "min_age": 30},
+  "filterers": [{"type": "FILTER_EXPRESSION", "expression": "region == params.region && age >= params.min_age"}]
 }
 ```
 
@@ -36,18 +37,18 @@ requires: [capability:params]
 ## Refusals (predict raises the same)
 
 - `params.x` where `x` is not declared → `PULSE_PARAMS_UNDECLARED`.
-- A cohort field, derived column or vector NAMED `params`, while the request reads `params.` → `PULSE_PARAMS_FIELD_COLLISION`. That column stays readable as bare `params` or `$env["params"]`.
+- A cohort field, derived label or vector NAMED `params`, while the request reads `params.` → `PULSE_PARAMS_FIELD_COLLISION`. That name stays readable as bare `params` or `$env["params"]`.
 - A bare `params` is never a parameter read.
 
-## Compose and chains
+## Batch roots
 
-A top-level `params` on a Compose batch or a process chain merges into EVERY sub-request (slots, fits, chain stages); a sub-request's own key wins. A Compose-level formula overlay reads the top-level params. `--echo-request` shows the merged view. Same on the CLI `api` leaves and the MCP tools.
+A top-level `params` on a batch root (Compose) (process chain) merges into EVERY sub-request (slots, fits, stages); a sub-request's own key wins. A Compose-level formula overlay reads the top-level params. `--echo-request` shows the merged view. Same on the CLI `api` leaves and the MCP tools.
 A sweep axis `"target": "params.x"` writes each slot's axis value into its `params.x` (declared, or overriding the body's and the batch's) — no placeholder needed. A `{"$var"}` marker naming a targeted axis, or standing at `params.x`, is refused `axis_target_conflict`; the `"params": {"x": {"$var": "x"}}` route still works. An item `for_each` cannot target params (`target_unsupported`).
 
 ## Gotchas
 
 - `u64` fields compare exactly against params, literals and each other (`==`, `<`, `in`); arithmetic still goes through float64.
-- A profile hiding `capability:params` makes the slot unknown (`PULSE_REQUEST_UNKNOWN_FIELD`).
+- A feature profile hiding `capability:params` makes the slot unknown (`PULSE_REQUEST_UNKNOWN_FIELD`).
 - Not request templating: templates fill a request BEFORE it is validated; params are the request's own constants, read at compile time.
 - A template fills params with a marker, `"params":{"w":{"$var":"w"}}` (the number stays a number); `{{w}}` inside an expression is refused `PULSE_TEMPLATE_EXPR_SPLICE` ([`request-templating`](request-templating.md)).
 

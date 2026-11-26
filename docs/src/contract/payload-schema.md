@@ -19,6 +19,8 @@ The schema is reachable three ways, all backed by the same generator
 
 The CLI and MCP surfaces emit byte-identical output to the published file.
 
+On this page, "byte-identical" beside an additive key means identical to the output of the same request before the key existed: a request that omits the key neither gains a field nor changes its hash.
+
 ## Per-instance schema
 
 The root `$comment` carries the describing instance's feature-set digest,
@@ -31,16 +33,19 @@ feature profile or extensions it is the published file byte for byte.
 Every extension operator the instance registers (and its profile keeps)
 joins its category's operator-type enum beside the built-ins —
 `AggregationType`, `AttributeType`, `FiltererType`, `GroupType`,
-`WindowType`, `FeatureType`, `TestType`, `MatrixType` and
-`RegressionType` — so a request
+`WindowType`, `FeatureType`, `TestType`, `MatrixType`,
+`RegressionType`, `OverlayKind` and `PostFitType` (extension-only, so
+empty without a registration) — so a request
 naming one validates against the instance's own schema. An instance
 built with a feature profile gets a narrower document:
 
 - the operator, overlay-kind and regression enums list only the enabled
   names;
-- a request slot the instance does not offer (`crosstab`, `joins`,
-  `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
-  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce`,
+- a capability-gated slot the instance hides (the `gatedSlots` table
+  in `internal/descriptor/request_slots.go`: `crosstab`, `joins`,
+  `overlays`, `vectors`, `matrices`, `weight`, `models`, `params`,
+  `union`, `output`, a Compose root's `sweep` / `fits` / `optimize` / …)
+  is not a property of its root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce`,
   `VectorKind` and `VectorStandardize` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
   `MatrixComponents` with it — `MatrixValues` stays, shared with the
@@ -82,7 +87,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   its request companion, or an `operator` name alone, plus `detail`).
 - **Results** — `#/$defs/Response`, `ComposedResponse`, `ChainResponse`,
   `FacetResult` (its `warnings` are coded `{code, message, details}`
-  entries, the `Response.warnings` shape — `[]string` before U44),
+  entries, the `Response.warnings` shape),
   `LookupResult`, `RecommendResult` (its draft `request`
   is an open object: a `"<placeholder>"` may sit where `Request` takes a
   number; `steps` — the `RecommendStep` plan `{tool, request,
@@ -103,7 +108,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   additive `omitempty`) echoes its replicate count as
   `jackknife_groups`, absent on leave-one-out. A `RegressionResult`
   carries the fit's own coded diagnostics in `warnings` (additive
-  `omitempty`, `#/$defs/ResponseWarning` entries — today an extension
+  `omitempty`, `#/$defs/ResponseWarning` entries — an extension
   regression's, e.g. `PROCESSING_REGRESSION_DIAGNOSTIC`), each also
   lifted onto the response's `warnings`. Each
   `ComposedResponse.responses[i]` echoes its slot's final `label`
@@ -164,15 +169,18 @@ drift from the engine:
 
 1. **Reflection** over the Go payload structs — a new or renamed field
    changes the output.
-2. **Registry-injected enums** — the operator, overlay-kind, and
-   regression discriminants draw their value lists from the same
+2. **Registry-injected enums** — the operator, matrix, overlay-kind
+   and regression discriminants draw their value lists from the same
    `types.All*Types()` / `AllOverlayKinds()` / `AllRegressionTypes()`
-   registries the engine executes against, so registering a new operator
-   changes the schema.
+   registries the engine executes against (an instance adds its
+   extensions; `PostFitType` has no built-in value), so registering a new
+   operator changes the schema. Other closed vocabularies with a
+   registry list (`MultiplicityMethod`, `ReturnPreset`, `SweepMode`,
+   `CovarianceType`, …) are enums too.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
-   express: `OverlayRef` (at most one arm populated — ten arms, the
-   newest `matrix {name}` naming a `Request.Matrices` spec for the
-   matrix-result overlay host) and `OverlayPayload`
+   express: `OverlayRef` (at most one arm populated; the `matrix {name}`
+   arm names a `Request.Matrices` spec for the matrix-result overlay
+   host) and `OverlayPayload`
    (shape-discriminated `scalar` / `series` / `matrix`, plus named
    `parts` that never nest).
 
@@ -191,11 +199,11 @@ go test ./descriptor/ -run TestPayloadSchemaGolden -update
 The schema is faithful but not maximally strict in two places, by design:
 
 - **Operator `params`** (the `json.RawMessage` slot on aggregations,
-  groupers, overlays, etc.) is an open object. There is no central
-  declarative source for per-operator input parameters — each operator's
-  param schema lives alongside its processor — so encoding it here would
-  duplicate that surface and rot. Consult the operator's skill / manifest
-  entry for its accepted params.
+  groupers, overlays, etc.) is an open object here. The per-operator
+  allowlist is the manifest's param list for the operator: predict and
+  every runtime arm refuse an undeclared key
+  (`PULSE_REQUEST_UNKNOWN_FIELD`), and the operator's skill documents
+  each param.
 - **Small closed mode enums** (`OverlayScope`, `OverlayShape`,
   `CrosstabNormalize`, `CrosstabShape`, `LabelMode`, `MarginAxis`) are
   typed as plain strings rather than `enum`s — they have no registry
@@ -216,14 +224,14 @@ Cross-slot validation rules that depend on more than one field (e.g. a
 crosstab requires at least one row grouper, mutually exclusive with
 top-level `groups`; every `crosstab.margin_aggregations` entry needs
 a type and a label distinct from every other entry's and from the cell's)
-are enforced by `pulse predict` at request time, not by the schema.
+are enforced by predict (`pulse api predict`) at request time, not by
+the schema.
 
 `crosstab.columns` is optional (not in the schema's `required` list):
 absent, `null` or `[]` runs the crosstab with ONE implicit column, key
 `["Total"]`, `column_header` `{fields: ["_total"], types: ["TOTAL"]}`,
 holding every record whose row key resolved — a Total column with no
-constant field behind it. Additive: a request that declares columns
-marshals and runs byte-identically.
+constant field behind it.
 
 `crosstab.cell` is optional too: a crosstab names its cell aggregation
 either as `cell` or as several measures in `cells` (an array of
@@ -234,13 +242,11 @@ becomes a stub row under every row key: `row_header` gains the
 measure, and the per-measure column margins and grand total move to
 `matrix.measures[]` (`CrosstabMeasureMargins`) and
 `components.crosstab.measures[]` (`CrosstabMeasureComponents`). All three
-result slots are optional and absent on a single-`cell` crosstab, so a
-`cell` request is byte-identical; `format_version` stays `"1.1"`.
+result slots are optional and absent on a single-`cell` crosstab.
 
 ## Time-zone slots
 
-Four additive, optional string slots name a time zone (`format_version`
-stays `"1.1"`; omitting them is byte-identical to the earlier wire form):
+Four optional string slots name a time zone:
 
 - **`time_zone`** on `Request` and `FacetRequest` — the request-level
   zone. `ComposedRequest` and `ChainRequest` carry none of their own
@@ -255,7 +261,7 @@ stays `"1.1"`; omitting them is byte-identical to the earlier wire form):
 
 All are typed as plain strings. The schema does not encode the zone
 name set or which operators accept `tz`; these rules are enforced by
-`pulse predict` and at run time instead:
+predict and at run time instead:
 
 - a name must be exactly `UTC` or an IANA `Area/Location` zone
   (`Europe/Berlin`, `Etc/GMT-5`) — anything else is
@@ -268,14 +274,16 @@ name set or which operators accept `tz`; these rules are enforced by
   dictionary entry is a valid zone name (else `PULSE_TIMEZONE_UNKNOWN`
   with `details.dictionary_index`);
 - precedence is slot `tz` → slot `tz_field` → `time_zone_field` →
-  `time_zone` → the engine's `DefaultTimeZone` → `UTC`; a resolved zone
+  `time_zone` → the cohort's default zone field (echoed `source:
+  "cohort"`) → the engine's `DefaultTimeZone` → `UTC`; a resolved zone
   on a `datetime` field reads each instant on its local calendar day,
   and a non-UTC zone (or any zone field) reaching a derived field
   (absent from the schema) is refused with `PROCESSING_CONFIG`.
 
 The resolved zone per slot is echoed by predict as
 `data.time_zones[]` — `{slot, operator, field_type, tz, tz_field,
-source}` (`source: "field"` with `tz: null` for a per-row zone) —
+source}` (`source: "field"` or `"cohort"` with `tz: null` for a per-row
+zone) —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 
@@ -284,16 +292,17 @@ which is a predict result field, not part of this schema. See
 `params` on `Request` is an additive, optional object of named
 constants every expression of that request reads, read-only, as
 `params.<name>` (or `params["<name>"]`): `ATTR_FORMULA`,
-`FILTER_EXPRESSION`, a `total()` argument, a regression `holdout` and
-`OVERLAY_FORMULA`. `format_version` stays `"1.1"`; omitting it is
-byte-identical to the earlier wire form. Gated by `capability:params`:
+`FILTER_EXPRESSION`, a `total()` argument, a regression `holdout`,
+`OVERLAY_FORMULA` and every scalar-expression param (an expression-valued
+window param, `AGG_CONSTANT` `expr`, an extension's expression-capable
+param). Gated by `capability:params`:
 an instance whose feature profile omits it has no `params` property and
 refuses the key as an unknown field.
 
 The schema types it as an object whose property names match
 `^[A-Za-z_][A-Za-z0-9_]*$` and whose values are a number, a string, a
 boolean, or an array of numbers, of strings or of booleans. Rules the
-schema cannot say, enforced by `pulse predict` and at run time alike,
+schema cannot say, enforced by predict and at run time alike,
 before any record is read:
 
 - a value is never `null`, and a list holds ONE kind — otherwise
@@ -305,9 +314,9 @@ before any record is read:
   integer or float array type every element fits;
 - reading a name the object does not declare is
   `PULSE_PARAMS_UNDECLARED`; reading `params.<name>` where `params` is
-  also a column (a schema field, feature output, attribute label or
-  vector called `params`) is `PULSE_PARAMS_FIELD_COLLISION`. A bare
-  `params` always reads that column.
+  also a name the request reads (a schema field, feature output,
+  attribute label or vector called `params`) is
+  `PULSE_PARAMS_FIELD_COLLISION`. A bare `params` always reads that name.
 
 `ComposedRequest` and `ChainRequest` carry a `params` of their own,
 same schema and gate: every sub-request inherits it — each Compose
@@ -327,8 +336,7 @@ alike) read it as a `Request`'s filterers read theirs, so a facet over
 the filter an analysis applies (`wave == params.wave`) takes the same
 block. `pulse api facet`, `pulse api predict-facet` and the
 `pulse_facet_schema` tool accept it; a facet template can pass a
-variable as `"params": {"wave": {"$var": "wave"}}`. Omitting it is
-byte-identical to the earlier wire form.
+variable as `"params": {"wave": {"$var": "wave"}}`.
 
 A Compose sweep axis may carry `target: "params.<name>"` (`SweepAxis`,
 same gate): each sweep slot's request then takes the axis value as
@@ -449,11 +457,11 @@ a `PULSE_MATERIALIZE_CAST_NULLED` warning). See
 
 Multiple-comparison correction adds one additive block shape,
 `#/$defs/Multiplicity` `{method, family, alpha}` (every key optional;
-`format_version` stays `"1.1"`; a request that names no block is
-byte-identical to the earlier wire form and hashes identically). It rides
+a request that names no block hashes identically). It rides
 as `multiplicity` on `Request`, `Test` (`tests[]` and `post_tests[]`),
 `OverlaySpec` (request and facet overlays), `MatrixSpec` (`matrices[]`),
-`ComposeOverlaySpec` and `ComposedRequest`; a `RegressionSpec`
+`ComposeOverlaySpec`, `FitComparisonSpec` (`compare[]`) and
+`ComposedRequest`; a `RegressionSpec`
 (`regressions[]`) carries `#/$defs/RegressionMultiplicity`, the same
 three keys plus `coefficients` (an array of coefficient names). A
 member regression's `RegressionResult` gains the additive `p_adjusted`
@@ -473,7 +481,7 @@ omitted family takes the surface default (`request` for tests and
 regressions, `layer` for overlays, `matrix` for a matrix spec). A
 regression joins only through its own block — an inherited one never
 reaches it — and `REG_BAYES_LINEAR` refuses any method but `none`. `{"method": "none"}` is the explicit opt-out. What the
-schema cannot say is enforced identically by `pulse predict` and the
+schema cannot say is enforced identically by predict and the
 runtime (`PULSE_MULTIPLICITY_INVALID`): the families each surface offers
 (`row` / `column` only on a MATRIX-payload overlay kind, `compose` only
 inside Compose, never `request` on a Compose overlay or anything but
@@ -481,8 +489,9 @@ inside Compose, never `request` on a Compose overlay or anything but
 `request` — on a matrix spec), no `alpha` on a test's own block, no
 explicit correction on the Tukey HSD post-test, and no block on a matrix
 operator without p-values (only `MAT_CORRELATION` /
-`MAT_PARTIAL_CORRELATION` take one; it implies `params.inference`, and an
-explicit `params.inference: false` beside it is refused). Members
+`MAT_PARTIAL_CORRELATION`, `MAT_SEM` and an extension operator declaring
+`PValues` take one; on the first two it implies `params.inference`, and
+an explicit `params.inference: false` beside it is refused). Members
 of one `request` or `compose` family that resolve to different methods
 are refused `PULSE_MULTIPLICITY_CONFLICT`.
 
@@ -574,7 +583,9 @@ null `p_adjusted`), and the `MatrixResult` gains a `multiplicity` echo
 (the default) is one family per result — per spec and per group
 bucket; `request` pools every bucket of the spec with the request's
 other `request`-family members. An inherited block reaches only a spec
-already under `params.inference`. The echo key rides
+already under `params.inference` or an extension operator declaring
+`PValues`; `MAT_SEM` joins through its own block only, one hypothesis
+per estimate row with a defined `p_value`. The echo key rides
 `capability:multiplicity`.
 
 ## Overlay payload parts
@@ -618,9 +629,8 @@ every renderer already reads it.
 
 ## Weight slots
 
-Row weighting adds two additive slot shapes (`format_version` stays
-`"1.1"`; a request that names no weight is byte-identical to the earlier
-wire form and hashes identically):
+Row weighting adds two optional slot shapes (a request that names no
+weight hashes identically):
 
 - **`weight`** on `Request` — a `WeightSpec` object `{field, kind}`,
   `kind` ∈ `probability` (default when omitted) | `frequency`.
@@ -628,8 +638,8 @@ wire form and hashes identically):
   inner `Request` does); `FacetRequest` and `SampleRequest` have none.
 - **`weight`** on every `Aggregation` (so also `crosstab.cell` and each
   `crosstab.margin_aggregations[]` entry), `Test` (`tests[]` and
-  `post_tests[]`), `RegressionSpec`, `Attribute`, `OverlaySpec` and
-  `Group` (`groups[]` and both crosstab axes) — the per-slot
+  `post_tests[]`), `RegressionSpec`, `MatrixSpec`, `Attribute`,
+  `OverlaySpec` and `Group` (`groups[]` and both crosstab axes) — the per-slot
   `SlotWeight` union: a field-name string, a `WeightSpec` object, or
   `null`. Inferential slots (tests, regressions, reference-distribution
   attributes, the quantile grouper, inferential overlays) are refused
@@ -642,7 +652,7 @@ request's `weight`, then the engine's `DefaultWeight`; an explicit
 the request stays weighted. The schema says so with
 `oneOf [string, WeightSpec, null]` on `#/$defs/SlotWeight`.
 
-The field set a weight may name is not in the schema; `pulse predict`
+The field set a weight may name is not in the schema; predict
 and the runtime enforce it identically: the field must be a cohort
 column (a joined, prefixed name included — never a derived column) of
 an unsigned-integer or float type, otherwise `SERVICE_VALIDATION`
@@ -844,163 +854,51 @@ aggregator or grouper reads `vector` / `fields`, `ATTR_FORMULA` an
 ## Matrix slots
 
 `matrices` on `Request` is an additive array of `MatrixSpec`
-`{name, type, vector | fields, params, weight, encoding}` and
-`matrices` on `Response` the matching array of `MatrixResult`
-`{name, type, group_key?, group_header?, primary, auxiliary, vectors,
-scalars, warnings}`, one per spec in request order (`format_version`
-stays `"1.1"`; a matrix-free request and response are byte-identical).
-`type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
-`MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default), `upper` or `records`. Every
-matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
-column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
-whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
-diagonal (`upper`). `kind` is `square_symmetric` or `rectangular`
-(`MAT_PCA`'s p × k loadings and eigenvectors: `row_keys` the members,
-`column_keys` `PC1` … `PCk`, k possibly 0, always written `full`;
-`MAT_FACTOR`'s p × k loadings: `column_keys` `F1` … `Fk`;
-`MAT_COLLINEARITY`'s variance decomposition: a row per variable —
-`(intercept)` first unless `center` — and `column_keys` `D1` … `Dq`;
-`MAT_DISTANCE`'s primary is `square_symmetric` but keyed by its
-between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
-`row_keys` the buckets, `column_keys` the members; `MAT_SEM`'s
-`auxiliary.estimates` is r × 5: `row_keys` semopy's inspect rows
-`"lval op rval"`, `column_keys` `estimate`, `std_estimate`, `std_err`,
-`z_value`, `p_value` — r × 7 with `ci_lower`, `ci_upper` on a
-lavaan-convention fit, whose `~1` rows are keyed `"lval ~1"`; that fit's
-`auxiliary.implied_means` / `observed_means` are p × 1: `row_keys` the
-members, `column_keys` `mean`).
-Under `encoding: "records"` every matrix (primary and each auxiliary,
-rectangular ones too) is instead `{kind, encoding, columns, rows,
-labels?}`: `columns` the column keys, `rows` one object per row in row
-order, `{"key": <row key>, <column>: number | null, ...}`, plus on
-`MAT_SEM`'s estimates `lval`, `op`, `rval`, `parameter` and `free` (and
-`group`, `label` under `params.group`); the
-schema's `MatrixValues` is the `oneOf` of the two forms.
-`MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
-`params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
-0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
-twins of `primary` (same axis and `encoding`, diagonal `null`); off or
-absent, the response is byte-identical. `params` stays an open object
-in the schema — its keys are the manifest's per-operator `params`.
-Undefined cells and scalars (no mass, too few rows, a determinant of a
-matrix that is not positive definite) are `null`, keys kept. What the
-schema cannot say, predict and the runtime enforce identically before
-any record is read: exactly one of `vector` / `fields`; a `vector` a
-`vectors` entry defines (else `PULSE_VECTOR_UNKNOWN`); inline `fields`
-follow the vector rules; result names are unique; `params` are the
-operator's own (`MAT_COVARIANCE`: `ddof` 0 or 1; both: `missing`
-`listwise` (default) or `pairwise`, `max_drop_share` in [0, 1],
-listwise only; `MAT_CORRELATION` only: `method` `pearson` (default),
-`spearman` or `kendall` — a rank method takes frequency weights only —
-and `summary` `{top_pairs: k}`, k a positive integer;
-`MAT_PARTIAL_CORRELATION` only: `control` `"all"` (default) or a list of
-numeric fields — a listed member leaves the output axis, so `row_keys`
-are the non-control members — and `repair` `"nearest"`;
-`MAT_RELIABILITY` only: `reverse` (item names), `scale_min` /
-`scale_max` (required with `reverse`; a missing range or an out-of-range
-value is `PROCESSING_CONFIG`) and `repair` `"nearest"`; at least 2
-items; `MAT_PCA` only: `on` `correlation` (default) or `covariance`,
-`components` an integer k ≤ p, `"kaiser"` (default on a correlation,
-refused on a covariance) or `{"variance": share}` — required on a
-covariance — `rotation` `none` (default) or an orthogonal criterion
-(`varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; an oblique one
-is refused, reason `rotation_oblique_unsupported`), `epsilon`
-(`geomin_orthogonal` only, default 0.01) and `repair` `"nearest"`;
-`MAT_COLLINEARITY` only:
-`center` (boolean, default `false`: Belsley uncentered with the
-intercept) and `repair` `"nearest"`; `MAT_FACTOR` only: `factors` an
-integer k ≤ p or `"kaiser"` (default), `extraction` `minres` (default),
-`principal_axis` or `ml`, `rotation` `none` (default), orthogonal
-`varimax`, `quartimax`, `geomin_orthogonal`, `entropy` or oblique
-`promax`, `oblimin`, `geomin`, `kappa` (promax only), `gamma` (oblimin
-only) and `epsilon` (the geomin pair only, default 0.01), and
-`repair` `"nearest"`; `MAT_DISTANCE` only: `between` (required) a grouper
-spec as in `groups` — any built-in but `GROUP_DATE` / `GROUP_DATE_RANGES`,
-no own `weight` or `tz` — `metric` a `linalg/metric` registry name
-(`capabilities.matrix.metrics`, consumer `MAT_DISTANCE`): `euclidean`
-(default), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`,
-`hellinger`, `aitchison` or `mahalanobis`, `standardize` (boolean, default
-`false`), `min_valid` (integer 1 … p, default 1), listwise only;
-`MAT_SEM` only: `model` (a lavaan / semopy description whose observed
-variables are exactly the members by label; default one factor over every
-member), `solver` `slsqp` (default) or `fisher`, `information` `dense`
-(default) or `rank2`, `ftol` (slsqp only, default 1e-6), `max_iter`
-(default 10000 slsqp, 500 fisher), `grad_tol` (fisher only, default
-1e-10), `singular` `nearest` (default, semopy's) or `refuse`,
-`meanstructure` (boolean, default `false`; true — or a `~ 1` line in the
-model — models the means under lavaan conventions), `group` (a categorical,
-`packed_bool` or `u4` / `u8` field: one joint multi-group fit over its
-levels, lavaan conventions) and `group_reference` (a level label; default
-the first level), listwise only — a probability weight is
-`PULSE_WEIGHT_UNSUPPORTED`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
-the same shape and encoding holding each pair's row count. `vectors` is an
-open object: with `summary.top_pairs`, `vectors.top_pairs` is
-`[{row, col, r, n}]` — the k off-diagonal pairs with the largest `|r|`,
-ties in axis order, undefined pairs skipped, `n` the pair's row count;
-`MAT_RELIABILITY` adds `vectors.item_total_r` / `alpha_if_deleted` /
-`item_mean` / `item_sd` (one number per item, axis order) and `scalars`
-`alpha`, `alpha_standardized`, `mean_inter_item_r`, `omega`;
-`MAT_PCA` adds `auxiliary.eigenvectors`, `vectors.eigenvalues` /
-`explained_variance` / `cumulative` / `communalities` / `kmo_msa` (one
-number per member or component) and `scalars` `kmo`, `bartlett_chisq`,
-`bartlett_df`, `bartlett_p`, `components_retained` (the two integer
-scalars are never rounded by `return.precision`); `MAT_COLLINEARITY`
-adds `auxiliary.variance_decomposition` (rows sum to 1),
-`vectors.vif` / `tolerance` (one per member) and `condition_indices`
-(one per dimension, ascending) and `scalars` `condition_number`,
-`max_vif`; `MAT_FACTOR` adds `auxiliary.unrotated` (rotated runs) and
-`auxiliary.factor_correlation` (an oblique rotation: `square_symmetric`
-keyed `F1` … `Fk`, always `full`), `vectors.communalities` /
-`uniquenesses` (one per member) and `variance_accounted` (one per
-factor) and `scalars` `rmsr`, `empirical_chisq`, `df`, `empirical_p`,
-`kmo`, `bartlett_chisq`, `bartlett_df`, `bartlett_p`, `iterations`,
-`converged`, `factors_retained` (`df`, `iterations`, `converged` and
-`factors_retained` are never rounded by `return.precision`), plus, under
-`extraction` `ml` only, `likelihood_chisq`, `likelihood_p`, `tli`,
-`rmsea`, `rmsea_lower`, `rmsea_upper` (the interval at
-`params.conf_level`, default 0.9) and `bic` (all but `likelihood_chisq`
-null at `df` ≤ 0); `MAT_DISTANCE` adds
-`auxiliary.centroids` (always), `centroids_standardized` (standardize)
-and `pooled_covariance` (mahalanobis), and `vectors.sizes` (each bucket's
-weight mass) / `counts` (its rows, integers), one per bucket;
-`MAT_SEM`'s primary is the model-implied covariance over the members and
-it adds `auxiliary.estimates` and `residual_covariance` (S − Σ(θ̂)),
-`vectors.parameter` (each estimate row's parameter name) / `free`
-(booleans) and `scalars` `dof`, `dof_baseline`, `chi2`, `chi2_p_value`,
-`chi2_baseline`, `cfi`, `gfi`, `agfi`, `nfi`, `tli`, `rmsea`, `aic`,
-`bic`, `loglik`, `objective`, `n`, `n_params`, `iterations`, `converged`
-(`dof`, `dof_baseline`, `n_params`, `iterations` and `converged` are
-never rounded by `return.precision`); under `params.group` the estimate rows are
-keyed `"[level] lval op rval"`, `vectors` adds `group` and `label` (one
-per row), the primary is the `group_reference` level's implied
-covariance, `auxiliary` carries `estimates` plus per level
-`implied_covariance.<level>`, `residual_covariance.<level>`,
-`implied_means.<level>` and `observed_means.<level>`, and `scalars` add
-`chi2_group_<level>` and `n_group_<level>`).
-`warnings` are `{code, message, details}` entries
-(`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
-`_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on
-`MAT_PARTIAL_CORRELATION` without `repair: "nearest"`; on
-`MAT_RELIABILITY` a warning that nulls `omega`, beside `_HEYWOOD` and
-`_NOT_IDENTIFIED`; `MAT_PCA` fatal like the partial correlation, plus
-`_PAIRWISE_N_STAR` and a `_SINGULAR` warning that nulls KMO and
-Bartlett; `MAT_COLLINEARITY` fatal like the partial correlation, and a
-singular correlation is a fatal `_SINGULAR` naming `dependent_fields`;
-`MAT_FACTOR` fatal like the partial correlation, plus `_PAIRWISE_N_STAR`,
-`_NOT_IDENTIFIED` (null fit), `_HEYWOOD` (fit kept), `_NOT_CONVERGED`,
-a `_SINGULAR` warning that nulls KMO and Bartlett (and, under `ml`, the
-whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
-nulls the likelihood figures; `MAT_DISTANCE` `_INSUFFICIENT_N` scope
-`buckets` (a massless bucket) or `pooled` (mahalanobis with no more rows
-than buckets) and a `_SINGULAR` warning that nulls the mahalanobis
-distances; `MAT_SEM` `_NEAREST_PD` when the covariance does not factor
-and is fitted to semopy's `cov_nearest` substitute (`singular`
-`nearest`, the default; one that factors is fitted raw), a fatal
-`_SINGULAR` on a zero-spread member or, under `singular` `refuse`, on
-any rank-deficient covariance,
-`_NOT_CONVERGED` (solver stop short of success, last iterate kept) and
-`_NOT_IDENTIFIED` (negative degrees of freedom, fitted anyway)). `components.matrices` carries one
+`{name, type, vector | fields, params, weight, encoding, multiplicity,
+for_each}` and `matrices` on `Response` the matching array of
+`MatrixResult` `{name, type, group_key?, group_header?, primary,
+auxiliary, vectors, scalars, warnings, multiplicity?, error?}`, one per
+spec in request order (`format_version` stays `"1.1"`; a matrix-free
+request and response are byte-identical). `type` is the
+registry-backed `MatrixType` enum (`MAT_COVARIANCE`, `MAT_CORRELATION`,
+`MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY`,
+`MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`, plus an instance's
+extension `MAT_*` operators); `encoding` is `full` (default), `upper` or
+`records`. Every matrix is a dedicated `MatrixValues` `{kind, encoding,
+row_keys, column_keys, labels?, values}` — not the crosstab
+`MatrixPayload` — whose `values` rows hold `p` cells (`full`) or `p − r`
+cells from the diagonal (`upper`). `kind` is `square_symmetric` or
+`rectangular` (a loadings or estimates table, say: `MAT_PCA`'s p × k
+loadings keyed by member and `PC1` … `PCk`), and a rectangular matrix is
+always written `full`. Under `encoding: "records"` every matrix (primary
+and each auxiliary, rectangular ones too) is instead `{kind, encoding,
+columns, rows, labels?}`: `columns` the column keys, `rows` one object
+per row in row order, `{"key": <row key>, <column>: number | null,
+...}` (plus an operator's own row fields, such as `MAT_SEM`'s estimate
+`lval`, `op`, `rval`, `parameter` and `free`); the schema's
+`MatrixValues` is the `oneOf` of the two forms.
+
+`params` stays an open object in the schema — its keys are the
+operator's manifest param list — and each operator's skill
+(`skills/op-mat-<name>.md`) documents its params and defaults, the
+`auxiliary` / `vectors` / `scalars` keys it writes and the
+`PULSE_MATRIX_*` warnings it raises. `MAT_CORRELATION` and
+`MAT_PARTIAL_CORRELATION` take `params.inference` (bool) and
+`params.alpha` (0 < alpha < 1, default 0.05): on, `auxiliary` gains
+`p`, `ci_lower` and `ci_upper`, square twins of `primary` (same axis
+and `encoding`, diagonal `null`); off or absent, the response is
+byte-identical. Under `params.missing: "pairwise"`, `auxiliary.n` is a
+`MatrixValues` of the same shape and encoding holding each pair's row
+count. Undefined cells and scalars (no mass, too few rows, a
+determinant of a matrix that is not positive definite) are `null`, keys
+kept. What the schema cannot say, predict and the runtime enforce
+identically before any record is read: exactly one of `vector` /
+`fields`; a `vector` a `vectors` entry defines (else
+`PULSE_VECTOR_UNKNOWN`); inline `fields` follow the vector rules;
+result names are unique; `params` are the operator's own. `warnings`
+are `{code, message, details}` entries; a refusal of the slot's data
+(a singular or non-positive-definite input an operator cannot repair)
+fails that slot alone (see Failed slots). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,
 group_key?, n, n_null, n_listwise_dropped, min_pair_n?, max_pair_n?,
 sum_weights?, n_eff?, n_weight_invalid?, operator?}` (pairwise and
@@ -1057,13 +955,13 @@ terms, scale, binary}`, `REG_OLS` / `REG_GLM` / `REG_ORDINAL` / an extension
 model declaring `Margins`) adds the additive `omitempty`
 object `RegressionResult.margins` (`RegressionMarginsResult`): `type`
 (`ame` | `mem`), `scale` (`response` | `link`), `terms` (string array),
-under `binary: "contrast"` (U69 #641) the additive `omitempty` string
+under `binary: "contrast"` the additive `omitempty` string
 `binary` echo and string array `contrasts` (the 0/1 terms reported as
 μ(1) − μ(0); absent under `slope`, the default, byte-identical),
 the term-keyed number maps `estimates`, `std_errors`, `statistics`,
 `p_values`, `ci_lower`, `ci_upper`, and `at` (`mem` only), the numbers
 `conf_level` and `df` (present only for a Student t; `null` when ≤ 0),
-the additive `omitempty` string `inference` (U69 #639: `"resample"`
+the additive `omitempty` string `inference` (`"resample"`
 when the regression's `resample` made the standard errors the effects'
 replicate spread — Wald z / percentile p, normal intervals, no `df`;
 absent on the delta method, byte-identical),
@@ -1073,7 +971,7 @@ and — gated on `capability:multiplicity` like the coefficient twins —
 regression's own block the terms form one family per regression, apart
 from the coefficients'. An undefined figure is `null`,
 key kept. A request without `margins` is byte-identical. On a
-per-level fit (`REG_ORDINAL`, `REG_MULTINOMIAL` — U68 E4-S2, every
+per-level fit (`REG_ORDINAL`, `REG_MULTINOMIAL` — every
 fitted category on the response scale, the non-reference ones on the
 link — or an extension model whose
 `extend.MarginsRegression` lists outcomes) the block adds the additive
@@ -1121,7 +1019,7 @@ the normal; `df` is the reported one only on a t interval. A
 non-finite float in `outputs` is `null`. The fit statistics a model may report
 are `r2`, `adj_r2`, `residual_std_err`, `df`, `deviance`,
 `null_deviance`, `pseudo_r2`, `two_log_lik` and `aic`
-(`extend.RegressionFit`; the last two since U65 E4-S1, never under a
+(`extend.RegressionFit`; the last two never under a
 probability weight) and `converged_iters`. The built-in model
 regressions (`REG_MMM_HILL`, `REG_MMM_BAYES`, `REG_ORDINAL`) answer in
 the same shape; `REG_ORDINAL` names its thresholds `"<level>|<next>"`
@@ -1179,12 +1077,12 @@ cluster2, order_by, entity, lags}` and `RegressionResult` an additive `omitempty
 order_by, lags, entity, entities, periods}` (`format_version` stays `"1.1"`). `type` is the
 `CovarianceType` enum (`classical`, `hc0`, `hc1`, `hc2`, `hc3`,
 `cluster`, `hac`, `driscoll_kraay`); `lags` is a non-negative integer or
-`"auto"`. `entity` (U69 #401, types `hac` and `driscoll_kraay`) names a
+`"auto"`. `entity` (types `hac` and `driscoll_kraay`) names a
 panel's entity field: `hac` + `entity` is per-entity Newey–West,
 `driscoll_kraay` sums the scores per `order_by` period; the echo then
 adds `periods` (distinct `order_by` values) and, with an entity,
 `entity` / `entities`. A plain `hac` echo carries none of the three.
-`cluster2` (U69 #401, type `cluster`) makes it two-way
+`cluster2` (type `cluster`) makes it two-way
 (Cameron–Gelbach–Miller); the echo adds `cluster2` / `clusters2`, an
 OLS `df` is min(G₁, G₂) − 1, and a negative two-way variance leaves its
 `std_errors` / `p_values` / interval entries `null` beside the negative
@@ -1197,9 +1095,12 @@ other type on `REG_OLS` or `REG_GLM` replaces the estimator behind
 `REG_BAYES_LINEAR` it keeps the posterior-mean `coefficients` and
 REPLACES the posterior covariance with Müller's sandwich posterior:
 `std_errors`, `credible_intervals`, `ci_lower` / `ci_upper` (normal, no
-`df`) and `vcov` follow it. Shape faults are `PROCESSING_CONFIG`; a
-robust type beside a penalty, `resample` or `selection`, or on another
-regression type, is
+`df`) and `vcov` follow it. `REG_MULTINOMIAL` takes `hc0`, `hc1` and
+`cluster` (the score sandwich over its K − 1 blocks); an extension model
+takes the types its registration declares (`CovarianceTypes`). Shape
+faults are `PROCESSING_CONFIG`; a robust type beside a penalty,
+`resample` or `selection`, or one the regression type does not compute,
+is
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
 and at runtime alike. The echo is in the `standard` preset.
 
@@ -1207,14 +1108,13 @@ and at runtime alike. The echo is in the `standard` preset.
 
 `RegressionSpec.prior_precision` (`REG_BAYES_LINEAR`) is
 `#/$defs/PriorPrecision`, a `oneOf` of a non-negative number (the
-scalar ε, Λ₀ = ε·I; byte-identical to the former float field, absent or
-0 = the default 1e-3) and an array of non-negative numbers (one per
+scalar ε, Λ₀ = ε·I; absent or 0 = the default 1e-3) and an array of non-negative numbers (one per
 coefficient, intercept first like `prior_mu`: Λ₀ = diag; 0 is a flat
 prior). A wrong length or a negative entry is `PROCESSING_CONFIG` in
 predict and at runtime. `RegressionSpec.unpenalized` is an additive
 `omitempty` array of predictor names the penalty skips (glmnet
 `penalty.factor` 0) on `REG_OLS`, `REG_GLM` and `REG_MULTINOMIAL`, any
-`penalty` kind (U69 E1-S1 lifted the `REG_OLS` ridge-only rule); no
+`penalty` kind; no
 `penalty`, or any other type, refuses it `PROCESSING_CONFIG`, predict
 and runtime alike.
 `format_version` stays `"1.1"`; neither is echoed on the result.
@@ -1265,8 +1165,8 @@ positive weight present; a raw count), `n_null` the null-predicate
 rows, the figures on the response scale (a `REG_GLM`'s inverse link)
 weighted by the slot `weight`, `r2` = 1 − SSE/SST about the held-out
 rows' own mean — `null` (key kept) when the held-out targets do not
-vary. A categorical-outcome fit (`REG_ORDINAL`, `REG_MULTINOMIAL`, U68
-E1-S3) scores each held-out row's probability vector p instead and
+vary. A categorical-outcome fit (`REG_ORDINAL`, `REG_MULTINOMIAL`)
+scores each held-out row's probability vector p instead and
 reports `{n, n_null, log_loss, brier, accuracy}` (`REG_ORDINAL` adds
 `rps`), weighted means over the scored rows: `log_loss` = −ln p_y
 (natural log; `null` when p_y is 0), `brier` = Σ_k (p_k − [y = k])²,
@@ -1314,7 +1214,7 @@ response field; absent is byte-identical and `format_version` stays
 
 ## Multinomial regression
 
-`REG_MULTINOMIAL` (U65 E4-S2) is a `RegressionType` enum value; the
+`REG_MULTINOMIAL` is a `RegressionType` enum value; the
 payload adds two `omitempty` keys. `RegressionSpec.reference` (string)
 names the baseline category, one of the target's dictionary labels
 (absent: the first fitted level); on any other regression it is
@@ -1328,20 +1228,20 @@ every other regression. The per-coefficient maps (`coefficients`,
 `"<level>:<term>"` per non-reference level (`"<level>:(intercept)"` for
 the intercept). Absent is byte-identical and `format_version` stays
 `"1.1"`. A multinomial fit binds under a Compose `fits` entry, saves
-(its model file lists feature `categories`) and loads through `models`
-(U68 E1-S2); `ATTR_REG_PREDICT` scores it one column per slot
+(its model file lists feature `categories`) and loads through `models`;
+`ATTR_REG_PREDICT` scores it one column per slot
 (`params.category`: P(y = category), the default output;
 `params.output: class`: the most probable category's 0-based index in
 `categories`; `params.scale: link`: the category's log-odds against the
 reference), and `coef()` reads its `"<level>:<term>"` keys. A `holdout`
-reports its proper scores (Regression holdout, U68 E1-S3). Under
-`resample` / `selection` (U68 E2-S2) the result echoes them as a
+reports its proper scores (Regression holdout). Under
+`resample` / `selection` the result echoes them as a
 built-in's does (`resample`, `bootstrap_requested` /
 `bootstrap_succeeded`, `jackknife_groups`, `selection`, `criterion`,
 `selected_features`), the per-coefficient maps keep the
 `"<level>:<term>"` keys, and a resampled fit adds `statistics` (the
 Wald z on the replicate SE); every refit keeps the full fit's
-`categories` and `reference`. Under a `penalty` (U68 E2-S3; the spec's
+`categories` and `reference`. Under a `penalty` (the spec's
 `penalty`, `alpha`, `l1_ratio` and `unpenalized` keys, echoed as
 `penalty` / `alpha` / `l1_ratio`) the fit is glmnet's symmetric form:
 `reference` is absent, the per-coefficient maps carry `"<level>:<term>"`
@@ -1351,8 +1251,8 @@ for EVERY level in `categories`, `std_errors` / `p_values` / `ci_lower`
 `resample` replaces them, and `two_log_lik` / `aic` / `vcov` are absent.
 No key is added; `format_version` stays `"1.1"`.
 
-An additive `omitempty` boolean `RegressionSpec.exponentiate` (U68
-E3-S2, `REG_MULTINOMIAL` and `REG_ORDINAL` only; any other type is
+An additive `omitempty` boolean `RegressionSpec.exponentiate`
+(`REG_MULTINOMIAL` and `REG_ORDINAL` only; any other type is
 `PROCESSING_CONFIG` with `details.slot: exponentiate` and
 `details.requires: type REG_MULTINOMIAL or REG_ORDINAL`, at predict and
 at runtime alike) adds the additive `omitempty` object
@@ -1369,7 +1269,7 @@ raw `null` stays `null` (a penalized multinomial fit: exp(β) beside
 `minimal`); every float is rounded by `return.precision`. Absent is
 byte-identical and `format_version` stays `"1.1"`.
 
-An additive `omitempty` boolean `RegressionSpec.term_tests` (U68 E4-S2,
+An additive `omitempty` boolean `RegressionSpec.term_tests` (
 `REG_MULTINOMIAL` only; any other type, or beside a `penalty`,
 `selection` or `resample`, is `PROCESSING_CONFIG` with
 `details.slot: term_tests`, at predict and at runtime alike) adds the
@@ -1496,11 +1396,15 @@ incl. `top_pairs[*].r` and `scalars.determinant`, component maps) is
 `strconv.FormatFloat(v, 'g', precision, 64)` — so `3e-9` at 4 digits is
 `3e-09` and `123456.789` is `1.235e+05`. NaN / ±Inf stay `null`; ints
 are never touched. Exempt (written exact): integer-semantics floats —
-`matrices[*].auxiliary.n` on every request, and, derived from the
+on every request `matrices[*].auxiliary.n` and the integer matrix
+scalars (`precisionExempt` in `types/return_shape.go`: `df`, `dof`,
+`dof_baseline`, `n_params`, `iterations`, `converged`, `bartlett_df`,
+`components_retained`, `factors_retained`), and, derived from the
 request, the `data` column of a count aggregation (`AGG_COUNT`,
 `AGG_DISTINCT_COUNT`, `AGG_NULL_COUNT`, `AGG_MODE_COUNT`,
 `AGG_FREQUENCY`, `AGG_SET_FREQUENCY`, `AGG_SET_CARDINALITY_SUM`,
-`AGG_SET_DISTINCT_VALUES`), a count crosstab cell under `normalize`
+`AGG_SET_DISTINCT_VALUES`, an extension declaring `CountSemantic`), a
+count crosstab cell under `normalize`
 none (cells, margins, grand total, long-form column) and a count
 auxiliary margin aggregation's figures — plus `decimal128` values, which
 are decimal strings. The `upper` matrix encoding keeps its shape.
@@ -1538,7 +1442,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, an extension model's `outputs`, `holdout` when asked for | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` / `holdout` when asked for; an extension model's `statistics` and `outputs`) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, `advisories`, an extension model's `outputs`, `holdout` when asked for | the keys `returnPresetPaths` lists: the coefficient table (`std_errors`, `ci_lower` / `ci_upper`, `df`, `conf_level`), the fit settings and statistics, `vcov` / `correlation` / `covariance`, `margins`, `collinearity`, `exponentiated`, `term_tests`, `holdout`, `advisories`, an extension model's `statistics` and `outputs`. Not kept: `credible_intervals`, `selection`, `two_log_lik` / `aic`, `dispersion`, `theta` / `theta_std_err`, `reference` / `categories`, the resample echoes and the multiplicity twins |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 
@@ -1723,8 +1627,7 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`; a `REG_MULTINOMIAL` fit binds since U68 E1-S2 — the
-`regression_type` reason is gone); a fit request's own refusal keeps its
+`vector_source`); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -1780,7 +1683,7 @@ summary echoes it as `from_sweep`.
 
 `ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec
 {name, variables, objective, direction, constraints, starts, rng_seed,
-tolerance, max_iterations, gradient}`: a constrained optimisation solved once,
+tolerance, max_iterations, gradient, models, posterior, for_each}`: a constrained optimisation solved once,
 after the fits, with no record data. `variables` are `{name, lower,
 upper, start}`, each bound an `OptimizeBound` — a number or a
 scalar expression string read once before the solve (literals,
@@ -1842,7 +1745,8 @@ resolved, so its range checks run at runtime; a bound over literals and
 params is range-checked by predict and never listed.
 
 A block's optional `posterior` (`OptimizePosterior {objective, q,
-draws}`, `omitempty`; absent solves byte for byte as before) optimises
+draws}`, `omitempty`; absent, the block solves on the point estimates)
+optimises
 over a `REG_MMM_BAYES` fit's posterior draws: the objective is
 evaluated per draw and aggregated — `objective` `mean` (the default)
 or `quantile` (the `q`-quantile, Hyndman–Fan type 7, `q` in (0, 1)) —
@@ -1904,7 +1808,7 @@ full, test, error}` (see Failed slots) and warns `PULSE_SLOT_FAILED`
 (`slot_kind` `comparisons`). Both slots are gated by
 `capability:compose_compare` (a dependency on `capability:compose_fits`
 and `MAT_SEM`, `REG_OLS`, `REG_GLM`, `REG_MULTINOMIAL` or `REG_ORDINAL`).
-Two SEM fits (U69 #643) compare by the chi-square difference: `test`
+Two SEM fits compare by the chi-square difference: `test`
 `lrt` only, `terms` empty, `df` the df difference, the per-fit
 `*_df_residual` / `*_deviance` each fit's model df and χ²;
 `scaling_factor` is present only on two `wlsmv` fits (null where the
@@ -1919,7 +1823,7 @@ and each fit's residual df is (K − 1)·N* − rank (`anova.multinom`).
 Two declared or multinomial fits whose non-tested terms (ordinal
 thresholds, multinomial categories) differ once fitted fail the
 comparison alone with `PULSE_COMPARISON_ROWS_DIFFER` `reason:
-terms_differ`. A side may bind from the sweep (`from_sweep`, U69 #643):
+terms_differ`. A side may bind from the sweep (`from_sweep`):
 the entry is judged against the fit request of every sweep slot that
 could win — refused when every slot refuses, else valid — and the run
 judges the winning slot again; a refusal there keeps `{name,
@@ -1930,7 +1834,7 @@ entries as `compare [{name, restricted, full, test, distribution,
 terms, unresolved}]` on the predict result (not payload-reachable);
 `unresolved {slots, refused [{slot, label, reason}], varies}` is present
 only on a sweep-bound entry whose slots disagree. Two vector fits
-compare member-wise (U69 #643): each restricted battery member j is one
+compare member-wise: each restricted battery member j is one
 row of `members`, an array of `FitComparisonMember {member, statistic,
 p_value, restricted_deviance, full_deviance, dispersion, p_adjusted,
 significant_adjusted, multiplicity}` — lm(j ~ restricted others)
@@ -1978,8 +1882,8 @@ standard errors, `outputs` — its coefficients named by the model — for an
 extension regression whose registration supplies a scorer, `dispersion`
 for a classical `vcov` fit that carries one, `theta` for a `REG_GLM`
 `negative_binomial` fit, `categories` — with `reference` — for every
-`REG_MULTINOMIAL` fit; versions 2 to 6 of earlier builds are refused
-with a re-save message; `.pulse-model.json`; the format is in
+`REG_MULTINOMIAL` fit; the retired versions 2 to 6 are refused with a
+re-save message; `.pulse-model.json`; the format is in
 `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`
@@ -2168,11 +2072,11 @@ no `statistic` key at all, on the request, Compose and chain hosts
 alike; a crosstab overlay reads such a cell as an absent cell — no
 overlay cell, no warning, never in a denominator or a spread.
 
-The schema says so: every float slot on a result-only def —
+The schema says so: every float slot on a def only a result reaches —
 `TestResult`, `RegressionResult`, `OverlaySummary`, the
-`OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram` and the
+`OverlayPayload.scalar` arm, `FacetNumeric`, `FacetHistogram`, the
 weighted floor's `sum_weights` / `n_eff` on `AggregationComponents` and
-`AggregationGroupComponents` —
+`AggregationGroupComponents`, and the rest —
 is `"type": ["number", "null"]`. The open slots (`data` rows,
 components operator maps, matrix cell `value`) already admit `null`.
 Request floats stay `"number"`: a decoded request never carries a
@@ -2186,10 +2090,7 @@ result they are handed so that `null` in a float slot is NaN again —
 undefined stays undefined (a `not_computable` verdict, a `null` number),
 never a confident 0.
 
-Widening those slots did not move `format_version` (still `"1.1"`):
-every document the schema accepted before it still accepts, and output
-that serialised before is byte-identical — the only outputs that
-change are ones that previously failed to serialise at all.
+The nullable float slots are within `format_version` `"1.1"`.
 
 ## Failed slots
 
@@ -2252,7 +2153,7 @@ response; a `MAT_*` slot's `params.fit` fails that slot alone (a
 null) and a `coef()` whose fit name is not a literal are refused with
 the fit's own code and `details.fit`. Under `Options.Strict` the batch
 fails with the fit's own code. Predict
-cannot foresee a data fault, so `pulse predict` never reports a fit as
+cannot foresee a data fault, so predict never reports a fit as
 failing.
 
 Additive: a response with no failed slot is byte-identical, and
@@ -2263,11 +2164,10 @@ Additive: a response with no failed slot is byte-identical, and
 The schema cannot tell you which arm the engine will build a crosstab
 on — the fused one-pass arm (memory `O(cells + margins)`) or the buffered
 arm (holds every filter-passing record). Output is identical; only
-memory differs. `pulse predict` reports it as
+memory differs. predict reports it as
 `data.crosstab_fusable` (absent when the request has no crosstab) plus
 `data.crosstab_fusion_reasons` (every reason it will not fuse, in rule
-order). Both are predict result fields, not part of this schema, so
-adding them did not move `format_version` (still `"1.1"`). They honour
+order). Both are predict result fields, not part of this schema. They honour
 the instance: an engine built with `Options.DisableCrosstabFusion`
 answers `false` with a reason. See `skills/crosstab-guide.md`.
 
@@ -2276,7 +2176,7 @@ answers `false` with a reason. See `skills/crosstab-guide.md`.
 The auxiliary margin-only slot is fully described structurally — it is an
 array of the same `Aggregation` shape the `cell` slot takes — but two of
 its contracts are semantic, so validating a request against the schema
-tells you nothing about either. Both are reported by `pulse predict`.
+tells you nothing about either. Both are reported by predict.
 
 **Whether the figures will be emitted at all.** The auxiliary figures
 land only on `components.crosstab.row_margin_aggregations` /

@@ -91,6 +91,7 @@ func Generate(brandSpec []byte) ([]File, error) {
 	g.add("subscribers.csv", func(w *csv.Writer) error { return writeSubscribers(w, 48) })
 	g.add("battery.csv", func(w *csv.Writer) error { return writeBattery(w, newStream(2), 300) })
 	g.add("intake.csv", func(w *csv.Writer) error { return writeIntake(w, newStream(3), 300) })
+	g.add("brand_ratings.csv", func(w *csv.Writer) error { return writeBrandRatings(w, newStream(4), 600) })
 	// The weekly media-mix cohort draws nothing from a source: it is the
 	// mmmfixture rows verbatim, so the decay-sweep example and the
 	// acceptance suites read the same data.
@@ -133,14 +134,13 @@ func (g *generator) add(name string, write func(*csv.Writer) error) {
 // statistical test type in internal/examples/tests/ has a clean, non-trivial
 // signal:
 //
-//   - treatment vs control: variant has ≈22% higher revenue mean and
-//     a right-tail-heavy lift on session_minutes (median moves little,
-//     upper deciles stretch). The first yields a clear two-sample
-//     t-test reject; the second yields a clear KS reject while the
-//     mean t-test stays ambiguous — a useful split that demonstrates
-//     why distribution-shape tests still matter alongside mean tests.
-//   - region: four regions with planted mean-revenue differences so
-//     ANOVA across regions rejects clearly.
+//   - treatment vs control: variant has a planted 22% revenue lift and
+//     a right-tail-heavy lift on session_minutes (each variant row is
+//     stretched by 1 + 0.35|z|, so the upper deciles move most). Both
+//     the two-sample t-test and the KS test reject on the 400 rows.
+//   - region: four regions with planted mean-revenue lifts (1.00 to
+//     1.35); on the 400 rows the one-way ANOVA rejects at 0.05, only
+//     just.
 //   - segment × converted: segments_a / b / c have different conversion
 //     base rates (0.20 / 0.35 / 0.50) producing a dependent contingency.
 //   - period: 90 sequential dates; revenue carries a mild upward drift
@@ -200,8 +200,7 @@ func writeExperiment(w *csv.Writer, r *rand.Rand, n int) error {
 		// session_minutes: half-normal with treatment lift.
 		sessionBase := math.Abs(detmath.NormFloat64(r)) * 15.0
 		// Asymmetric treatment effect on session_minutes: variant shifts
-		// the right tail more than the median, so KS detects a clear
-		// distribution change even though mean differences stay modest.
+		// the right tail more than the median.
 		sessionTreatLift := 1.0
 		if treatment == "variant" {
 			sessionTreatLift = 1.0 + float64(0.35*math.Abs(detmath.NormFloat64(r)))
@@ -303,7 +302,8 @@ func writeOrders(w *csv.Writer, r *rand.Rand, n int) error {
 	return nil
 }
 
-// writeTrainingData covers every field referenced by examples 07-10.
+// writeTrainingData covers every field the features examples 07-10
+// read; signup dates span the 500 days from 2024-01-01.
 // label is binary (0/1) with class imbalance ~30% positives so
 // stratified split has a meaningful effect.
 func writeTrainingData(w *csv.Writer, r *rand.Rand, n int) error {
@@ -483,6 +483,57 @@ func writeBattery(w *csv.Writer, r *rand.Rand, n int) error {
 	return nil
 }
 
+// writeBrandRatings produces the perceptual-map cohort: n respondents,
+// each rating one of five brands (cycling by row, n/5 per brand) on six
+// 1-7 items. Two latent axes are planted: premium (quality and premium
+// load positively, value negatively) and modern (modern and innovative
+// positively, heritage negatively). Each brand sits at a fixed
+// (premium, modern) position — brand_a premium-modern, brand_b
+// premium-traditional, brand_c budget-modern, brand_d
+// budget-traditional, brand_e in the middle — and every respondent's
+// latent pair is that position plus unit noise, so the first two
+// principal components of the ratings recover the two axes and the
+// brand centroids on them form the corners of a square around brand_e.
+//
+// Fields:
+//
+//	id                         — u32, 1..n
+//	brand                      — categorical, brand_a .. brand_e
+//	quality .. heritage        — u8 ratings 1..7
+func writeBrandRatings(w *csv.Writer, r *rand.Rand, n int) error {
+	header := []string{"id", "brand", "quality", "premium", "value", "modern", "innovative", "heritage"}
+	if err := w.Write(header); err != nil {
+		return err
+	}
+	brands := [5]string{"brand_a", "brand_b", "brand_c", "brand_d", "brand_e"}
+	// (premium, modern) position of each brand, in latent SD units. The
+	// premium spread is twice the modern one, so the two components
+	// have well-separated eigenvalues and come out as the two planted
+	// axes rather than a rotation of them.
+	positions := [5][2]float64{{1.4, 0.7}, {1.4, -0.7}, {-1.4, 0.7}, {-1.4, -0.7}, {0, 0}}
+	// Loadings on (premium, modern).
+	loadings := [6][2]float64{
+		{0.80, 0.00}, {0.85, 0.00}, {-0.60, 0.00},
+		{0.00, 0.65}, {0.00, 0.60}, {0.00, -0.55},
+	}
+	for i := range n {
+		b := i % len(brands)
+		premium := positions[b][0] + float64(0.7*detmath.NormFloat64(r))
+		modern := positions[b][1] + float64(0.7*detmath.NormFloat64(r))
+		row := []string{itoa(i + 1), brands[b]}
+		for _, l := range loadings {
+			item := float64(l[0]*premium) + float64(l[1]*modern) + float64(0.6*detmath.NormFloat64(r))
+			rating := math.Round(4 + float64(1.1*item))
+			rating = math.Max(1, math.Min(7, rating))
+			row = append(row, itoa(int(rating)))
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // writeIntake produces the missing-data cohort the data_quality
 // examples read: 300 sign-up intake forms, 100 from each channel
 // (web, phone, paper), with nulls planted in two nullable fields. An
@@ -521,7 +572,7 @@ func writeIntake(w *csv.Writer, r *rand.Rand, n int) error {
 	return nil
 }
 
-// writeSubscribers produces the flag-and-money cohort the U45 showcase
+// writeSubscribers produces the flag-and-money cohort the showcase
 // examples read: binary outcomes stored as packed_bool (no 0/1 twin
 // column), a signup and a first-repeat-order date for calendar
 // retention flags, and decimal128 money for exact ratios. Every value

@@ -77,8 +77,8 @@ func CheckPanelSlabPartition(slots []PanelSlabPartitionSlot, params PanelOverlay
 //   - An OMITTED NWithinDepth. That form reads the EXACT per-slot row
 //     margin and sums nothing at all, so no key can land in two summed
 //     buckets however the row axis fans out. Gating it would refuse a
-//     request that is exactly as correct as the legacy default it is
-//     byte-identical to.
+//     request that is exactly as correct as the row_margin_value
+//     default, whose output it matches.
 //   - A mode that does not consume the depth
 //     (PanelNSourceUsesWithinDepth is false). Nothing sums.
 //   - A fan-out grouper at depth d <= NWithinDepth. It sits inside the

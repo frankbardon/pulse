@@ -17,6 +17,7 @@ type (
 	DiscardableWriter     = iocore.DiscardableWriter
 	SchemaAwareWriter     = iocore.SchemaAwareWriter
 	SchemaAwareReader     = iocore.SchemaAwareReader
+	DeclaredTypeReader    = iocore.DeclaredTypeReader
 	NullAwareReader       = iocore.NullAwareReader
 	LateKeyRefuser        = iocore.LateKeyRefuser
 	ListAwareReader       = iocore.ListAwareReader

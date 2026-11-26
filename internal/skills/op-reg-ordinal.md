@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ordinal]
 ---
 
-`REG_ORDINAL` fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` (polr): one coefficient per predictor shifts every threshold alike.
+Fits `P(Y ≤ k | x) = F(ζ_k − xᵀβ)` (polr): one coefficient per predictor shifts every threshold alike.
 
 <!-- generated: use-when -->
 
@@ -25,12 +25,12 @@ examples_tags: [regression, ordinal]
 | `levels` | array | — | Level order, lowest first. |
 | `brant` | object | — | `{}` adds `outputs.brant`; logit only. |
 | `nominal_test` | object | — | `{}` adds `outputs.nominal_test`; any link; not probability-weighted. |
-| `conf_level` | float | `0.95` | CI level. |
+| `conf_level` | float | `0.95` | — |
 | `vcov` | bool | `false` | — |
 | `covariance` | object | — | `hc0`, `hc1`, `cluster`. |
 | `exponentiate` | bool | `false` | — |
 | `margins` | object | — | `regression-margins`. |
-| `weight` | object | — | — |
+| `weight` | slot weight | — | — |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | — | Predictors' p-values only. |
 <!-- /feature -->
@@ -44,17 +44,17 @@ examples_tags: [regression, ordinal]
 | `rng_seed` | int | — | — |
 | `selection` | enum | — | `op-reg-mod-selection`. |
 | `criterion` | enum | — | `aic`, `bic`. |
-| `order` | object | — | Row order. |
+| `order` | object | — | — |
 | `save` | string | — | Model file (`regression-row-scores`). |
-| `name` | string | — | Result name. |
+| `name` | string | — | — |
 
 ## Inputs
 
-A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped, as is a null cluster. Too few / many levels, or a listed level no row carries: `INSUFFICIENT_DATA`, fails alone.
+A categorical response reads its labels; a numeric one formats its values (`"3"`, `"2.5"`). A row whose response `levels` omits is dropped, as is a null cluster. Too few / many levels, or a listed level no row carries: `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, fails alone.
 
 ## Output
 
-`coefficients`: predictors (spec order), then thresholds `"<level>|<next>"` (no intercept). `p_values` predictors only, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (none probability-weighted). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β of predictors); `margins`: dP(level)/dx, `"<level>:<term>"`.
+`coefficients`: predictors and thresholds `"<level>|<next>"` (no intercept). `p_values` null on thresholds, Wald `ci_*`; `deviance`, `null_deviance`, `pseudo_r2`, `two_log_lik` / `aic` (none probability-weighted). `outputs`: `link`, `levels`, `thresholds`, `fitted_probabilities` (mean P per level), `brant` / `nominal_test` (omnibus, per-predictor `terms`). `exponentiate` adds `exponentiated` (e^β of predictors); `margins`: dP(level)/dx, `"<level>:<term>"`.
 
 <!-- generated: reading-the-output -->
 
@@ -67,7 +67,7 @@ A categorical response reads its labels; a numeric one formats its values (`"3"`
 - Frequency weights = the `rep()` expansion; probability weights follow<!-- feature: REG_GLM --> `REG_GLM`'s rule<!-- /feature --> (w* = w·n_eff/Σw).
 - Refused, predict too (`PROCESSING_CONFIG`, `details.slot`): `penalty`, `collinearity`, `hc2` / `hc3` / `hac`, top-level `link` / `family`.
 - `resample` / `selection` refits keep the full fit's levels (`replicate_empty_level`); AIC / BIC k counts thresholds.
-- Separation: `NO_CONVERGE`, fails alone.
+- Separation: `PROCESSING_REGRESSION_NO_CONVERGE`, fails alone.
 - `compare`: `lrt` / `wald`, same `levels` (`regression-comparison`).
 
 ## See

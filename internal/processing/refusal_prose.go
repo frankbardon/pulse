@@ -159,18 +159,18 @@ func remedyTwoGroupsFilterTo(offered func(string) bool) string {
 // refusal.
 func remedyTwoGroupsOrChiSq(offered func(string) bool) string {
 	if isOffered(offered, string(types.TEST_CHISQ)) {
-		return "; specify a two-group SplitBy or use TEST_CHISQ"
+		return "; specify a two-group split_by or use TEST_CHISQ"
 	}
-	return "; specify a two-group SplitBy"
+	return "; specify a two-group split_by"
 }
 
 // remedyTwoGroupsOrAnova completes TEST_Z_TWO_SAMPLE's too-many-groups
 // refusal.
 func remedyTwoGroupsOrAnova(offered func(string) bool) string {
 	if isOffered(offered, string(types.TEST_ANOVA_F)) {
-		return "; specify a two-group SplitBy or use TEST_ANOVA_F"
+		return "; specify a two-group split_by or use TEST_ANOVA_F"
 	}
-	return "; specify a two-group SplitBy"
+	return "; specify a two-group split_by"
 }
 
 // remedyAnovaForK completes TEST_T's two-sample too-many-groups
@@ -179,7 +179,7 @@ func remedyAnovaForK(offered func(string) bool) string {
 	if isOffered(offered, string(types.TEST_ANOVA_F)) {
 		return "; use TEST_ANOVA_F for k>2"
 	}
-	return "; specify a two-group SplitBy"
+	return "; specify a two-group split_by"
 }
 
 // remedyTukeyFromAnova completes TEST_TUKEY_HSD's missing-params
@@ -246,7 +246,7 @@ func refusalRemedies() []remedy {
 
 // remedyDetailLists are the details keys whose []string value lists
 // alternatives a refusal recommends (not names the caller wrote).
-var remedyDetailLists = []string{"alternates", "alternts", "admitted_cell_aggregators"}
+var remedyDetailLists = []string{"alternates", "admitted_cell_aggregators"}
 
 // ScopeRefusal rewrites err for the instance r serves: in every coded
 // error on the chain, each remedy clause's default rendering becomes

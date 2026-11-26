@@ -3,12 +3,12 @@ id: U33
 slug: v1-release
 title: "Pulse v1.0.0 is released with a written stability promise"
 track: API & release
-size: S
+size: XL
 status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 799]
 branch: v1-release
 ---
 
@@ -16,7 +16,7 @@ branch: v1-release
 
 **Outcome:** Pulse v1.0.0 is released with a written stability promise.
 
-**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
+**Track:** API & release · **Size:** XL · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
 
 ## Summary
 
@@ -36,6 +36,38 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
 - [ ] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3)
 - [ ] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4)
+- [ ] **#767** (1. API surface & release pipeline) `make sites` has no mode for an I/O-path change: add an `io` mode in `internal/tools/sites` that finds a reader / importer change's companions by shape (format readers, `internal/io` import / convert / widen, byte-layout and io-import slices, import skills, migration doc), with a falsified fixture test and a recipe line. Found in docs-content (E4-S1)
+- [ ] **#768** (12. Release v1.0.0) `SECURITY.md` sends reporters to GitHub private vulnerability reporting, which is disabled on the repository: enable it (an owner action) or name a monitored contact before the v1.0.0 tag
+- [ ] **#769** (7. Guided analysis — docs, API & MCP) `pulse cohort inspect` text mode prints no `Zone field:` line for a cohort's default zone field (`--json` carries `zone_field`)
+- [ ] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table)
+- [x] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
+- [ ] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row
+- [ ] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
+- [ ] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines
+- [ ] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders
+- [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
+- [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
+- [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
+- [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
+- [ ] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests
+- [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
+- [ ] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys)
+- [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
+- [ ] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type
+- [ ] **#786** (11. Documentation audit) Inferred `set_*` rungs promote at import instead of dropping rows
+- [ ] **#787** (11. Documentation audit) `REG_MMM_BAYES` diagnostics in a named Compose fit name the fit and count its parameters right
+- [ ] **#788** (11. Documentation audit) Decide whether `ATTR_DATE_PART` hour / weekday keys sort numerically
+- [ ] **#789** (11. Documentation audit) A facet overlay's `ref.population.cohort` resolves through `data_dir` / `PULSE_DATA_DIR`
+- [ ] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null
+- [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
+- [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
+- [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
+- [ ] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names
+- [ ] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys
+- [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
+- [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
+- [ ] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision
+- [ ] **#799** (11. Documentation audit) A facet overlay's unknown `params.field` code is decided
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](U33-v1-release.md)
@@ -229,3 +261,40 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
 
 - [ ] **#756** — **The label, lookup, range-table and populations directory loaders read through `os`**, so an embedder on an in-memory `Options.FS` cannot use them; thread the template store's Fs.
+
+## Handed on from U32b
+
+Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
+
+- [ ] **#767** — **`make sites` has no mode for an I/O-path change**; add an `io` mode that finds a reader / importer change's companions by shape, with a falsified fixture test.
+- [ ] **#768** — **Private vulnerability reporting is disabled**, so `SECURITY.md`'s only reporting channel fails; enable it or name a monitored contact.
+- [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
+- [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.
+- [x] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry. *Done in U32b (E8-S4): both registered; `TestEmittedCodeLiteralsRegistered` gates emitted literals.*
+- [ ] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it).
+- [ ] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`.
+- [ ] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767).
+- [ ] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not.
+- [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.
+- [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
+- [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.
+- [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
+- [ ] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests.
+- [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
+- [ ] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling.
+- [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.
+- [ ] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type.
+- [ ] **#786** — **Inferred set rungs drop rows instead of promoting**; extend the ladder.
+- [ ] **#787** — **Bayesian MMM diagnostics in a named fit name `""` and miscount parameters**; fall back to the fit name, match the list.
+- [ ] **#788** — **Date-part hour / weekday keys sort as strings**; decide numeric order.
+- [ ] **#789** — **Facet overlay population cohort ignores `data_dir`**; resolve it as the host cohort.
+- [ ] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse.
+- [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
+- [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
+- [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
+- [ ] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms.
+- [ ] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys.
+- [ ] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it.
+- [ ] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys.
+- [ ] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide.
+- [ ] **#799** — **Facet `params.field` code differs from other hosts**; owner call.

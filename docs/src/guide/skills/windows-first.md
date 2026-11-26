@@ -9,7 +9,7 @@ covers: [WIN, windows, aggregations, groups, crosstab, post_window]
 
 # Windows-first
 
-By default windows run AFTER the groups and aggregations, over their output rows (a lag of a grouped total). A request runs **windows-first** when one of its aggregations, groupers, or crosstab axes / cells / margin aggregations reads a window label as `field` (or as a built-in column param) — directly, through a post-window attribute that reads one ([`attribute-composition`](attribute-composition.md)), or through a bound model whose terms read one. The windows then run over the filtered record rows first, and the groups, aggregations and crosstab read the window column off each record, exactly as they would read a stored cohort column. Nothing to switch on: the read is the trigger.
+By default windows run AFTER the groups and aggregations, over their output rows (a lag of a grouped total). A request runs **windows-first** when one of its aggregations, groupers, or crosstab axes / cells / margin aggregations reads a window label as `field` (or as a built-in column param) — directly, through a post-window attribute that reads one ([`attribute-composition`](attribute-composition.md)), or through a bound model whose terms read one. The windows then run over the filtered record rows first, and the groups, aggregations and crosstab read the window value off each record, exactly as they would read a stored cohort field. Nothing to switch on: the read is the trigger.
 
 ## Ungrouped
 
@@ -53,8 +53,8 @@ A window has no weighted form, so a request-level `weight` on a request with win
 ## Gotchas
 
 - A sort key or post-test naming a window label is refused: the output rows carry only group keys and aggregation labels. So is a window reading an aggregation's output label (`windows_first_reads_aggregate`), a window-label `weight`, and a tier-1 test reading a window label.
-- Not windows-first, a window naming a record column (`field`, `order_by`, `partition_by`) is refused `details.reason: "window_over_output_rows"`: the output rows carry only group keys and aggregation labels.
-- A `WIN_LAG` / `WIN_LEAD` of a categorical is a lagged category: `GROUP_CATEGORY` keys it by the source labels (group or crosstab axis); an aggregation or other grouper reading it is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Not windows-first, a window naming a record field (`field`, `order_by`, `partition_by`) is refused `details.reason: "window_over_output_rows"`: the output rows carry only group keys and aggregation labels.
+- A `WIN_LAG` / `WIN_LEAD` of a categorical is a lagged category: `GROUP_CATEGORY` keys it by the source labels (as a group or axis); an aggregation or other grouper reading it is `PULSE_FIELD_TYPE_UNSUPPORTED`.
 - An extension window writing strings is `PROCESSING_CONFIG` `{field, value_type}`.
 - An extension aggregator or grouper whose declared field inputs name a window label triggers the mode as `field` does; a declared name nothing produces is an unknown field.
 - A window label equal to a schema field or vector name is that field, not the window.

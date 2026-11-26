@@ -214,7 +214,7 @@ func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 	}
 	if variant != "mann_kendall" {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"TEST_TREND variant "+variant+" not supported; only mann_kendall in v1",
+			"TEST_TREND variant "+variant+" not supported; mann_kendall is the only variant",
 			map[string]any{"variant": variant})
 	}
 	_ = schema

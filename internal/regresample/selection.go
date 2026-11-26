@@ -16,6 +16,6 @@ func CheckSelectionCriterion(spec *types.RegressionSpec) *errors.CodedError {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-		"regression Selection requires a Criterion (aic | bic)",
+		"regression selection requires a criterion (aic | bic)",
 		map[string]any{"selection": spec.Selection})
 }

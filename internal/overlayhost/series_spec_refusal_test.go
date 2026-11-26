@@ -93,7 +93,7 @@ func TestSeriesSpecRefusal_Rules(t *testing.T) {
 			spec := *good
 			spec.Ref.Prior = &types.OverlayPriorRef{}
 			if cerr := SeriesSpecRefusal(&spec, kind, 0); cerr != nil {
-				t.Fatalf("%s: Ref.Prior lag 0 refused: %v", kind, cerr)
+				t.Fatalf("%s: ref.prior lag 0 refused: %v", kind, cerr)
 			}
 			spec.Ref.Prior = &types.OverlayPriorRef{Lag: 2}
 			if cerr := SeriesSpecRefusal(&spec, kind, 0); cerr == nil || cerr.Code != ref || cerr.Details["lag"] != 2 {
@@ -150,7 +150,7 @@ func TestProcessSpecRefusal_Dispatch(t *testing.T) {
 		t.Fatalf("series: %v", cerr)
 	}
 	if cerr := ProcessSpecRefusal(types.OverlayShapeMatrix, share, share.Kind, false, 0); cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE {
-		t.Fatalf("matrix: %v, want the crosstab rule's missing Ref.Margin", cerr)
+		t.Fatalf("matrix: %v, want the crosstab rule's missing ref.margin", cerr)
 	}
 	for _, grouped := range []bool{false, true} {
 		want := ScalarSpecRefusal(share, share.Kind, grouped, 0)

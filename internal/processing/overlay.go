@@ -657,7 +657,7 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 		if spec.Level != 0 || spec.Within != 0 {
 			return errors.NewCodedErrorWithDetails(
 				errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
+				"overlay "+string(spec.Kind)+" does not support level / within (implicit-margin inferential kind)",
 				map[string]any{
 					"index":  specIndex,
 					"kind":   string(spec.Kind),
@@ -676,7 +676,7 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+string(spec.Kind)+" Level is out of range for the host axis",
+			"overlay "+string(spec.Kind)+" level is out of range for the host axis",
 			map[string]any{
 				"index":            specIndex,
 				"kind":             string(spec.Kind),
@@ -687,7 +687,7 @@ func validateOverlayLevelWithinRuntime(spec *types.OverlaySpec, route types.Over
 	if spec.Within < 0 || (withinAxisDepth > 0 && spec.Within >= withinAxisDepth) {
 		return errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+string(spec.Kind)+" Within is out of range for the host opposite axis",
+			"overlay "+string(spec.Kind)+" within is out of range for the host opposite axis",
 			map[string]any{
 				"index":             specIndex,
 				"kind":              string(spec.Kind),
@@ -1515,7 +1515,7 @@ func applyDeltaVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
@@ -2186,7 +2186,7 @@ func applyIndexVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types.
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
@@ -2328,7 +2328,7 @@ func applyShareOfRow(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
@@ -2475,7 +2475,7 @@ func applyShareOfCol(spec *types.OverlaySpec, host *CrosstabHostView) (types.Ove
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
@@ -2623,7 +2623,7 @@ func applyShareOfTotal(spec *types.OverlaySpec, host *CrosstabHostView) (types.O
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})
@@ -2784,7 +2784,7 @@ func applyZScoreVsMargin(spec *types.OverlaySpec, host *CrosstabHostView) (types
 	if spec.Ref.Margin == nil {
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Margin",
+			"overlay "+string(spec.Kind)+" requires ref.margin",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})

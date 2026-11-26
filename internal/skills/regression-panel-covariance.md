@@ -18,9 +18,10 @@ A panel is many entities (geos, stores, users) observed over the same periods. A
 | Rows correlated within a geo AND within a week, no lag structure | `{"type": "cluster", "cluster": "geo", "cluster2": "week"}` |
 
 <!-- feature: REG_OLS -->
-```json
-{"regressions": [{"type": "REG_OLS", "target": "sales", "predictors": ["spend", "price"],
-  "covariance": {"type": "driscoll_kraay", "order_by": "week", "entity": "geo", "lags": 3}}]}
+```json cohort=mmm_weekly
+{"cohort": {"filename": "mmm_weekly.pulse"},
+ "regressions": [{"type": "REG_OLS", "target": "sales", "predictors": ["tv", "price"],
+  "covariance": {"type": "driscoll_kraay", "order_by": "week", "entity": "market", "lags": 3}}]}
 ```
 <!-- /feature -->
 
@@ -54,7 +55,7 @@ REG_GLM stays Wald z (the IRLS-score sandwich, dispersion-free).
 REG_BAYES_LINEAR: Müller's sandwich posterior with this meat; normal intervals, no p-values.
 <!-- /feature -->
 
-`covariance` echoes `{type, order_by, lags, periods}` plus `entity` and `entities` (its level count) when an entity is set — `lags` resolved. A plain `hac` echo is unchanged (no `periods`).
+`covariance` echoes `{type, order_by, lags, periods}` plus `entity` and `entities` (its level count) when an entity is set — `lags` resolved. A plain `hac` echo has no `periods`.
 
 ## Refusals
 

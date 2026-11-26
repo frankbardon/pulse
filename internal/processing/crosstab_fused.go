@@ -348,7 +348,7 @@ func newFusedCrosstabStateKeyed(spec *types.CrosstabSpec, schema, keys *encoding
 	}
 	if spec.Cell == nil {
 		return nil, errors.NewCodedError(errors.PULSE_CROSSTAB_MISSING_CELL,
-			"fused crosstab requires a Cell aggregation")
+			"fused crosstab requires a cell aggregation")
 	}
 	// Map-valued cell aggregators are incompatible with normalization;
 	// mirror the same gate the buffered RunCrosstab applies.

@@ -17,11 +17,11 @@ A naive literal (no `Z`, no offset) is UTC unless the import names a source zone
 
 `--dst-policy error|earlier|later` (default `error`): a wall time the zone skips is `PULSE_IMPORT_DST_NONEXISTENT`, one it shows twice is `PULSE_IMPORT_DST_AMBIGUOUS`; both name row, column, value, zone; no file written. `earlier`/`later` resolve it and warn `PULSE_IMPORT_DST_RESOLVED` with counts. `earlier` = PRE-transition offset, `later` = POST: overlap: first / second occurrence; GAP inverts — Berlin `02:30` on 2026-03-29: `earlier` = `01:30Z` = `03:30` local, `later` = `00:30Z` = `01:30` local. Predict reports the same refusal.
 
-Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Arrow types and UTC-adjusted Parquet are instants (the source zone never moves them); zone-less Arrow, non-adjusted Parquet and legacy INT96 are wall clocks (source zone applies). Sub-second values floor (`PULSE_IMPORT_TIMESTAMP_TRUNCATED`). SPSS `DATETIME` is a wall clock (source zone applies); SPSS `TIME`/`DTIME` are durations, `f64` seconds, never a datetime.
+Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Arrow types and UTC-adjusted Parquet are instants (the source zone never moves them); zone-less Arrow, non-adjusted Parquet and INT96 are wall clocks (source zone applies). Sub-second values floor (`PULSE_IMPORT_TIMESTAMP_TRUNCATED`). SPSS `DATETIME` is a wall clock (source zone applies); SPSS `TIME`/`DTIME` are durations, `f64` seconds, never a datetime.
 
 ## Per-row zones and dropped rows
 
-- The `source_tz_field` column imports as a normal column too; DST policy applies per row.
+- The `source_tz_field` column imports as a normal field too; DST policy applies per row.
 - A row it cannot zone — an empty cell with no `source_tz`, or an unknown name (`PULSE_TIMEZONE_UNKNOWN`) — is skipped, not fatal: `rows_dropped` with details `row` and `zone_column` (fatal under `--strict`).
 - A missing zone column, or one typed `datetime`, is `SERVICE_VALIDATION`.
 - `date` columns are never zoned; a `col=Zone` naming one is `CLI_INPUT`.
@@ -30,7 +30,7 @@ Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Ar
 
 `--zone-field COL` (`ImportJob.ZoneField` / `ConvertJob.ZoneField`) declares the written cohort's DEFAULT per-row zone field (`zone_field` in its schema; see [`time-zones`](time-zones.md)). Explicit only: `--source-tz-field` never implies it, though both may name one column. `COL` must import as `categorical_*` with every value `UTC` or IANA (no `±HH:MM`): missing or non-categorical is `SERVICE_VALIDATION` (`details.option` `zone_field`) before any row; a bad value is `PULSE_TIMEZONE_UNKNOWN` (`dictionary_index`) before anything is written; the same codes on every surface. `import predict` judges it too; `convert` needs `--keep-pulse` (`reason` `no_cohort`); refused on a `.pulse` source.
 
-On an EXISTING cohort: `pulse cohort zone set COHORT FIELD` / `pulse cohort zone clear COHORT` (`Pulse.SetCohortZoneField` / `ClearCohortZoneField`) — a schema-only atomic rewrite, the same rule and codes; a shard archive is rewritten whole (every shard must agree) with `PULSE_SHARD_ZONE_REWRITTEN`; set then clear is byte-identical. On a managed handle its imports sidecar's `zone_field` follows (removed on clear); a failed sidecar update is a `SERVICE_RESOURCE` `sidecar_warnings` entry. Every rewriter (dedup, materialize, filter, widen, rake, synth augment, shard ops) keeps the default.
+On an EXISTING cohort: `pulse cohort zone set COHORT FIELD` / `pulse cohort zone clear COHORT` (`Pulse.SetCohortZoneField` / `ClearCohortZoneField`) — a schema-only atomic rewrite, the same rule and codes; a shard archive is rewritten whole (every shard must agree) with `PULSE_SHARD_ZONE_REWRITTEN`; set then clear restores the original bytes. On a managed handle its imports sidecar's `zone_field` follows (removed on clear); a failed sidecar update is a `SERVICE_RESOURCE` `sidecar_warnings` entry. Every rewriter (dedup, materialize, filter, widen, rake, synth augment, shard ops) keeps the default.
 
 ## On the managed import
 

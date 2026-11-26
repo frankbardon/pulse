@@ -94,6 +94,54 @@ func TypeToPulse(dt arrow.DataType) encoding.FieldType {
 	}
 }
 
+// DeclaresWidth reports whether an Arrow type declares a storage width
+// Pulse keeps on import (iocore.DeclaredTypeReader): unsigned integers,
+// float32 / float64, boolean, date32 / date64, timestamp and decimal128.
+// Signed integers are excluded because Pulse has no signed integer type
+// (TypeToPulse's u* arm would refuse every negative value), and strings,
+// binary, dictionary and list columns because their width depends on the
+// data (dictionary rung, set rung) — those stay with inference.
+func DeclaresWidth(dt arrow.DataType) bool {
+	switch dt.ID() {
+	case arrow.UINT8, arrow.UINT16, arrow.UINT32, arrow.UINT64,
+		arrow.FLOAT32, arrow.FLOAT64, arrow.BOOL,
+		arrow.DATE32, arrow.DATE64, arrow.TIMESTAMP, arrow.DECIMAL128:
+		return true
+	}
+	return false
+}
+
+// DeclaredColumns filters a reader's InferPulseSchema mapping down to the
+// pinned columns (DeclaresWidth), keyed by name — the shared body of the
+// Arrow and Parquet DeclaredColumnTypes.
+func DeclaredColumns(sc *arrow.Schema, mapped *encoding.Schema) map[string]encoding.Field {
+	var out map[string]encoding.Field
+	for i := 0; i < sc.NumFields() && i < len(mapped.Fields); i++ {
+		if !DeclaresWidth(sc.Field(i).Type) {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]encoding.Field)
+		}
+		pin := mapped.Fields[i]
+		if declaresU4(sc.Field(i)) {
+			pin.Type = encoding.FieldTypeU4
+		}
+		out[pin.Name] = pin
+	}
+	return out
+}
+
+// declaresU4 reports whether af is a Uint8 column FieldFromPulse wrote
+// for a Pulse u4 field (PulseTypeMetadataKey = "u4").
+func declaresU4(af arrow.Field) bool {
+	if af.Type.ID() != arrow.UINT8 {
+		return false
+	}
+	v, ok := af.Metadata.GetValue(PulseTypeMetadataKey)
+	return ok && v == encoding.FieldTypeU4.String()
+}
+
 // TypeFromPulse maps a Pulse FieldType to an Arrow DataType for use when
 // constructing an Arrow schema for export. Nullability is carried by the
 // arrow.Field's Nullable flag, not the data type.
@@ -159,9 +207,19 @@ func TypeFromPulse(ft encoding.FieldType) arrow.DataType {
 
 // FieldFromPulse builds an Arrow Field for a Pulse schema entry, including
 // per-type details (decimal128 precision/scale). Arrow's nullable flag is
-// driven by the Pulse field's Nullable attribute.
+// driven by the Pulse field's Nullable attribute. A u4 field, which Arrow
+// has no type for, exports as Uint8 carrying PulseTypeMetadataKey = "u4"
+// so the import pin (DeclaredColumns) recovers u4 and a round trip stays
+// byte-identical.
 func FieldFromPulse(f encoding.Field) arrow.Field {
 	switch f.Type {
+	case encoding.FieldTypeU4:
+		return arrow.Field{
+			Name:     f.Name,
+			Type:     TypeFromPulse(f.Type),
+			Nullable: f.Nullable,
+			Metadata: arrow.NewMetadata([]string{PulseTypeMetadataKey}, []string{encoding.FieldTypeU4.String()}),
+		}
 	case encoding.FieldTypeDecimal128:
 		precision := int32(f.Precision)
 		if precision == 0 {

@@ -45,7 +45,7 @@ func RakeCommand() *cli.Command {
 			&cli.FloatFlag{Name: "tol", Usage: "Convergence tolerance on the largest achieved-vs-target share gap (default 1e-6)"},
 			&cli.FloatFlag{Name: "total", Usage: "Normalise every group's weights to sum to this value (default: the group's record count, mean weight 1)"},
 			&cli.BoolFlag{Name: "overwrite", Usage: "Replace an existing cohort at --out (atomic; its now-stale sidecars are listed, never rebuilt) and an existing source column named --weight-field"},
-			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
@@ -61,8 +61,8 @@ func RakeCommand() *cli.Command {
 			if err != nil {
 				// Every refusal carries its own code (the PULSE_RAKE_*
 				// family, SERVICE_VALIDATION for an existing or anchored
-				// --out). RAKE_ERROR is reached only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "RAKE_ERROR", err)
+				// --out). CLI_ERROR is reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings)

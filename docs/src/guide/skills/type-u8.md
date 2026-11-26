@@ -8,21 +8,21 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 1 byte per record. Not bit-packed (`IsBitPacked()` is `false`). Aligned at the byte boundary recorded in `Schema.Field.ByteOffset`; bit position is always `0`.
+Fixed-width: 1 byte per record at the field's `ByteOffset`. Not bit-packed; `BitPosition` is 0.
 
 ## Range
 
-`0..255` (8-bit unsigned). Use for small counts, age in years, version ordinals, small enum domains where you do NOT need dictionary lookup, or as the discriminator under a packed value pair.
+`0..255`. Inference picks `u8` for sampled integers in 16..255 (0..15 infers `u4`); a later value past 255 promotes the field (`PULSE_IMPORT_WIDTH_PROMOTED`). Fits small counts, age in years, small integer codes that need no dictionary.
 
 ## Null
 
-Orthogonal. Set `Nullable: true` and the per-record null bitmap records null state. `0` is the integer zero, not null — there is no in-band sentinel. Counts as `IsNumeric()` and `IsNumericForAnalytics()`; aggregators and regressions consume directly.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap. `0` is the integer zero, never null. `IsNumeric()` and `IsNumericForAnalytics()` are both `true`; aggregators and regressions read it directly and skip nulls.
 
 ## Dictionary
 
-Absent. No inline dictionary block. Reach for `categorical_u8` (also 1 byte on the wire) when the column is string-labeled; the encoder stores the dictionary once in the schema and the record pays only the index byte.
+Absent. For a string-labelled field use `categorical_u8` (also 1 byte per record; the dictionary is stored once in the schema).
 
 ## See
 
 - Skill: [`cohort-schema-design`](cohort-schema-design.md) (Field-type matrix).
-- Cross-link: [`type-categorical-u8`](type-categorical-u8.md) for labeled-enum alternative.
+- Cross-link: [`type-categorical-u8`](type-categorical-u8.md), [`type-u4`](type-u4.md).

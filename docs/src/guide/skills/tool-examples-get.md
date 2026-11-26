@@ -17,13 +17,13 @@ The full record's `body` has the `_meta` annotation block already stripped — h
 
 ## Output
 
-`descriptor.Envelope` wrapping the example record: `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (runnable `types.Request` JSON). Missing example → MCP error `example "<name>" not found` — also what an example using a feature this server hides answers. Serves the same library as `pulse_examples_search` (embedder examples included).
+The example record (no envelope): `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (the runnable request as a JSON object). Missing example → coded tool error `SERVICE_VALIDATION` (`details.argument: "name"`, `details.name`) — also what an example using a feature this server hides answers. Serves the same library as `pulse_examples_search` (embedder examples included).
 
 ## Gotchas
 
-- `body` is `types.Request` — for `ComposedRequest` / `ChainRequest` / `FacetRequest` examples the library category encodes the target endpoint; the body is still a single-shape JSON, not a tagged union.
+- `body` is the request of the tool that runs it, told apart by its root keys, not by `category`: `requests` → `pulse_compose`, `stages` → `pulse_process_chain` (chain examples sit under `overlays` too), `fields` → `pulse_facet_schema`, `output` → `pulse_materialize`, otherwise a plain request. To predict a non-plain body, pass it under `pulse_predict`'s `composed` / `chain` / `facet` root.
 - Field names in the body match the example's seed cohort. Rename them for your target cohort before calling `pulse_predict` / `pulse_process`.
-- The `_meta` block is stripped on emit so the body is directly runnable; the surrounding record carries the same metadata externally.
+- The body's `cohort` names the example's fixture cohort (`data_dir` included); point it at your own cohort.
 
 ## See
 
