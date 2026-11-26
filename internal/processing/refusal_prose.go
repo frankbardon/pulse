@@ -246,7 +246,7 @@ func refusalRemedies() []remedy {
 
 // remedyDetailLists are the details keys whose []string value lists
 // alternatives a refusal recommends (not names the caller wrote).
-var remedyDetailLists = []string{"alternates", "alternts", "admitted_cell_aggregators"}
+var remedyDetailLists = []string{"alternates", "admitted_cell_aggregators"}
 
 // ScopeRefusal rewrites err for the instance r serves: in every coded
 // error on the chain, each remedy clause's default rendering becomes

@@ -100,7 +100,7 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	build := func() *errors.CodedError {
 		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 			"GROUP_RANGE: field tags is a set column (set_u8)"+remedyGrouperSetField(nil),
-			map[string]any{"alternts": []string{"GROUP_SET_VALUE", "GROUP_SET_PER_ELEMENT"}})
+			map[string]any{"alternates": []string{"GROUP_SET_VALUE", "GROUP_SET_PER_ELEMENT"}})
 	}
 
 	if got := (*ExtensionRegistry)(nil).ScopeRefusal(build()); got.(*errors.CodedError).Message != build().Message {
@@ -116,8 +116,8 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	if want := "GROUP_RANGE: field tags is a set column (set_u8); use GROUP_SET_VALUE"; ce.Message != want {
 		t.Errorf("message = %q, want %q", ce.Message, want)
 	}
-	if got := ce.Details["alternts"]; !reflect.DeepEqual(got, []string{"GROUP_SET_VALUE"}) {
-		t.Errorf("alternts = %v", got)
+	if got := ce.Details["alternates"]; !reflect.DeepEqual(got, []string{"GROUP_SET_VALUE"}) {
+		t.Errorf("alternates = %v", got)
 	}
 	// Idempotent.
 	again := r.ScopeRefusal(ce).(*errors.CodedError)
@@ -133,8 +133,8 @@ func TestScopeRefusal_RewritesForTheInstance(t *testing.T) {
 	if want := "GROUP_RANGE: field tags is a set column (set_u8)"; inner.Message != want {
 		t.Errorf("wrapped refusal = %q, want %q", inner.Message, want)
 	}
-	if got := inner.Details["alternts"]; !reflect.DeepEqual(got, []string{}) {
-		t.Errorf("wrapped alternts = %#v, want empty", got)
+	if got := inner.Details["alternates"]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("wrapped alternates = %#v, want empty", got)
 	}
 	if got := r2.ScopeRefusal(nil); got != nil {
 		t.Errorf("nil error became %v", got)
