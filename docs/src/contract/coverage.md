@@ -564,7 +564,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.MultiplicityTriggerThreshold` | yes |  | yes |
 | `descriptor.NewEnvelope` |  |  | yes |
 | `descriptor.NewEnvelopeWithRequest` |  |  | yes |
-| `descriptor.None` | yes |  | yes |
+| `descriptor.None` |  |  | yes |
 | `descriptor.Ontology` | yes |  | yes |
 | `descriptor.OntologyEdge` |  |  | yes |
 | `descriptor.OntologyEdgeDocumentedBy` |  |  | yes |
@@ -2475,7 +2475,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.FILTER_SET_EQUALS` |  |  | yes |
 | `types.FILTER_TRUE` |  |  | yes |
 | `types.FacetDiscrete` |  |  | yes |
-| `types.FacetField` | yes |  | yes |
+| `types.FacetField` |  |  | yes |
 | `types.FacetField.MarshalJSON` |  |  | yes |
 | `types.FacetHistogram` |  |  | yes |
 | `types.FacetNumeric` |  |  | yes |
