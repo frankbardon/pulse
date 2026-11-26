@@ -129,7 +129,8 @@ var operatorWord = regexp.MustCompile(`\b[A-Z]+_[A-Z0-9_]+\b`)
 // agent can read: no task question appears in the served example
 // library or the skill pack, no reference request equals a served
 // example body, no question names an operator, and no package outside
-// internal/eval imports it (so it is never compiled into a binary).
+// internal/eval but the contributor tools imports it (so it is never
+// compiled into a shipped binary).
 func TestEvalNoAnswerKeyLeak(t *testing.T) {
 	t.Parallel()
 	var served []string
@@ -169,7 +170,10 @@ func TestEvalNoAnswerKeyLeak(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		// Contributor tools (internal/tools/, e.g. evalscore) are never
+		// shipped, so they may import it.
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") ||
+			strings.Contains(filepath.ToSlash(path), "/internal/tools/") {
 			return nil
 		}
 		src, err := afero.ReadFile(osfs, path)

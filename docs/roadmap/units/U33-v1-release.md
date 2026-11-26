@@ -125,6 +125,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 ## Gates & tests
 
 - All non-skippable gates green; API-compat job enabled
+- Before tagging the rc and `v1.0.0`: rerun the agent evaluation on the release build ([Agent Evaluation](../../src/contributing/agent-eval.md)) and score it with `go run ./internal/tools/evalscore internal/eval/runs/<date>`; every task passes
 
 ## Update Demand companions
 

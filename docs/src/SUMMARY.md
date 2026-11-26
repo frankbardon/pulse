@@ -596,5 +596,6 @@
 - [Testing Conventions](contributing/testing.md)
 - [Running CI Gates Locally](contributing/local-ci.md)
 - [Documentation Checks](contributing/doc-checks.md)
+- [Agent Evaluation](contributing/agent-eval.md)
 - [Porting Workflow](contributing/porting-workflow.md)
 - [Pull Request Process](contributing/pr-process.md)
