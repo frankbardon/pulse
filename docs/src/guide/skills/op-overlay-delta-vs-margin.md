@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab (`crosstab.matrix`). Any cell aggregator; subtractive sibling of the margin index and margin z-score.
+MATRIX crosstab (`crosstab.matrix`). Use a mean-like cell (mean, rate): its margin is the slice's own mean, so the delta is the cell's lead or lag on it. On a count or sum cell the margin is the slice TOTAL and every delta is negative (minus the rest of the slice); take the margin index (a share) instead. Subtractive sibling of the margin index and margin z-score.
 
 ## Output
 
@@ -44,9 +44,9 @@ MATRIX — `payload.matrix.cells[r][c].value` = `cell − margin`, on the host's
 ## Gotchas
 
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`.
-- Preserves host cell's units — a $-valued summed cell minus a $-valued row margin yields a $-valued deviation in the same currency.
+- Keeps the cell's units: a mean revenue cell minus its row margin is a revenue deviation.
 - No division — never raises `PULSE_OVERLAY_REF_ZERO`.
-- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a mean cell.
 
 ## See
 

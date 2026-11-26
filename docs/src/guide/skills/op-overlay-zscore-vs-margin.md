@@ -30,7 +30,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab, any cell aggregator; output is a unitless deviation. Sibling of the margin index (ratio) and the margin delta (additive).
+MATRIX crosstab; output is a unitless deviation. Use a mean-like cell (mean, rate): its margin is the slice's own mean, so z says how far a cell sits from it. On a count or sum cell the margin is the slice TOTAL and every z is large and negative; take the margin index (a share) instead. Siblings: margin index (ratio), margin delta (additive).
 
 ## Output
 
@@ -53,7 +53,7 @@ MATRIX — `payload.matrix.cells[r][c].value` = `(cell − margin) / sd`, on the
 - `sd == 0` (constant slice) → `null` cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected slice.
 - Empty `ref.margin` → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 - Population SD of the slice's cells (divide by N, not N − 1), as the total z-score overlay.
-- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a mean cell.
 
 ## See
 
