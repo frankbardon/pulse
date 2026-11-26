@@ -8,21 +8,21 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 32 bytes per record, little-endian **word** order — `words[0]` holds bits 0..63 and occupies the lowest 8 bytes. Not bit-packed (the value is consumed atomically as a bitmask). Stride contributes 32 bytes. Bit `i` corresponds to dictionary entry `i` — bit set means "label `i` selected". Too wide for the `uint64` scalar value API: `encoding.ReadFieldValue` / `WriteFieldValue` REFUSE it with `ENCODING_TYPE_MISMATCH` rather than silently truncate to the low 64 bits. `FieldType.IsWideSet()` names that split; wide masks travel as `SetMask`.
+Fixed-width: 32 bytes per record: 4 little-endian 64-bit words, `words[0]` = bits 0..63 first (the low 8 bytes equal a `set_u64` with the same selections). Bit `i` set = dictionary entry `i` selected. Too wide for the `uint64` value API: `ReadFieldValue` / `WriteFieldValue` refuse it with `ENCODING_TYPE_MISMATCH` rather than truncate (`IsWideSet()`); wide masks travel as `encoding.SetMask`.
 
 ## Range
 
-Up to `MaxSetEntries()` = `256` distinct labels — the widest set width Pulse supports, and a HARD ceiling: there is deliberately no `set_u512`, so a 257-option column has no set type and stays as its constituent columns. Overflow on import → `PULSE_IMPORT_SET_OVERFLOW`. **Empty mask is a valid value meaning "no labels selected" — it is NOT null.** Inference picks the smallest rung that fits, so this width is reached only above 128 labels; a 206-option column pays 32 bytes per row and wastes 26 — accepted knowingly over a variable-width set type.
+Up to `256` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`129`..`256` lands here). Every record pays the full width whether or not it sets a high bit. The widest rung, a hard ceiling: a source with more distinct tokens infers no set type, and a cell past 256 entries drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`).
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap; null is signalled there alone. Empty mask is distinct from null. In-band sentinels are explicitly disallowed for `set_*` types.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap, the only null signal; a null row still stores its full mask bytes. No mask value is reserved.
 
 ## Dictionary
 
-Present (`HasDictionary()` = `true`). Inline schema block, shared across all records; `MaxDictEntries()` = `256`. Shard cohesion: union-merge under the 256-label cap; width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`, terminal here — no wider rung exists to promote into. Motivating source: a large SPSS multiple-DICHOTOMY response set, imported beside its constituent columns ([`cohort-schema-design`](cohort-schema-design.md), SPSS import).
+Present (`HasDictionary()`): an inline schema block shared by every record, at most `256` entries. A shard union past 256 entries is `PULSE_SHARD_DICT_WIDTH_OVERFLOW` — no wider rung exists. A bit at or past the dictionary length is corrupt data (`ENCODING_INVALID`, `set_member_out_of_range`). An SPSS multiple-dichotomy response set imports as a set field beside its constituent columns ([`spss-cohorts`](spss-cohorts.md)).
 
 ## See
 
-- Skill: [`cohort-schema-design`](cohort-schema-design.md) (Field-type matrix, Nullability + per-record bitmap, Width overflow).
-- Cross-link: [`type-set-u128`](type-set-u128.md) (the rung below), [`op-agg-set-frequency`](op-agg-set-frequency.md), [`op-attr-set-has`](op-attr-set-has.md).
+- Skills: [`cohort-null-states`](cohort-null-states.md) (empty vs null), [`cohort-width-overflow`](cohort-width-overflow.md), [`cohort-sharding`](cohort-sharding.md).
+- Cross-link: [`type-set-u128`](type-set-u128.md), [`op-agg-set-frequency`](op-agg-set-frequency.md), [`op-attr-set-has`](op-attr-set-has.md).

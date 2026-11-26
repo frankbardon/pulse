@@ -13,22 +13,22 @@ Also to triage a known code or enumerate every code in one domain. The manifest 
 
 ## Input
 
-- `code` (string, optional): exact code identifier (e.g. `PULSE_FIELD_TYPE_UNSUPPORTED`). Returns 1-element array on hit, empty on miss.
+- `code` (string, optional): exact code identifier (e.g. `PULSE_FIELD_TYPE_UNSUPPORTED`). One result on a hit, none on a miss.
 - `domain` (string, optional): domain prefix (`PULSE`, `ENCODING`, `PROCESSING`, `SERVICE`, `DATA`, `CLI`). Case-insensitive; enumerates every code in that domain.
-- `query` (string, optional): case-insensitive substring across descriptions and fixup hints; ranks message hits above fixup hits.
+- `query` (string, optional): case-insensitive substring over messages, fixup hints and code names, ranked in that order (ties alphabetical).
 
 ## Output
 
-`descriptor.Envelope` wrapping `[]perr.LookupResult` — each entry: `Code`, `Domain`, `Message`, `Fixups[]` (Title + Body). Empty array when nothing matches (never null). Multiple axes set → intersection of candidate sets.
+`{results: [...]}` (no envelope), each `{code, domain, message, fixups: [{action, hint}]}`; a code with no mechanical repair carries `fixup_not_applicable: true` and no `fixups`. `results: []` when nothing matches (never null). Several axes set → their intersection.
 
 ## Gotchas
 
-- At least one of `code` / `domain` / `query` MUST be set; all empty → error `specify at least one of code, domain, query`.
-- Every code carries at least one `Fixup` template OR `FixupNotApplicable: true`. Enforced by `TestCodesHaveFixups`.
-- Intersection preserves the first-supplied axis's ordering (Search ranking, ByDomain alphabetical, or single-code).
+- At least one of `code` / `domain` / `query` MUST be set; all empty is a tool error `specify at least one of code, domain, query` (plain text, no code).
+- Every code carries at least one fixup or `fixup_not_applicable: true`.
+- An intersection keeps the order of the first axis set, taken in the order `code`, `domain` (alphabetical), `query` (ranked).
 
 ## See
 
-- Error-code list in `pulse_manifest` (`error_codes` slim slice).
+- `pulse_manifest` `error_codes` (names only) and `error_domains`.
 - `session-bootstrap` — error-handling role in the workflow.
 - `tool-manifest` — companion catalog for domain prefixes.

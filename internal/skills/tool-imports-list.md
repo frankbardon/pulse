@@ -17,13 +17,13 @@ No arguments.
 
 ## Output
 
-`{imports: [...]}` (the bare object, no envelope), in handle order, each `{handle, path, sidecar, expires_in, pinned, expired}`: `sidecar` carries `format`, `source_path`, `source_format`, `imported_at`, `expires_at`, `ttl_seconds`, `rows_imported`; `expires_in` is a duration or `"expired"`. `imports: []` when no managed handles (never null).
+`{imports: [...]}` (no envelope), in handle order, each `{handle, path, sidecar, expires_in, pinned, expired}`: `sidecar` carries `handle`, `format`, `source_path`, `source_format`, `imported_at`, `expires_at`, `ttl_seconds`, `rows_imported`; `expires_in` is a duration or `"expired"`. `imports: []` when no managed handles (never null).
 
 ## Gotchas
 
 - Pulse-format passthroughs are NOT in the list — they are not managed.
 - `expired=true` entries are still openable (Pulse never garbage-collects the underlying `.pulse`); use `pulse_drop` to evict.
-- `pinned=true` ⇒ TTL is `pin` (`ttl_seconds` ≤ 0); `expires_at` and `expires_in` are absent.
+- `pinned=true` ⇒ imported with `ttl: "pin"` (`ttl_seconds` 0); `expires_at` and `expires_in` are absent.
 
 ## See
 

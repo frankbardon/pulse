@@ -15954,7 +15954,7 @@
       },
       {
         "name": "tool-materialize",
-        "description": "Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read."
+        "description": "Write a request's derived outputs (features, attributes, windows) as ordinary fields of a new cohort that later requests read."
       },
       {
         "name": "tool-predict",
@@ -16066,7 +16066,7 @@
       },
       {
         "name": "type-u64",
-        "description": "8-byte unsigned integer; for sub-day timestamps and very wide cardinals."
+        "description": "8-byte unsigned integer; for very wide keys and sub-second timestamps."
       },
       {
         "name": "type-u8",
@@ -22195,4 +22195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6f1e165e70f16856d90f182d0c35d296ac12944b462c9537b22eefa0461d9f44
+// golden-hash: 925166d6634f71135466e8358ea4eedbf8e490d3647f0d27977cb7e9254d7a3a

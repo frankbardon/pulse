@@ -17,7 +17,7 @@ No arguments.
 
 ## Output
 
-`{tables: []RangeTableInfo}` (the bare object, no envelope), each `RangeTableInfo`: `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
+`{tables: [...]}` (no envelope), each with `name`, `kind` (`date` | `numeric`), `range_count`, and the ordered `{label, start, end}` entries — `ranges` on a date table (ISO date literals), `numeric_ranges` on a numeric one (numbers); a bound is omitted when open. Empty array when none registered (never null). Tables are supplied programmatically via `Options.Extensions.RangeTables` or loaded from `$PULSE_RANGE_TABLES_DIR/*.json` at `pulse.New` time.
 
 ## Gotchas
 
@@ -26,7 +26,7 @@ No arguments.
 - A table is typed by its bounds. Date bounds are inclusive; numeric bounds half-open `[start, end)`; an empty/absent bound is open.
 - A table of the other kind is refused `PULSE_RANGE_TABLE_KIND_MISMATCH`: date tables feed the date-range operators, numeric tables the numeric-ranges grouper.
 - Entries are calendar days with no zone of their own: over a `datetime` they match the local day in the referencing slot's resolved zone, exactly like inline ranges.
-- Reference a table by name from the grouper's `table` field or the filter's `Params.table` — do not re-inline the ranges.
+- Reference a table by name as `params.table` on the grouper or filter (in place of `params.ranges`) — do not re-inline the ranges.
 - In an expression, `range_label(table, x[, unmatched])` names the range holding `x` — a band to compare or a `lookup` key (`lookup-formulas`).
 <!-- feature: capability:materialize_output -->
 - A materialize output column's `bucket.range_table` names one too, writing the labels as a categorical (`materialize-recode`).

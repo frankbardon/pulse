@@ -73,7 +73,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.BuildIndexResult` | yes |  | yes |
 | `pulse.ChainOverlaySchemaDivergence` |  |  | yes |
 | `pulse.ChainPredictResult` |  |  | yes |
-| `pulse.ChainRequest` | yes | yes | yes |
+| `pulse.ChainRequest` | yes |  | yes |
 | `pulse.ChainRequest.Hash` |  |  | yes |
 | `pulse.ChainResponse` |  |  | yes |
 | `pulse.ChainResponse.MarshalJSON` |  |  | yes |
@@ -113,7 +113,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.ComposeStreamOptions` | yes |  | yes |
 | `pulse.ComposedRequest` | yes |  | yes |
 | `pulse.ComposedRequest.Hash` |  |  | yes |
-| `pulse.ComposedResponse` | yes | yes | yes |
+| `pulse.ComposedResponse` |  |  | yes |
 | `pulse.ComposedResponse.MarshalJSON` |  |  | yes |
 | `pulse.CreateShardArchiveResult` |  |  | yes |
 | `pulse.DateRangeSpec` |  |  | yes |
@@ -152,7 +152,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.FacetHistogram` |  |  | yes |
 | `pulse.FacetNumeric` |  |  | yes |
 | `pulse.FacetPredictResult` |  |  | yes |
-| `pulse.FacetRequest` | yes | yes | yes |
+| `pulse.FacetRequest` | yes |  | yes |
 | `pulse.FacetRequest.Hash` |  |  | yes |
 | `pulse.FacetResult` |  |  | yes |
 | `pulse.FacetResult.MarshalJSON` |  |  | yes |
@@ -362,7 +362,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.RenderedTemplate.Typed` |  |  | yes |
 | `pulse.Request` | yes |  | yes |
 | `pulse.Request.Hash` |  |  | yes |
-| `pulse.Response` | yes | yes | yes |
+| `pulse.Response` |  |  | yes |
 | `pulse.Response.MarshalJSON` |  |  | yes |
 | `pulse.Row` | yes |  | yes |
 | `pulse.RowIter` | yes |  | yes |
@@ -691,7 +691,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `encoding.CanonicalDateTimeLayout` | yes | yes | yes |
 | `encoding.CompressedCohortError` |  |  | yes |
 | `encoding.DateDays` | yes | yes | yes |
-| `encoding.DateFormats` | yes |  | yes |
+| `encoding.DateFormats` | yes | yes | yes |
 | `encoding.DateTimeFormats` | yes | yes | yes |
 | `encoding.DateTimeSeconds` | yes | yes | yes |
 | `encoding.DateTimeToDay` | yes |  | yes |
@@ -801,7 +801,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `encoding.ReadBitmap` | yes |  | yes |
 | `encoding.ReadDecimal128` |  |  | yes |
 | `encoding.ReadDescription` |  |  | yes |
-| `encoding.ReadFieldValue` | yes | yes | yes |
+| `encoding.ReadFieldValue` | yes |  | yes |
 | `encoding.ReadHeader` | yes |  | yes |
 | `encoding.ReadNibble` |  |  | yes |
 | `encoding.ReadSchema` | yes |  | yes |
@@ -2381,7 +2381,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ComponentsNone` |  |  | yes |
 | `types.ComponentsPartial` |  |  | yes |
 | `types.ComposeOverlaySpec` | yes |  | yes |
-| `types.ComposedRequest` | yes | yes | yes |
+| `types.ComposedRequest` | yes |  | yes |
 | `types.ComposedRequest.Hash` |  |  | yes |
 | `types.ComposedResponse` | yes |  | yes |
 | `types.ComposedResponse.MarshalJSON` |  |  | yes |
@@ -2545,10 +2545,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.LookupMultiplicityAll` |  |  | yes |
 | `types.LookupMultiplicityAssertUnique` |  |  | yes |
 | `types.LookupMultiplicityFirst` |  |  | yes |
-| `types.LookupRequest` | yes | yes | yes |
+| `types.LookupRequest` |  |  | yes |
 | `types.LookupRequest.Hash` |  |  | yes |
 | `types.LookupRequest.KeyComponents` |  |  | yes |
-| `types.LookupResult` | yes | yes | yes |
+| `types.LookupResult` |  |  | yes |
 | `types.MAT_COLLINEARITY` |  |  | yes |
 | `types.MAT_CORRELATION` |  |  | yes |
 | `types.MAT_COVARIANCE` |  |  | yes |
@@ -3193,7 +3193,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--data-dir` | yes |  | yes |
 | `--decode-workers` | yes |  | yes |
 | `--dedup-ratio-floor` | yes | yes | yes |
-| `--detail` | yes | yes | yes |
+| `--detail` | yes |  | yes |
 | `--disclosure-sample` | yes | yes | yes |
 | `--domain` | yes |  | yes |
 | `--dst-policy` | yes | yes | yes |

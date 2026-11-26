@@ -673,7 +673,7 @@
       },
       {
         "name": "type-u64",
-        "description": "8-byte unsigned integer; for sub-day timestamps and very wide cardinals."
+        "description": "8-byte unsigned integer; for very wide keys and sub-second timestamps."
       },
       {
         "name": "type-u8",
@@ -931,4 +931,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eddd631749016d2b4bb0891c1ca2c6a4c098d720d16ccea2d333b46bca6c692c
+// golden-hash: f6f18cfa75ca34e50b352646ae564e451e3f0b65c21d8aac0c4723cbc4a39c08

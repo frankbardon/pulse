@@ -10,7 +10,7 @@ applies_to: mcp
 
 CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself.
 Or how an operator is validated.
-CLI twin: `pulse explain OPERATOR | --request F | --response F [--request F] [--root R] [--detail full] [--json]`.
+CLI twin: `pulse explain OPERATOR | --request F [--response F] [--root R]`.
 
 ## Input
 
@@ -23,7 +23,7 @@ Exactly ONE root, as an object:
 
 ## Output
 
-`mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`, `warnings` (predict's coded warnings, each once; `details.slot` names a Compose slot). `full` adds `sentences`, `glossary_refs`, `follow_ups`. Operator mode adds `validation`: `references[]` (`against`, `tolerance`, `tests`), `gap`, `weight_refusal`, `certification[]` (NIST digits).
+No envelope: `mode`, `root`, `summary` (one sentence), `findings[]` (`slot`, `subject`, `operator`, `verdict`, `strength_band` + `convention`, `numbers`), `caveats`. Request mode adds `valid`, `steps[]`, `defaults_applied`, `advisories`, `refusals`, `warnings` (predict's coded warnings, each once; `details.slot` names a Compose slot). `full` adds `sentences`, `glossary_refs`, `follow_ups`. Operator mode adds `validation`: `references[]` (`against`, `tolerance`, `tests`), `gap`, `weight_refusal`, `certification[]` (NIST digits).
 
 ## Gotchas
 

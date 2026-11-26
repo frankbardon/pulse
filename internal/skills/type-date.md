@@ -8,15 +8,15 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 4 bytes per record, little-endian. Not bit-packed. Stride contributes 4 bytes to `Schema.RecordByteSize`. On the wire it is a two's-complement **signed int32**; semantically it is days offset from 1970-01-01 (read a raw `ReadFieldValue` word with `encoding.DateDays`).
+Fixed-width: 4 bytes per record, little-endian, a two's-complement **signed int32** count of days since 1970-01-01 (read a raw `ReadFieldValue` word with `encoding.DateDays`). Not bit-packed. **Not interchangeable with `datetime`** (8 bytes of epoch SECONDS).
 
 ## Range
 
-Days since the Unix epoch (1970-01-01). Negative offsets address pre-epoch dates (1969-12-31 is −1, 1900-01-01 is −25567); positive offsets address dates after. Ordering, filters, groupers, min/max, lookup keys and every export adapter honour the sign. The 32-bit width supports a range comfortably wider than any real-world need. Sub-day precision is NOT supported — store sub-day timestamps as `u64` microseconds. **Output form:** a row cell (record rows of a windowed Process, a lag / lead window copy) is `YYYY-MM-DD`, ordered by the day count; aggregates over the ordinal stay numbers.
+Negative counts are pre-1970 dates (1969-12-31 is −1, 1900-01-01 is −25567); ordering, filters, groupers, min / max, lookup keys and every export adapter honour the sign. Import parses the `encoding.DateFormats` layouts, first match wins (`01/02/2006` reads month first); a literal with a time of day infers `datetime` instead. No time of day is stored: use `datetime`. **Output form:** a row cell (sample, lookup, record rows, a lag / lead window copy) is `YYYY-MM-DD`; aggregates over the day count stay numbers.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap. There is no in-band sentinel — `0` is 1970-01-01, not null. `IsNumericForAnalytics()` is `true`, so aggregators treat the ordinal directly with null-skip semantics; `IsNumeric()` is `false` (excluded from strict scalar numeric).
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap. `0` is 1970-01-01, never null. `IsNumericForAnalytics()` is `true`, so aggregators read the day count directly and skip nulls; `IsNumeric()` is `false`. No smart-default aggregator<!-- feature: GROUP_DATE -->; the smart-default grouper is `GROUP_DATE` (`component: day`)<!-- /feature -->.
 
 ## Dictionary
 
@@ -24,5 +24,5 @@ Absent. Dates are never dictionary-encoded.
 
 ## See
 
-- Skill: `cohort-schema-design` (Field-type matrix), `grouper-design`.
-- Cross-link: `type-u64` for sub-day timestamps.
+- Skills: `cohort-schema-design` (Field-type matrix), `grouper-design`, `time-zones`.
+- Cross-link: `type-datetime`.

@@ -17,7 +17,7 @@ Rate grids, multipliers, per-segment constants: each table answers `lookup("tabl
 
 ## Output
 
-`{tables: []LookupTableInfo}`, in name order. Each entry:
+`{tables: [...]}` (no envelope), in name order. Each entry:
 
 - `name`, `description` (absent when none).
 - `has_rows_data` — `true` for a static table, `false` for a function-driven one.

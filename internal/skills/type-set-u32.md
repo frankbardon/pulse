@@ -8,21 +8,21 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 4 bytes per record, little-endian. Not bit-packed (the value is consumed atomically as a bitmask). Stride contributes 4 bytes. Bit `i` of the 32-bit value corresponds to dictionary entry `i` — bit set means "label `i` selected".
+Fixed-width: 4 bytes per record, little-endian, read as one bitmask (not bit-packed). Bit `i` set = dictionary entry `i` selected.
 
 ## Range
 
-Up to `MaxSetEntries()` = `32` distinct labels in the inline dictionary. 2^32 selection patterns are representable on the wire. **Empty mask (`0x00000000`) is a valid value meaning "no labels selected" — it is NOT null.** Overflow on import → `PULSE_IMPORT_SET_OVERFLOW`.
+Up to `32` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`17`..`32` lands here). Import never promotes a set rung: a cell past it drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`). Declare a wider rung in the schema, or raise `--sample-rows`.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap; null is signaled there alone. Empty mask is distinct from null. In-band sentinels are explicitly disallowed for `set_*` types.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap, the only null signal; a null row still stores its full mask bytes. No mask value is reserved.
 
 ## Dictionary
 
-Present (`HasDictionary()` = `true`). Inline schema block, shared across all records; `MaxDictEntries()` = `32`. Shard cohesion: union-merge under the 32-label cap; width overflow → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. An SPSS multiple-DICHOTOMY response set imports as one of these, with the constituent variables' field names as the entries — additively, beside the constituent columns themselves (`cohort-schema-design`, SPSS import).
+Present (`HasDictionary()`): an inline schema block shared by every record, at most `32` entries. Shard archives widen a set whose dictionary union outgrows the rung (to the narrowest rung that holds it, MANDATORY warning `PULSE_SHARD_SET_WIDENED`); only a union past `set_u256` is `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. `pulse widen --field F --to set_…` widens one cohort in place. A bit at or past the dictionary length is corrupt data (`ENCODING_INVALID`, `set_member_out_of_range`).<!-- feature: io_format:spss --> An SPSS multiple-dichotomy response set imports as a set field beside its constituent columns (`spss-cohorts`).<!-- /feature -->
 
 ## See
 
-- Skill: `cohort-schema-design` (Field-type matrix, Nullability + per-record bitmap, Width overflow).
-- Cross-link: `op-agg-set-frequency`, `op-attr-set-has`, `type-categorical-u32`.
+- Skills: `cohort-null-states` (empty vs null), `cohort-width-overflow`, `cohort-sharding`.
+- Cross-link: `type-set-u16`, `type-set-u64`, `op-agg-set-frequency`, `op-attr-set-has`.

@@ -8,19 +8,19 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 2 bytes per record, little-endian on the wire. Not bit-packed. Stride contributes 2 bytes to `Schema.RecordByteSize`; reader uses `binary.LittleEndian.Uint16`.
+Fixed-width: 2 bytes per record, little-endian. Not bit-packed.
 
 ## Range
 
-`0..65,535` (16-bit unsigned). Right-sized for medium cardinals: ZIP prefixes, score columns capped at 100, modest counts, ordinals beyond `u8`'s ceiling but well below 2^32.
+`0..65,535`. Inference picks `u16` for sampled integers in 256..65,535; a later value past the rung promotes the field (`PULSE_IMPORT_WIDTH_PROMOTED`). Fits medium counts, scores, codes above `u8`'s ceiling.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap (one bit at `i/8`, `i%8`). `0` is the integer zero — never a sentinel. Counts as `IsNumeric()` and `IsNumericForAnalytics()`; null-skip semantics apply uniformly.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap (field `i` → byte `i/8`, bit `i%8`). `0` is the integer zero, never null. `IsNumeric()` and `IsNumericForAnalytics()` are both `true`; aggregators skip nulls.
 
 ## Dictionary
 
-Absent. If the underlying column is string-labeled and the distinct count is `≤65,536`, prefer `categorical_u16` — same on-wire width, plus an inline dictionary that lets `pulse_inspect` round-trip labels.
+Absent. For a string-labelled field with up to 65,536 distinct values use `categorical_u16` (same width, plus an inline dictionary, so `pulse_inspect` and record rows show labels).
 
 ## See
 

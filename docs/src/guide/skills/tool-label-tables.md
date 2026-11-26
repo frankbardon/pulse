@@ -17,13 +17,13 @@ No arguments.
 
 ## Output
 
-`{tables: []LabelTableInfo}` (the bare object, no envelope), each `name`, `row_count`, `enumerable` (bool — whether reverse-searchable). `tables: []` when none registered (never null). Tables are loaded from `$PULSE_LABEL_TABLES_DIR/*.json` at `pulse.New` time, or supplied programmatically via `Options.Extensions.LabelTables`.
+`{tables: [...]}` (no envelope), each `{name, row_count, enumerable}`; `enumerable` (reverse-searchable) is true for every table with static rows, false for a function-backed one. `tables: []` when none registered (never null). Tables are loaded from `$PULSE_LABEL_TABLES_DIR/*.json` at `pulse.New` time, or supplied programmatically via `Options.Extensions.LabelTables`.
 
 ## Gotchas
 
-- `enumerable=false` tables are forward-only (key→label); `pulse_label_resolve` rejects them with a clear error.
+- `enumerable=false` tables are forward-only (key→label); `pulse_label_resolve` refuses them with `PULSE_LABEL_TABLE_NOT_ENUMERABLE`.
 - Labels are OUTPUT-only — filter / group / sort keys still operate on the raw categorical value. The reverse resolution is for translating user-supplied names into keys.
-- Table names are the JSON filename stem (e.g. `brand.json` → `"brand"`).
+- A directory table is named by its JSON file stem (`brand.json` → `"brand"`); the file is a `{value: label}` object or a `{description, rows}` wrapper.
 
 ## See
 

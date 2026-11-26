@@ -8,19 +8,19 @@ applies_to: inspect, predict
 
 ## Bytes
 
-Fixed-width: 4 bytes per record, little-endian. Not bit-packed. Stride contributes 4 bytes to `Schema.RecordByteSize`; reader uses `binary.LittleEndian.Uint32`.
+Fixed-width: 4 bytes per record, little-endian. Not bit-packed.
 
 ## Range
 
-`0..4,294,967,295` (~4.29B). The default "I do not know the upper bound but it is not astronomical" unsigned integer. Surrogate keys, row counts, event sequence numbers, large-domain enums with no useful labels.
+`0..4,294,967,295` (~4.29B). Inference picks `u32` for sampled integers in 65,536..2^32−1; a later value past the rung promotes the field to `u64` (`PULSE_IMPORT_WIDTH_PROMOTED`). The usual home for surrogate keys, counts and sequence numbers.
 
 ## Null
 
-Orthogonal. `Nullable: true` participates in the per-record null bitmap. `0` is the integer zero, never a sentinel. `IsNumeric()` and `IsNumericForAnalytics()` are both `true`; aggregators and regressions consume the values directly with null-skip semantics.
+Orthogonal: `Nullable: true` puts the field in the per-record null bitmap. `0` is the integer zero, never null. `IsNumeric()` and `IsNumericForAnalytics()` are both `true`; aggregators and regressions read it directly and skip nulls.
 
 ## Dictionary
 
-Absent. For wide-cardinality labeled enums prefer `categorical_u32` — same 4-byte index width plus an inline dictionary block whose capacity is the full `u32` range. `set_u32` is the multi-select sibling.
+Absent. For a wide labelled enum use `categorical_u32` (same 4-byte index plus an inline dictionary); `set_u32` is the multi-select sibling.
 
 ## See
 

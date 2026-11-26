@@ -14,13 +14,11 @@ Listing fields, debugging dictionaries, checking a type. On MCP a successful ins
 ## Input
 
 - `path` (string, required): the `.pulse` file or shard archive; `archive.pulse#shard.pulse` opens one shard.
-- `joins` (MCP, optional): `[{right, as}]` join targets; the rebound tools' field enums add each target's joined names (`as` + field) and `right_field` its fields. Output unchanged.
+- `joins` (optional): `[{right, as}]` join targets; the rebound tools' field enums add each target's joined names (`as` + field) and `joins[].on[].right_field` binds to its fields. Output unchanged.
 
 ## Output
 
-`descriptor.Envelope` wrapping `InspectResult`: fields (name, type, `nullable` — always present, description, categorical dictionary, decimal `precision` / `scale`), `record_count`, `shards`<!-- feature: capability:weighting -->, `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from the SPSS sidecar's weight variable<!-- /feature -->. Dictionaries truncated to 100 unless `FullDict: true`. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided); a grouped archive reports canonical groups over its whole `record_count`. A `vec_f32` / `vec_f64` field adds `vector {dim, kind, scale_min, scale_max, labels}` (absent keys = undeclared; `labels` truncated like a dictionary). A declared default zone field adds `zone_field` (`time-zones`).
-
-MCP (`pulse_inspect`) returns those keys at top level plus a `warnings` array of coded `{code, message, details}` entries, omitted on a clean read.
+No envelope: `field_count`, `fields` (`name`, `type`, `nullable` (always present), `byte_offset`, `bit_position`, `description` + `description_source`, `categorical`, `dictionary {total_entries, truncated, values}`, decimal `precision` / `scale`), `record_count`, `shards`<!-- feature: capability:weighting -->, `suggested_weight {field, source: "spss_sidecar", kind: "probability"}` from the SPSS sidecar's weight variable<!-- /feature -->. Dictionaries stop at 100 values (`truncated: true`); `pulse cohort inspect --full-dict` lists all. A `0x02` cohort adds `layout` (physical/logical stride), `groups` (`fields`, `entry_count`, resident `dictionary_bytes`, `ratio`, `byte_delta`, `verdict`) and a per-field `group` marker (`kind: constant` = elided); a grouped archive reports canonical groups over its whole `record_count`. A `vec_f32` / `vec_f64` field adds `vector {dim, kind, scale_min, scale_max, labels}` (absent keys = undeclared; `labels` truncated like a dictionary). A declared default zone field adds `zone_field` (`time-zones`). Coded `warnings` appear only when the read has one.
 
 ## Gotchas
 
@@ -29,11 +27,10 @@ MCP (`pulse_inspect`) returns those keys at top level plus a `warnings` array of
 - `suggested_weight` is NEVER applied — name it as a request `weight`; SPSS `WEIGHT BY` replicates cases (`kind: "frequency"`). Absent, stale or bad sidecar ⇒ none.
 <!-- /feature -->
 - `record_count` is DERIVED (payload bytes / stride); a torn tail reports the FLOOR, signalled only by an `ENCODING_INVALID` warning (`record_stride`, `trailing_bytes`). Library callers use `Pulse.InspectEnvelope` — `Pulse.Inspect` drops it.
-- `FullDict: true` (`--full-dict`): full label list.
-- Unknown magic / format-version mismatch → `ENCODING_INVALID`.
+- A missing file is `DATA_FILE`; a bad header (magic, format version) a plain-text error naming `ENCODING_INVALID`.
 
 ## See
 
-- `cohort-schema-design` — `.pulse` byte layout and field-type matrix.
+- `cohort-schema-design` — field-type matrix.
 - `tool-predict` — schema validation companion.
 - `tool-import` — the other leaf rebinding session tools.

@@ -362,7 +362,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-lookup`](skills/tool-lookup.md): Resolve a point lookup against a cohort's prebuilt sidecar index.
 - [`tool-lookup-tables`](skills/tool-lookup-tables.md): List registered lookup tables — named numeric tables lookup() reads — with their key axes and cell counts, never their cells.
 - [`tool-manifest`](skills/tool-manifest.md): Bootstrap blob — call once per session for the operator + capability catalog.
-- [`tool-materialize`](skills/tool-materialize.md): Write a request's derived columns (features, attributes, windows) as ordinary fields of a new cohort that later requests read.
+- [`tool-materialize`](skills/tool-materialize.md): Write a request's derived outputs (features, attributes, windows) as ordinary fields of a new cohort that later requests read.
 - [`tool-predict`](skills/tool-predict.md): Validate a request against a cohort schema without executing.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
@@ -390,7 +390,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`type-u16`](skills/type-u16.md): 2-byte unsigned integer; fits cardinals through 65,535.
 - [`type-u32`](skills/type-u32.md): 4-byte unsigned integer; the common wide-cardinal default.
 - [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed into one whole record byte of its own.
-- [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for sub-day timestamps and very wide cardinals.
+- [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for very wide keys and sub-second timestamps.
 - [`type-u8`](skills/type-u8.md): 1-byte unsigned integer; fits cardinals through 255.
 - [`type-vec-f32`](skills/type-vec-f32.md): Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema.
 - [`type-vec-f64`](skills/type-vec-f64.md): Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema.

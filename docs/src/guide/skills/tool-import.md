@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT.
-CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live under `$PULSE_DATA_DIR/imports/` with a TTL sidecar; every inspect/predict/process/sample/facet slides expiry. `.pulse` passes through (`managed=false`).
+CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live under `$PULSE_DATA_DIR/imports/` with a TTL sidecar; each read of a handle slides its expiry. `.pulse` passes through (`managed=false`).
 
 ## Input
 
@@ -28,16 +28,16 @@ CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live 
 
 ## Output
 
-`descriptor.Envelope` over `handle`, `managed_path`, `format`, `row_count`, `expires_at`, `managed`, plus — when non-empty — `promoted_fields`, `null_warnings`, `width_warnings`, `source_warnings` (`PULSE_SPSS_*`, `PULSE_IMPORT_TIMESTAMP_TRUNCATED`), `groups`, `group_warnings`, `group_candidates`, `zone_warnings`, `rows_dropped`, `dropped_warnings`.
+No envelope: `handle`, `path` (the managed `.pulse`), `format`, `managed`, `rows_imported`, `imported_at`, `expires_at` / `ttl_seconds` (absent if pinned or passed through), plus, when non-empty, `promoted_fields`, `null_warnings`, `width_warnings`, `source_warnings` (`PULSE_SPSS_*`, `PULSE_IMPORT_TIMESTAMP_TRUNCATED`), `groups`, `group_warnings`, `group_candidates`, `zone_warnings`, `rows_dropped`, `dropped_warnings`.
 
 ## Gotchas
 
 - **SPSS is schema-authoritative**: inference skipped; dictionaries hold SPSS CODES, not labels; a Pulse-written `.sav` restores its types. Read each `PULSE_SPSS_*` in `source_warnings`. No missing-value mode here; writing `.sav` is CLI-only.
 - **Explicit schema matches BY NAME**, never position; each mismatch refused, coded, before any row.
-- **Naive datetimes import as UTC** unless `source_tz` names the zone; a DST gap / overlap is fatal unless `dst_policy` resolves it. Re-import (`overwrite: true`) to change zone.
+- **Naive datetimes import as UTC** unless `source_tz` names the zone; a DST gap / overlap is fatal unless `dst_policy` resolves it. Re-import to change zone.
 - **Zero rows out of a non-empty source is FATAL `PULSE_IMPORT_ROW_ERROR`**; a partial failure warns `PULSE_IMPORT_ROWS_DROPPED`.
-- A `.pulse.zst` is refused `PULSE_COHORT_COMPRESSED`. Success rebinds session-scoped tools to the new cohort (as [`tool-inspect`](tool-inspect.md)).
+- A `.pulse.zst` is refused `PULSE_COHORT_COMPRESSED`. Success rebinds session-scoped tools to the new cohort.
 
 ## See
 
-- [`import-schema-rows`](import-schema-rows.md), [`import-source-zones`](import-source-zones.md), [`spss-cohorts`](spss-cohorts.md), [`cohort-parent-groups`](cohort-parent-groups.md), [`vector-fields`](vector-fields.md), [`tool-drop`](tool-drop.md), [`tool-imports-list`](tool-imports-list.md), `pulse_errors_lookup`.
+- [`import-schema-rows`](import-schema-rows.md), [`import-source-zones`](import-source-zones.md), [`spss-cohorts`](spss-cohorts.md), [`cohort-parent-groups`](cohort-parent-groups.md), [`vector-fields`](vector-fields.md), [`tool-drop`](tool-drop.md), [`tool-imports-list`](tool-imports-list.md).

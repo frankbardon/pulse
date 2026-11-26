@@ -14,14 +14,14 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 ## Input
 
 - `intent` (string, required): an ID from the [`intents`](intents.md) skill. Unknown or empty → `PULSE_RECOMMEND_INTENT_UNKNOWN`; `details.valid` lists every ID.
-- `cohort` (string): a `.pulse` path. Set → drafts BOUND to its fields, each predict-checked. Omit → UNBOUND skeletons.
+- `cohort` (string): a `.pulse` path (a path here, not a `{filename}` object). Set → drafts BOUND to its fields, each predict-checked. Omit → UNBOUND skeletons.
 - `fields` (array, cohort only): hints; each pins the first role of the intent it fits. Not a field, or fits no role → `SERVICE_VALIDATION`. A `vec_f32` / `vec_f64` field fits only a vector slot.
 - `level` (`basic` / `intermediate` / `advanced`): rank that level first. Default: simplest first.
 - `limit` (int): cap, default 10.
 
 ## Output
 
-`intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`. `steps` is deprecated and always absent.
+The recommendation set (no envelope): `intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`.
 
 ## Gotchas
 
