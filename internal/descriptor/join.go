@@ -35,7 +35,7 @@ func JoinCountRefusal(req *types.Request) error {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TOO_MANY,
-		"v1 supports exactly one JoinSpec per Request",
+		"a request takes at most one joins entry",
 		map[string]any{"count": len(req.Joins)})
 }
 
@@ -67,7 +67,7 @@ func ValidateJoin(leftData, rightData io.ReadSeeker, req *types.Request) *descri
 	}
 	spec := req.Joins[0]
 	if spec == nil {
-		env.AddError(string(errors.SERVICE_VALIDATION), "JoinSpec is nil", nil)
+		env.AddError(string(errors.SERVICE_VALIDATION), "joins[0] is null", nil)
 		result.Valid = false
 		return env
 	}

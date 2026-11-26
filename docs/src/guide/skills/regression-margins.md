@@ -63,7 +63,7 @@ OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted
 |---|---|
 | bad `type` / `scale` / `binary` | `type ame or mem` / `scale response or link` / `binary slope or contrast` |
 | a term not a predictor, or repeated | `a predictor` |
-| `REG_BAYES_LINEAR` | `type REG_OLS, REG_GLM or REG_MULTINOMIAL` |
+| `REG_BAYES_LINEAR` | `a type that reports margins` |
 | an extension or model regression not declaring margins | `declared_margins` |
 | `penalty` / `selection` / `bounds` | `unpenalized` / `no_selection` / `unbounded` |
 | a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |

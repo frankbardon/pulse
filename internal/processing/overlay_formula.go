@@ -635,7 +635,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	if len(spec.Params) == 0 {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string); Params is missing or empty",
+			"overlay "+string(spec.Kind)+" requires params.formula (non-empty string); params is missing or empty",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
@@ -645,7 +645,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"formula\"",
+			"overlay "+string(spec.Kind)+" params must be a JSON object carrying \"formula\"",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
@@ -656,7 +656,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	if !present {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" requires Params[\"formula\"] (non-empty string)",
+			"overlay "+string(spec.Kind)+" requires params.formula (non-empty string)",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,
@@ -666,7 +666,7 @@ func extractFormulaParam(spec *types.OverlaySpec) (string, error) {
 	if !ok || formula == "" {
 		return "", errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" Params[\"formula\"] must be a non-empty string",
+			"overlay "+string(spec.Kind)+" params.formula must be a non-empty string",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": formulaParamFormula,

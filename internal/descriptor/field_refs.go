@@ -512,7 +512,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			}
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {
-					return refusal(string(attr.Type)+" Target references unknown field: "+attr.Target,
+					return refusal(string(attr.Type)+" target references unknown field: "+attr.Target,
 						map[string]any{"field": attr.Target, "attribute": string(attr.Type)})
 				})
 			}

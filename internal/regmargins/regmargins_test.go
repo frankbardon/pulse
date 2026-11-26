@@ -57,7 +57,7 @@ func TestCheck_Refusals(t *testing.T) {
 		{"binary", base(func(s *types.RegressionSpec) { s.Margins.Binary = "dummy" }), "binary slope or contrast"},
 		{"term", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"c"} }), "a predictor"},
 		{"repeat", base(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"a", "a"} }), "a predictor"},
-		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
+		{"bayes", base(func(s *types.RegressionSpec) { s.Type = types.REG_BAYES_LINEAR }), "a type that reports margins"},
 		{"penalty", base(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "unpenalized"},
 		{"selection", base(func(s *types.RegressionSpec) { s.Selection = "forward" }), "no_selection"},
 		// U69 #639: a resampled fit re-estimates the effects per replicate.

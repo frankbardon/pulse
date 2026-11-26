@@ -270,7 +270,7 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	params, err := types.DecodePairwiseParams(spec.Params)
 	if err != nil {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" has malformed Params: "+err.Error(),
+			"overlay "+string(spec.Kind)+" has malformed params: "+err.Error(),
 			map[string]any{"index": index, "kind": string(spec.Kind)})
 		return
 	}
@@ -588,7 +588,7 @@ func addPairwiseComponentsRequired(env *descriptor.Envelope, spec *types.Overlay
 func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, params types.PanelOverlayParams, err error, index int, slots []types.PanelSlabPartitionSlot, resolveExt types.ExtensionGroupFanOutFunc) {
 	if err != nil {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(kind)+" has malformed Params: "+err.Error(),
+			"overlay "+string(kind)+" has malformed params: "+err.Error(),
 			map[string]any{"index": index, "kind": string(kind)})
 		return
 	}
@@ -1082,7 +1082,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindIndexVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
+				"overlay "+string(spec.Kind)+" does not support level / within (implicit-grand-total kind)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1106,7 +1106,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindDeltaVsSibling || route == types.OverlayKindIndexVsSibling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (sibling reference is a single fixed group)",
+				"overlay "+string(spec.Kind)+" does not support level / within (sibling reference is a single fixed group)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1126,7 +1126,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindDeltaVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1145,7 +1145,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindIndexVsBaseline {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed positional baseline is a single fixed anchor without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1174,7 +1174,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindIndexVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1193,7 +1193,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindDeltaVsPrior {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed lag carrier folds across the ordered axis without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1212,7 +1212,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindIndexVsRollingMean {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed rolling-mean carrier folds across the ordered axis without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1230,7 +1230,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindYoY {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed year-over-year lookup folds across the ordered axis without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed year-over-year lookup folds across the ordered axis without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1248,7 +1248,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindZScoreVsRolling {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (windowed rolling sample-SD carrier folds across the ordered axis without a prefix-bucket denominator)",
+				"overlay "+string(spec.Kind)+" does not support level / within (windowed rolling sample-SD carrier folds across the ordered axis without a prefix-bucket denominator)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1267,7 +1267,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindZScoreVsTotal {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-grand-total kind)",
+				"overlay "+string(spec.Kind)+" does not support level / within (implicit-grand-total kind)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1287,7 +1287,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	if route == types.OverlayKindShareOfTotal && req != nil && req.Crosstab == nil && len(req.Groups) > 0 {
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" SERIES dispatch does not support Level / Within (implicit-grand-total contract)",
+				"overlay "+string(spec.Kind)+" SERIES dispatch does not support level / within (implicit-grand-total contract)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1317,7 +1317,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 		// must both be zero.
 		if spec.Level != 0 || spec.Within != 0 {
 			env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-				"overlay "+string(spec.Kind)+" does not support Level / Within (implicit-margin inferential kind)",
+				"overlay "+string(spec.Kind)+" does not support level / within (implicit-margin inferential kind)",
 				map[string]any{
 					"index":  index,
 					"kind":   string(spec.Kind),
@@ -1333,7 +1333,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	levelAxisDepth, withinAxisDepth, levelAxisLabel, withinAxisLabel := overlayLevelWithinAxisDepthsPredict(spec, route, req)
 	if spec.Level < 0 || (levelAxisDepth > 0 && spec.Level >= levelAxisDepth) {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-			"overlay "+string(spec.Kind)+" Level is out of range for the "+levelAxisLabel+" axis",
+			"overlay "+string(spec.Kind)+" level is out of range for the "+levelAxisLabel+" axis",
 			map[string]any{
 				"index":      index,
 				"kind":       string(spec.Kind),
@@ -1344,7 +1344,7 @@ func validateOverlayLevelWithinPredict(env *descriptor.Envelope, req *types.Requ
 	}
 	if spec.Within < 0 || (withinAxisDepth > 0 && spec.Within >= withinAxisDepth) {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-			"overlay "+string(spec.Kind)+" Within is out of range for the "+withinAxisLabel+" axis",
+			"overlay "+string(spec.Kind)+" within is out of range for the "+withinAxisLabel+" axis",
 			map[string]any{
 				"index":      index,
 				"kind":       string(spec.Kind),
@@ -1929,7 +1929,7 @@ func validateOverlayYoYFrequency(env *descriptor.Envelope, req *types.Request, s
 	hostGrouper := string(types.GROUP_DATE)
 	if frequency == "" {
 		env.AddError(string(errors.PULSE_OVERLAY_YOY_FREQUENCY_MISSING),
-			"overlay "+string(spec.Kind)+" requires a `frequency` Param on either OverlaySpec.Params or the host GROUP_DATE grouper's Params (one of: annual | quarterly | monthly | weekly | daily | hourly)",
+			"overlay "+string(spec.Kind)+" requires a `frequency` param in either the spec's params or the host GROUP_DATE grouper's params (one of: annual | quarterly | monthly | weekly | daily | hourly)",
 			map[string]any{
 				"index":        index,
 				"kind":         string(spec.Kind),
@@ -2027,7 +2027,7 @@ func isYoYSupportedFrequencyPredict(frequency string) bool {
 func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.OverlaySpec, index int) {
 	if len(spec.Params) == 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer); Params is missing or empty",
+			"overlay "+string(spec.Kind)+" requires params.window (positive integer); params is missing or empty",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -2038,7 +2038,7 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 	var m map[string]any
 	if err := json.Unmarshal(spec.Params, &m); err != nil {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"window\"",
+			"overlay "+string(spec.Kind)+" params must be a JSON object carrying \"window\"",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -2049,7 +2049,7 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 	raw, present := m["window"]
 	if !present {
 		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer)",
+			"overlay "+string(spec.Kind)+" requires params.window (positive integer)",
 			map[string]any{
 				"index": index,
 				"kind":  string(spec.Kind),
@@ -2060,7 +2060,7 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 	window, ok := coerceIntegralOverlayParam(raw)
 	if !ok {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-			"overlay "+string(spec.Kind)+" Params[\"window\"] must be a positive integer",
+			"overlay "+string(spec.Kind)+" params.window must be a positive integer",
 			map[string]any{
 				"index":  index,
 				"kind":   string(spec.Kind),
@@ -2071,7 +2071,7 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 	}
 	if window <= 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE),
-			"overlay "+string(spec.Kind)+" Params[\"window\"] must be > 0",
+			"overlay "+string(spec.Kind)+" params.window must be > 0",
 			map[string]any{
 				"index":  index,
 				"kind":   string(spec.Kind),

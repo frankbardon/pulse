@@ -515,7 +515,7 @@ func (pr *irlsProblem) failure(reason string, beta []float64, history [][]float6
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_REGRESSION_NO_CONVERGE,
-		"REG_GLM IRLS failed to converge within MaxIters",
+		"REG_GLM IRLS failed to converge within max_iters",
 		map[string]any{
 			"n": n, "p": p,
 			"max_iters": maxIters, "tol": tol,

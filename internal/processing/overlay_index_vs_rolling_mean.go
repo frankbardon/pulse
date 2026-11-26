@@ -231,7 +231,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 	if len(spec.Params) == 0 {
 		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer); Params is missing or empty",
+			"overlay "+string(spec.Kind)+" requires params.window (positive integer); params is missing or empty",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": "window",
@@ -241,7 +241,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
 		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"window\"",
+			"overlay "+string(spec.Kind)+" params must be a JSON object carrying \"window\"",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": "window",
@@ -252,7 +252,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 	if !present {
 		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
-			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer)",
+			"overlay "+string(spec.Kind)+" requires params.window (positive integer)",
 			map[string]any{
 				"kind":  string(spec.Kind),
 				"param": "window",
@@ -266,7 +266,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 		// the error code surface narrow.
 		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+string(spec.Kind)+" Params[\"window\"] must be a positive integer",
+			"overlay "+string(spec.Kind)+" params.window must be a positive integer",
 			map[string]any{
 				"kind":   string(spec.Kind),
 				"param":  "window",
@@ -276,7 +276,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 	if window <= 0 {
 		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+string(spec.Kind)+" Params[\"window\"] must be > 0",
+			"overlay "+string(spec.Kind)+" params.window must be > 0",
 			map[string]any{
 				"kind":   string(spec.Kind),
 				"param":  "window",

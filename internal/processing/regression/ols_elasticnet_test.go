@@ -84,13 +84,13 @@ func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
 				t.Errorf("intercept = %v, want %v ±1e-6", res.Coefficients[InterceptKey], c.wantIntercept)
 			}
 			if res.Penalty != "elasticnet" {
-				t.Errorf("Penalty = %q, want elasticnet", res.Penalty)
+				t.Errorf("penalty = %q, want elasticnet", res.Penalty)
 			}
 			if !closef(res.Alpha, c.alpha, 0) {
-				t.Errorf("Alpha = %v, want %v", res.Alpha, c.alpha)
+				t.Errorf("alpha = %v, want %v", res.Alpha, c.alpha)
 			}
 			if !closef(res.L1Ratio, c.l1Ratio, 0) {
-				t.Errorf("L1Ratio = %v, want %v", res.L1Ratio, c.l1Ratio)
+				t.Errorf("l1_ratio = %v, want %v", res.L1Ratio, c.l1Ratio)
 			}
 			if res.ConvergedIters <= 0 {
 				t.Errorf("ConvergedIters = %d, want > 0", res.ConvergedIters)

@@ -183,7 +183,7 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	if len(reg.Predictors) == 0 {
 		env.AddError(
 			string(errors.SERVICE_VALIDATION),
-			"regression "+string(reg.Type)+" missing Predictors (≥1 required)",
+			"regression "+string(reg.Type)+" missing predictors (≥1 required)",
 			map[string]any{"type": string(reg.Type)},
 		)
 	}
@@ -202,7 +202,7 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 		case reg.Family == "":
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
-				"REG_GLM requires a Family (binomial | poisson | gamma | negative_binomial)",
+				"REG_GLM requires a family (binomial | poisson | gamma | negative_binomial)",
 				map[string]any{"type": string(reg.Type)},
 			)
 		case !reglink.KnownFamily(reg.Family):
@@ -320,7 +320,7 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	if (reg.Type == types.REG_OLS || reg.Type == types.REG_GLM || reg.Type == types.REG_MULTINOMIAL) && reg.Penalty != "" && reg.Selection != "" {
 		env.AddWarning(
 			string(errors.PROCESSING_REGRESSION_REGULARIZED_SELECTION),
-			string(reg.Type)+" combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
+			string(reg.Type)+" combines penalty="+reg.Penalty+" with selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
 			map[string]any{"penalty": reg.Penalty, "selection": reg.Selection, "type": string(reg.Type)},
 		)
 	}

@@ -134,12 +134,12 @@ func HostRequiredRefusal(spec *types.OverlaySpec, route types.OverlayKind, group
 	details := map[string]any{"index": index, "kind": kind}
 	if scalarRules[route].prior {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil) or a crosstab with no column grouper", details)
+			"overlay "+kind+" requires a SERIES host (grouped Process result: groups and aggregations non-empty, no crosstab) or a crosstab with no column grouper", details)
 	}
 	if shape == types.OverlayShapeSeries {
-		msg := "overlay " + kind + " requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil)"
+		msg := "overlay " + kind + " requires a SERIES host (grouped Process result: groups and aggregations non-empty, no crosstab)"
 		if dual {
-			msg = "overlay " + kind + " SERIES dispatch requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil)"
+			msg = "overlay " + kind + " SERIES dispatch requires a SERIES host (grouped Process result: groups and aggregations non-empty, no crosstab)"
 			details["host"] = "series"
 		}
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, msg, details)
@@ -148,7 +148,7 @@ func HostRequiredRefusal(spec *types.OverlaySpec, route types.OverlayKind, group
 		details["axis"] = string(spec.Ref.Margin.Axis)
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-		"overlay "+kind+" requires a MATRIX host (Request.Crosstab); none present", details)
+		"overlay "+kind+" requires a MATRIX host (crosstab); none present", details)
 }
 
 // ScalarSpecRefusal is the refusal of the Request.Overlays spec at index

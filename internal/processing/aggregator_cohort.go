@@ -121,7 +121,7 @@ func newRatioAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggreg
 	}
 	if params.NumeratorField == "" || params.DenominatorField == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"AGG_RATIO requires Params.numerator_field and Params.denominator_field")
+			"AGG_RATIO requires params.numerator_field and params.denominator_field")
 	}
 	// A categorical column's number is its dictionary index and a set
 	// column has none: the accepted-types table refuses both, numerator

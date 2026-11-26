@@ -55,7 +55,7 @@ func RollingWindowFloorRefusal(spec *types.OverlaySpec, route types.OverlayKind,
 		details["index"] = index
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-		"overlay "+string(spec.Kind)+" Params[\"window\"] must be >= "+strconv.Itoa(min)+
+		"overlay "+string(spec.Kind)+" params.window must be >= "+strconv.Itoa(min)+
 			" (the rolling sample SD is undefined over fewer than two points)",
 		details)
 }
@@ -98,7 +98,7 @@ func RollingMinPeriods(spec *types.OverlaySpec, route types.OverlayKind, params 
 		details["index"] = index
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-		"overlay "+kind+" Params[\"min_periods\"] must be an integer from "+strconv.Itoa(min)+
+		"overlay "+kind+" params.min_periods must be an integer from "+strconv.Itoa(min)+
 			" to the window ("+strconv.Itoa(window)+")",
 		details)
 }

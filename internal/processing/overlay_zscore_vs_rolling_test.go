@@ -342,7 +342,7 @@ func TestOverlay_ZScoreVsRolling_MissingWindowParamRejected(t *testing.T) {
 		spec types.OverlaySpec
 	}{
 		{
-			name: "Params nil",
+			name: "params nil",
 			spec: types.OverlaySpec{
 				Name:  "zscore_rolling",
 				Kind:  types.OverlayKindZScoreVsRolling,
@@ -352,7 +352,7 @@ func TestOverlay_ZScoreVsRolling_MissingWindowParamRejected(t *testing.T) {
 			},
 		},
 		{
-			name: "Params empty object missing window",
+			name: "params empty object missing window",
 			spec: types.OverlaySpec{
 				Name:   "zscore_rolling",
 				Kind:   types.OverlayKindZScoreVsRolling,

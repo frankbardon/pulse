@@ -61,7 +61,7 @@ func runSelectionCtx(
 	if spec.Criterion != "aic" && spec.Criterion != "bic" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"regression Selection requires Criterion ∈ {aic, bic}; got "+spec.Criterion,
+			"regression selection requires criterion ∈ {aic, bic}; got "+spec.Criterion,
 			map[string]any{"selection": spec.Selection, "criterion": spec.Criterion},
 		)
 	}
@@ -77,7 +77,7 @@ func runSelectionCtx(
 	default:
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"unknown Selection value: "+spec.Selection+" (expected forward | backward | stepwise)",
+			"unknown selection value: "+spec.Selection+" (expected forward | backward | stepwise)",
 			map[string]any{"selection": spec.Selection},
 		)
 	}

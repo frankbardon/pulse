@@ -122,7 +122,7 @@ func TestValidateOverlay_DeltaVsSibling_RefRejected(t *testing.T) {
 			}
 			env := predictFromBytes(data, req, nil)
 			if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) {
-				t.Fatalf("Ref=%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
+				t.Fatalf("ref=%s: expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE", tc.name)
 			}
 		})
 	}

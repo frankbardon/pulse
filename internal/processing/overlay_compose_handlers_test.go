@@ -773,7 +773,7 @@ func TestApplyTCell_TripleBypassesParamsDefaults(t *testing.T) {
 	want, _ := welchTTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
-			approxEqual(t, "cell (triple bypasses Params)", cellAt(t, layer, i, j), want, 1e-9)
+			approxEqual(t, "cell (triple bypasses params)", cellAt(t, layer, i, j), want, 1e-9)
 		}
 	}
 }

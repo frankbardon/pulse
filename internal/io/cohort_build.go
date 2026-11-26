@@ -419,7 +419,7 @@ func checkTargetFree(fsys afero.Fs, target string, overwrite bool) error {
 	}
 	if !overwrite {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"cohort build target already exists; set Overwrite to replace it",
+			"cohort build target already exists; pass overwrite to replace it",
 			map[string]any{"target": target, "reason": "target_exists"})
 	}
 	return nil

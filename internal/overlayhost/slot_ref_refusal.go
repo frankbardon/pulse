@@ -86,26 +86,26 @@ func ResolveStageRef(ref types.StageRef, count int, named map[string]int, target
 		return 0, errors.NewCodedErrorWithDetails(code, msg, d)
 	}
 	if ref.Index != nil && ref.Name != "" {
-		return refuse("chain overlay StageRef must populate exactly one of Index / Name")
+		return refuse("chain overlay stage must set exactly one of index / name")
 	}
 	if ref.Index == nil && ref.Name == "" {
 		if !target {
-			return refuse("chain overlay Ref must populate exactly one of Index / Name")
+			return refuse("chain overlay ref must set exactly one of index / name")
 		}
 		if count == 0 {
-			return refuse("chain overlay has no stages to resolve default Target against")
+			return refuse("chain overlay has no stages to resolve the default target against")
 		}
 		return count - 1, nil
 	}
 	if ref.Index != nil {
 		if idx := *ref.Index; idx < 0 || idx >= count {
-			return refuse("chain overlay stage Index out of range", "stage_index", idx, "stages_count", count)
+			return refuse("chain overlay stage index out of range", "stage_index", idx, "stages_count", count)
 		}
 		return *ref.Index, nil
 	}
 	idx, ok := named[ref.Name]
 	if !ok {
-		return refuse("chain overlay stage Name not found", "stage_name", ref.Name)
+		return refuse("chain overlay stage name not found", "stage_name", ref.Name)
 	}
 	return idx, nil
 }

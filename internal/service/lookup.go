@@ -115,7 +115,7 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	components := req.KeyComponents()
 	if len(components) == 0 {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"lookup requires at least one key field (Field or Keys)")
+			"lookup requires at least one key field (field or keys)")
 	}
 	keyFieldNames := make([]string, len(components))
 	for i, c := range components {

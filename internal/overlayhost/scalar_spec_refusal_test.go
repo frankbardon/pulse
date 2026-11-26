@@ -105,9 +105,9 @@ func TestScalarSpecRefusal_Rules(t *testing.T) {
 			if cerr.Details["index"] != 3 || cerr.Details["kind"] != string(kind) {
 				t.Fatalf("%s: details %v", kind, cerr.Details)
 			}
-			host := "requires a MATRIX host (Request.Crosstab); none present"
+			host := "requires a MATRIX host (crosstab); none present"
 			if shape == types.OverlayShapeSeries {
-				host = "requires a SERIES host (grouped Process result: Request.Groups and Request.Aggregations non-empty, Request.Crosstab nil)"
+				host = "requires a SERIES host (grouped Process result: groups and aggregations non-empty, no crosstab)"
 			}
 			if scalarRules[kind].prior {
 				host += " or a crosstab with no column grouper"

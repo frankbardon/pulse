@@ -131,7 +131,7 @@ func ComposeFanOutCapRefusal(spec *types.ComposeOverlaySpec, route types.Overlay
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP,
 		"compose overlay "+string(spec.Kind)+" names "+strconv.Itoa(len(spec.Targets))+
-			" targets and emits one layer per target; the per-spec MaxPanelTargets cap is "+strconv.Itoa(limit),
+			" targets and emits one layer per target; the per-spec max_panel_targets cap is "+strconv.Itoa(limit),
 		map[string]any{
 			"index":    index,
 			"kind":     string(spec.Kind),

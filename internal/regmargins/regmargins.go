@@ -13,8 +13,9 @@
 //     contrast, terms each a predictor, once (requires "type ame or
 //     mem", "scale response or link", "binary slope or contrast", "a
 //     predictor");
-//   - the regression type: REG_OLS, REG_GLM or REG_MULTINOMIAL (requires
-//     "type REG_OLS, REG_GLM or REG_MULTINOMIAL"); an extension or model
+//   - the regression type: REG_BAYES_LINEAR is refused (requires "a
+//     type that reports margins": REG_OLS, REG_GLM, REG_MULTINOMIAL here,
+//     REG_ORDINAL through its registration); an extension or model
 //     regression is the shared-slot
 //     table's refusal (slot margins, declared by the registration's
 //     Margins), and once declared CheckDeclared judges its block's shape
@@ -125,8 +126,8 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		return cerr
 	}
 	if spec.Type == types.REG_BAYES_LINEAR {
-		return refuse(spec, "are reported by REG_OLS, REG_GLM and REG_MULTINOMIAL only (a posterior has no delta-method effect); drop margins",
-			"type REG_OLS, REG_GLM or REG_MULTINOMIAL", nil)
+		return refuse(spec, "are not reported by REG_BAYES_LINEAR (a posterior has no delta-method effect); drop margins, or fit a type that reports them",
+			"a type that reports margins", nil)
 	}
 	return checkFit(spec)
 }

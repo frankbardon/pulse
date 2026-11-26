@@ -39,19 +39,19 @@ func TestRefusal(t *testing.T) {
 		wantDetails map[string]any
 	}{
 		{"compose kind on a Process host", Request, types.OverlayKindTVsRef, types.OverlayKindTVsRef, 2,
-			"overlay OVERLAY_T_VS_REF does not run on Request.Overlays; attach it to ComposedRequest.Overlays",
+			"overlay OVERLAY_T_VS_REF does not run on request overlays; attach it to Compose overlays",
 			map[string]any{"index": 2, "kind": "OVERLAY_T_VS_REF", "host": "request", "hosts": []string{"compose"}}},
 		{"two-slot kind on a chain", Chain, types.OverlayKindFormula, types.OverlayKindFormula, 0,
-			"overlay OVERLAY_FORMULA does not run on ChainRequest.Overlays; attach it to Request.Overlays or ComposedRequest.Overlays",
+			"overlay OVERLAY_FORMULA does not run on process chain overlays; attach it to request overlays or Compose overlays",
 			map[string]any{"index": 0, "kind": "OVERLAY_FORMULA", "host": "chain", "hosts": []string{"request", "compose"}}},
 		{"process kind on a facet", Facet, types.OverlayKindShareOfCol, types.OverlayKindShareOfCol, 1,
-			"overlay OVERLAY_SHARE_OF_COL does not run on FacetRequest.Overlays; attach it to Request.Overlays",
+			"overlay OVERLAY_SHARE_OF_COL does not run on facet overlays; attach it to request overlays",
 			map[string]any{"index": 1, "kind": "OVERLAY_SHARE_OF_COL", "host": "facet", "hosts": []string{"request"}}},
 		{"facet kind on a compose", Compose, types.OverlayKindKSVsPop, types.OverlayKindKSVsPop, 0,
-			"overlay OVERLAY_KS_VS_POP does not run on ComposedRequest.Overlays; attach it to FacetRequest.Overlays",
+			"overlay OVERLAY_KS_VS_POP does not run on Compose overlays; attach it to facet overlays",
 			map[string]any{"index": 0, "kind": "OVERLAY_KS_VS_POP", "host": "compose", "hosts": []string{"facet"}}},
 		{"chain kind on a Process host", Request, types.OverlayKindIndexVsStage, types.OverlayKindIndexVsStage, 0,
-			"overlay OVERLAY_INDEX_VS_STAGE does not run on Request.Overlays; attach it to ChainRequest.Overlays",
+			"overlay OVERLAY_INDEX_VS_STAGE does not run on request overlays; attach it to process chain overlays",
 			map[string]any{"index": 0, "kind": "OVERLAY_INDEX_VS_STAGE", "host": "request", "hosts": []string{"chain"}}},
 	}
 	for _, c := range cases {
@@ -106,8 +106,8 @@ func TestSlotAndHostsCopy(t *testing.T) {
 	t.Parallel()
 
 	for h, want := range map[Host]string{
-		Request: "Request.Overlays", Compose: "ComposedRequest.Overlays",
-		Chain: "ChainRequest.Overlays", Facet: "FacetRequest.Overlays", "other": "other",
+		Request: "request overlays", Compose: "Compose overlays",
+		Chain: "process chain overlays", Facet: "facet overlays", "other": "other",
 	} {
 		if got := h.Slot(); got != want {
 			t.Errorf("%s.Slot() = %q, want %q", h, got, want)
@@ -127,7 +127,7 @@ func TestShapesCoverRequestKinds(t *testing.T) {
 
 	for _, k := range types.AllOverlayKinds() {
 		if got, want := len(Shapes(k)) > 0, Accepts(Request, k); got != want {
-			t.Errorf("%s: declares shapes %v, runs on Request.Overlays %v", k, got, want)
+			t.Errorf("%s: declares shapes %v, runs on overlays %v", k, got, want)
 		}
 	}
 	ss := Shapes(types.OverlayKindShareOfTotal)
@@ -149,13 +149,13 @@ func TestShapeRefusal(t *testing.T) {
 		wantDetails map[string]any
 	}{
 		{"matrix kind on a series host", types.OverlayShapeSeries, types.OverlayKindShareOfCol, 1,
-			"overlay OVERLAY_SHARE_OF_COL does not run on a series-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab)",
+			"overlay OVERLAY_SHARE_OF_COL does not run on a series-shape overlays host; it runs on a matrix host (crosstab)",
 			map[string]any{"index": 1, "kind": "OVERLAY_SHARE_OF_COL", "host": "request", "shape": "series", "shapes": []string{"matrix"}}},
 		{"series kind on a matrix host", types.OverlayShapeMatrix, types.OverlayKindYoY, 0,
-			"overlay OVERLAY_YOY does not run on a matrix-shape Request.Overlays host; it runs on a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)",
+			"overlay OVERLAY_YOY does not run on a matrix-shape overlays host; it runs on a series host (groups + aggregations, no crosstab)",
 			map[string]any{"index": 0, "kind": "OVERLAY_YOY", "host": "request", "shape": "matrix", "shapes": []string{"series"}}},
 		{"formula on a matrix-result host", ShapeMatrixResult, types.OverlayKindFormula, 2,
-			"overlay OVERLAY_FORMULA does not run on a matrix_result-shape Request.Overlays host; it runs on a matrix host (Request.Crosstab) or a series host (Request.Groups + Request.Aggregations, no Request.Crosstab)",
+			"overlay OVERLAY_FORMULA does not run on a matrix_result-shape overlays host; it runs on a matrix host (crosstab) or a series host (groups + aggregations, no crosstab)",
 			map[string]any{"index": 2, "kind": "OVERLAY_FORMULA", "host": "request", "shape": "matrix_result", "shapes": []string{"matrix", "series"}}},
 	}
 	for _, c := range cases {

@@ -41,26 +41,26 @@ func TestCheck(t *testing.T) {
 			s.Family, s.Penalty, s.Alpha, s.L1Ratio = "poisson", "elasticnet", 0.1, 0.4
 		}), ""},
 		{"glm gamma l1", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "gamma", "l1", 0.1 }),
-			"REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
+			"REG_GLM penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 		{"glm gamma unpenalised", glm(func(s *types.RegressionSpec) { s.Family = "gamma" }), ""},
 		{"glm unknown family left to the family check", glm(func(s *types.RegressionSpec) { s.Family, s.Penalty, s.Alpha = "tweedie", "l2", 0.1 }), ""},
-		{"glm alpha alone", glm(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_GLM Alpha is only valid when Penalty is set (l1, l2, or elasticnet)"},
-		{"glm l1_ratio alone", glm(func(s *types.RegressionSpec) { s.L1Ratio = 0.1 }), "REG_GLM L1Ratio is only valid when Penalty is elasticnet"},
-		{"ols l2 no alpha", ols(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "REG_OLS Penalty=l2 requires Alpha > 0"},
+		{"glm alpha alone", glm(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_GLM alpha is only valid when penalty is set (l1, l2, or elasticnet)"},
+		{"glm l1_ratio alone", glm(func(s *types.RegressionSpec) { s.L1Ratio = 0.1 }), "REG_GLM l1_ratio is only valid when penalty is elasticnet"},
+		{"ols l2 no alpha", ols(func(s *types.RegressionSpec) { s.Penalty = "l2" }), "REG_OLS penalty=l2 requires alpha > 0"},
 		{"ols l1 with ratio", ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.L1Ratio = "l1", 0.1, 0.2 }),
-			"REG_OLS L1Ratio is only valid when Penalty=elasticnet; use Penalty=elasticnet to mix l1/l2"},
-		{"ols elasticnet no alpha", ols(func(s *types.RegressionSpec) { s.Penalty, s.L1Ratio = "elasticnet", 0.5 }), "REG_OLS Penalty=elasticnet requires Alpha > 0"},
+			"REG_OLS l1_ratio is only valid when penalty=elasticnet; use penalty=elasticnet to mix l1/l2"},
+		{"ols elasticnet no alpha", ols(func(s *types.RegressionSpec) { s.Penalty, s.L1Ratio = "elasticnet", 0.5 }), "REG_OLS penalty=elasticnet requires alpha > 0"},
 		{"ols elasticnet ratio 0", ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "elasticnet", 0.1 }),
-			"REG_OLS Penalty=elasticnet requires L1Ratio > 0 (use Penalty=l2 for pure ridge)"},
+			"REG_OLS penalty=elasticnet requires l1_ratio > 0 (use penalty=l2 for pure ridge)"},
 		{"ols elasticnet ratio 1", ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.L1Ratio = "elasticnet", 0.1, 1 }),
-			"REG_OLS Penalty=elasticnet requires L1Ratio < 1 (use Penalty=l1 for pure lasso)"},
-		{"ols unknown", ols(func(s *types.RegressionSpec) { s.Penalty = "l3" }), "REG_OLS Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got l3"},
+			"REG_OLS penalty=elasticnet requires l1_ratio < 1 (use penalty=l1 for pure lasso)"},
+		{"ols unknown", ols(func(s *types.RegressionSpec) { s.Penalty = "l3" }), "REG_OLS penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got l3"},
 		{"bayes passes", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "l2"}, ""},
 		{"ols ridge unpenalized", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a", "b"}, "l2", 0.1, []string{"b"}
 		}), ""},
 		{"ols unpenalized without penalty", ols(func(s *types.RegressionSpec) { s.Predictors, s.Unpenalized = []string{"a"}, []string{"a"} }),
-			"REG_OLS Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
+			"REG_OLS unpenalized requires a penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
 		// U69 E1-S1 (#487): lasso and elastic net take penalty factors.
 		{"ols lasso unpenalized", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"a"}
@@ -70,29 +70,29 @@ func TestCheck(t *testing.T) {
 		}), ""},
 		{"ols lasso unpenalized unknown", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"z"}
-		}), "REG_OLS Unpenalized names z, which is not one of Predictors"},
+		}), "REG_OLS unpenalized names z, which is not one of predictors"},
 		{"ols unpenalized unknown", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"z"}
-		}), "REG_OLS Unpenalized names z, which is not one of Predictors"},
+		}), "REG_OLS unpenalized names z, which is not one of predictors"},
 		{"ols unpenalized duplicate", ols(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"a", "a"}
-		}), "REG_OLS Unpenalized lists a twice"},
+		}), "REG_OLS unpenalized lists a twice"},
 		// REG_MULTINOMIAL (U68 E2-S3): the same coupling; unpenalized
 		// on every penalty kind.
 		{"multinomial l2", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 }), ""},
-		{"multinomial alpha alone", mn(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_MULTINOMIAL Alpha is only valid when Penalty is set (l1, l2, or elasticnet)"},
+		{"multinomial alpha alone", mn(func(s *types.RegressionSpec) { s.Alpha = 0.1 }), "REG_MULTINOMIAL alpha is only valid when penalty is set (l1, l2, or elasticnet)"},
 		{"multinomial elasticnet ratio 1", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.L1Ratio = "elasticnet", 0.1, 1 }),
-			"REG_MULTINOMIAL Penalty=elasticnet requires L1Ratio < 1 (use Penalty=l1 for pure lasso)"},
+			"REG_MULTINOMIAL penalty=elasticnet requires l1_ratio < 1 (use penalty=l1 for pure lasso)"},
 		{"multinomial lasso unpenalized", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"a"} }), ""},
 		{"multinomial elasticnet unpenalized", mn(func(s *types.RegressionSpec) {
 			s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "elasticnet", 0.1, 0.5, []string{"b", "a"}
 		}), ""},
 		{"multinomial unpenalized without penalty", mn(func(s *types.RegressionSpec) { s.Unpenalized = []string{"a"} }),
-			"REG_MULTINOMIAL Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
+			"REG_MULTINOMIAL unpenalized requires a penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
 		{"multinomial unpenalized unknown", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l2", 0.1, []string{"z"} }),
-			"REG_MULTINOMIAL Unpenalized names z, which is not one of Predictors"},
+			"REG_MULTINOMIAL unpenalized names z, which is not one of predictors"},
 		{"multinomial unpenalized duplicate", mn(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Unpenalized = "l1", 0.1, []string{"b", "b"} }),
-			"REG_MULTINOMIAL Unpenalized lists b twice"},
+			"REG_MULTINOMIAL unpenalized lists b twice"},
 		// REG_GLM (U69 E1-S1): every penalty kind takes it.
 		{"glm ridge unpenalized", glm(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"a"}
@@ -104,13 +104,13 @@ func TestCheck(t *testing.T) {
 			s.Family, s.Predictors, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = "poisson", []string{"a", "b"}, "elasticnet", 0.1, 0.5, []string{"a"}
 		}), ""},
 		{"glm unpenalized without penalty", glm(func(s *types.RegressionSpec) { s.Predictors, s.Unpenalized = []string{"a"}, []string{"a"} }),
-			"REG_GLM Unpenalized requires a Penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
+			"REG_GLM unpenalized requires a penalty (l1, l2 or elasticnet); an unpenalized fit already leaves every coefficient unshrunk"},
 		{"glm unpenalized duplicate", glm(func(s *types.RegressionSpec) {
 			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"a", "a"}
-		}), "REG_GLM Unpenalized lists a twice"},
+		}), "REG_GLM unpenalized lists a twice"},
 		{"glm gamma penalty with unpenalized stays the family refusal", glm(func(s *types.RegressionSpec) {
 			s.Family, s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = "gamma", []string{"a"}, "l2", 0.1, []string{"a"}
-		}), "REG_GLM Penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
+		}), "REG_GLM penalty is defined for the binomial, poisson and negative_binomial families only; fit family=gamma unpenalised"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -60,7 +60,7 @@ func MatrixResultRefusal(req *types.Request, spec *types.OverlaySpec, route type
 	ref.Matrix = nil
 	if matrix == nil || matrix.Name == "" || ref != (types.OverlayRef{}) {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+kind+" needs Ref.Matrix {name} naming a Request.Matrices spec, and no other Ref arm",
+			"overlay "+kind+" needs ref.matrix {name} naming a matrices entry, and no other ref arm",
 			map[string]any{"index": index, "kind": kind})
 	}
 	if spec.Scope != types.OverlayScopeMatrix {
@@ -70,7 +70,7 @@ func MatrixResultRefusal(req *types.Request, spec *types.OverlaySpec, route type
 	}
 	if spec.Level != 0 || spec.Within != 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
-			"overlay "+kind+" does not support Level / Within (a matrix result has no crosstab axis to address)",
+			"overlay "+kind+" does not support level / within (a matrix result has no crosstab axis to address)",
 			map[string]any{"index": index, "kind": kind, "level": spec.Level, "within": spec.Within})
 	}
 	if !emptyParams(spec.Params) {
@@ -87,12 +87,12 @@ func MatrixResultRefusal(req *types.Request, spec *types.OverlaySpec, route type
 	}
 	if !found {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
-			"overlay "+kind+" Ref.Matrix.Name "+strconv.Quote(matrix.Name)+" names no Request.Matrices spec",
+			"overlay "+kind+" ref.matrix.name "+strconv.Quote(matrix.Name)+" names no matrices entry",
 			map[string]any{"index": index, "kind": kind, "which": "matrix", "name": matrix.Name, "matrices": names})
 	}
 	if len(req.Groups) == 0 {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_GROUPS_REQUIRED,
-			"overlay "+kind+" summarizes matrix "+strconv.Quote(matrix.Name)+" across group buckets, but the request has no Request.Groups",
+			"overlay "+kind+" summarizes matrix "+strconv.Quote(matrix.Name)+" across group buckets, but the request has no groups",
 			map[string]any{"index": index, "kind": kind, "name": matrix.Name})
 	}
 	return nil
@@ -119,6 +119,6 @@ func StageRefusal(kind, route types.OverlayKind, stage, index int) *errors.Coded
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-		"overlay "+string(kind)+" does not run on a ProcessChain stage's Request.Overlays; it reads matrix results on a process request or a Compose slot only",
+		"overlay "+string(kind)+" does not run on a process chain stage's overlays; it reads matrix results on a process request or a Compose slot only",
 		map[string]any{"index": index, "kind": string(kind), "host": string(Chain), "stage": stage})
 }

@@ -126,7 +126,7 @@ func FitForAttribute(
 	if spec.Target == "" {
 		return nil, errors.NewCodedError(
 			errors.SERVICE_VALIDATION,
-			"regression attribute requires a Target field",
+			"regression attribute requires a target field",
 		)
 	}
 
@@ -203,7 +203,7 @@ func FitForAttribute(
 	default:
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"unknown Penalty for regression attribute: "+spec.Penalty,
+			"unknown penalty for regression attribute: "+spec.Penalty,
 			map[string]any{"penalty": spec.Penalty},
 		)
 	}

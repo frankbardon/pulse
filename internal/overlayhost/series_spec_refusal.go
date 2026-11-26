@@ -50,7 +50,7 @@ type seriesRule struct {
 
 const (
 	totalWhy   = "implicit-grand-total: the host series' own grand total is the denominator"
-	rollingWhy = "windowed rolling-mean reference; window width lives on Params[\"window\"]"
+	rollingWhy = "windowed rolling-mean reference; window width lives on params.window"
 )
 
 // seriesRules is the per-kind rule table: every kind that runs on a
@@ -71,9 +71,9 @@ var seriesRules = map[types.OverlayKind]seriesRule{
 	types.OverlayKindPropZVsPrior: {seriesPrior, "", false},
 
 	types.OverlayKindIndexVsRollingMean: {seriesRollingMean, rollingWhy, false},
-	types.OverlayKindZScoreVsRolling:    {seriesRollingMean, "windowed rolling-window reference; window width lives on Params[\"window\"]", false},
+	types.OverlayKindZScoreVsRolling:    {seriesRollingMean, "windowed rolling-window reference; window width lives on params.window", false},
 
-	types.OverlayKindYoY: {seriesYoY, "windowed year-over-year reference; frequency lives on Params[\"frequency\"] or the GROUP_DATE grouper's Params[\"frequency\"]", false},
+	types.OverlayKindYoY: {seriesYoY, "windowed year-over-year reference; frequency lives on params.frequency or the GROUP_DATE grouper's params.frequency", false},
 
 	types.OverlayKindIndexVsBaseline: {seriesBaseline, "windowed positional baseline reference", false},
 	types.OverlayKindDeltaVsBaseline: {seriesBaseline, "windowed positional baseline reference", false},
@@ -157,13 +157,13 @@ func SeriesSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index i
 		switch rule.arm {
 		case seriesImplicit:
 			if rule.dispatch {
-				return ref("against a SERIES host must leave Ref empty (" + rule.why + ")")
+				return ref("against a SERIES host must leave ref empty (" + rule.why + ")")
 			}
-			return ref("must leave Ref empty (" + rule.why + ")")
+			return ref("must leave ref empty (" + rule.why + ")")
 		case seriesPrior:
-			return ref("requires Ref.Prior or an empty Ref (windowed lag-1 prior; no other Ref arm)")
+			return ref("requires ref.prior or an empty ref (windowed lag-1 prior; no other ref arm)")
 		}
-		return ref("requires Ref." + arm + " only (no other Ref arm)")
+		return ref("requires ref." + arm + " only (no other ref arm)")
 	}
 	switch rule.arm {
 	case seriesPrior:
@@ -172,15 +172,15 @@ func SeriesSpecRefusal(spec *types.OverlaySpec, route types.OverlayKind, index i
 		}
 	case seriesRollingMean, seriesYoY, seriesBaseline, seriesSibling:
 		if !set {
-			return ref("requires Ref." + arm + " (" + rule.why + ")")
+			return ref("requires ref." + arm + " (" + rule.why + ")")
 		}
 	}
 	if rule.arm == seriesSibling {
 		if spec.Ref.Sibling.Field == "" {
-			return ref("Ref.Sibling.Field is empty (sibling reference requires a grouper Field name)")
+			return ref("ref.sibling.field is empty (sibling reference requires a grouper field name)")
 		}
 		if spec.Ref.Sibling.Value == "" {
-			return ref("Ref.Sibling.Value is empty (sibling reference requires a specific axis-key value)", "field", spec.Ref.Sibling.Field)
+			return ref("ref.sibling.value is empty (sibling reference requires a specific axis-key value)", "field", spec.Ref.Sibling.Field)
 		}
 	}
 	if spec.Scope == types.OverlayScopeGroup {

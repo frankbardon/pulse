@@ -254,7 +254,7 @@ func TestApplyChainOverlays_StageRefUnknownName_CodedError(t *testing.T) {
 
 	_, _, err := ApplyChainOverlays(specs, stages, []string{"some_other_name"})
 	if err == nil {
-		t.Fatalf("ApplyChainOverlays: want coded error for unknown Ref Name")
+		t.Fatalf("ApplyChainOverlays: want coded error for unknown ref Name")
 	}
 	ce, ok := err.(*pulseerrors.CodedError)
 	if !ok {

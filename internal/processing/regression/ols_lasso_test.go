@@ -122,10 +122,10 @@ func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 			}
 			// Convergence metadata.
 			if res.Penalty != "l1" {
-				t.Errorf("Penalty = %q, want l1", res.Penalty)
+				t.Errorf("penalty = %q, want l1", res.Penalty)
 			}
 			if !closef(res.Alpha, c.alpha, 0) {
-				t.Errorf("Alpha = %v, want %v", res.Alpha, c.alpha)
+				t.Errorf("alpha = %v, want %v", res.Alpha, c.alpha)
 			}
 			if res.ConvergedIters <= 0 {
 				t.Errorf("ConvergedIters = %d, want > 0", res.ConvergedIters)

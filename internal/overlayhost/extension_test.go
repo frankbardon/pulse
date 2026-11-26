@@ -174,7 +174,7 @@ func TestExtensionComposeRefusal_Order(t *testing.T) {
 	compose := &ExtensionDecl{Kind: d.Kind, Compose: true, Scopes: d.Scopes}
 	if got := ExtensionDeclRefusal(compose, types.OverlayShapeMatrix, false, &req, 4); got == nil || got.Details["host"] != string(Request) ||
 		!reflect.DeepEqual(got.Details["hosts"], []string{string(Compose)}) {
-		t.Errorf("Compose-only kind on Request.Overlays = %v, want the slot refusal naming compose", got)
+		t.Errorf("Compose-only kind on overlays = %v, want the slot refusal naming compose", got)
 	}
 }
 

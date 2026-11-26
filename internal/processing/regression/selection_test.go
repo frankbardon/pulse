@@ -90,10 +90,10 @@ func TestRegOLS_ForwardSelection_RecoversTrueFeatures(t *testing.T) {
 	records := makeSelectionFixture(t, 500, 23)
 	res := runOLSSelection(t, "forward", "bic", records)
 	if res.Selection != "forward" {
-		t.Errorf("Selection echo = %q, want forward", res.Selection)
+		t.Errorf("selection echo = %q, want forward", res.Selection)
 	}
 	if res.Criterion != "bic" {
-		t.Errorf("Criterion echo = %q, want bic", res.Criterion)
+		t.Errorf("criterion echo = %q, want bic", res.Criterion)
 	}
 	if !setEq(res.SelectedFeatures, []string{"x1", "x3"}) {
 		t.Errorf("forward selection picked %v, want {x1, x3}", res.SelectedFeatures)
@@ -211,10 +211,10 @@ func TestRegOLS_Selection_ResampleCompose(t *testing.T) {
 		t.Fatalf("FitBuffered: %v", err)
 	}
 	if res.Selection != "forward" {
-		t.Errorf("Selection echo = %q, want forward", res.Selection)
+		t.Errorf("selection echo = %q, want forward", res.Selection)
 	}
 	if res.Resample != "bootstrap" {
-		t.Errorf("Resample echo = %q, want bootstrap", res.Resample)
+		t.Errorf("resample echo = %q, want bootstrap", res.Resample)
 	}
 	if !setEq(res.SelectedFeatures, []string{"x1", "x3"}) {
 		t.Errorf("compose picked %v, want {x1, x3}", res.SelectedFeatures)

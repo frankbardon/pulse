@@ -165,14 +165,14 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 	if spec.MaxIters < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_OLS MaxIters must be ≥ 0 (zero selects the engine default)",
+			"REG_OLS max_iters must be ≥ 0 (zero selects the engine default)",
 			map[string]any{"max_iters": spec.MaxIters},
 		)
 	}
 	if spec.Tol < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_OLS Tol must be ≥ 0 (zero selects the engine default)",
+			"REG_OLS tol must be ≥ 0 (zero selects the engine default)",
 			map[string]any{"tol": spec.Tol},
 		)
 	}
@@ -203,7 +203,7 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 	case spec.Family == "":
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INVALID_FAMILY,
-			"REG_GLM requires Family (binomial | poisson | gamma | negative_binomial)",
+			"REG_GLM requires family (binomial | poisson | gamma | negative_binomial)",
 			map[string]any{"family": spec.Family},
 		)
 	case !reglink.KnownFamily(spec.Family):
@@ -226,14 +226,14 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 	if spec.MaxIters < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM MaxIters must be ≥ 0 (zero selects the engine default of 50)",
+			"REG_GLM max_iters must be ≥ 0 (zero selects the engine default of 50)",
 			map[string]any{"max_iters": spec.MaxIters},
 		)
 	}
 	if spec.Tol < 0 {
 		return errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
-			"REG_GLM Tol must be ≥ 0 (zero selects the engine default of 1e-8)",
+			"REG_GLM tol must be ≥ 0 (zero selects the engine default of 1e-8)",
 			map[string]any{"tol": spec.Tol},
 		)
 	}

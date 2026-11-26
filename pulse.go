@@ -969,18 +969,18 @@ func validateAutoLabels(bindings []LabelBinding, tables map[string]LabelTable) e
 		b := bindings[i]
 		if strings.TrimSpace(b.Field) == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"auto_labels: Field is required",
+				"auto_labels: field is required",
 				map[string]any{"index": i})
 		}
 		if strings.TrimSpace(b.Table) == "" {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				"auto_labels: Table is required",
+				"auto_labels: table is required",
 				map[string]any{"index": i, "field": b.Field})
 		}
 		mode := b.LabelModeOrDefault()
 		if mode != LabelModeReplace && mode != LabelModeAugment {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-				fmt.Sprintf("auto_labels: Mode %q is invalid (expected %q or %q)", b.Mode, LabelModeReplace, LabelModeAugment),
+				fmt.Sprintf("auto_labels: mode %q is invalid (expected %q or %q)", b.Mode, LabelModeReplace, LabelModeAugment),
 				map[string]any{"index": i, "field": b.Field, "mode": string(b.Mode)})
 		}
 		if _, ok := tables[b.Table]; !ok {
@@ -2108,7 +2108,7 @@ func (p *Pulse) sampleWithRequest(ctx context.Context, req *SampleRequest) (*Sam
 	var path string
 	if len(req.Union) == 0 && req.UnionSourceField == "" {
 		if req.Cohort == nil || req.Cohort.Filename == "" {
-			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires Cohort.Filename")
+			return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "pulse: sample request requires cohort.filename")
 		}
 		path = req.Cohort.Filename
 	}

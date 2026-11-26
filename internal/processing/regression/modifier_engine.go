@@ -84,7 +84,7 @@ func (e *modifierEngine) Fit() (*types.RegressionResult, error) {
 	e.finalized = true
 	return nil, errors.NewCodedErrorWithDetails(
 		errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-		"regression with Resample / Selection modifier requires the buffered orchestrator path; engine received no records",
+		"regression with resample / selection modifier requires the buffered orchestrator path; engine received no records",
 		map[string]any{"name": e.spec.Name, "type": string(e.spec.Type)},
 	)
 }

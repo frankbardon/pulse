@@ -87,10 +87,10 @@ func TestRegOLS_Ridge_ClosedForm(t *testing.T) {
 				t.Errorf("intercept = %v, want %v", res.Coefficients[InterceptKey], c.wantIntercept)
 			}
 			if res.Penalty != "l2" {
-				t.Errorf("result Penalty = %q, want l2", res.Penalty)
+				t.Errorf("result penalty = %q, want l2", res.Penalty)
 			}
 			if !closef(res.Alpha, c.alpha, 0) {
-				t.Errorf("result Alpha = %v, want %v", res.Alpha, c.alpha)
+				t.Errorf("result alpha = %v, want %v", res.Alpha, c.alpha)
 			}
 			if res.ConvergedIters != 0 {
 				t.Errorf("ridge is closed-form, ConvergedIters = %d, want 0", res.ConvergedIters)

@@ -364,8 +364,8 @@ func TestJoinKeys_UnknownKeyRefusedLikeRuntime(t *testing.T) {
 		left, right string
 		message     string
 	}{
-		{"left", "zz", "n", "OnPair.LeftField not found in left schema"},
-		{"right", "n", "zz", "OnPair.RightField not found in right schema"},
+		{"left", "zz", "n", "a join's on left_field is not a field of the left cohort"},
+		{"right", "n", "zz", "a join's on right_field is not a field of the right cohort"},
 	} {
 		mk := func() *types.Request {
 			return &types.Request{

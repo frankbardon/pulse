@@ -79,7 +79,7 @@ func TestShapeRefusal_MatrixResult(t *testing.T) {
 	ce := ShapeRefusal(types.OverlayShapeScalar, mgs, mgs, 2)
 	want := map[string]any{"index": 2, "kind": string(mgs), "host": "request", "shape": "scalar", "shapes": []string{"matrix_result"}}
 	if ce == nil || ce.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE || !reflect.DeepEqual(ce.Details, want) ||
-		ce.Message != "overlay OVERLAY_MATRIX_GROUP_SUMMARY does not run on a scalar-shape Request.Overlays host; it runs on a matrix-result host (Request.Matrices, no Request.Crosstab)" {
+		ce.Message != "overlay OVERLAY_MATRIX_GROUP_SUMMARY does not run on a scalar-shape overlays host; it runs on a matrix-result host (matrices, no crosstab)" {
 		t.Fatalf("got %+v", ce)
 	}
 	ce = ShapeRefusal(ShapeMatrixResult, types.OverlayKindShareOfCol, types.OverlayKindShareOfCol, 0)

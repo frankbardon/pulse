@@ -60,12 +60,12 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran
 		return nil, err
 	}
 	if req.Cohort == nil && len(req.Union) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "chain request requires Cohort for stage 0")
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "chain request requires cohort for stage 0")
 	}
 	for i, st := range req.Stages {
 		if st == nil || st.Request == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_EMPTY,
-				"chain stage requires a non-nil Request",
+				"chain stage requires a request",
 				map[string]any{"stage_index": i})
 		}
 	}

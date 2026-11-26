@@ -60,73 +60,73 @@ func TestRegOLS_RegularizedSpecValidation(t *testing.T) {
 		{
 			// Phase 4: REG_BAYES_LINEAR with Penalty set is rejected —
 			// Penalty is a REG_OLS knob and would silently mislead callers.
-			name: "REG_BAYES_LINEAR with stray Penalty rejected",
+			name: "REG_BAYES_LINEAR with stray penalty rejected",
 			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "anything"},
 			ok:   false,
 		},
 
 		// Unpenalized regressions must not carry Alpha / L1Ratio.
 		{
-			name: "unpenalized OLS with nonzero Alpha rejected",
+			name: "unpenalized OLS with nonzero alpha rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Alpha: 0.1},
 			ok:   false,
 		},
 		{
-			name: "unpenalized OLS with nonzero L1Ratio rejected",
+			name: "unpenalized OLS with nonzero l1_ratio rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, L1Ratio: 0.3},
 			ok:   false,
 		},
 
 		// L1 / L2 require Alpha > 0 and L1Ratio == 0.
 		{
-			name: "l1 with Alpha=0 rejected",
+			name: "l1 with alpha=0 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Alpha: 0},
 			ok:   false,
 		},
 		{
-			name: "l1 with negative Alpha rejected",
+			name: "l1 with negative alpha rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Alpha: -0.1},
 			ok:   false,
 		},
 		{
-			name: "l1 with L1Ratio set rejected",
+			name: "l1 with l1_ratio set rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Alpha: 0.1, L1Ratio: 0.5},
 			ok:   false,
 		},
 		{
-			name: "l2 with Alpha=0 rejected",
+			name: "l2 with alpha=0 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l2", Alpha: 0},
 			ok:   false,
 		},
 		{
-			name: "l2 with L1Ratio set rejected",
+			name: "l2 with l1_ratio set rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l2", Alpha: 0.1, L1Ratio: 0.5},
 			ok:   false,
 		},
 
 		// Elasticnet requires Alpha > 0 and 0 < L1Ratio < 1.
 		{
-			name: "elasticnet with Alpha=0 rejected",
+			name: "elasticnet with alpha=0 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "elasticnet", Alpha: 0, L1Ratio: 0.5},
 			ok:   false,
 		},
 		{
-			name: "elasticnet with L1Ratio=0 rejected (use l2)",
+			name: "elasticnet with l1_ratio=0 rejected (use l2)",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 0},
 			ok:   false,
 		},
 		{
-			name: "elasticnet with L1Ratio=1 rejected (use l1)",
+			name: "elasticnet with l1_ratio=1 rejected (use l1)",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 1.0},
 			ok:   false,
 		},
 		{
-			name: "elasticnet with L1Ratio>1 rejected",
+			name: "elasticnet with l1_ratio>1 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: 1.5},
 			ok:   false,
 		},
 		{
-			name: "elasticnet with L1Ratio<0 rejected",
+			name: "elasticnet with l1_ratio<0 rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "elasticnet", Alpha: 0.1, L1Ratio: -0.1},
 			ok:   false,
 		},
@@ -140,12 +140,12 @@ func TestRegOLS_RegularizedSpecValidation(t *testing.T) {
 
 		// Iteration knobs.
 		{
-			name: "negative MaxIters rejected",
+			name: "negative max_iters rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Alpha: 0.1, MaxIters: -1},
 			ok:   false,
 		},
 		{
-			name: "negative Tol rejected",
+			name: "negative tol rejected",
 			spec: &types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Alpha: 0.1, Tol: -1},
 			ok:   false,
 		},

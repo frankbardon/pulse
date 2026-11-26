@@ -112,7 +112,7 @@ func applyIndexVsSibling(spec *types.OverlaySpec, host *SeriesHostView) (types.O
 		// gets a coded error that surfaces the same failure mode.
 		return types.OverlayLayer{}, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"overlay "+string(spec.Kind)+" requires Ref.Sibling.{Field,Value} both non-empty",
+			"overlay "+string(spec.Kind)+" requires ref.sibling.{field,value} both non-empty",
 			map[string]any{
 				"kind": string(spec.Kind),
 			})

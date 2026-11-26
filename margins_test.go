@@ -234,7 +234,7 @@ func TestMargins_PredictMatchesRuntime(t *testing.T) {
 		{"binary", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Binary = "dummy" })), "binary slope or contrast"},
 		{"unknown term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x3"} })), "a predictor"},
 		{"repeated term", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Margins.Terms = []string{"x1", "x1"} })), "a predictor"},
-		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "type REG_OLS, REG_GLM or REG_MULTINOMIAL"},
+		{"bayes", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{}}), "a type that reports margins"},
 		{"penalty", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.1 })), "unpenalized"},
 		{"selection", marginsReq(marginsCohort, glm(func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" })), "no_selection"},
 		{"bounds", marginsReq(marginsCohort, &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: xs, Margins: &types.RegressionMargins{},

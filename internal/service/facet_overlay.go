@@ -203,7 +203,7 @@ func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.Ov
 			}
 		}
 		return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
-			"facet overlay Params[\"field\"] does not reference any FacetRequest.Fields entry: "+requested,
+			"overlay "+string(spec.Kind)+" params.field names none of the facet request's fields: "+requested,
 			map[string]any{
 				"index":            index,
 				"kind":             string(spec.Kind),
@@ -215,7 +215,7 @@ func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.Ov
 		return req.Fields[0], nil
 	}
 	return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING,
-		"facet overlay requires Params[\"field\"] when FacetRequest.Fields declares multiple fields",
+		"overlay "+string(spec.Kind)+" requires params.field when the facet request lists several fields",
 		map[string]any{
 			"index":            index,
 			"kind":             string(spec.Kind),

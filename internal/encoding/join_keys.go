@@ -61,7 +61,7 @@ func JoinKeysRefusals(left, right *encoding.Schema, spec *types.JoinSpec) []*err
 	var out []*errors.CodedError
 	if len(spec.On) == 0 {
 		out = append(out, errors.NewCodedError(errors.PULSE_JOIN_KEYS_EMPTY,
-			"JoinSpec.On is empty; at least one OnPair is required"))
+			"a join's on is empty; at least one {left_field, right_field} pair is required"))
 	}
 	if kind := spec.Kind; kind != "" && kind != "inner" {
 		out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED,
@@ -71,21 +71,21 @@ func JoinKeysRefusals(left, right *encoding.Schema, spec *types.JoinSpec) []*err
 	for i, pair := range spec.On {
 		if pair.LeftField == "" || pair.RightField == "" {
 			out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_KEYS_EMPTY,
-				"OnPair requires both LeftField and RightField",
+				"a join's on pair requires both left_field and right_field",
 				map[string]any{"index": i}))
 			continue
 		}
 		lf := left.Field(pair.LeftField)
 		if lf == nil {
 			out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_UNKNOWN,
-				"OnPair.LeftField not found in left schema",
+				"a join's on left_field is not a field of the left cohort",
 				map[string]any{"field": pair.LeftField, "index": i}))
 			continue
 		}
 		rf := right.Field(pair.RightField)
 		if rf == nil {
 			out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_FIELD_UNKNOWN,
-				"OnPair.RightField not found in right schema",
+				"a join's on right_field is not a field of the right cohort",
 				map[string]any{"field": pair.RightField, "index": i}))
 			continue
 		}

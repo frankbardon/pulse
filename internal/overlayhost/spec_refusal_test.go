@@ -84,7 +84,7 @@ func TestCrosstabSpecRefusal_CoversMatrixKinds(t *testing.T) {
 				t.Errorf("%s has a rule", kind)
 			}
 		case matrix && !ruled[kind]:
-			t.Errorf("crosstab kind %s has no Ref / Scope rule", kind)
+			t.Errorf("crosstab kind %s has no ref / Scope rule", kind)
 		case !matrix && ruled[kind]:
 			t.Errorf("rule for %s, which does not run on a crosstab", kind)
 		}
@@ -159,7 +159,7 @@ func TestCrosstabSpecRefusal_MarginKindsRefuseOtherRefArms(t *testing.T) {
 			cerr := CrosstabSpecRefusal(spec, kind, 3)
 			if cerr == nil || cerr.Code != errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE ||
 				cerr.Details["index"] != 3 || cerr.Details["kind"] != string(kind) || len(cerr.Details) != 2 {
-				t.Fatalf("%s with Ref.%s: %v, want the other-arm refusal", kind, f.Name, cerr)
+				t.Fatalf("%s with ref.%s: %v, want the other-arm refusal", kind, f.Name, cerr)
 			}
 			arms++
 		}

@@ -74,7 +74,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		if !slices.Contains(spec.Predictors, name) {
 			return errors.NewCodedErrorWithDetails(
 				errors.PROCESSING_CONFIG,
-				"REG_OLS bounds.nonnegative names "+name+", which is not one of Predictors",
+				"REG_OLS bounds.nonnegative names "+name+", which is not one of predictors",
 				map[string]any{"bounds": map[string]any{"nonnegative": nn}, "field": name, "predictors": spec.Predictors},
 			)
 		}

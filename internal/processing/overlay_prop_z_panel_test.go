@@ -303,13 +303,13 @@ func TestApplyPropZPanel_DefaultMaxPanelTargets_16(t *testing.T) {
 	t.Parallel()
 
 	if defaultMaxPanelTargets != 16 {
-		t.Fatalf("defaultMaxPanelTargets = %d, want 16 (per interview risk paragraph)", defaultMaxPanelTargets)
+		t.Fatalf("defaultmax_panel_targets = %d, want 16 (per interview risk paragraph)", defaultMaxPanelTargets)
 	}
 	if got := resolveMaxPanelTargets(nil); got != 16 {
-		t.Errorf("resolveMaxPanelTargets(nil) = %d, want 16", got)
+		t.Errorf("resolvemax_panel_targets(nil) = %d, want 16", got)
 	}
 	if got := resolveMaxPanelTargets(&types.OverlayOptions{}); got != 16 {
-		t.Errorf("resolveMaxPanelTargets({}) = %d, want 16", got)
+		t.Errorf("resolvemax_panel_targets({}) = %d, want 16", got)
 	}
 	// Exactly 16 targets succeeds.
 	ref := makeMatrixWithRowMargins(

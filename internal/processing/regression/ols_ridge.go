@@ -71,7 +71,7 @@ func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolve
 	if !ok {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
-			"augmented Gram (M2_xx + n·λ·I) is not positive-definite; raise Alpha or drop a predictor",
+			"augmented Gram (M2_xx + n·λ·I) is not positive-definite; raise alpha or drop a predictor",
 			map[string]any{"n": a.n, "p": p, "alpha": alpha},
 		)
 	}

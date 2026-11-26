@@ -179,7 +179,7 @@ func (f *dateRangesFilterer) SetExtensions(r *ExtensionRegistry) {
 func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
 	if filter.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FILTER_DATE_RANGES requires a Field")
+			"FILTER_DATE_RANGES requires a field")
 	}
 
 	// Field must be a date-family column (`date` or `datetime`).
@@ -362,11 +362,11 @@ func newNullFilterer() FiltererBuilder {
 func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (FilterFunc, error) {
 	if filter.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FILTER_NULL requires a Field")
+			"FILTER_NULL requires a field")
 	}
 	if len(filter.Values) != 1 {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FILTER_NULL requires exactly one Values entry: \"is_null\" or \"is_not_null\"")
+			"FILTER_NULL requires exactly one values entry: \"is_null\" or \"is_not_null\"")
 	}
 	var keepNull bool
 	switch filter.Values[0] {
@@ -376,7 +376,7 @@ func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (Filter
 		keepNull = false
 	default:
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("FILTER_NULL Values[0]=%q; must be \"is_null\" or \"is_not_null\"", filter.Values[0]))
+			fmt.Sprintf("FILTER_NULL values[0]=%q; must be \"is_null\" or \"is_not_null\"", filter.Values[0]))
 	}
 
 	field := filter.Field
@@ -413,7 +413,7 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 	tn := f.typeName()
 	if filter.Field == "" {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s requires a Field", tn))
+			fmt.Sprintf("%s requires a field", tn))
 	}
 
 	truthyMode := false
@@ -428,11 +428,11 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 			truthyMode = false
 		default:
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("%s Values[0]=%q; must be \"truthy\" or \"strict\" (or omit Values for strict)", tn, filter.Values[0]))
+				fmt.Sprintf("%s values[0]=%q; must be \"truthy\" or \"strict\" (or omit values for strict)", tn, filter.Values[0]))
 		}
 	default:
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s accepts at most one Values entry (\"truthy\" or \"strict\"); got %d", tn, len(filter.Values)))
+			fmt.Sprintf("%s accepts at most one values entry (\"truthy\" or \"strict\"); got %d", tn, len(filter.Values)))
 	}
 
 	field := schema.Field(filter.Field)
@@ -442,7 +442,7 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 	}
 	if !truthyMode && field.Type != encoding.FieldTypePackedBool {
 		return nil, errors.NewCodedError(errors.PULSE_FIELD_TYPE_UNSUPPORTED,
-			fmt.Sprintf("%s strict mode requires packed_bool field; %q is %s. Pass Values=[\"truthy\"] to opt into JavaScript-style coercion.",
+			fmt.Sprintf("%s strict mode requires packed_bool field; %q is %s. Pass values [\"truthy\"] to opt into JavaScript-style coercion.",
 				tn, filter.Field, field.Type.String()))
 	}
 
