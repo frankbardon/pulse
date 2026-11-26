@@ -65,7 +65,7 @@ func MCPCommand(version string) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "bind-on-open",
-				Usage: "Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves.",
+				Usage: "Register session-scoped schema-bound tool variants after a successful pulse_inspect or pulse_import. Disable (--bind-on-open=false) for clients that bind tool schemas themselves.",
 				Value: true,
 			},
 		},

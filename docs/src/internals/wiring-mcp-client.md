@@ -41,7 +41,7 @@ for Claude Code) running `pulse mcp` and exporting `PULSE_DATA_DIR`:
 ```
 
 The `--bind-on-open` flag (default `true`) controls whether successful
-`pulse_inspect` calls trigger registration of session-scoped tool
+`pulse_inspect` or `pulse_import` calls trigger registration of session-scoped tool
 variants whose JSON Schemas constrain field-name parameters to the
 cohort's actual fields. Pass `--bind-on-open=false` for clients that
 bind themselves:

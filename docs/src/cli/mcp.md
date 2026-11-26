@@ -192,7 +192,7 @@ Embedders running `mcpserve` wire OpenTelemetry themselves through
 
 ## --bind-on-open
 
-When a session calls `pulse_inspect` successfully, the server can
+When a session calls `pulse_inspect` or `pulse_import` successfully, the server can
 register session-scoped tool variants whose JSON Schemas constrain
 field-name parameters to the cohort's actual fields. This narrows
 the LLM's choices and prevents typos at parameter-binding time.

@@ -326,7 +326,7 @@ func profileCreateCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output profile JSON path", Required: true},
 			&cli.IntFlag{Name: "top-k", Usage: "Top-K categorical values to retain per field", Value: 32},
-			&cli.BoolFlag{Name: "include-stats", Usage: "Include percentile / std stats (default true; --include-stats=false omits them)", Value: true},
+			&cli.BoolFlag{Name: "include-stats", Usage: "Include percentile / std stats (--include-stats=false omits them)", Value: true},
 			&cli.BoolFlag{Name: "include-correlations", Usage: "Capture pairwise numeric correlations"},
 			&cli.IntFlag{Name: "correlation-top-k", Usage: "Cap on retained correlation pairs", Value: 16},
 			&cli.BoolFlag{Name: "conditional", Usage: "Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse"},

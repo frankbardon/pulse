@@ -1066,7 +1066,7 @@ In depth: [mcp](mcp.md)
 | `--feature-profile` | string |  | Feature profile JSON file (OS path, relative to the working directory, not the data dir). Falls back to PULSE_FEATURE_PROFILE. An invalid profile fails startup. |
 | `--return` | string |  | Response preset (full\|standard\|minimal) for a tool request without its own return block. Unset: the instance or feature-profile return default, else standard. full serves the unshaped library output. |
 | `--metrics-addr` | string |  | Serve Prometheus text-format metrics on GET /metrics at this host:port (e.g. 127.0.0.1:9090; :0 picks a free port). Unset opens no port. |
-| `--bind-on-open` |  |  | Register session-scoped schema-bound tool variants on successful pulse_inspect (default true). Disable for clients that bind tool schemas themselves. |
+| `--bind-on-open` |  | `true` | Register session-scoped schema-bound tool variants after a successful pulse_inspect or pulse_import. Disable (--bind-on-open=false) for clients that bind tool schemas themselves. |
 
 ### `pulse profile create`
 
@@ -1081,7 +1081,7 @@ In depth: [profile create](profile-create.md)
 | `--input`, `-i` | string |  | **Required.** Input .pulse cohort file path |
 | `--output`, `-o` | string |  | **Required.** Output profile JSON path |
 | `--top-k` | int | `32` | Top-K categorical values to retain per field |
-| `--include-stats` |  |  | Include percentile / std stats (default true; --include-stats=false omits them) |
+| `--include-stats` |  | `true` | Include percentile / std stats (--include-stats=false omits them) |
 | `--include-correlations` |  |  | Capture pairwise numeric correlations |
 | `--correlation-top-k` | int | `16` | Cap on retained correlation pairs |
 | `--conditional` |  |  | Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse |

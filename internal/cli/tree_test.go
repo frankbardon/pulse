@@ -80,6 +80,17 @@ func TestLeavesShape(t *testing.T) {
 	if got := flag("pulse api process", "json"); got.TakesValue || got.Default != "" || got.Required {
 		t.Errorf("pulse api process --json = %+v, want a switch with no default", got)
 	}
+	// A bool that defaults to true records it (a false default is the
+	// zero value help omits); its usage no longer carries it by hand.
+	for _, c := range [][2]string{{"pulse profile create", "include-stats"}, {"pulse mcp", "bind-on-open"}} {
+		got := flag(c[0], c[1])
+		if got.TakesValue || got.Default != "true" {
+			t.Errorf("%s --%s = %+v, want a switch with default true", c[0], c[1], got)
+		}
+		if strings.Contains(got.Usage, "default true") {
+			t.Errorf("%s --%s usage %q still hand-writes its default", c[0], c[1], got.Usage)
+		}
+	}
 	if got := flag("pulse api process", "help"); !slices.Equal(got.Names, []string{"help", "h"}) {
 		t.Errorf("the set-up tree mounts --help on every leaf; got %+v", got)
 	}

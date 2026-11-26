@@ -67,7 +67,9 @@ func DescribeFlag(f cli.Flag) FlagDoc {
 		d.TakesValue = g.TakesValue()
 		d.Env = slices.Clone(g.GetEnvVars())
 		d.Default = g.GetDefaultText()
-		if d.Default == "" && d.TakesValue {
+		// A switch records its value too: a false default is the zero
+		// value isZeroDefault drops, so only a true default renders.
+		if d.Default == "" {
 			d.Default = g.GetValue()
 		}
 	}
