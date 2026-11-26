@@ -14,7 +14,7 @@ Storage stays UTC epoch. A zone is request-time configuration that is resolved, 
 
 **Capability.** `internal/descriptor/capabilities_zone.go` is the single declaration table (`ZoneCapabilityOf` / `IsZoneCapable`), projected onto the manifest `zone` key of an operator or overlay entry: `capable` on the date groupers / filter, `ATTR_DATE_PART` and `FEAT_DATE_FEATURES`; `following` on `OVERLAY_YOY` (no `tz` slot — it inherits its host grouper's zone, since a disagreeing overlay zone would be meaningless); absent everywhere else. Extension operators are never zone-capable; windows are excluded.
 
-**Resolution.** `internal/descriptor/zone_resolve.go` — `ResolveZones(req, schema, defaultZone, load)` / `ResolveFacetZones` — is pure, never mutates the request, and is the ONE pass both runtime and predict call, so they accept and refuse identically. Precedence per zone-capable slot: slot `tz` → slot `tz_field` → `time_zone_field` → request `time_zone` → cohort default zone field → `Options.DefaultTimeZone` → `UTC`. Refusal order:
+**Resolution.** `internal/descriptor/zone_resolve.go` — `ResolveZones` / `ResolveFacetZones`, wrapped by the service in `internal/service/zones.go` — is pure, never mutates the request, and is the ONE pass both runtime and predict call, so they accept and refuse identically. Precedence per zone-capable slot: slot `tz` → slot `tz_field` → `time_zone_field` → request `time_zone` → cohort default zone field → `Options.DefaultTimeZone` → `UTC`. Refusal order:
 
 1. unknown `time_zone` / default zone → `PULSE_TIMEZONE_UNKNOWN {tz}` — even with no zone-capable slot;
 2. explicit `tz` on a non-capable operator (built-in or extension) → `PROCESSING_CONFIG {slot, operator, tz}`;
@@ -35,7 +35,7 @@ Storage stays UTC epoch. A zone is request-time configuration that is resolved, 
 - **Applying the zone.** The operator factories see only `(slot, schema)`, so each mode hands its arm `descx.ZonedRequest(req, zones, loader)` right after its last caller-visible mutation (auto labels): a shallow copy whose slots that INHERITED a non-UTC zone carry it in `tz` — or `req` itself when there is none. Every arm built from it (buffered, streaming, fused crosstab and its gate probe, parallel decode, shard reduce, chain stages) sees the zone with no further plumbing. The caller's request is never written, so the echo and `Request.Hash` show it as written.
 - **Location.** A Compose refusal keeps its prefix `request N:` and adds `details.request` (0-based) on the serial and `FailFast` parallel path (`FailFast=false` aggregates into `SERVICE_INTERNAL`); a chain refusal adds `details.stage`. Both are copies of the coded error, so the code survives `errors.As` and the CLI envelope. Only refusals the service marks as **located** where they are raised (`internal/service/located.go`) gain a location; the validators locate at the same points.
 
-**Predict and the validators.** Predict resolves on the defaults-resolved clone (`PredictOptions.DefaultTimeZone` / `ZoneLoader`, filled from the service) and echoes `PredictResult.TimeZones` — `[{slot, operator, field_type (omitempty), tz (string|null), source}]`, `source` ∈ `slot|request|options|default` (`descriptor.ZoneSource*`), never nil, zone-capable slots only; a refusal is a predict error (`Valid=false`).
+**Predict and the validators.** Predict resolves on the defaults-resolved clone (`PredictOptions.DefaultTimeZone` / `ZoneLoader`, filled from the service) and echoes `PredictResult.TimeZones` — `[{slot, operator, field_type (omitempty), tz (string|null), tz_field (omitempty), source}]`, `source` one of the `descriptor.ZoneSource*` constants, never nil, zone-capable slots only; a refusal is a predict error (`Valid=false`).
 
 - **Joins in predict.** For a single `JoinSpec` predict reads the right cohort's header + schema through `PredictOptions.SchemaLoader` and validates the whole request against `encoding.JoinedSchema` — the one join-schema rule the runtime delegates to.
 - **Defaults off.** `PredictOptions.DisableDefaults` validates the request as written; `DefaultsApplied` still lists what WOULD apply. A top-level slot still without a `Type` gets the runtime's own `PROCESSING_CONFIG` message.
@@ -60,15 +60,7 @@ Storage stays UTC epoch. A zone is request-time configuration that is resolved, 
 
 ## Smart defaults
 
-When a request slot names a field but omits `Type`, the engine infers an operator from the schema type. The table is `internal/descriptor/defaults.go` (`defaultRules`):
-
-| Field type | Default aggregation | Default grouper |
-|---|---|---|
-| numeric (u4/u8/u16/u32/u64, f32/f64, decimal128) | `AGG_SUM` | `GROUP_RANGE` (Interval 10) |
-| categorical_* | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
-| `date` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `datetime` | (explicit only) | `GROUP_DATE` (`"day"`) |
-| `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+When a request slot names a field but omits `Type`, the engine infers an operator from the schema type. The rules are `defaultRules` in `internal/descriptor/defaults.go` — one row per field type naming its aggregation and grouper default (an empty aggregation means explicit only, as for `date` / `datetime`), plus the grouper params a default fills (`defaultRangeInterval`, `defaultDateComponent`). A field type with no row takes no default. Agent-facing tables: `skills/aggregation-design.md` and `skills/grouper-design.md` (Smart defaults).
 
 - Defaults apply only when `Field` is set and `Type` is empty. They never override an explicit `Type` / `metric`, never cross categories (a grouper default never fills an aggregation slot), and never fill tests, filterers, attributes, windows or features. `Field.Nullable` never changes the inferred operator.
 - The crosstab cell — and each measure of `crosstab.cells` — is an aggregation slot and takes the aggregation default (`DefaultApplied.Path` `["Crosstab", "Cell", "Type"]` / `["Crosstab", "Cells", i, "Type"]`). Each crosstab `rows` / `columns` axis grouper is a grouper slot and takes the grouper default plus its params; a banner's section rows and group columns expand into those axes, so they default too. Under `DisableDefaults` a typeless axis is `PROCESSING_CONFIG` `unknown group type: ` on both sides.
