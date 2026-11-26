@@ -6,8 +6,8 @@ the operator name.
 This page maps common questions to operators. It is not the full list:
 every registered operator, with its params, accepted field types and
 streamability, is in the [Operator catalog](../guide/catalog.md), in
-each operator's skill (`op-<kind>`, through `pulse_skills_get`) and in
-the manifest (`pulse manifest --json`). Set-field operators are on
+each operator's skill (`op-agg-count` for `AGG_COUNT`, through
+`pulse_skills_get`) and in the manifest (`pulse --json`). Set-field operators are on
 [Field Types → Sets](../format/field-types.md#sets-multi-select-bitmasks).
 
 ## Aggregators

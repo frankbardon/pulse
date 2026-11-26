@@ -3,11 +3,11 @@
 A survey sample rarely matches its population: too many older
 respondents, too few in one region. `Pulse.Rake` computes one weight
 per record so the weighted sample reproduces known population margins,
-and writes the weights into a NEW cohort beside every source column.
-Later requests name the new column as their [row weight](weighting.md).
+and writes the weights into a NEW cohort beside every source field.
+Later requests name the new field as their [row weight](weighting.md).
 
 Weights must be a schema field (a request cannot weight itself with a
-column it computes), so computing them is its own step.
+value it computes), so computing them is its own step.
 
 ## Library
 
@@ -44,7 +44,7 @@ Then weight any request by it:
 | `MinWeight` / `MaxWeight` | Caps relative to the group's mean weight, applied after every sweep (0 = no cap); need 0 ≤ min ≤ 1 ≤ max |
 | `MaxIter` / `Tol` | Sweep ceiling (default 100) and the largest allowed achieved-vs-target share gap (default 1e-6) |
 | `Total` | Each group's weights sum to this; default the group's record count (mean weight 1) |
-| `WeightField` / `Overwrite` | Output column name (default `rake_weight`); `Overwrite` replaces an existing target AND an existing column of that name (in place) |
+| `WeightField` / `Overwrite` | Output field name (default `rake_weight`); `Overwrite` replaces an existing target AND an existing field of that name (in place) |
 
 Margin and `By` fields must be categorical, `packed_bool` or unsigned
 integers; a base weight must be numeric with no null, negative or
@@ -133,5 +133,6 @@ or unreadable source sidecar is not carried and adds a warning with its
 own code (`PULSE_SPSS_SIDECAR_STALE` / `_INVALID`), as does a replaced
 variable a response set or the derived registry names. No other sidecar
 is carried. An overwrite that leaves stale sidecars beside the target
-adds a `PULSE_RAKE_SIDECARS_INVALIDATED` warning naming them (a carried
-SPSS sidecar is fresh, so it is never among them).
+adds a `PULSE_RAKE_SIDECARS_INVALIDATED` warning naming them, also listed
+in `RakeResult.InvalidatedSidecars` (a carried SPSS sidecar is fresh, so
+it is never among them).

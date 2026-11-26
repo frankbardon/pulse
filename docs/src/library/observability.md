@@ -1,6 +1,6 @@
 # Observability
 
-Pulse gives an embedder three independent, optional windows into a running instance. All three default to off, and the off path allocates exactly what it did before they existed.
+Pulse gives an embedder three independent, optional windows into a running instance. All three default to off, and an unset window costs nothing.
 
 | `pulse.Options` field | What it is | Cost when nil |
 |---|---|---|
@@ -21,17 +21,29 @@ Pulse never reads `slog.Default()`, adds no environment variable, and does not c
 | The CLI MCP server | `pulse mcp --log-level info --metrics-addr 127.0.0.1:9090` |
 | The CLI MCP server to an OTLP collector | `OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4318 pulse mcp` |
 
-```go
+```go compile
+package observed
+
 import (
-    otelpulse "github.com/frankbardon/pulse/observe/otel"
-    prompulse "github.com/frankbardon/pulse/observe/prom"
+	"log/slog"
+	"os"
+
+	"github.com/frankbardon/pulse"
+	otelpulse "github.com/frankbardon/pulse/observe/otel"
+	prompulse "github.com/frankbardon/pulse/observe/prom"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace"
 )
 
-p, err := pulse.New(pulse.Options{
-    Logger:  slog.New(slog.NewJSONHandler(os.Stderr, nil)),
-    Hooks:   otelpulse.Hooks(tracerProvider),
-    Metrics: prompulse.Metrics(prometheus.DefaultRegisterer),
-})
+// New wires logs, OpenTelemetry spans and Prometheus metrics.
+func New(dataDir string, tp trace.TracerProvider) (*pulse.Pulse, error) {
+	return pulse.New(pulse.Options{
+		DataDir: dataDir,
+		Logger:  slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+		Hooks:   otelpulse.Hooks(tp),
+		Metrics: prompulse.Metrics(prometheus.DefaultRegisterer),
+	})
+}
 ```
 
 Both adapters are packages of the Pulse module itself: no separate `go get`, same version as Pulse. Only the adapters (and the `pulse` CLI) import OpenTelemetry or `client_golang`, so a program that imports neither adapter links none of it. The packages are named `otelpulse` and `prompulse`; alias the import as above to keep those names readable beside the vendor packages.

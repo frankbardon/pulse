@@ -47,8 +47,8 @@ lower `DisclosureSample` (or the limit) on a slower or shared host, and
 to manage (see [Response Shaping](response-shaping.md) for what is
 returned).
 
-Read the effective values with `p.Limits()`, or `pulse manifest --json`
-(`limits` array `{name, value, default, unit}`). The Go constants
+Read the effective values with `p.Limits()`, or `pulse --json`
+(the manifest's `limits` array `{name, value, default, unit}`). The Go constants
 `pulse.DefaultMaxGroups`, `pulse.DefaultMaxCrosstabCells`, … are the
 defaults.
 
@@ -223,9 +223,7 @@ in every margin slot, once per measure, and nothing with components off.
 one per axis key. The buffered arm also pays for its partitions: 128
 bytes a row, and per measure 448 a cell and 416 an axis key. An axis
 whose cardinality the schema does not fix is bounded like a grouper
-(below). These figures replaced a flat
-512 bytes a cell, which was below the measured cost of every built-in
-cell with components on, so crosstab estimates rise.
+(below).
 
 The matrix a crosstab emits is dense: it has a position for every row
 key and column key pair, and the fused arm also folds into a dense
@@ -237,9 +235,9 @@ both axes, otherwise at most one per record (times any set fan-out).
 Every other position costs a fixed amount per measure: 130 bytes on the
 fused arm with components on, 110 off, 20 more weighted; 50 and 30 on
 the buffered arm. A grid whose axes the schema fixes, no larger than
-the record count, has no such positions, so its estimate is unchanged.
-A sparse grid over axes the schema does not fix, such as two
-high-cardinality integer fields, is charged far more than before. With
+the record count, has no such positions. A sparse grid over axes the
+schema does not fix, such as two high-cardinality integer fields, pays
+for every unreachable position. With
 the default `MaxCrosstabCells` of 10 million, the worst case is about
 1.3 GB per measure on the fused arm. Lower `MaxCrosstabCells` to bound
 it.
@@ -282,7 +280,7 @@ once per shard. Null rows mint no key and are not counted.
 bound, because its key also depends on the zone. Several groupers
 multiply their bounds, capped by the records. The bound falls back to
 the record or width bound in these cases: a shard whose count is
-unknown (written by an older Pulse), past the writer's
+unknown, past the writer's
 `ShardDistinctLimit`, or opted out (`DisableShardDistinct`); an archive
 whose shards differ from the ones the counts name, or a shard replaced
 outside Pulse since it was counted (its size and CRC-32 moved); a damaged count
@@ -511,8 +509,8 @@ keeps the old file's bytes.
 ## `RequestTimeout` and the caller's context
 
 `RequestTimeout` is an inner deadline in addition to the caller's ctx. It
-covers `Process`, `ProcessStream` / `ProcessStreamResult` (the run and the
-drain, so a stalled consumer trips it), `Facet` / `FacetSchema`, and the
+covers `Process`, `ProcessStreamResult` (the run and the drain, so a
+stalled consumer trips it), `ProcessStream` (the run only, below), `Facet` / `FacetSchema`, and the
 WHOLE `Compose` / `ComposeParallel` / `ProcessChain` call (nested entries
 share one budget). Only the inner deadline becomes
 `PULSE_LIMIT_EXCEEDED`:

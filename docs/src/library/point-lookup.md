@@ -16,7 +16,7 @@ instead.
 
 ## Build then look up
 
-```go
+```go compile
 package main
 
 import (
@@ -61,19 +61,18 @@ func main() {
 `IndexPath` is the derived sidecar path, `Index` is the in-memory
 `*pulse.SidecarIndex` that was serialized there, handed back in case you
 want to inspect it without a round-trip read. Every type inside it has a
-root spelling: `Keys []pulse.SidecarIndexKeySpec` (ordered key columns),
+root spelling: `Keys []pulse.SidecarIndexKeySpec` (ordered key fields),
 `Buckets []pulse.SidecarIndexBucket` whose `Entries` are
 `pulse.SidecarIndexEntry{Key, RowIDs}`, and `Fingerprint`, a
 `pulse.CohortFingerprint` (the SHA-256 of the cohort's bytes).
 
-`Lookup`'s single-key convenience path — `Field` + `Value`, both
-strings — is the E1 shape and stays the ergonomic default. `Value` is
+`Lookup`'s single-key path is `Field` + `Value`, both strings. `Value` is
 always text, the same string-literal convention `Filterer.Values`
 uses for `FILTER_INCLUDE`/`FILTER_EXCLUDE`.
 
 ## Composite keys
 
-A multi-column key is an **ordered tuple** — column order matters end
+A multi-field key is an **ordered tuple** — field order matters end
 to end, from the `BuildIndex` call that wrote the sidecar through
 every `Lookup` that probes it. Use `Keys` instead of `Field`/`Value`:
 
@@ -99,7 +98,7 @@ if err != nil {
 `Keys` takes precedence over `Field`/`Value` when both are set.
 `{region, date}` and `{date, region}` name the same two logical
 values but resolve against two different sidecar indexes — build the
-index with the same column order you'll query with.
+index with the same field order you'll query with.
 
 `ReturnColumns` projects the result down to named fields; empty means
 every schema field (`LookupResult.Rows[i]` is a full
@@ -168,17 +167,17 @@ against its sidecar (`ShardsMismatched`); `ListIndexes` and
 
 **Key-range pruning.** The build records each shard's indexed-key
 minimum and maximum on its manifest record (`key_min` / `key_max`, one
-string per key column). A lookup skips a shard whose range excludes the
+string per key field). A lookup skips a shard whose range excludes the
 key without opening that shard's sidecar, so a lookup over shards
 clustered by key (one shard per period, say) opens only the shards
-that can hold it. A composite key is pruned per column: one column out
+that can hold it. A composite key is pruned per field: one field out
 of range is enough. The bounds are order-preserving hex — the
-column's value big-endian, with the sign bit flipped for `date`,
+field's value big-endian, with the sign bit flipped for `date`,
 `datetime` and `decimal128` and the IEEE-754 total-order transform for
 floats — so `u64` keys above 2^53 stay exact; a categorical range is a
-dictionary-id range. Pruning only skips work: an empty shard, or a
-manifest written or rewritten by an older Pulse (which drops the
-fields), records no range and every such shard is probed. A skipped
+dictionary-id range. Pruning only skips work: a shard whose record
+carries no range (an empty shard, or a manifest record without the
+fields) is always probed. A skipped
 shard's sidecar is not read, so a stale sidecar there does not refuse
 a lookup that shard cannot answer; `VerifyIndex` still checks every
 sidecar, and also checks each recorded range against its sidecar's
@@ -190,10 +189,10 @@ range could hide a match.
 with the shard's name, size and CRC32, all in ONE file per index —
 `archive.pulse.<keyhash>.blooms` — so a lookup reads its filters in a
 single read (one GET on object storage) however many shards are in
-play. An index built before that file existed keeps one
-`archive.pulse#shard.pulse.<keyhash>.bloom` per shard; a lookup still
-uses those when no `.blooms` file is present, and a rebuild (or the
-next shard add) moves them into one and deletes them. After the range check, a lookup skips a shard
+play. When no `.blooms` file is present, a lookup uses per-shard
+`archive.pulse#shard.pulse.<keyhash>.bloom` files if they exist; a
+rebuild (or the next shard add) folds them into one `.blooms` file and
+deletes them. After the range check, a lookup skips a shard
 whose filter says the key is not there — again without opening its
 sidecar — so a key that falls inside many shards' ranges but lives in
 few opens only those few (or one in a hundred extra). A filter never
@@ -204,7 +203,7 @@ that differs (`ShardsBloomStale`, reason `bloom_stale`; a `.blooms`
 file whose header is unreadable names every shard); `DropIndex`
 removes the filters; shard add and remove keep them in step;
 `CohortArtifacts` lists the `.blooms` file and every per-shard sidecar
-(`archive.pulse#shard.pulse.<keyhash>.idx`, and a legacy `.bloom`).
+(`archive.pulse#shard.pulse.<keyhash>.idx`, and any per-shard `.bloom`).
 
 **Distinct keys across shards.** On an archive, `DistinctKeys` is the
 sum of the per-shard counts, so a key present in three shards counts
@@ -216,9 +215,8 @@ keys (`hll`, 1024 registers, about 1 KB of base64), and
 about 3.25% relative standard error, clamped between the largest
 shard's count and the sum, so a one-shard archive is exact. On a
 single file the field equals `DistinctKeys`. It is `nil` when any
-covered shard's record has no sketch (built before the sketch existed,
-or rewritten by an older Pulse) — unknown, never 0; rebuild the index
-to restore it. Shard add and remove keep the sketches in step; the
+covered shard's record has no sketch: unknown, never 0; rebuild the
+index to restore it. Shard add and remove keep the sketches in step; the
 sketch never affects a lookup and `VerifyIndex` does not check it.
 
 `AddShard` and `RemoveShard` keep every archive index in step. An add
@@ -236,11 +234,9 @@ nothing; it lists every per-shard sidecar in
 shards unchanged, so their sidecars stay valid.
 
 A `u64` key is exact: ids above 2^53 that share one `float64` are
-distinct keys. An index built by an earlier release over such ids
-merged them — rebuild it. A `u64` cell in `LookupResult.Rows` (and in
-`Sample` rows) is the exact stored value as a Go `uint64`, and JSON
-prints the exact integer — `18446744073709551615`, not its `float64`
-neighbour. Below 2^53 the JSON is unchanged.
+distinct keys. A `u64` cell in `LookupResult.Rows` (and in `Sample`
+rows) is the exact stored value as a Go `uint64`, and JSON prints the
+exact integer: `18446744073709551615`, not its `float64` neighbour.
 
 ## Index lifecycle
 
@@ -257,7 +253,8 @@ verify, err := p.VerifyIndex(ctx, "sales.pulse", []string{"order_id"})
 // ordered key tuple. Served from the keyless manifest when present, so
 // it needs no directory listing.
 indexes, err := p.ListIndexes(ctx, "sales.pulse")
-// []pulse.IndexInfo{IndexPath, Keys, DistinctKeys, IndexedRecords}
+// []pulse.IndexInfo{IndexPath, Keys, DistinctKeys, DistinctKeysEstimate,
+// IndexedRecords, ShardIndexPaths}
 
 // Remove a sidecar. Non-interactive — no confirmation prompt. Prunes
 // the manifest entry in the same call.
@@ -279,9 +276,8 @@ err = p.DropIndex(ctx, "sales.pulse", []string{"order_id"})
 That third case is the one worth knowing about. `SourceModTime` is
 recorded as Unix **nanoseconds**; an S3 `LastModified` is whole
 **seconds**, and every copy, restore and cache hop truncates somewhere
-of its own choosing. Treating drift as proof of mutation refused
-byte-identical indexes *permanently* — not transiently — so a cohort
-read through an object-storage backend could not be looked up at all.
+of its own choosing. Treating drift as proof of mutation would refuse
+an unchanged cohort read through object storage on every lookup.
 
 The escalation is memoised per `(cohort path, size, mtime)`, so a
 backend that never preserves nanoseconds pays one whole-file hash per
@@ -300,9 +296,8 @@ stronger guarantee than `Lookup` gives you for free — before a batch of
 lookups against a cohort you don't fully trust, or in a periodic health
 check.
 
-The one residual gap is unchanged and deliberate: an in-place edit that
-preserves **both** size and mtime passes `Lookup` and is caught only by
-`VerifyIndex`.
+The one deliberate gap: an in-place edit that preserves **both** size
+and mtime passes `Lookup` and is caught only by `VerifyIndex`.
 
 ### Discovering which indexes exist
 
@@ -316,7 +311,7 @@ are usually served from.
 
 `BuildIndex` therefore also writes a keyless catalog beside the cohort
 at a deterministic path — `sales.pulse.indexes.json` — holding every
-index's ordered key tuple with its column types and counts:
+index's ordered key tuple with its field types and counts:
 
 ```json
 {
@@ -349,8 +344,8 @@ Behaviour at the edges:
 
 | State | Result |
 |---|---|
-| No manifest (indexes built by an older Pulse) | Falls back to the directory listing; unchanged behaviour |
-| Manifest plus a sidecar it does not name | Both are listed — the union, so an older sidecar does not vanish |
+| No manifest | Falls back to the directory listing |
+| Manifest plus a sidecar it does not name | Both are listed (the union) |
 | Manifest present, directory not listable | Manifest answers; not an error |
 | Manifest unreadable | `PULSE_INDEX_MANIFEST_INVALID` — never a silent fall back to the listing, which would succeed locally and answer "no indexes" on a bucket |
 | Manifest names a sidecar that is gone | `PULSE_INDEX_MANIFEST_STALE`; repair with `BuildIndex` or `DropIndex` (which prunes an orphaned entry) |
@@ -372,7 +367,7 @@ in [`pulse api lookup`](../cli/api-lookup.md#keyable-type-policy) or
 Reach for `Lookup` when you have an exact key and want the fastest
 possible single/few-row read; reach for `Process` with `FILTER_*`
 for anything that isn't a full-key equality match (ranges,
-expressions, `set_*` membership, or querying a column you haven't
+expressions, `set_*` membership, or querying a field you haven't
 built an index for). The performance shape is the load-bearing claim,
 not any particular absolute number: indexed lookup is **flat**
 regardless of cohort size, while an unindexed scan is **linear** in

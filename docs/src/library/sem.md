@@ -72,7 +72,8 @@ slot can group, filter or regress on.
   ordinal items and the full output:
   [Vectors and Matrices → Structural equation models](matrices.md#structural-equation-models).
 - Skills: `op-mat-sem`, `sem-modeling`, `sem-fits`, `sem-groups`,
-  `sem-ordinal`, `sem-comparison` (`pulse skills show <name>`).
+  `sem-ordinal`, `sem-comparison`, `sem-bootstrap`,
+  `sem-defined-parameters` (`pulse skills show <name>`).
 - Comparing nested SEM fits: [Regression Modeling](../regression.md).
 - GoDoc: [`types.MatrixResult`](https://pkg.go.dev/github.com/frankbardon/pulse/types#MatrixResult),
   [`types.SEMFitResult`](https://pkg.go.dev/github.com/frankbardon/pulse/types#SEMFitResult).

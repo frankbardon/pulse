@@ -8,9 +8,8 @@ worker pool. Workers share the engine's read-only registries; each
 `Process` call constructs fresh stateful operators per request, so
 concurrent execution is safe.
 
-> **LLM agents using MCP:** the MCP server today exposes
-> `pulse_compose` as a sequential operation. Parallelism is a
-> library-side capability.
+> **LLM agents using MCP:** `pulse_compose` runs sequentially.
+> Parallelism is a library and CLI capability.
 
 ## When to use
 
@@ -23,7 +22,7 @@ concurrent execution is safe.
 
 Order of results is preserved regardless of completion order — a
 worker that finishes early is held until its slot's index is the
-next to emit. So callers can index `responses[i]` against
+next to emit. So callers can index `resp.Responses[i]` against
 `req.Requests[i]` directly.
 
 ## ComposeOptions
@@ -33,17 +32,9 @@ re-exported as `pulse.ComposeOptions`:
 
 ```go
 type ComposeOptions struct {
-    // MaxWorkers caps concurrent in-flight Process calls. Zero means
-    // runtime.GOMAXPROCS; negatives clamp to 1.
-    MaxWorkers int
-
-    // PerRequestTimeout, if positive, derives a context.WithTimeout for
-    // each request.
-    PerRequestTimeout time.Duration
-
-    // FailFast cancels in-flight siblings on the first request error.
-    // Defaults to true. Set false to aggregate all errors instead.
-    FailFast bool
+    MaxWorkers        int           // 0 = runtime.GOMAXPROCS(0); negative clamps to 1
+    PerRequestTimeout time.Duration // positive: a context.WithTimeout per request
+    FailFast          bool          // cancel in-flight siblings on the first error
 }
 ```
 
@@ -51,7 +42,7 @@ type ComposeOptions struct {
 |---|---|---|
 | `MaxWorkers` | `runtime.GOMAXPROCS(0)` | `0` resolves to GOMAXPROCS; `<1` clamps to 1 |
 | `PerRequestTimeout` | unlimited | When positive, each worker derives `context.WithTimeout` |
-| `FailFast` | `true` | First error cancels siblings and returns immediately |
+| `FailFast` | `false` (Go zero value) | `true`: the first error cancels siblings and returns immediately. The CLI sets it unless `--no-fail-fast` |
 
 ## Example
 
@@ -62,7 +53,7 @@ composed := &pulse.ComposedRequest{
     Requests: []*pulse.Request{req1, req2, req3, req4},
 }
 
-resps, err := p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
+resp, err := p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
     MaxWorkers:        4,
     PerRequestTimeout: 30 * time.Second,
     FailFast:          true,
@@ -71,14 +62,14 @@ if err != nil {
     return err
 }
 
-for i, resp := range resps {
-    fmt.Printf("request %d: %d rows\n", i, len(resp.Data))
+for i, r := range resp.Responses {
+    fmt.Printf("request %d: %d rows\n", i, len(r.Data))
 }
 ```
 
 ## FailFast semantics
 
-With `FailFast = true` (the default):
+With `FailFast = true`:
 
 - The first request to return an error cancels the shared context.
 - In-flight siblings observe cancellation via `ctx.Err()` (every
@@ -89,7 +80,7 @@ With `FailFast = true` (the default):
   error that tripped FailFast is the one reported. When the caller's
   own ctx is done, the lowest-index failure is reported as is.
 
-With `FailFast = false`:
+With `FailFast = false` (the zero value):
 
 - Every request runs to completion (or its own per-request timeout).
 - Errors are aggregated into a single `SERVICE_INTERNAL` error whose

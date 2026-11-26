@@ -53,8 +53,7 @@ type Options struct {
     // request timeout). Zero field = default; pulse.Unlimited (-1) = none.
     Limits Limits
 
-    // ... further fields (concurrency, projection, imports, labels,
-    // templates) are documented on the Options type in pulse.go.
+    // ... further fields: see "Other fields" below.
 }
 ```
 
@@ -164,7 +163,7 @@ schema) is refused with `PROCESSING_CONFIG` rather than silently
 ignored. It does not apply to `date` fields at all. Predict reports the
 resolved zone per slot under `time_zones`, with `source: "options"` when
 this field supplied it. There is no env var or CLI flag for it. Full
-guide: [Row Weighting](weighting.md).
+guide: [Time Zones](time-zones.md).
 
 ```go
 p, err := pulse.New(pulse.Options{DefaultTimeZone: "UTC"})
@@ -201,8 +200,7 @@ back to when neither its own `multiplicity` block nor its request's
 (`PULSE_MULTIPLICITY_INVALID`); a family the surface does not offer
 falls back to the surface default rather than failing. It reaches
 Process, Compose slots, ProcessChain stages and Facet overlays. Unset
-(the default) corrects nothing and leaves every response
-byte-identical. There is no env var or CLI flag for it. Full guide:
+(the default) corrects nothing. There is no env var or CLI flag for it. Full guide:
 [Multiple-Comparison Correction](multiplicity.md).
 
 ```go
@@ -235,8 +233,9 @@ p, err := pulse.New(pulse.Options{DefaultReturn: &types.Return{Preset: types.Ret
 Declare the instance's feature set: a Go value, or a JSON file read
 through the instance filesystem (relative to `DataDir` or `FS`). Set at
 most one; both is `PULSE_FEATURE_PROFILE_INVALID`. `pulse.New` validates
-the profile and stores it. Its `behaviour` switches take effect now, ORed
-into the matching `Disable*` fields; the feature list hides nothing yet.
+the profile and stores it. The instance then hides every feature the
+profile omits, and its `behaviour` switches are ORed into the matching
+`Disable*` fields (a profile can turn a switch on, never off).
 `pulse.New` never reads the `PULSE_FEATURE_PROFILE` env var — only
 `pulse mcp` / `mcpserve.NewPulse` do. Full contract:
 [Feature Profiles](feature-profiles.md).
@@ -283,12 +282,36 @@ newly written shards as opted out and reads nothing to count them
 carry counts. Detail: [Managing a Shard
 Archive](../internals/managing-shard-archives.md#per-shard-distinct-counts).
 
+## Other fields
+
+One line each; the GoDoc on
+[`Options`](https://pkg.go.dev/github.com/frankbardon/pulse#Options) is
+the full reference.
+
+| Field | What it does | More |
+|---|---|---|
+| `Extensions` | registers extension operators, expression functions, label / range / lookup tables, populations, skills and examples | [Writing Operators (extend)](extend.md), [Label, Range and Lookup Tables](tables.md) |
+| `Logger`, `Hooks`, `Metrics` | structured logs, operation callbacks, metric instruments; nil records nothing | [Observability](observability.md) |
+| `DisableComponents` | omits `Response.Components` (a request's `disable_components` overrides) | [Response Shaping](response-shaping.md) |
+| `DisableProjection` | decodes every field instead of only the fields the request reads; output is identical | |
+| `ProjectBufferedFields` | deprecated no-op (projection is on by default) | |
+| `ShardWorkers`, `DecodeWorkers` | worker caps for the per-shard and parallel-decode arms; `0` = one per CPU, `1` = serial | [Tuning Limits → Worker counts](tuning-limits.md#worker-counts) |
+| `Strict` | promotes request-validation warnings to errors and refuses a partial import (`PULSE_IMPORT_ROWS_DROPPED`) | |
+| `EchoRequest` | fills `Envelope.Request` with the normalised request that ran | |
+| `SuppressAdvisories` | `PULSE_ADVISORY_*` codes predict never reports; an unknown code is `PULSE_SUPPRESS_ADVISORY_UNKNOWN` | [Guided Analysis](guided-analysis.md) |
+| `AutoLabels` | label bindings applied to every read request whose cohort has the field as a categorical | [Label, Range and Lookup Tables](tables.md) |
+| `LabelTablesDir`, `RangeTablesDir`, `LookupTablesDir`, `PopulationsDir` | directories loaded at `pulse.New` (env fallbacks below) | [Label, Range and Lookup Tables](tables.md) |
+| `TemplateDirs` | request-template roots, first root wins | [Request Templating](request-templating.md) |
+| `ImportsDir`, `ImportTTL` | managed-import directory and default TTL (negative pins) | [Readers, Writers & Jobs (io)](io.md) |
+| `ImportSourceFS`, `ImportSourceJailRoot` | where an absolute import source path is read from, and the directory it is confined to (default: the working directory) | |
+| `SetInferenceMinPct` | share of sampled cells that must hold a delimiter for an import to infer a `set_*` field (default 30) | |
+
 ## Defaults at a glance
 
 | Field omitted from `Options` | Effective behaviour |
 |---|---|
-| `DataDir` and `FS` both empty | Pulse builds its default filesystem → reads `PULSE_DATA_DIR` env var. Errors if unset and the operation needs filesystem access. |
-| `DataDir` only                | Uses an `afero.NewOsFs()` rooted at `DataDir`. |
+| `DataDir` and `FS` both empty | Pulse roots its OS filesystem at `PULSE_DATA_DIR`; unset, `pulse.New` fails with `SERVICE_VALIDATION`. |
+| `DataDir` only                | Uses an `afero.NewBasePathFs(afero.NewOsFs(), DataDir)`. |
 | `FS` only                     | Uses the provided FS verbatim. |
 | Both                          | `FS` wins; `DataDir` is ignored. |
 | `DisableDefaults` omitted     | Defaults enabled. |
@@ -296,7 +319,7 @@ Archive](../internals/managing-shard-archives.md#per-shard-distinct-counts).
 | `DefaultTimeZone` omitted     | Zone-capable slots without `tz` / `time_zone` resolve to `UTC`. |
 | `ShardDistinctLimit` / `DisableShardDistinct` omitted | Archive writes count distinct values per shard, capped at 4,194,304 keys per field. |
 | `Limits` omitted              | Count limits at their high defaults; `RequestTimeout` and `MaxEstimatedMemory` unlimited. |
-| `FeatureProfile` / `FeatureProfileFile` omitted | No profile: every feature, byte-identical to a profile-free build. |
+| `FeatureProfile` / `FeatureProfileFile` omitted | No profile: every feature. |
 
 ## Environment variables
 

@@ -3,8 +3,9 @@
 A `return` block on a request chooses which parts of the response come
 back and how many significant digits floats carry on the wire. It exists
 to keep responses small for callers (agents especially) that read a
-fraction of them. A request with no `return` is byte-identical to before,
-hashes identically, and `format_version` stays `"1.1"`.
+fraction of them. A request with no `return` block takes the instance
+default ([Defaults and precedence](#defaults-and-precedence)), `full`
+unless one is set.
 
 ```go
 resp, err := p.Process(ctx, &types.Request{
@@ -76,7 +77,7 @@ built-in `standard` preset — never `full`. A request block still wins;
 [`pulse mcp --return`](../cli/mcp.md#return).
 
 `disable_components` is shorthand: alone it only skips computing
-components (byte-identical, no marker); with a `return` layer it adds
+components (no `returned` marker); with a `return` layer it adds
 `exclude: ["components"]`. An engine `DisableComponents` sticks: a
 request `return` never re-opens it, so components are not computed and
 the block gains `exclude: ["components"]`. Only an explicit request

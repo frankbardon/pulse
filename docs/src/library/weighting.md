@@ -4,14 +4,13 @@
 where each row stands for a different number of people, accounts or
 events.
 
-Name a weight column once and every weight-aware figure in the request
+Name a weight field once and every weight-aware figure in the request
 counts each row as `w` rows: counts become Σw, sums Σw·x, means
-Σw·x / Σw, and crosstab cells, margins and shares follow. A request
-that names no weight produces exactly the output it always did, byte
-for byte, and `format_version` stays `"1.1"`.
+Σw·x / Σw, and crosstab cells, margins and shares follow. With no
+weight in force a request runs unweighted.
 
-No weight column yet? [Computing Survey Weights](rake.md) rakes a
-cohort to population margins and writes the weights as a new column;
+No weight field yet? [Computing Survey Weights](rake.md) rakes a
+cohort to population margins and writes the weights as a new field;
 use them with kind `probability`.
 
 ## Where a weight comes from
@@ -56,7 +55,7 @@ From Go:
 ```go
 req.Weight = &types.WeightSpec{Field: "wt"}               // request weight
 req.Aggregations[1].Weight = types.NullSlotWeight()       // opt one slot out
-req.Aggregations[2].Weight = types.SlotWeightField("w2")  // a different column
+req.Aggregations[2].Weight = types.SlotWeightField("w2")  // a different field
 
 p, err := pulse.New(pulse.Options{
     DefaultWeight: &types.WeightSpec{Field: "wt", Kind: types.WeightKindFrequency},
@@ -68,13 +67,13 @@ p, err := pulse.New(pulse.Options{
 the other two states. The distinction survives JSON, request hashing,
 MCP and the payload schema.
 
-The weight column must be an unsigned-integer (`u4` to `u64`) or float
+The weight field must be an unsigned-integer (`u4` to `u64`) or float
 (`f32`, `f64`) field of the cohort. Derived columns are not accepted,
 but a joined, prefixed name is. Any other type, an empty field or an
 unknown `kind` is `PROCESSING_CONFIG`; an unknown name is
 `SERVICE_VALIDATION`. `pulse.New` checks `DefaultWeight` up front, but
 judges its field only on a request where it applies, so an instance
-default never breaks a cohort that lacks the column for a request that
+default never breaks a cohort that lacks the field for a request that
 does not use it.
 
 ## Probability or frequency
@@ -104,7 +103,7 @@ Invalid weights are never coerced:
 
 Each weighted slot reports its exclusions as `n_weight_invalid`. Each
 response carries one `PULSE_WEIGHT_INVALID_ROWS` warning per weight
-column, with `details.by_reason` counting `null`, `negative`, `nan_inf`
+field, with `details.by_reason` counting `null`, `negative`, `nan_inf`
 and `non_integer_frequency`. Under `Options.Strict` (`--strict`) that
 warning is an error.
 
@@ -198,7 +197,7 @@ expanded rows (the frequency weighted median of `AGG_MEDIAN`) and runs
 the one-way ANOVA on the weighted absolute deviations. Each equals the
 unweighted test on the expanded rows. The KS statistic compares the two
 CDFs only after every row tied at a value is counted on both sides,
-which is also the unweighted rule (ties inside one sample no longer
+which is also the unweighted rule (ties inside one sample do not
 inflate D).
 
 **Weighted regressions.** Ordinary least squares fits weighted least
@@ -304,7 +303,7 @@ figures to screen and describe, and a design-based tool when the design
 matters. In every weighted result, read `n_eff` (or `sum_weights` under
 frequency weights) as the sample size, never `n`.
 
-`pulse predict` reports the outcome for every slot under
+Predict (`pulse api predict`) reports the outcome for every slot under
 `data.weights[]`: `{slot, operator, field, kind, status, source}`.
 `status` is `applied`, `skipped_not_weight_aware`, `opted_out` or
 `none`. `source` is `slot`, `request`, `options` or `none`. Predict
@@ -312,7 +311,7 @@ refuses exactly what the run would refuse.
 
 `AGG_WEIGHTED_MEAN` is the weighted `AGG_AVERAGE`. Its
 `params.weight_field` is shorthand for a slot weight with
-`kind: probability` and is now optional: without it, the slot inherits
+`kind: probability` and is optional: without it, the slot inherits
 the request weight or the default.
 
 ## Crosstabs and the unweighted base
@@ -372,10 +371,7 @@ slot weight. Such a cell's sample size is Σw (`frequency`) or n_eff
 (`probability`), never its raw row count, and its variance is
 recomputed from `m2` on the rescaled weights; degrees of freedom may be
 fractional. The layer summary's `parameters` add `sum_weights` (and
-`n_eff` under `probability`) over the cells the layer read. Before
-this release a host weighted only by its own slot weight ran these
-overlays on raw row counts, which gave standard errors that were too
-small; that was a bug and is fixed. On a weighted host the pairwise
+`n_eff` under `probability`) over the cells the layer read. On a weighted host the pairwise
 Welch t refuses an `n_source` that reads raw row counts
 (`cell_n_unweighted`), and `cell_weight_sum` under `probability`, with
 `PROCESSING_CONFIG`.
@@ -409,17 +405,13 @@ under `normalize: column`, the row margin under `row`, the grand total
 under `total`, and the partial-depth denominator under
 `normalize_level` / `normalize_within`. Under `normalize: none` the
 cell is its own base. An unweighted host reads the same base's record
-count, so frequency weights still equal the expanded rows. Before U47
-the omitted `n_source` read the cell's own sample size, so a column
-percentage was tested against a fraction of its column and p-values
-came out far too large. `row_margin_n` / `column_margin_n` read a
+count, so frequency weights still equal the expanded rows. `row_margin_n` / `column_margin_n` read a
 displayed margin's Σw or n_eff. Every
 unweighted count (raw rows, `n_within`, the distinct-key modes) is
 refused with `PROCESSING_CONFIG`, and `cell_weight_sum` /
-`cell_value_weighted` are accepted under `frequency` only. This is a
-change for requests that used `cell_weight_sum` over an
-`AGG_WEIGHTED_MEAN` cell with `params.weight_field`, which is
-`probability`. The Fisher exact cell overlay runs on the Σw table
+`cell_value_weighted` are accepted under `frequency` only (an
+`AGG_WEIGHTED_MEAN` cell with `params.weight_field` is `probability`,
+so it takes neither). The Fisher exact cell overlay runs on the Σw table
 under `frequency` only. A `probability` weight on its host cell is
 refused with `PULSE_WEIGHT_UNSUPPORTED`, even when the overlay itself
 carries no weight.
@@ -429,8 +421,7 @@ host's n_eff from its components. A host built with components
 disabled (`disable_components`, `--no-components` or
 `Options.DisableComponents`) has none to read, so those overlays are
 refused on it with `PROCESSING_CONFIG` naming the host, in predict and
-at run time. Before, they read Σw as the sample size without a
-warning. Turn components back on for that host, or use a `frequency`
+at run time. Turn components back on for that host, or use a `frequency`
 weight, where Σw is the sample size.
 
 ## Reading weighted components
@@ -472,9 +463,9 @@ refuses `Options.DefaultWeight` with `PULSE_FEATURE_PROFILE_DEPENDENCY`.
 
 ## Extension operators
 
-Aggregators, attributes and tests registered through
-`pulse.Options.Extensions` declare `WeightAware` and read the row
-weight with `extend.Record.Weight()`. A WeightAware extension runs under
+Extension aggregators, attributes, tests, regressions, matrix operators
+and overlays declare `WeightAware` on their registration; those that
+read records get the row weight from `extend.Record.Weight()`. A WeightAware extension runs under
 both weight kinds: there is no per-kind declaration, so an extension
 with no probability-weighted form reads the kind off its slot spec and
 refuses itself. Undeclared ones are skipped or refused

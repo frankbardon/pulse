@@ -365,7 +365,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Response` | yes | yes | yes |
 | `pulse.Response.MarshalJSON` |  |  | yes |
 | `pulse.Row` | yes |  | yes |
-| `pulse.RowIter` |  |  | yes |
+| `pulse.RowIter` | yes |  | yes |
 | `pulse.SampleRequest` |  |  | yes |
 | `pulse.SampleResult` |  |  | yes |
 | `pulse.SampleWarning` |  |  | yes |
@@ -1577,7 +1577,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `io.Format.CanWrite` |  |  | yes |
 | `io.Format.String` |  |  | yes |
 | `io.FormatArrow` |  |  | yes |
-| `io.FormatCSV` | yes |  | yes |
+| `io.FormatCSV` |  |  | yes |
 | `io.FormatExcel` |  |  | yes |
 | `io.FormatFromPath` | yes | yes | yes |
 | `io.FormatJSONArray` |  |  | yes |
@@ -2056,7 +2056,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `optimize.LeastSquaresStatus.String` |  |  | yes |
 | `optimize.Minimize` | yes |  | yes |
 | `optimize.MinimizeOptions` | yes |  | yes |
-| `optimize.MinimizeResult` |  |  | yes |
+| `optimize.MinimizeResult` | yes |  | yes |
 | `optimize.NotActive` |  |  | yes |
 | `optimize.Status` |  |  | yes |
 | `optimize.Status.String` |  |  | yes |
@@ -2874,7 +2874,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.Response.MarshalJSON` |  |  | yes |
 | `types.ResponseComponents` | yes | yes | yes |
 | `types.ResponseComponents.MarshalJSON` |  |  | yes |
-| `types.ResponseMetadata` |  |  | yes |
+| `types.ResponseMetadata` | yes |  | yes |
 | `types.ResponseWarning` | yes |  | yes |
 | `types.Return` | yes |  | yes |
 | `types.ReturnPreset` |  |  | yes |

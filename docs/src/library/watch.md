@@ -59,10 +59,10 @@ Cancelling the context closes the channel and releases the watcher.
 ```go
 type WatchOptions struct {
     PollInterval    time.Duration  // Default 250ms
-    CoalesceWindow  time.Duration  // Default 100ms (0 disables coalescing)
+    CoalesceWindow  time.Duration  // Default 100ms (negative disables coalescing)
     HashPrefixBytes int            // Default 64 KiB (< 0 hashes entire file)
     Recursive       bool           // WatchDir-only
-    Suffix          string         // Default ".pulse" for WatchDir, "" for Watch
+    Suffix          string         // WatchDir: "" means ".pulse"; ignored by Watch
 }
 
 ch := p.WatchDirWithOptions(ctx, "cohorts/", pulse.WatchOptions{
@@ -80,15 +80,16 @@ ch := p.WatchDirWithOptions(ctx, "cohorts/", pulse.WatchOptions{
   ~30s; on remote storage the stat call dominates over any latency
   fsnotify-style edge events would save.
 - **`CoalesceWindow`** — events inside this window collapse to one.
-  Critical for atomic-write patterns (see below).
+  Critical for atomic-write patterns (see below). `0` takes the
+  default; a negative value disables coalescing.
 - **`HashPrefixBytes`** — how much of the file's content participates
   in the hash. Default 64 KiB covers a `.pulse` file's header +
   schema + first dictionary block, enough to detect any structural
   change. Use `-1` when you need full-file hashing for small files
   where prefix collisions matter.
 - **`Suffix`** — filter directory contents to files ending in this
-  suffix. `WatchDir` defaults to `.pulse`. Set to `""` to watch every
-  file in the directory.
+  case-sensitive suffix. An empty value means `.pulse`, so `WatchDir`
+  always filters by some suffix.
 
 ## Atomic-write coalescing
 
@@ -99,14 +100,16 @@ watcher would see two events: a `Removed(temp)` and a
 `ChangeRenamed(target)` event when:
 
 - Both paths share a directory.
-- The temp basename matches a canonical scratch pattern (`<target>.tmp`,
-  `<target>.partial`, `<target>.swp`, `~<target>`, hidden dotfile
-  variants, or `<target>.NNNN`).
+- The temp basename matches a scratch pattern: `<target>.tmp`,
+  `<target>.partial`, `<target>.swp`, `<target>~`, a dotfile ending in
+  `<target>`, or `<target>.` followed by anything. The temp file must
+  also pass the `Suffix` filter to be seen at all.
 - The two raw events fall inside `CoalesceWindow` of each other.
 
-`Pulse.FilterToFileWithRequest` uses this pattern internally; a
-consumer watching the output directory sees a clean `ChangeRenamed`
-or `ChangeCreated` event without intermediate states.
+Pulse's own atomic writes (`FilterToFile`, shard rewrites) stage to
+`<target>.pulse.tmp-*`, which the default `.pulse` suffix never
+matches, so a watcher sees one `ChangeCreated` or `ChangeModified`
+per publish and no intermediate state.
 
 ## Hash semantics
 

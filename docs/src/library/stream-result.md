@@ -3,9 +3,8 @@
 **Audience:** Go embedders that want a structured streaming shape with
 header, chunks, terminator, and built-in cancellation semantics.
 
-`StreamResult[T]` is Pulse's canonical streaming shape. Every operation
-that produces incremental data exposes a `*Stream` variant that returns
-`StreamResult[T]`. The shape's contract — request hash in the header,
+`StreamResult[T]` is Pulse's canonical streaming shape, returned by the
+two variants below. The shape's contract — request hash in the header,
 sequence-numbered chunks, terminator on a separate channel — is
 generic across operators, so a consumer can write one row-handling loop
 that drives any streamable Pulse call.
@@ -26,23 +25,26 @@ type StreamHeader struct {
 }
 
 type StreamChunk[T any] struct {
-    Sequence int          // Monotonic 0-based
-    Data     T
-    Progress float64      // 0.0–1.0, or -1 if unknown
+    Sequence   int                       // Monotonic 0-based
+    Data       T
+    Progress   float64                   // 0.0–1.0, or -1 if unknown
+    Components *types.ResponseComponents // running counts; nil for SynthStream
+    Returned   *types.ReturnedMarker     // terminal chunk of a shaped stream only
 }
 
 type StreamTerminator struct {
     CompletedAt time.Time
     TotalRows   int64
-    Status      StreamStatus  // Completed | Cancelled | Errored
+    Status      StreamStatus             // Completed | Cancelled | Errored
     Error       error
+    Warnings    []*types.ResponseWarning // run-time warnings, on a completed ProcessStreamResult
 }
 ```
 
 ## Available variants
 
 - `Pulse.ProcessStreamResult(ctx, req) (StreamResult[Row], error)` —
-  wraps the existing `ProcessStream` engine.
+  wraps the `ProcessStream` engine.
 - `Pulse.SynthStream(ctx, spec, opts) (StreamResult[Row], error)` —
   generates synth respondents and yields one row per chunk.
 
@@ -105,16 +107,13 @@ Consumers should always check the terminator status — a closed
 
 ## Non-streaming variants
 
-The non-streaming entry points (`Process`, `Synth`) remain — they are
-convenience wrappers that drain the stream and return the full
-result. Use the streaming variants when you need incremental output,
-progress reporting, or early cancellation; use the buffered variants
-when you want one materialised result and don't care about the
-intermediate chunks.
+`Process` and `Synth` return one materialised result. Use the streaming
+variants when you need incremental output, progress reporting, or early
+cancellation.
 
 ## Relationship to `ProcessStream`
 
-`Pulse.ProcessStream` (returning `RowIter`) remains the lower-level
+`Pulse.ProcessStream` (returning `RowIter`) is the lower-level
 pull-iterator API for callers that want the simpler shape. See
 [Streaming & ProcessStream](./streaming.md). `ProcessStreamResult`
 adds the structured header, terminator, and cancellation semantics
