@@ -202,18 +202,36 @@ func runExample(t *testing.T, p *pulse.Pulse, examplePath, dataDir string) *puls
 				examplePath, resp.Overlays[i].Name, resp.Overlays[i].Kind, resp.Overlays[i].Warnings)
 		}
 	}
+	// A clean run that kept nothing, bucketed everything together or
+	// left a result field null everywhere demonstrates nothing; an
+	// example whose point is that result says so in _meta, and an
+	// exemption the run no longer needs is stale.
+	reason := exampleDegenerateReason(&req, resp)
+	switch exempt := exampleDegenerateExemption(t, body); {
+	case reason != "" && exempt == "":
+		t.Fatalf("%s: %s; fix the request, or declare _meta.%s with the reason the result is the point", examplePath, reason, exampleDegenerateKey)
+	case reason == "" && exempt != "":
+		t.Fatalf("%s: _meta.%s is declared (%q) but the run is not degenerate; drop it", examplePath, exampleDegenerateKey, exempt)
+	}
 	return resp
 }
 
 // overlayLayerHasFigure reports whether an overlay layer's payload
-// carries at least one present value on whichever shape it declares.
+// carries at least one present value on whichever shape it declares: a
+// series needs one entry whose statistic is a finite number, since an
+// entry per group whose statistic is null on every group is a layer
+// that computed nothing.
 func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 	pl := l.Payload
 	if pl.Scalar != nil {
 		return true
 	}
-	if pl.Series != nil && len(pl.Series.Entries) > 0 {
-		return true
+	if pl.Series != nil {
+		for _, e := range pl.Series.Entries {
+			if st := e.Summary.Statistic; st != nil && !math.IsNaN(*st) && !math.IsInf(*st, 0) {
+				return true
+			}
+		}
 	}
 	if pl.Matrix != nil {
 		for _, row := range pl.Matrix.Cells {
@@ -223,6 +241,84 @@ func overlayLayerHasFigure(l *types.OverlayLayer) bool {
 				}
 			}
 		}
+	}
+	return false
+}
+
+// exampleDegenerateKey is the library-only `_meta` key exempting an
+// example from exampleDegenerateReason: its value says why the empty
+// or one-bucket result is the point (a filter demonstrating that it
+// keeps nothing, say). It is not a Meta field, so an embedder example
+// carrying it is refused under strict parsing like any unknown key.
+const exampleDegenerateKey = "degenerate_result"
+
+// exampleDegenerateExemption returns an example body's
+// `_meta.degenerate_result` reason, "" when it declares none.
+func exampleDegenerateExemption(t *testing.T, body []byte) string {
+	t.Helper()
+	var doc struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse _meta: %v", err)
+	}
+	raw, ok := doc.Meta[exampleDegenerateKey]
+	if !ok {
+		return ""
+	}
+	var reason string
+	if err := json.Unmarshal(raw, &reason); err != nil || strings.TrimSpace(reason) == "" {
+		t.Fatalf("_meta.%s must be a non-empty reason string, got %s", exampleDegenerateKey, raw)
+	}
+	return reason
+}
+
+// exampleDegenerateReason reports why a clean run still demonstrates
+// nothing, "" when it does: the filters kept no record, a grouped
+// request put every kept record in one bucket, or a result field is
+// null on every row. Each is a well-formed response a shape check
+// passes — a date range outside the fixture's span, a grouper whose
+// thresholds every value falls under — and each reads to an agent as
+// the operator's documented behaviour.
+func exampleDegenerateReason(req *pulse.Request, resp *pulse.Response) string {
+	if resp.Metadata != nil && resp.Metadata.FilteredRows == 0 {
+		return "the filters kept 0 records"
+	}
+	if len(req.Groups) > 0 && resp.Data != nil && len(resp.Data) <= 1 {
+		return fmt.Sprintf("the groups put every record in %d bucket(s)", len(resp.Data))
+	}
+	if len(resp.Data) > 0 {
+		var keys []string
+		for k := range resp.Data[0] {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			allNull := true
+			for _, row := range resp.Data {
+				if !isNullCell(row[k]) {
+					allNull = false
+					break
+				}
+			}
+			if allNull {
+				return fmt.Sprintf("field %q is null on every row", k)
+			}
+		}
+	}
+	return ""
+}
+
+// isNullCell reports whether a Data cell is null: absent, nil or a
+// non-finite float (which the wire writes as null).
+func isNullCell(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case float64:
+		return math.IsNaN(x) || math.IsInf(x, 0)
+	case float32:
+		return math.IsNaN(float64(x)) || math.IsInf(float64(x), 0)
 	}
 	return false
 }
@@ -743,5 +839,34 @@ func TestExamples_ComposeRunClean(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExampleDegenerateReason pins the three degenerate shapes
+// TestExamples_RunEndToEnd refuses, and that a healthy grouped result,
+// an ungrouped single row and a field null on some rows pass.
+func TestExampleDegenerateReason(t *testing.T) {
+	t.Parallel()
+
+	grouped := &pulse.Request{Groups: []*types.Group{{Type: "GROUP_CATEGORY", Field: "region"}}}
+	ungrouped := &pulse.Request{}
+	meta := func(n int64) *types.ResponseMetadata { return &types.ResponseMetadata{TotalRows: 10, FilteredRows: n} }
+	cases := []struct {
+		name string
+		req  *pulse.Request
+		resp *pulse.Response
+		want string
+	}{
+		{"zero kept", ungrouped, &pulse.Response{Metadata: meta(0), Data: []map[string]any{{"n": 0.0}}}, "the filters kept 0 records"},
+		{"one bucket", grouped, &pulse.Response{Metadata: meta(10), Data: []map[string]any{{"region": "all", "n": 10.0}}}, "the groups put every record in 1 bucket(s)"},
+		{"all null", grouped, &pulse.Response{Metadata: meta(10), Data: []map[string]any{{"region": "a", "s": nil}, {"region": "b", "s": math.NaN()}}}, `field "s" is null on every row`},
+		{"healthy grouped", grouped, &pulse.Response{Metadata: meta(10), Data: []map[string]any{{"region": "a", "s": nil}, {"region": "b", "s": 1.0}}}, ""},
+		{"ungrouped single row", ungrouped, &pulse.Response{Metadata: meta(10), Data: []map[string]any{{"n": 10.0}}}, ""},
+		{"no rows slot", grouped, &pulse.Response{Metadata: meta(10)}, ""},
+	}
+	for _, c := range cases {
+		if got := exampleDegenerateReason(c.req, c.resp); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }

@@ -137,6 +137,7 @@ ignores it.
 | `capabilities` | optional | non-operator feature names in feature-profile spelling (`capability:stream`), for capabilities the body carries no structural signal for |
 | `question` | story only | the plain-language question the example answers; declared together with `interpretation` |
 | `interpretation` | story only | a qualitative reading of the result — no digit `0`–`9`; the figures live in the story's golden |
+| `degenerate_result` | library only, rare | the reason a run that keeps 0 records, puts every record in one bucket or leaves a result field null on every row is the point of the example; without it `TestExamples_RunEndToEnd` fails such a run, and it fails a declared reason the run no longer needs. Not part of `examples.Meta`: an embedder example carrying it is refused like any unknown key |
 
 `capabilities` exists so an example is joined to every capability it
 needs by an explicit edge in the discovery graph rather than by a scan of
@@ -200,8 +201,14 @@ the generated docs quote real figures without executing a request.
 The heavy `TestExamples_RunEndToEnd` (`internal/integration/examples_heavy_test.go`)
 builds the shared fixtures into a temp directory and runs every
 Request-host example of each category in its `categories` slice through
-predict and `pulse.Process`, asserting no errors; compose examples run
-in `TestExamples_ComposeRunClean`. Adding a new category is one line in
+predict and `pulse.Process` (the overlays directory's other hosts are
+skipped there), asserting no errors and a result that demonstrates
+something: at least one record kept, more than one bucket on a grouped
+request, no result field null on every row, and every overlay layer
+carrying a figure (`_meta.degenerate_result` exempts an example whose
+point is the empty result). Compose examples run in
+`TestExamples_ComposeRunClean`; `TestLimitsDefaultsNeverTripGoldens`
+runs every host. Adding a new category is one line in
 the `categories` slice.
 
 ```
