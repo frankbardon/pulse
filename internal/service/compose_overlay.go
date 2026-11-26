@@ -40,7 +40,7 @@ import (
 // FailFast handling: the call-site decides whether to invoke this
 // hook based on the FailFast policy:
 //
-//   - FailFast=true (default per CLAUDE.md "Parallel Compose"): when
+//   - FailFast=true (opt-in; the zero value is false): when
 //     ANY slot fails, the orchestrator does NOT call
 //     applyComposeOverlays — the failing call returns immediately
 //     with the first observed error. No partial overlay emission.

@@ -30,9 +30,9 @@ type ComposeOptions struct {
 	PerRequestTimeout time.Duration
 
 	// FailFast cancels in-flight siblings on the first request error.
-	// Default is true: surface errors quickly. Set false to collect every
-	// request's outcome (errors aggregated into a single CodedError with
-	// per-index detail).
+	// The zero value is false: every request's outcome is collected
+	// (errors aggregated into a single CodedError with per-index detail).
+	// Set true to surface the first error quickly.
 	FailFast bool
 }
 

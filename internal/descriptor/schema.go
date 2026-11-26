@@ -50,10 +50,10 @@ const (
 //     non-nesting named parts).
 //
 // v1 boundaries (documented in docs/src/contract/payload-schema.md):
-//   - Operator Params (json.RawMessage) stay an open object — there is no
-//     central declarative per-operator input-param source (even the MCP
-//     binder treats params as open); the per-operator param schema lives
-//     alongside each operator's processor.
+//   - Operator Params (json.RawMessage) stay an open object here. The
+//     per-operator allowlist is the manifest's Param lists, which
+//     params_allowlist.go enforces when a request is checked (an
+//     undeclared key is PULSE_REQUEST_UNKNOWN_FIELD), not this schema.
 //   - The small closed mode enums (OverlayScope, OverlayShape,
 //     CrosstabNormalize, etc.) are typed as plain strings: they have no
 //     All*() registry helper, so a hardcoded enum here would rot silently.

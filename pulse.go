@@ -258,8 +258,8 @@ type Options struct {
 	// constituent metadata. Defaults to false (components emitted).
 	//
 	// When true, Response.Components stays nil and the wire form is
-	// byte-identical to the pre-Components baseline; format_version is
-	// not bumped. The gate sits at the processor's attach helpers and
+	// byte-identical to a response without the block; format_version
+	// is unchanged. The gate sits at the processor's attach helpers and
 	// the per-shard merge path, so the MetaAggregator.Components and
 	// MetaGrouper.Components construction work is skipped entirely —
 	// not built-then-discarded.
@@ -461,7 +461,8 @@ type Options struct {
 	// including one a hidden feature owns (PULSE_RETURN_PATH_UNKNOWN).
 	// A `data[*].<column>` path is accepted (no schema to judge it
 	// against); the runtime warns PULSE_RETURN_PATH_UNMATCHED when it
-	// matches nothing. Applies at Process today.
+	// matches nothing. Applies at Process, ProcessStream, Compose,
+	// ComposeParallel and ProcessChain.
 	DefaultReturn *types.Return
 
 	// Strict promotes request-validation warnings into hard errors at
@@ -482,7 +483,10 @@ type Options struct {
 	// ProjectBufferedFields enables buffered-decode field projection.
 	//
 	// Deprecated: projection is on by default; retained for compat.
-	// Setting true is a harmless no-op; use DisableProjection to opt out.
+	// Setting true keeps projection on even when DisableProjection is
+	// also true (the two are ORed: projection runs when this is true or
+	// DisableProjection is false). Leave it false and set
+	// DisableProjection to opt out.
 	ProjectBufferedFields bool
 
 	// LabelTablesDir points at a directory of JSON files that the
@@ -628,10 +632,12 @@ type Options struct {
 
 	// FeatureProfile declares the features this instance offers, as a
 	// Go value. pulse.New validates it structurally and stores a copy on
-	// the instance; the feature list is not applied yet, but its
-	// Behaviour switches take effect (OR semantics: a profile switch set
-	// true turns the matching Options switch on, and Options cannot turn
-	// it back off). Nil means no profile — behaviour is unchanged.
+	// the instance. The feature list is enforced: a feature the profile
+	// does not list is hidden, acting as if it had never been registered
+	// (runtime, predict, manifest, payload schema, MCP surface). Its
+	// Behaviour switches take effect too (OR semantics: a profile switch
+	// set true turns the matching Options switch on, and Options cannot
+	// turn it back off). Nil means no profile — every feature is offered.
 	//
 	// Mutually exclusive with FeatureProfileFile: setting both fails
 	// New with PULSE_FEATURE_PROFILE_INVALID. pulse.New never reads a
@@ -1326,8 +1332,10 @@ type ComposeOptions = service.ComposeOptions
 // execution is safe.
 //
 // Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
-// FailFast = true (set FailFast=false to collect every request's outcome
-// instead of cancelling siblings on first error).
+// FailFast = false (the zero value): every request runs to completion
+// and the errors are collected. Set FailFast=true to cancel in-flight
+// siblings on the first error instead (`pulse api compose --parallel`
+// sets it unless --no-fail-fast).
 //
 // Returned shape mirrors Compose:
 //

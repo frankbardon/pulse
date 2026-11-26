@@ -4,7 +4,7 @@ Per-topic slice of the execution-modes reference. Index (Mode index + section ma
 
 ## Parallel Compose
 
-`pulse.ComposeParallel`, `pulse api compose --parallel N`. Bounded worker pool over `ComposedRequest`, order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast defaults true).
+`pulse.ComposeParallel`, `pulse api compose --parallel N`. Bounded worker pool over `ComposedRequest`, order-preserving by slot index. `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` (FailFast's zero value is false; the CLI sets it unless `--no-fail-fast`).
 
 - **Overlay fold after the slot barrier.** The orchestrator calls `s.applyComposeOverlays` (`internal/service/compose_overlay.go` → `processing.ApplyComposeOverlaysWithRequests`) once every slot has produced a finalised `*Response`, before returning. It reads `*Response` objects only and leaves per-slot `Responses[i].Overlays` untouched. All COMPOSE kinds are buffered; the streamable subset is empty by construction.
 - **Failures skip the fold.** With `FailFast=true` any slot failure returns the first observed error without invoking the overlay hook; `FailFast=false` routes slot failures through `SERVICE_INTERNAL`, which also skips it. Empty / nil `req.Overlays` short-circuits with no allocation, so overlay-free Compose JSON is byte-identical to a request that omits the slot.
