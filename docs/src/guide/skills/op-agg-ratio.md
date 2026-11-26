@@ -1,6 +1,6 @@
 ```yaml
 name: op-agg-ratio
-description: Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read.
+description: Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is required and type-checked but never read.
 kind: operator
 category: AGG
 operator: AGG_RATIO
@@ -26,16 +26,16 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `numerator_field` | field | (required) | Summed numerator column. |
-| `denominator_field` | field | (required) | Summed denominator column. |
+| `numerator_field` | field | (required) | Summed numerator field or label. |
+| `denominator_field` | field | (required) | Summed denominator field or label. |
 
-Each a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+Each a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically; a categorical, `set_*` or `vec_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
 
 Weighted: Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## Inputs
 
-`Field` IGNORED (`ignores_field`) but required on the wire; any type (Recommend names the numerator).
+`field` is never read (`ignores_field`) but required (absent → `SERVICE_VALIDATION`) and type-checked: any type but `decimal128` (`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`). Name the numerator unless it is decimal.
 
 ## Output
 
@@ -65,7 +65,7 @@ Attribute `contrib` per row; `params {"numerator_field":"contrib","denominator_f
 
 ## Gotchas
 
-- A row null on either column skips both sums; `n` counts the rest.
+- A row null on either field skips both sums; `n` counts the rest.
 - Both sums are binned reproducible sums: the same bits on every worker count and shard split, equal to `AGG_SUM`'s.
 - `weight` must name a cohort field, not a label.
 

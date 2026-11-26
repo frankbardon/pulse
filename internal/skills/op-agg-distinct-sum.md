@@ -15,11 +15,11 @@ examples_tags: [cardinality-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`. |
+| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG` at run time (predict passes it), never defaulted to `field`; unknown: `SERVICE_VALIDATION`. |
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 - `distinct_by` — any numeric-coded field, `categorical_*` included
 
@@ -31,7 +31,7 @@ Scalar `float64` — one value per key, summed.
 
 - `sum` — Sum of the first value seen per key.
 - `distinct_count` — Distinct keys that contributed.
-- `MarginIndependent` margins: crosstabs fuse.
+- Crosstab margin class `independent`: its own pass, never a sum of cells; fuses.
 
 <!-- generated: contract -->
 

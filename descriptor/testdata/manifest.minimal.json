@@ -283,14 +283,14 @@
         {
           "name": "GROUP_RANGE",
           "category": "grouper",
-          "description": "Partition numeric records into half-open ranges [a, b); Interval controls the bucket width.",
+          "description": "Partition numeric records into half-open ranges [a, b); the slot's interval sets the bucket width.",
           "params": [
             {
               "name": "interval",
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
+              "description": "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -324,7 +324,7 @@
               {
                 "name": "interval",
                 "type": "float64",
-                "description": "Bucket width on the value axis (Group.Interval)."
+                "description": "Bucket width on the value axis (the slot's interval)."
               },
               {
                 "name": "range_min",
@@ -876,7 +876,7 @@
       },
       {
         "name": "op-group-range",
-        "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
+        "description": "Partition numeric records into half-open ranges [a, b); `interval` sets the bucket width."
       },
       {
         "name": "overlay-reference-tests",
@@ -1219,7 +1219,7 @@
             {
               "name": "interval",
               "type": "float64",
-              "description": "Bucket width on the value axis (Group.Interval)."
+              "description": "Bucket width on the value axis (the slot's interval)."
             },
             {
               "name": "range_min",
@@ -1465,4 +1465,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f1cdd104fa321a2ed9f6a545c9b1120c47e7860ee1d2176139fad082465035f1
+// golden-hash: 4c1770de38e7586c7a23a32d8d5ea0ecf2dfa55cbeb07f9b2e73d3c2e61c65c0

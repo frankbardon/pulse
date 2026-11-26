@@ -1,6 +1,6 @@
 ```yaml
 name: op-win-running-avg
-description: Running average of Field over the configured Frame within the ordered partition.
+description: Running average of the field over the configured `frame` within the ordered partition.
 kind: operator
 category: WIN
 operator: WIN_RUNNING_AVG
@@ -30,11 +30,11 @@ None operator-level. `partition_by` (carve), `order_by` (≥1, required, any typ
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_RUNNING_AVG_<field>`). Arithmetic mean of non-null values inside the resolved frame. Empty slice → `null`.
+One `float64` per row written to `label` (default `WIN_RUNNING_AVG_<field>`). Arithmetic mean of non-null values inside the resolved frame. Empty slice → `null`.
 
 ## Reading the output
 
@@ -52,7 +52,7 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_AVG_<field>`). Ar
 
 - Mechanically identical to a moving average; the differentiator is FRAME — `MOVING_AVG` requires bounded both sides, `RUNNING_AVG` accepts unbounded preceding (cumulative). No frame → `PULSE_WINDOW_INVALID` (predict and runtime).
 - Nulls skipped (not zero-filled); denominator is non-null count.
-- Result rows are NOT reordered — use `Request.Sort` for response order.
+- Result rows are NOT reordered — use `sort` for response order.
 
 ## See
 

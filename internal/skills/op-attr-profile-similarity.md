@@ -22,7 +22,7 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 
 ## Inputs
 
-`vector` or `fields` (no `field`); members: see `## Contract`, source columns only.
+`vector` or `fields` (no `field`); members: see `## Contract`, schema fields only.
 
 ## Output
 

@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ```
 
-Row-level scalars; no `Response.Components`.
-
 ## Use when
 
 Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together.
@@ -41,7 +39,7 @@ The fit knobs are `MAT_FACTOR`'s factor fit's; no `repair`. `weight` — fit onl
 
 ## Inputs
 
-`vector` or `fields` (no `field`); members: see `## Contract`, source columns only.
+`vector` or `fields` (no `field`); members: see `## Contract`, schema fields only.
 
 ## Output
 

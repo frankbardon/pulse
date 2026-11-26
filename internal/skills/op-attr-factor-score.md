@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ---
 
-Row-level scalars; no `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -34,7 +32,7 @@ The fit knobs are<!-- feature: MAT_FACTOR --> `MAT_FACTOR`'s<!-- /feature --> fa
 
 ## Inputs
 
-`vector` or `fields` (no `field`); members: see `## Contract`, source columns only.
+`vector` or `fields` (no `field`); members: see `## Contract`, schema fields only.
 
 ## Output
 

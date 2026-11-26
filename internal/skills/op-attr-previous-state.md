@@ -15,8 +15,8 @@ examples_tags: [cohort-analysis, buffered-pipeline]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `subject_field` | field | (required) | Column identifying the subject (matched by value). |
-| `order_field` | field | (required) | `date` / `datetime` column ordering each subject's rows. |
+| `subject_field` | field | (required) | Field identifying the subject (matched by value). |
+| `order_field` | field | (required) | `date` / `datetime` field ordering each subject's rows. |
 
 Top-level slot keys: `field` (state), `subject_field`, `order_field`, `label`.
 
@@ -26,11 +26,11 @@ Top-level slot keys: `field` (state), `subject_field`, `order_field`, `label`.
 - `subject_field` — any scalar but `set_*` / `vec_*`
 - `order_field` — `date`, `datetime` — by instant, no `tz`
 
-Source columns only.
+Schema fields only.
 
 ## Output
 
-The previous state, typed as `field` (its dictionary, nullable); crosstab it × `field`.<!-- feature: capability:materialize --> `pulse_materialize` writes it as a real column of that type and dictionary.<!-- /feature -->
+The previous state, typed as `field` (its dictionary, nullable); crosstab it × `field`.<!-- feature: capability:materialize --> `pulse_materialize` writes it as a real field of that type and dictionary.<!-- /feature -->
 
 ## Components
 
@@ -41,7 +41,7 @@ The previous state, typed as `field` (its dictionary, nullable); crosstab it × 
 ## Gotchas
 
 - Null (never `0`): first time point, null subject / order (never a predecessor), null previous state (no carry-forward).
-- Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (error under Strict).
+- Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (an error under `--strict`).
 - Runs over the whole cohort before filters: a date window keeps each first in-window record's true previous state; Components count every record. An expression filter may read it by state name, as on the state field (`prev == "paid"`, `prev != nil`); a field filter may not.
 - Buffered: no streaming, fused crosstab or shard merge. Rows already sorted by subject, then order, skip the sort (one pass, same answer).
 

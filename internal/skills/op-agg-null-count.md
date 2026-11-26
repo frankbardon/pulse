@@ -17,7 +17,7 @@ None.
 
 ## Inputs
 
-- `Field` — any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128)
+`field` — any field type (see `## Contract`).
 
 ## Output
 

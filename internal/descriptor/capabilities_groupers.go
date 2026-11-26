@@ -73,7 +73,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_DATE),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. The slot's include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
 			Params: []descriptor.Param{
 				{
 					Name:        "component",
@@ -121,7 +121,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_DATE_RANGES),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; Group.Include restricts the labels and sets their order.",
+			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; The slot's include restricts the labels and sets their order.",
 			Params: []descriptor.Param{
 				{
 					Name:        "ranges",
@@ -233,7 +233,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Type:        "int",
 					Required:    false,
 					Default:     4,
-					Description: "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set on the request's Group.Interval field, not in Params.",
+					Description: "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params.",
 					Slot:        true,
 				},
 				groupFitParam,
@@ -243,7 +243,7 @@ func grouperCapabilities() []descriptor.Operator {
 			Streamable:     false,
 			StreamableHint: "Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.",
 			ComponentSchema: groupSchema(descriptor.None,
-				descriptor.ComponentKey{Name: "n_quantiles", Type: "int", Description: "Number of equal-population quantile buckets requested (Group.Interval)."},
+				descriptor.ComponentKey{Name: "n_quantiles", Type: "int", Description: "Number of equal-population quantile buckets requested (the slot's interval)."},
 				descriptor.ComponentKey{Name: "method", Type: "string", Description: "Quantile interpolation method (e.g. \"linear\")."},
 				descriptor.ComponentKey{Name: "edges", Type: "[]float64", Description: "Sorted cutpoints separating adjacent quantile buckets."},
 				descriptor.ComponentKey{Name: "buckets", Type: "[]bucket", Description: "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."},
@@ -252,14 +252,14 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_RANGE),
 			Category:    "grouper",
-			Description: "Partition numeric records into half-open ranges [a, b); Interval controls the bucket width.",
+			Description: "Partition numeric records into half-open ranges [a, b); the slot's interval sets the bucket width.",
 			Params: []descriptor.Param{
 				{
 					Name:        "interval",
 					Type:        "float",
 					Required:    false,
 					Default:     1,
-					Description: "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
+					Description: "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
 					Slot:        true,
 				},
 			},
@@ -267,7 +267,7 @@ func grouperCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "string bucket label per row, \"low-high\" (e.g. \"10-20\" holds [10, 20))",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "interval", Type: "float64", Description: "Bucket width on the value axis (Group.Interval)."},
+				descriptor.ComponentKey{Name: "interval", Type: "float64", Description: "Bucket width on the value axis (the slot's interval)."},
 				descriptor.ComponentKey{Name: "range_min", Type: "float64", Description: "Smallest non-null value observed across all buckets."},
 				descriptor.ComponentKey{Name: "range_max", Type: "float64", Description: "Largest non-null value observed across all buckets."},
 				descriptor.ComponentKey{Name: "n_buckets", Type: "int", Description: "Number of half-open range buckets emitted."},
@@ -280,14 +280,14 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_ROUNDED),
 			Category:    "grouper",
-			Description: "Round each numeric value DOWN to a multiple of Interval (floor, not nearest) and group by that scalar.",
+			Description: "Round each numeric value DOWN to a multiple of the slot's interval (floor, not nearest) and group by that scalar.",
 			Params: []descriptor.Param{
 				{
 					Name:        "interval",
 					Type:        "float",
 					Required:    false,
 					Default:     1,
-					Description: "Rounding increment; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1.",
+					Description: "Rounding increment; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1.",
 					Slot:        true,
 				},
 			},
@@ -295,7 +295,7 @@ func grouperCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "rounded numeric key per row",
 			Streamable:    true,
 			ComponentSchema: groupSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "precision", Type: "float64", Description: "Rounding increment used as the bucket scalar (Group.Interval)."},
+				descriptor.ComponentKey{Name: "precision", Type: "float64", Description: "Rounding increment used as the bucket scalar (the slot's interval)."},
 				descriptor.ComponentKey{Name: "edges", Type: "[]float64", Description: "Sorted rounded scalars separating adjacent buckets."},
 				descriptor.ComponentKey{Name: "buckets", Type: "[]bucket", Description: "Per-bucket records, ordered by emission; each entry carries {key, low, high, count}."},
 			),
@@ -315,7 +315,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.GROUP_SET_PER_ELEMENT),
 			Category:      "grouper",
-			Description:   "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
+			Description:   "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Streams.",
 			AcceptsTypes:  tableAcceptsTypes(types.GROUP_SET_PER_ELEMENT),
 			EmitsTypeNote: "string bucket key per selected label per row",
 			Streamable:    true,

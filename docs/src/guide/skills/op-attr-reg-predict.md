@@ -38,12 +38,12 @@ Use something else:
 
 ## Inputs
 
-- model predictors — numeric slot columns
+- model predictors — numeric fields or earlier labels, by name
 - `label` — output name; default `ATTR_REG_PREDICT_<fit>`
 
 ## Output
 
-One `f64` per record; null when a column read is null, NaN or ±Inf, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE`; predict cannot foresee it). Training rows equal the fit's fitted values bit for bit.
+One `f64` per record; null when a value read is null, NaN or ±Inf, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE`; predict cannot foresee it). Training rows equal the fit's fitted values bit for bit.
 
 ## Reading the output
 
@@ -58,7 +58,7 @@ One `f64` per record; null when a column read is null, NaN or ±Inf, and on EVER
 
 ## Gotchas
 
-- The fit's predictor list is authoritative: build the same columns ([`regression-row-scores`](regression-row-scores.md)).
+- The fit's predictor list is authoritative: build the same fields ([`regression-row-scores`](regression-row-scores.md)).
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local (two-pass with `order`): streams, merges, materializes. Row weight ignored.
 - A registered model scores whole-model (`no_scorer` without a scorer); save, load, ordinal, multinomial: [`regression-row-scores`](regression-row-scores.md). `REG_MMM_BAYES` alone takes a whole-model `bound` ([`mmm-bayes-posterior`](mmm-bayes-posterior.md)).

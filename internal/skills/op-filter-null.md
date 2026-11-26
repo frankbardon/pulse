@@ -15,11 +15,11 @@ examples_tags: [data-quality, cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `Values` | `[1]string` | (required) | `"is_null"` keeps null-valued rows; `"is_not_null"` keeps non-null rows. Any other value → `PROCESSING_CONFIG`. |
+| `values` | array | (required) | One entry: One entry: `"is_null"` keeps null-valued rows; `"is_not_null"` keeps non-null rows. Any other value → `PROCESSING_CONFIG`. |
 
 ## Inputs
 
-- `Field` — any cohort field type — null state is read from the per-record null bitmap.
+- `field` — any cohort field type — null state is read from the per-record null bitmap.
 
 ## Output
 
@@ -29,7 +29,7 @@ Row-level predicate. Pass per the configured mode. No emitted column.
 
 ## Gotchas
 
-- `Field` is required; empty → `PROCESSING_CONFIG`.
+- `field` is required; empty → `SERVICE_VALIDATION`. A missing or unknown `values` entry → `PROCESSING_CONFIG` at run time; predict passes it.
 - Reads the bitmap only — the underlying type's sentinel value (e.g. `NaN`, empty `set_*`) is NOT treated as null.
 - For "non-null AND in a set", put this filter (`is_not_null`) before the value filter.
 

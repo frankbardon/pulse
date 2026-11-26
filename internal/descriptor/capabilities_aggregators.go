@@ -335,7 +335,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Arithmetic mean of the field across the input set.",
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_AVERAGE),
-			EmitsTypeNote: "scalar float64",
+			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "sum", Type: "float64", Description: "Running sum of non-null field values; combined with n to recover the mean (the weighted sum Σw·x on a weighted slot)."},
@@ -352,7 +352,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Description:   "Smallest non-null value of the field; with params.ordered / params.levels, the lowest level of a categorical.",
 			Params:        orderedParams,
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_MIN),
-			EmitsTypeNote: "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
+			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result; ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "min", Type: "float64", Description: "Smallest non-null value observed (ordered: the lowest level's dictionary index)."},
@@ -365,7 +365,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Description:   "Largest non-null value of the field; with params.ordered / params.levels, the highest level of a categorical.",
 			Params:        orderedParams,
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_MAX),
-			EmitsTypeNote: "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
+			EmitsTypeNote: "scalar float64 (decimal128 input yields a decimal-scaled result; ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "max", Type: "float64", Description: "Largest non-null value observed (ordered: the highest level's dictionary index)."},
@@ -631,7 +631,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is required on the wire (any schema field; by convention the numerator) but never read — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is required on the wire but never read — the two summed fields come from params; it still takes any type but decimal128 (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL), so name the numerator unless it is decimal. Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
@@ -639,7 +639,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "any",
-					Description: "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
+					Description: "Field or derived label summed as the numerator, read numerically (a date as epoch days); a categorical, set or vector field is refused (PULSE_FIELD_TYPE_UNSUPPORTED).",
 				},
 				{
 					Name:        "denominator_field",
@@ -647,7 +647,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "any",
-					Description: "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
+					Description: "Field or derived label summed as the denominator; the same types as the numerator.",
 				},
 			},
 			// IgnoresField, and AcceptsTypes therefore says only that no
@@ -691,7 +691,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					NamesColumn: true,
 					Required:    true,
 					FieldFilter: "numeric",
-					Description: "Binary outcome column scored against the score in field: a packed_bool, or a numeric column holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
+					Description: "Binary outcome field scored against the score in field: a packed_bool, or a numeric field holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
 				},
 				{
 					Name:        "positive",
@@ -735,7 +735,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Type:        "string",
 					Required:    false,
 					Default:     "normal",
-					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
+					Description: "\"normal\" (streamable Welford). \"bootstrap\" is refused at run time (PROCESSING_CONFIG).",
 				},
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_CI_LOWER),
@@ -766,7 +766,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Type:        "string",
 					Required:    false,
 					Default:     "normal",
-					Description: "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up.",
+					Description: "\"normal\" (streamable Welford). \"bootstrap\" is refused at run time (PROCESSING_CONFIG).",
 				},
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_CI_UPPER),
@@ -785,7 +785,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 			Category:      "aggregator",
 			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_WELFORD),
-			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
+			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); the row value is the non-scalar triple {mean, variance, n}, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
 			Streamable:    true,
 			ComponentSchema: aggSchema(descriptor.Mergeable,
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Running Welford mean of non-null field values (origin + shifted_mean)."},
@@ -904,7 +904,7 @@ func constantCapability() descriptor.Operator {
 		Params: []descriptor.Param{
 			{
 				Name: aggconst.ParamType, Type: "enum", Required: true, EnumValues: allCohortFieldTypes,
-				Description: "The constant's field type: one of the 22 field-type names. The wire value is what the existing aggregators write for that type.",
+				Description: "The constant's field type: a field-type name (the manifest's cohort_types). The wire value is what the existing aggregators write for that type.",
 			},
 			{
 				Name: aggconst.ParamValue, Type: "any", ExactlyOneOf: "constant",
@@ -958,7 +958,7 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 			{
 				Name:        "element",
 				Type:        "string",
-				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
+				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, a sample standard deviation for AGG_VEC_SD, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
 			},
 		},
 		AcceptsTypes:    vectorMemberFieldTypes,
@@ -998,7 +998,7 @@ func modelErrorCapability(op types.AggregationType, desc string, own ...descript
 				NamesColumn: true,
 				Required:    true,
 				FieldFilter: "numeric",
-				Description: "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+				Description: "Field holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema field. A null prediction skips the row (counted in n_null_prediction).",
 			},
 		},
 		AcceptsTypes:    modelErrorFieldTypes,

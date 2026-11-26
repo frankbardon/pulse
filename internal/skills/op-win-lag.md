@@ -1,6 +1,6 @@
 ---
 name: op-win-lag
-description: Per-row value of Field from N rows earlier in the ordered partition.
+description: Per-row value of the field from N rows earlier in the ordered partition.
 kind: operator
 category: WIN
 operator: WIN_LAG
@@ -24,11 +24,11 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One value per row written to `Label` (default `WIN_LAG_<field>`): a verbatim copy, so a `u64` id renders its exact word and a categorical its label — a lagged category on the source dictionary. When `i - offset < 0` within the partition emits `default` if set, else `null`.
+One value per row written to `label` (default `WIN_LAG_<field>`): a verbatim copy, so a `u64` id renders its exact word and a categorical its label — a lagged category on the source dictionary. When `i - offset < 0` within the partition emits `default` if set, else `null`.
 
 <!-- generated: contract -->
 

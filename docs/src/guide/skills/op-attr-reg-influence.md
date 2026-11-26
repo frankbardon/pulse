@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 ```
 
-Row-level scalars; no `Response.Components`.
-
 ## Use when
 
 Adds to every row how much it moves a straight-line fit: how far the fitted values would shift if that one row were left out.
@@ -42,7 +40,7 @@ Refit keys are top-level, not `params`; `field` unread.
 
 `target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
 
-- `Label` — default `<TYPE>_<target>`, with `fit` `<TYPE>_<fit>`
+- `label` — default `<TYPE>_<target>`, with `fit` `<TYPE>_<fit>`
 
 ## Output
 

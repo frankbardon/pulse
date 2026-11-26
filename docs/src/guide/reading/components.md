@@ -640,7 +640,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `n_quantiles` | int | always | Number of equal-population quantile buckets requested (Group.Interval). |
+| `n_quantiles` | int | always | Number of equal-population quantile buckets requested (the slot's interval). |
 | `method` | string | always | Quantile interpolation method (e.g. "linear"). |
 | `edges` | []float64 | always | Sorted cutpoints separating adjacent quantile buckets. |
 | `buckets` | []bucket | always | Per-bucket records, ordered by emission; each entry carries {key, low, high, count}. |
@@ -653,7 +653,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `interval` | float64 | always | Bucket width on the value axis (Group.Interval). |
+| `interval` | float64 | always | Bucket width on the value axis (the slot's interval). |
 | `range_min` | float64 | always | Smallest non-null value observed across all buckets. |
 | `range_max` | float64 | always | Largest non-null value observed across all buckets. |
 | `n_buckets` | int | always | Number of half-open range buckets emitted. |
@@ -670,7 +670,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `precision` | float64 | always | Rounding increment used as the bucket scalar (Group.Interval). |
+| `precision` | float64 | always | Rounding increment used as the bucket scalar (the slot's interval). |
 | `edges` | []float64 | always | Sorted rounded scalars separating adjacent buckets. |
 | `buckets` | []bucket | always | Per-bucket records, ordered by emission; each entry carries {key, low, high, count}. |
 

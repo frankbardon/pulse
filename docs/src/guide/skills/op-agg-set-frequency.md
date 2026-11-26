@@ -29,11 +29,11 @@ None. Weight-aware (`"weight": null` opts out): Σw per member — map values be
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw). Scalar fallback = max single-label frequency.
+JSON object label → row count (weighted: Σw floats). Scalar fallback = max single-label frequency.
 
 ## Components
 
@@ -54,7 +54,7 @@ Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw
 
 - Survey-friendly default ("respondents per issuer").
 - Weighted Σw figures are binned sums: the same bits on every worker count and shard split.
-- Used as Crosstab Cell aggregator the result is a map-valued cell payload.
+- As a crosstab `cell` it fills each cell with that map.
 - Per-row a respondent may contribute to multiple bins — `total_label_observations` can exceed `n`.
 - Non-scalar row value: an overlay scoring it (request, Compose or whole-chain: `params.field` where the kind honours it, else `aggregations[0]`) is refused (`PROCESSING_CONFIG`, reason `non_scalar`), as is a chain stage carrying it that feeds another; an unscored one beside a scalar runs.
 

@@ -17,7 +17,7 @@ None.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -33,7 +33,7 @@ Scalar `int64` — number of distinct non-null values. Per-group when wired unde
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
-- Over `decimal128` the count is a JSON integer (`3`), never a decimal string; distinct by value at the column scale.
+- Over `decimal128` the count is a JSON integer (`3`), never a decimal string; distinct by value at the field's scale.
 
 ## See
 

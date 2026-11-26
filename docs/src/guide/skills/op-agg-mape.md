@@ -26,15 +26,15 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `prediction_field` | field | (required) | The predicted column (typically an `ATTR_REG_PREDICT` score column). |
+| `prediction_field` | field | (required) | The predicted field (typically an `ATTR_REG_PREDICT` label). |
 
-Missing is `PROCESSING_CONFIG`; a non-numeric column on either side (categorical, set, date, datetime) `PULSE_FIELD_TYPE_UNSUPPORTED`, a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
+Missing is `PROCESSING_CONFIG`; a categorical, set, date or datetime field on either side, or a `decimal128` prediction, `PULSE_FIELD_TYPE_UNSUPPORTED`; a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
 
-Weight-aware: Σw·loss / Σw. A `decimal128` side under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
+Weight-aware: Σw·loss / Σw. A `decimal128` actual under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## Inputs
 
-`Field` is the actual: u4–u64, f32/f64, packed_bool. No train/holdout param — split with a filter or `GROUP_RANGE` range grouper.
+`field` is the actual: u4–u64, f32/f64, packed_bool. No train/holdout param — split with a filter or `GROUP_RANGE` range grouper.
 
 ## Output
 

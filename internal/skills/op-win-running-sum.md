@@ -1,6 +1,6 @@
 ---
 name: op-win-running-sum
-description: Running total of Field over the configured Frame within the ordered partition.
+description: Running total of the field over the configured `frame` within the ordered partition.
 kind: operator
 category: WIN
 operator: WIN_RUNNING_SUM
@@ -19,11 +19,11 @@ None operator-level. `partition_by` (carve), `order_by` (≥1, required, any typ
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_RUNNING_SUM_<field>`). Sum of non-null values inside the resolved frame within the partition. Empty slice → `null`.
+One `float64` per row written to `label` (default `WIN_RUNNING_SUM_<field>`). Sum of non-null values inside the resolved frame within the partition. Empty slice → `null`.
 
 <!-- generated: contract -->
 
@@ -32,7 +32,7 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_SUM_<field>`). Su
 - Frame REQUIRED (`PULSE_WINDOW_INVALID` without one, predict and runtime) — `null` preceding = UNBOUNDED PRECEDING.
 - Bounded frames produce a windowed sum, not cumulative.
 - Nulls skipped (not zero-filled).
-- Result rows are NOT reordered — use `Request.Sort`.
+- Result rows are NOT reordered — use `sort`.
 
 ## See
 

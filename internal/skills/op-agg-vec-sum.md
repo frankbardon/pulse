@@ -25,11 +25,11 @@ Slot: `vector` or `fields`, no `field` (`vector-aggregates`). Default label `AGG
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 
-Rich `[]float64`, one total per member; a null member skips only that element. An element no row answered totals 0.
+JSON array of numbers, one total per member; a null member skips only that element. An element no row answered totals 0.
 
 ## Components
 
@@ -39,7 +39,7 @@ Rich `[]float64`, one total per member; a null member skips only that element. A
 
 ## Gotchas
 
-- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a Sort key, a window, post-test or overlay input<!-- feature: capability:crosstab -->, a crosstab cell or margin without `element`<!-- /feature -->, or a chain stage feeding another — unless expanded (`vector-aggregates`).
+- The array is refused (`PROCESSING_CONFIG`, reason `array_valued`) as a `sort` key, a window, post-test or overlay input<!-- feature: capability:crosstab -->, a crosstab cell or margin without `element`<!-- /feature -->, or a chain stage feeding another — unless expanded (`vector-aggregates`).
 - Expanded columns are ordinary nullable f64 columns; a `return` path names one quoted, `data[*]."<label>[<elem>]"`.
 <!-- feature: capability:crosstab -->
 - `element` cell: a record reaches an auxiliary margin only if its member reached a cell.

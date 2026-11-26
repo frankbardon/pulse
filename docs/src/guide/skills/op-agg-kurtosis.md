@@ -28,7 +28,7 @@ Weighted: weighted population moments, Σw in place of n.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 

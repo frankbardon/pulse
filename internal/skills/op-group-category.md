@@ -13,28 +13,28 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
-None. `Group.Label` overrides the output column name; `Group.Include []string` allow-lists bucket keys (label strings) and sets emission order.
+None. The key column is named after `field` (a group slot takes no `label`); `include` (label strings) allow-lists bucket keys and sets emission order.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One bucket per distinct value; key = stringified value (categoricals resolve through the dictionary). Smart default for `categorical_*` / `packed_bool` when `Type` omitted.
+One bucket per distinct value; key = stringified value (categoricals resolve through the dictionary). Smart default for `categorical_*` / `packed_bool` when `type` is omitted.
 
-Non-empty `Include` is order-significant: buckets emit in `Include` order (`Data` + `Components.buckets`). Empty/absent keeps the prior alphabetical order — byte-identical.
+Non-empty `include` is order-significant: buckets emit in its order (`data` and components `buckets`); absent, alphabetical.
 
 ## Components
 
-- `dict_size` (int, distinct values observed), `buckets` (`[]bucket` of `{key, label, count}` in emission order).
-- `StreamableGrouper`: eligible for fused crosstab.
+- `dict_size` (int, distinct values observed), `buckets` (`{key, label, count}` in emission order).
+- Eligible for the fused crosstab.
 
 <!-- generated: contract -->
 
 ## Gotchas
 
-- `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
+- `include` matches the post-dictionary label; zero-record values drop, never emit empty.
 - A categorical index outside its (widened) dictionary is corrupt data: `ENCODING_INVALID` (`details.reason` `categorical_index_out_of_range`) on every arm, never a numeric-key bucket.
 - High-cardinality fields blow memory — filter to the values you need first.
 

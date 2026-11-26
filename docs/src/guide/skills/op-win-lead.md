@@ -1,6 +1,6 @@
 ```yaml
 name: op-win-lead
-description: Per-row value of Field from N rows later in the ordered partition.
+description: Per-row value of the field from N rows later in the ordered partition.
 kind: operator
 category: WIN
 operator: WIN_LEAD
@@ -36,11 +36,11 @@ Use something else:
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word and a categorical its label — a lagged category on the source dictionary. When `i + offset >= partition_len` emits `default` if set, else `null`.
+One value per row written to `label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word and a categorical its label — a lagged category on the source dictionary. When `i + offset >= partition_len` emits `default` if set, else `null`.
 
 ## Contract
 
@@ -52,7 +52,7 @@ One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim co
 
 - Mirror of a lag — same partition / order / frame rules (a lagged category included: [`op-win-lag`](op-win-lag.md)), opposite scan direction.
 - `order_by` required, `frame` forbidden.
-- Result rows are NOT reordered by `order_by` — use `Request.Sort` for response order.
+- Result rows are NOT reordered by `order_by` — use `sort` for response order.
 
 ## See
 

@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, buffered-pipeline]
 ---
 
-Row-level scalars; no `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -33,7 +31,7 @@ Refit keys are top-level, not `params`; `fit` is `params.fit` (`regression-row-s
 
 `target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
 
-- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
+- `label` — default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 

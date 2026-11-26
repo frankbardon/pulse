@@ -435,7 +435,7 @@
               "name": "outcome",
               "type": "field",
               "required": true,
-              "description": "Binary outcome column scored against the score in field: a packed_bool, or a numeric column holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
+              "description": "Binary outcome field scored against the score in field: a packed_bool, or a numeric field holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
               "field_filter": "numeric",
               "names_column": true
             },
@@ -572,7 +572,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -668,7 +668,7 @@
               "type": "string",
               "required": false,
               "default": "normal",
-              "description": "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up."
+              "description": "\"normal\" (streamable Welford). \"bootstrap\" is refused at run time (PROCESSING_CONFIG)."
             }
           ],
           "accepts_types": [
@@ -770,7 +770,7 @@
               "type": "string",
               "required": false,
               "default": "normal",
-              "description": "\"normal\" (streamable Welford) today; \"bootstrap\" reserved for a buffered follow-up."
+              "description": "\"normal\" (streamable Welford). \"bootstrap\" is refused at run time (PROCESSING_CONFIG)."
             }
           ],
           "accepts_types": [
@@ -864,7 +864,7 @@
               "name": "type",
               "type": "enum",
               "required": true,
-              "description": "The constant's field type: one of the 22 field-type names. The wire value is what the existing aggregators write for that type.",
+              "description": "The constant's field type: a field-type name (the manifest's cohort_types). The wire value is what the existing aggregators write for that type.",
               "enum_values": [
                 "categorical_u16",
                 "categorical_u32",
@@ -1282,7 +1282,7 @@
               "name": "prediction_field",
               "type": "field",
               "required": true,
-              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "description": "Field holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema field. A null prediction skips the row (counted in n_null_prediction).",
               "field_filter": "numeric",
               "names_column": true
             }
@@ -1376,7 +1376,7 @@
               "name": "prediction_field",
               "type": "field",
               "required": true,
-              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "description": "Field holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema field. A null prediction skips the row (counted in n_null_prediction).",
               "field_filter": "numeric",
               "names_column": true
             }
@@ -1498,7 +1498,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result; ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -1661,7 +1661,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result; ordered: the level's dictionary index — a code, refused by an overlay as categorical_code)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -2079,13 +2079,13 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The Aggregation's own Field is required on the wire (any schema field; by convention the numerator) but never read — the two summed fields come from Params. Denominator-zero yields NaN (null in JSON).",
+          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is required on the wire but never read — the two summed fields come from params; it still takes any type but decimal128 (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL), so name the numerator unless it is decimal. Denominator-zero yields NaN (null in JSON).",
           "params": [
             {
               "name": "numerator_field",
               "type": "field",
               "required": true,
-              "description": "Schema field summed as the numerator. Read through the row's numeric channel, so a non-numeric field contributes its encoded value (a categorical contributes its dictionary code) rather than erroring.",
+              "description": "Field or derived label summed as the numerator, read numerically (a date as epoch days); a categorical, set or vector field is refused (PULSE_FIELD_TYPE_UNSUPPORTED).",
               "field_filter": "any",
               "names_column": true
             },
@@ -2093,7 +2093,7 @@
               "name": "denominator_field",
               "type": "field",
               "required": true,
-              "description": "Schema field summed as the denominator. Same numeric-channel read as the numerator.",
+              "description": "Field or derived label summed as the denominator; the same types as the numerator.",
               "field_filter": "any",
               "names_column": true
             }
@@ -2192,7 +2192,7 @@
               "name": "prediction_field",
               "type": "field",
               "required": true,
-              "description": "Column holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema column. A null prediction skips the row (counted in n_null_prediction).",
+              "description": "Field holding the predicted value scored against the actual in field — typically an ATTR_REG_PREDICT output in the same request, or any numeric schema field. A null prediction skips the row (counted in n_null_prediction).",
               "field_filter": "numeric",
               "names_column": true
             }
@@ -2978,7 +2978,7 @@
               "name": "element",
               "type": "string",
               "required": false,
-              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, a sample standard deviation for AGG_VEC_SD, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
             }
           ],
           "accepts_types": [
@@ -3078,7 +3078,7 @@
               "name": "element",
               "type": "string",
               "required": false,
-              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, a sample standard deviation for AGG_VEC_SD, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
             }
           ],
           "accepts_types": [
@@ -3194,7 +3194,7 @@
               "name": "element",
               "type": "string",
               "required": false,
-              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
+              "description": "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, a sample standard deviation for AGG_VEC_SD, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous)."
             }
           ],
           "accepts_types": [
@@ -3377,7 +3377,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); rich WelfordTriple{Mean, Variance, N}; the row value is non-scalar, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
+          "emits_type_note": "scalar float64 (running mean; NaN, null in JSON, when no rows); the row value is the non-scalar triple {mean, variance, n}, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -4158,7 +4158,7 @@
         {
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
-          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
+          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own regression keys (target, predictors, penalty, alpha, l1_ratio); each ATTR_REG_* attribute refits independently. Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
           "params": [
             {
               "name": "target",
@@ -4323,7 +4323,7 @@
           "emits_type": "f64",
           "emits_type_note": "one influence figure per record; null outside the fit or where undefined (residual df ≤ 1, h ≥ 1)",
           "streamable": true,
-          "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
+          "streamable_hint": "Requires unpenalized OLS only; any non-empty penalty is PROCESSING_CONFIG.",
           "component_schema": {
             "mergeability": ""
           },
@@ -4486,7 +4486,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
+          "description": "Per-row score from a BOUND model (a compose request's `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean); REG_ORDINAL as one column per slot from its per-row level probabilities (params.output: the expected level by default, P(y = level), P(y ≤ level) or the class; for_each over the levels for one column each); REG_MULTINOMIAL likewise from its per-row category probabilities (P(y = params.category) by default, or the class; scale link: the category's log-odds against the reference); REG_MMM_BAYES (fitted with return_draws) as the mean over its draws, on a geo panel by the row's geo field; an in-model adstocked fit's score carries its adstock in from the fit (raw spend, params.order) unless params.carryover is false (pre-adstocked channels as given). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound (two-pass when it carries).",
           "params": [
             {
               "name": "fit",
@@ -5252,7 +5252,7 @@
         {
           "name": "FILTER_DATE_RANGES",
           "category": "filterer",
-          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
+          "description": "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
           "params": [
             {
               "name": "ranges",
@@ -5302,7 +5302,7 @@
         {
           "name": "FILTER_EXCLUDE",
           "category": "filterer",
-          "description": "Drop records whose field value appears in the supplied Values list.",
+          "description": "Drop records whose field value appears in the supplied values list.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5350,7 +5350,7 @@
         {
           "name": "FILTER_EXPRESSION",
           "category": "filterer",
-          "description": "Keep records for which Expression evaluates truthy; reads any record field.",
+          "description": "Keep records for which the slot's expression evaluates truthy; reads any record field.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5407,7 +5407,7 @@
         {
           "name": "FILTER_FALSE",
           "category": "filterer",
-          "description": "Keep records where Field is logically false. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+          "description": "Keep records where field is logically false. Strict mode (default, omit values) requires packed_bool. Opt into JavaScript-style coercion across any field type with values [\"truthy\"].",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5460,7 +5460,7 @@
         {
           "name": "FILTER_INCLUDE",
           "category": "filterer",
-          "description": "Keep records whose field value appears in the supplied Values list.",
+          "description": "Keep records whose field value appears in the supplied values list.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5507,7 +5507,7 @@
         {
           "name": "FILTER_NULL",
           "category": "filterer",
-          "description": "Keep records based on null state of Field. Values=[\"is_null\"] keeps null-valued records; Values=[\"is_not_null\"] keeps non-null records.",
+          "description": "Keep records based on the null state of field. values [\"is_null\"] keeps null-valued records; values [\"is_not_null\"] keeps non-null records.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5563,7 +5563,7 @@
         {
           "name": "FILTER_RANGE",
           "category": "filterer",
-          "description": "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+          "description": "Keep records whose numeric field value falls within [low, high]; values = [low, high].",
           "params": null,
           "accepts_types": [
             "date",
@@ -5608,7 +5608,7 @@
         {
           "name": "FILTER_SET_CONTAINS_ALL",
           "category": "filterer",
-          "description": "Keep records where the set field has every bit in the supplied Values labels set.",
+          "description": "Keep records where the set field has every bit in the supplied values labels set.",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -5647,7 +5647,7 @@
         {
           "name": "FILTER_SET_CONTAINS_ANY",
           "category": "filterer",
-          "description": "Keep records where the set field shares at least one bit with the supplied Values labels.",
+          "description": "Keep records where the set field shares at least one bit with the supplied values labels.",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -5686,7 +5686,7 @@
         {
           "name": "FILTER_SET_CONTAINS_NONE",
           "category": "filterer",
-          "description": "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
+          "description": "Keep records where the set field shares no bits with the supplied values labels (null rows pass).",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -5725,7 +5725,7 @@
         {
           "name": "FILTER_SET_EQUALS",
           "category": "filterer",
-          "description": "Keep records whose set field mask exactly matches the supplied Values labels.",
+          "description": "Keep records whose set field mask exactly matches the supplied values labels.",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -5764,7 +5764,7 @@
         {
           "name": "FILTER_TRUE",
           "category": "filterer",
-          "description": "Keep records where Field is logically true. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+          "description": "Keep records where field is logically true. Strict mode (default, omit values) requires packed_bool. Opt into JavaScript-style coercion across any field type with values [\"truthy\"].",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -5872,7 +5872,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. The slot's include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -5984,7 +5984,7 @@
         {
           "name": "GROUP_DATE_RANGES",
           "category": "grouper",
-          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; Group.Include restricts the labels and sets their order.",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; The slot's include restricts the labels and sets their order.",
           "params": [
             {
               "name": "ranges",
@@ -6311,7 +6311,7 @@
               "type": "int",
               "required": false,
               "default": 4,
-              "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set on the request's Group.Interval field, not in Params.",
+              "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params.",
               "slot": true
             },
             {
@@ -6357,7 +6357,7 @@
               {
                 "name": "n_quantiles",
                 "type": "int",
-                "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+                "description": "Number of equal-population quantile buckets requested (the slot's interval)."
               },
               {
                 "name": "method",
@@ -6390,14 +6390,14 @@
         {
           "name": "GROUP_RANGE",
           "category": "grouper",
-          "description": "Partition numeric records into half-open ranges [a, b); Interval controls the bucket width.",
+          "description": "Partition numeric records into half-open ranges [a, b); the slot's interval sets the bucket width.",
           "params": [
             {
               "name": "interval",
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
+              "description": "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -6431,7 +6431,7 @@
               {
                 "name": "interval",
                 "type": "float64",
-                "description": "Bucket width on the value axis (Group.Interval)."
+                "description": "Bucket width on the value axis (the slot's interval)."
               },
               {
                 "name": "range_min",
@@ -6479,14 +6479,14 @@
         {
           "name": "GROUP_ROUNDED",
           "category": "grouper",
-          "description": "Round each numeric value DOWN to a multiple of Interval (floor, not nearest) and group by that scalar.",
+          "description": "Round each numeric value DOWN to a multiple of the slot's interval (floor, not nearest) and group by that scalar.",
           "params": [
             {
               "name": "interval",
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Rounding increment; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1.",
+              "description": "Rounding increment; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1.",
               "slot": true
             }
           ],
@@ -6520,7 +6520,7 @@
               {
                 "name": "precision",
                 "type": "float64",
-                "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+                "description": "Rounding increment used as the bucket scalar (the slot's interval)."
               },
               {
                 "name": "edges",
@@ -6543,7 +6543,7 @@
         {
           "name": "GROUP_SET_PER_ELEMENT",
           "category": "grouper",
-          "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Implements MultiKeyStreamingGrouper.",
+          "description": "Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount. Streams.",
           "params": null,
           "accepts_types": [
             "set_u128",
@@ -6634,7 +6634,7 @@
         {
           "name": "WIN_DELTA",
           "category": "window",
-          "description": "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
+          "description": "Point DIFFERENCE (current minus the row periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
           "params": [
             {
               "name": "periods",
@@ -6655,7 +6655,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
+          "emits_type_note": "one float per row; null (not NaN) when no comparison row exists — the first periods rows of each partition, or a missing value on either side",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -6833,7 +6833,7 @@
         {
           "name": "WIN_LAG",
           "category": "window",
-          "description": "Return the value of Field from the row N positions before the current row in the ordered partition.",
+          "description": "Return the value of field from the row N positions before the current row in the ordered partition.",
           "params": [
             {
               "name": "offset",
@@ -6875,7 +6875,7 @@
         {
           "name": "WIN_LEAD",
           "category": "window",
-          "description": "Return the value of Field from the row N positions after the current row in the ordered partition.",
+          "description": "Return the value of field from the row N positions after the current row in the ordered partition.",
           "params": [
             {
               "name": "offset",
@@ -6959,7 +6959,7 @@
         {
           "name": "WIN_MOVING_AVG",
           "category": "window",
-          "description": "Moving average of Field over the configured Frame; Frame width must be bounded.",
+          "description": "Moving average of field over the configured frame; the frame must be bounded on both ends.",
           "params": null,
           "accepts_types": [
             "date",
@@ -6984,7 +6984,7 @@
         {
           "name": "WIN_PCT_CHANGE",
           "category": "window",
-          "description": "Fractional change, (current − previous) / previous, against the row Periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
+          "description": "Fractional change, (current − previous) / previous, against the row periods positions earlier in the ordered partition: 0.05 is a 5% rise, never multiplied by 100.",
           "params": [
             {
               "name": "periods",
@@ -7052,7 +7052,7 @@
         {
           "name": "WIN_RUNNING_AVG",
           "category": "window",
-          "description": "Running average of Field over the configured Frame within the ordered partition.",
+          "description": "Running average of field over the configured frame within the ordered partition.",
           "params": null,
           "accepts_types": [
             "date",
@@ -7078,7 +7078,7 @@
         {
           "name": "WIN_RUNNING_SUM",
           "category": "window",
-          "description": "Running total of Field over the configured Frame within the ordered partition.",
+          "description": "Running total of field over the configured frame within the ordered partition.",
           "params": null,
           "accepts_types": [
             "date",
@@ -14786,7 +14786,7 @@
       },
       {
         "name": "op-agg-ratio",
-        "description": "Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read."
+        "description": "Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is required and type-checked but never read."
       },
       {
         "name": "op-agg-rmse",
@@ -14878,7 +14878,7 @@
       },
       {
         "name": "op-attr-normalized",
-        "description": "Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1]."
+        "description": "Per-row min-max normalized value — (value − min) / (max − min) ∈ [0, 1]."
       },
       {
         "name": "op-attr-pc-score",
@@ -14886,7 +14886,7 @@
       },
       {
         "name": "op-attr-percentile",
-        "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
+        "description": "Per-row percentile rank against the post-filter value set; requires sorting."
       },
       {
         "name": "op-attr-previous-state",
@@ -14934,7 +14934,7 @@
       },
       {
         "name": "op-attr-tscore",
-        "description": "Per-row T-score column — z-score rescaled to mean 50, stddev 10."
+        "description": "Per-row T-score — z-score rescaled to mean 50, stddev 10."
       },
       {
         "name": "op-attr-vec-distance",
@@ -14942,7 +14942,7 @@
       },
       {
         "name": "op-attr-zscore",
-        "description": "Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford."
+        "description": "Per-row standardized z-score — (value − mean) / stddev via two-pass Welford."
       },
       {
         "name": "op-feat-bucketize",
@@ -14986,7 +14986,7 @@
       },
       {
         "name": "op-filter-exclude",
-        "description": "Drop records whose field value appears in the supplied Values list."
+        "description": "Drop records whose field value appears in the supplied `values` list."
       },
       {
         "name": "op-filter-expression",
@@ -14994,11 +14994,11 @@
       },
       {
         "name": "op-filter-false",
-        "description": "Keep records where Field is logically false. Strict packed_bool by default; opt into JS falsiness."
+        "description": "Keep records where the field is logically false. Strict packed_bool by default; opt into JS falsiness."
       },
       {
         "name": "op-filter-include",
-        "description": "Keep records whose field value appears in the supplied Values list."
+        "description": "Keep records whose field value appears in the supplied `values` list."
       },
       {
         "name": "op-filter-null",
@@ -15026,7 +15026,7 @@
       },
       {
         "name": "op-filter-true",
-        "description": "Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness."
+        "description": "Keep records where the field is logically true. Strict packed_bool by default; opt into JS truthiness."
       },
       {
         "name": "op-group-category",
@@ -15054,11 +15054,11 @@
       },
       {
         "name": "op-group-range",
-        "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
+        "description": "Partition numeric records into half-open ranges [a, b); `interval` sets the bucket width."
       },
       {
         "name": "op-group-rounded",
-        "description": "Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar."
+        "description": "Round each numeric value down to a multiple of `interval` (floor, not nearest) and group by that scalar."
       },
       {
         "name": "op-group-set-per-element",
@@ -15546,19 +15546,19 @@
       },
       {
         "name": "op-win-lag",
-        "description": "Per-row value of Field from N rows earlier in the ordered partition."
+        "description": "Per-row value of the field from N rows earlier in the ordered partition."
       },
       {
         "name": "op-win-lead",
-        "description": "Per-row value of Field from N rows later in the ordered partition."
+        "description": "Per-row value of the field from N rows later in the ordered partition."
       },
       {
         "name": "op-win-lift",
-        "description": "Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift."
+        "description": "Lift of a field over a base — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift."
       },
       {
         "name": "op-win-moving-avg",
-        "description": "Moving average of Field over a bounded Frame; both ends must be set."
+        "description": "Moving average of the field over a bounded `frame`; both ends must be set."
       },
       {
         "name": "op-win-pct-change",
@@ -15574,11 +15574,11 @@
       },
       {
         "name": "op-win-running-avg",
-        "description": "Running average of Field over the configured Frame within the ordered partition."
+        "description": "Running average of the field over the configured `frame` within the ordered partition."
       },
       {
         "name": "op-win-running-sum",
-        "description": "Running total of Field over the configured Frame within the ordered partition."
+        "description": "Running total of the field over the configured `frame` within the ordered partition."
       },
       {
         "name": "op-win-share",
@@ -20905,7 +20905,7 @@
             {
               "name": "n_quantiles",
               "type": "int",
-              "description": "Number of equal-population quantile buckets requested (Group.Interval)."
+              "description": "Number of equal-population quantile buckets requested (the slot's interval)."
             },
             {
               "name": "method",
@@ -20940,7 +20940,7 @@
             {
               "name": "interval",
               "type": "float64",
-              "description": "Bucket width on the value axis (Group.Interval)."
+              "description": "Bucket width on the value axis (the slot's interval)."
             },
             {
               "name": "range_min",
@@ -20995,7 +20995,7 @@
             {
               "name": "precision",
               "type": "float64",
-              "description": "Rounding increment used as the bucket scalar (Group.Interval)."
+              "description": "Rounding increment used as the bucket scalar (the slot's interval)."
             },
             {
               "name": "edges",
@@ -22159,4 +22159,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5fbdd5cb70271d61e90de95e511bc0ffdfcbe555e3b6b9d8573cb4b741ce0cd7
+// golden-hash: b40ea61d2223a5d16826599735bdd68f92bb23046fe723abf170e1dbf43c6240

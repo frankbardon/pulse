@@ -30,11 +30,11 @@ Weighted: Σw·x / Σw.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-Scalar `float64`. Per-group when wired under a grouper.
+Scalar `float64` (a decimal string over `decimal128`). Per-group when wired under a grouper.
 
 ## Components
 

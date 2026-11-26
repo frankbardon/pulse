@@ -70,7 +70,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-agg-null-count`](skills/op-agg-null-count.md): Count records where the field is null. The inverse of a non-null count.
 - [`op-agg-percentile`](skills/op-agg-percentile.md): Configurable percentile of the field; requires sorting the full value set.
 - [`op-agg-range`](skills/op-agg-range.md): Spread (max minus min) of the field across the input set.
-- [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The Aggregation's own Field is required but never read.
+- [`op-agg-ratio`](skills/op-agg-ratio.md): Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is required and type-checked but never read.
 - [`op-agg-rmse`](skills/op-agg-rmse.md): Root mean squared error of a prediction against an actual — sqrt(mean((y - prediction)^2)).
 - [`op-agg-set-cardinality-avg`](skills/op-agg-set-cardinality-avg.md): Average popcount per contributing row — typical number of selections.
 - [`op-agg-set-cardinality-sum`](skills/op-agg-set-cardinality-sum.md): Sum of popcounts across contributing rows — total label selections seen.
@@ -93,9 +93,9 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-factor-score`](skills/op-attr-factor-score.md): Per-row score on one common factor of a vector of numeric members, from an inline fit with the factor-analysis matrix operator's knobs, loadings, order and sign; regression or Bartlett scores; fit_on fits on a subset and still scores every row.
 - [`op-attr-formula`](skills/op-attr-formula.md): Per-row expression evaluation against the record's fields via expr-lang.
 - [`op-attr-mahalanobis`](skills/op-attr-mahalanobis.md): Per-row Mahalanobis distance D² (or its chi-square p) across a vector of numeric members, from a cohort-wide fit; fit_on fits on a subset and still scores every row.
-- [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
+- [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized value — (value − min) / (max − min) ∈ [0, 1].
 - [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row.
-- [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
+- [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank against the post-filter value set; requires sorting.
 - [`op-attr-previous-state`](skills/op-attr-previous-state.md): Per-row previous state of a long panel — the state the same subject held at its previous time point, typed as the state field.
 - [`op-attr-profile-similarity`](skills/op-attr-profile-similarity.md): Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
@@ -107,9 +107,9 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-sem-score`](skills/op-attr-sem-score.md): Per-row score on one latent of a structural equation model fitted inline with the SEM matrix operator's knobs; lavaan's regression or Bartlett scores (empirical Bayes modal on an ordinal fit), each group scored with its own group's parameters; fit_on fits on a subset and still scores every row.
 - [`op-attr-set-has`](skills/op-attr-set-has.md): Per-row 0/1 — whether the configured label's bit is set on a set field.
 - [`op-attr-set-popcount`](skills/op-attr-set-popcount.md): Per-row popcount of a set field — number of selected labels.
-- [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score column — z-score rescaled to mean 50, stddev 10.
+- [`op-attr-tscore`](skills/op-attr-tscore.md): Per-row T-score — z-score rescaled to mean 50, stddev 10.
 - [`op-attr-vec-distance`](skills/op-attr-vec-distance.md): Per-row distance to a target profile — plain, set or fitted (std_euclidean, mahalanobis) metrics across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
-- [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford.
+- [`op-attr-zscore`](skills/op-attr-zscore.md): Per-row standardized z-score — (value − mean) / stddev via two-pass Welford.
 - [`op-feat-bucketize`](skills/op-feat-bucketize.md): Bin a numeric column into ordered buckets — explicit boundaries or N equal-population quantiles.
 - [`op-feat-date-features`](skills/op-feat-date-features.md): Expand a date or datetime field into year / month / day / day-of-week / quarter (+ hour) columns.
 - [`op-feat-frequency-encode`](skills/op-feat-frequency-encode.md): Replace each categorical value with its observed relative frequency in the cohort.
@@ -120,25 +120,25 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
 - [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows.
 - [`op-filter-date-ranges`](skills/op-filter-date-ranges.md): Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
-- [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied Values list.
+- [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied `values` list.
 - [`op-filter-expression`](skills/op-filter-expression.md): Keep records for which an expr-lang expression evaluates truthy against record fields.
-- [`op-filter-false`](skills/op-filter-false.md): Keep records where Field is logically false. Strict packed_bool by default; opt into JS falsiness.
-- [`op-filter-include`](skills/op-filter-include.md): Keep records whose field value appears in the supplied Values list.
+- [`op-filter-false`](skills/op-filter-false.md): Keep records where the field is logically false. Strict packed_bool by default; opt into JS falsiness.
+- [`op-filter-include`](skills/op-filter-include.md): Keep records whose field value appears in the supplied `values` list.
 - [`op-filter-null`](skills/op-filter-null.md): Keep or drop records based on null state of a field.
 - [`op-filter-range`](skills/op-filter-range.md): Keep records whose numeric field value falls within [low, high] inclusive.
 - [`op-filter-set-contains-all`](skills/op-filter-set-contains-all.md): Keep records whose set field has every bit in the supplied label mask set.
 - [`op-filter-set-contains-any`](skills/op-filter-set-contains-any.md): Keep records whose set field shares at least one bit with the supplied label mask.
 - [`op-filter-set-contains-none`](skills/op-filter-set-contains-none.md): Keep records whose set field shares no bits with the supplied label mask.
 - [`op-filter-set-equals`](skills/op-filter-set-equals.md): Keep records whose set field mask exactly equals the supplied label mask.
-- [`op-filter-true`](skills/op-filter-true.md): Keep records where Field is logically true. Strict packed_bool by default; opt into JS truthiness.
+- [`op-filter-true`](skills/op-filter-true.md): Keep records where the field is logically true. Strict packed_bool by default; opt into JS truthiness.
 - [`op-group-category`](skills/op-group-category.md): Partition records by exact field value; ideal for categorical fields.
 - [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 - [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
 - [`op-group-kmeans`](skills/op-group-kmeans.md): Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size.
 - [`op-group-numeric-ranges`](skills/op-group-numeric-ranges.md): Bucket numeric records by labeled half-open ranges [start, end); the range label becomes the bucket key.
 - [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
-- [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
-- [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
+- [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); `interval` sets the bucket width.
+- [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of `interval` (floor, not nearest) and group by that scalar.
 - [`op-group-set-per-element`](skills/op-group-set-per-element.md): Fan each row into one bucket per selected label (multi-key). Cardinality multiplies with set popcount.
 - [`op-group-set-value`](skills/op-group-set-value.md): Partition rows by the exact set mask — one bucket per unique combination; key = sorted labels joined with "|".
 - [`op-mat-collinearity`](skills/op-mat-collinearity.md): Collinearity check of candidate regression predictors (no response) — VIF and tolerance per predictor, Belsley's condition indices and variance-decomposition proportions (uncentered with the intercept, or centered), listwise or pairwise, weighted.
@@ -260,15 +260,15 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-distributed-lag`](skills/op-win-distributed-lag.md): Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, delayed, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 - [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
 - [`op-win-formula`](skills/op-win-formula.md): Row-local expression over a result row's columns and earlier windows' outputs — e.g. the ratio or gap of two share columns in a gains table.
-- [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
-- [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.
-- [`op-win-lift`](skills/op-win-lift.md): Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
-- [`op-win-moving-avg`](skills/op-win-moving-avg.md): Moving average of Field over a bounded Frame; both ends must be set.
+- [`op-win-lag`](skills/op-win-lag.md): Per-row value of the field from N rows earlier in the ordered partition.
+- [`op-win-lead`](skills/op-win-lead.md): Per-row value of the field from N rows later in the ordered partition.
+- [`op-win-lift`](skills/op-win-lift.md): Lift of a field over a base — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
+- [`op-win-moving-avg`](skills/op-win-moving-avg.md): Moving average of the field over a bounded `frame`; both ends must be set.
 - [`op-win-pct-change`](skills/op-win-pct-change.md): Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition.
 - [`op-win-rank`](skills/op-win-rank.md): Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition.
 - [`op-win-row-number`](skills/op-win-row-number.md): 1-based row index within the ordered partition; never ties.
-- [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of Field over the configured Frame within the ordered partition.
-- [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
+- [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of the field over the configured `frame` within the ordered partition.
+- [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of the field over the configured `frame` within the ordered partition.
 - [`op-win-share`](skills/op-win-share.md): Each row's share of its partition's total (x / Σx), or with cumulative the running share down the ordered rows — a capture curve.
 - [`overlay-formula-namespace`](skills/overlay-formula-namespace.md): What a formula overlay's expression can read on each host — the crosstab cell and margin variables, the grouped-series row variables and baseline position, the Compose slot paths — plus the functions it may call and every refusal code.
 - [`overlay-pairwise`](skills/overlay-pairwise.md): The contract shared by every intra-crosstab pairwise overlay kind — spec, the pair × opposite-axis p grid, the letters part, missing and degenerate pairs, weighted legs, proportion-cell versus moment-cell hosts and fusion.

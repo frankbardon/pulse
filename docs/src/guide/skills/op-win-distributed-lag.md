@@ -38,11 +38,11 @@ Each numeric param also takes an expression (`"params.d"`), range-checked; `max_
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
-`y_i = Σ_l w_l · x_{i−l}`, one `float64` per row in `Label`.
+`y_i = Σ_l w_l · x_{i−l}`, one `float64` per row in `label`.
 
 ## Reading the output
 

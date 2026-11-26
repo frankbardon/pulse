@@ -164,7 +164,7 @@
             "u64",
             "u8"
           ],
-          "emits_type_note": "scalar float64",
+          "emits_type_note": "scalar float64 (decimal128 input yields a decimal-scaled result)",
           "streamable": true,
           "component_schema": {
             "keys": [
@@ -412,7 +412,7 @@
         {
           "name": "FILTER_INCLUDE",
           "category": "filterer",
-          "description": "Keep records whose field value appears in the supplied Values list.",
+          "description": "Keep records whose field value appears in the supplied values list.",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -459,7 +459,7 @@
         {
           "name": "FILTER_RANGE",
           "category": "filterer",
-          "description": "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+          "description": "Keep records whose numeric field value falls within [low, high]; values = [low, high].",
           "params": null,
           "accepts_types": [
             "date",
@@ -559,7 +559,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. The slot's include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -1499,7 +1499,7 @@
       },
       {
         "name": "op-filter-include",
-        "description": "Keep records whose field value appears in the supplied Values list."
+        "description": "Keep records whose field value appears in the supplied `values` list."
       },
       {
         "name": "op-filter-range",
@@ -2487,4 +2487,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d662ca7987db6c8ad2d188eb927651daf798a9f4a3dfbc9e624c987893c57345
+// golden-hash: 62fdbb729e157074d02d28c42d9e0e24b2cd751543f3741cfbda944aa1407ea3

@@ -27,13 +27,13 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `confidence` | float | 0.95 | Confidence level in (0, 1). |
-| `method` | string | `"normal"` | `"normal"` (Welford-streamable) today; `"bootstrap"` reserved. |
+| `method` | string | `"normal"` | `"normal"` (Welford-streamable); `"bootstrap"` is refused. |
 
 Bound = mean ∓ z·√(s²/n), z = `qnorm(1 − α/2)`. Weight (both kinds; `"weight": null` opts out): weighted mean, s² on w* = w·N*/Σw, stderr √(s²/N*), N* = Σw (`frequency`) or Kish n_eff (`probability`); same z. Invalid weights excluded and warned.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -64,7 +64,7 @@ Scalar `float64` — lower CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null
 
 - Normal z, not t: small samples get narrower intervals than t.
 - `n < 2` (weighted N* ≤ 1) → NaN (no variance estimate).
-- `"bootstrap"` method returns `PROCESSING_CONFIG` until the buffered follow-up lands.
+- `"bootstrap"` → `PROCESSING_CONFIG` at run time; predict passes it.
 
 ## See
 

@@ -23,11 +23,11 @@ Slots: `field` (required, numeric), `order_by` (≥1, any type but `set_*` (`PUL
 
 ## Inputs
 
-`Field`: numeric; types in `## Contract`.
+`field`: numeric; types in `## Contract`.
 
 ## Output
 
-One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at `periods` back — the field's OWN units (points), never a ratio. Rows `i < periods` are `null`.
+One `float64` per row on `label` (default `WIN_DELTA_<field>`). `cur - prev` at `periods` back — the field's OWN units (points), never a ratio. Rows `i < periods` are `null`.
 
 <!-- generated: reading-the-output -->
 
@@ -37,7 +37,7 @@ One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at 
 
 - **A zero prior is a REAL delta, not a null.** A percent change nulls it because the division is undefined; subtraction has no such case, so `prev == 0` emits `cur`.
 - A `frame` is refused `PULSE_WINDOW_INVALID` by predict AND at construction, like every frame-less window.
-- `periods <= 0` rejected (`PULSE_WINDOW_INVALID`); either side null → `null`; rows NOT reordered (`Request.Sort`); buffered.
+- `periods <= 0` rejected (`PULSE_WINDOW_INVALID`); either side null → `null`; rows NOT reordered (`sort`); buffered.
 
 ## See
 

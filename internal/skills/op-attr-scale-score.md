@@ -25,7 +25,7 @@ Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` 
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 

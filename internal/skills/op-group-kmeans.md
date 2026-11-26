@@ -21,7 +21,7 @@ examples_tags: [multivariate, buffered-pipeline]
 | `n_init` | int | `10` | Seeded starts; lowest within-SS wins. |
 | `standardize` | bool | `true` | z-score each member first. |
 | `missing` | enum | `listwise` | `listwise` only. |
-| `fit` | enum | `global` | `global` (once over the filtered set) or `within` (refit per bucket of the earlier groupers; no-op outermost): each refit is a Components `buckets` entry, warns with `details.group_key`; k above a bucket's distinct tuples fails it alone (`PULSE_SLOT_FAILED`). |
+| `fit` | enum | `global` | `global` (once over the filtered set) or `within` (refit per bucket of the earlier groupers; no-op outermost): each refit is a components `buckets` entry, warns with `details.group_key`; k above a bucket's distinct tuples fails it alone (`PULSE_SLOT_FAILED`). |
 
 `weight`: frequency only (a row is w points).
 
@@ -29,7 +29,7 @@ Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` 
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`.
+Members: see `## Contract`.
 
 ## Output
 

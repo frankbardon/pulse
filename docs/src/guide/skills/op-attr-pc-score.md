@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, streaming-friendly]
 ```
 
-Row-level scalars; no `Response.Components`.
-
 ## Use when
 
 Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share.
@@ -44,7 +42,7 @@ Slot: `vector` or `fields`, no `field` ([`vector-row-scores`](vector-row-scores.
 
 ## Inputs
 
-Members: see `## Contract`; source columns only.
+Members: see `## Contract`; schema fields only.
 
 ## Output
 

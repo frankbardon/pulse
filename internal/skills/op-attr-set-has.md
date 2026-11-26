@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [feature-engineering, streaming-friendly]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -21,9 +19,9 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`.
+`field` — admitted types: see `## Contract`.
 
-- `Label` (the new column name) — required
+- `label` (slot) — derived field name, default `ATTR_SET_HAS_<field>`; `params.label` is the dictionary label
 
 ## Output
 
@@ -34,7 +32,7 @@ One `packed_bool` per record — `1` if the named label's bit is set, `0` otherw
 ## Gotchas
 
 - Row-local one-pass — streams cleanly; merges (shards, parallel decode, chain stages).
-- Unknown `label` (not in the field's dictionary) → `PROCESSING_CONFIG`.
+- `params.label` not in the field's dictionary → `PROCESSING_CONFIG` at run time; predict passes it.
 - Frequently fanned out — one slot per label of interest — to build per-label binary cohorts. Multi-label tests are cheaper as one set filter<!-- feature: ATTR_FORMULA --> or one `ATTR_FORMULA` using `has_any` / `has_all`<!-- /feature -->.
 - Coerces to `f64` (1.0 / 0.0) when read by downstream numeric ops.
 

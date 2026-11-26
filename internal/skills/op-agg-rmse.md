@@ -15,15 +15,15 @@ examples_tags: [regression, compose]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `prediction_field` | field | (required) | The predicted column (typically<!-- feature: ATTR_REG_PREDICT --> an `ATTR_REG_PREDICT`<!-- /feature --> score column). |
+| `prediction_field` | field | (required) | The predicted field (typically<!-- feature: ATTR_REG_PREDICT --> an `ATTR_REG_PREDICT`<!-- /feature --> label). |
 
-Missing is `PROCESSING_CONFIG`; a non-numeric column on either side (categorical, set, date, datetime) `PULSE_FIELD_TYPE_UNSUPPORTED`, a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
+Missing is `PROCESSING_CONFIG`; a categorical, set, date or datetime field on either side, or a `decimal128` prediction, `PULSE_FIELD_TYPE_UNSUPPORTED`; a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
 
-<!-- feature: capability:weighting -->Weight-aware: √(Σw·(y − ŷ)² / Σw), the root of the pooled MSE. A `decimal128` side under a weight → `PULSE_WEIGHT_UNSUPPORTED`.<!-- /feature -->
+<!-- feature: capability:weighting -->Weight-aware: √(Σw·(y − ŷ)² / Σw), the root of the pooled MSE. A `decimal128` actual under a weight → `PULSE_WEIGHT_UNSUPPORTED`.<!-- /feature -->
 
 ## Inputs
 
-`Field` is the actual: u4–u64, f32/f64, packed_bool. No train/holdout param — split with a filter or<!-- feature: GROUP_RANGE --> `GROUP_RANGE`<!-- /feature --> range grouper.
+`field` is the actual: u4–u64, f32/f64, packed_bool. No train/holdout param — split with a filter or<!-- feature: GROUP_RANGE --> `GROUP_RANGE`<!-- /feature --> range grouper.
 
 ## Output
 

@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [outlier-detection, multivariate, streaming-friendly]
 ---
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -29,7 +27,7 @@ Slot: `vector` or `fields`, no `field` (`vector-row-scores`). Default label `ATT
 
 ## Inputs
 
-Members: see `## Contract` (`packed_bool` via `coerce: binary`); source columns only.
+Members: see `## Contract` (`packed_bool` via `coerce: binary`); schema fields only.
 
 ## Output
 

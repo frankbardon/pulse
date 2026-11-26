@@ -1,6 +1,6 @@
 ---
 name: op-attr-zscore
-description: Per-row standardized z-score column — (value − mean) / stddev via two-pass Welford.
+description: Per-row standardized z-score — (value − mean) / stddev via two-pass Welford.
 kind: operator
 category: ATTR
 operator: ATTR_ZSCORE
@@ -8,8 +8,6 @@ type: reference
 applies_to: process, compose, predict
 examples_tags: [outlier-detection, distribution-shape, buffered-pipeline]
 ---
-
-Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 <!-- generated: use-when -->
 
@@ -19,9 +17,9 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
-- `Label` — required — new column name
+- `label` — derived field name; default `<TYPE>_<field>`
 
 ## Output
 
@@ -34,7 +32,7 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 ## Gotchas
 
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.
-- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`; the run warns `PULSE_ATTR_ZERO_SPREAD` (details `n`, `spread: stddev`, `reason` `constant` / `single_value` / `no_mass` (no weighted mass)) — under Strict it fails with that code. Runtime only: predict cannot see the data.
+- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`; the run warns `PULSE_ATTR_ZERO_SPREAD` (details `n`, `spread: stddev`, `reason` `constant` / `single_value` / `no_mass` (no weighted mass)) — under `--strict` it fails with that code. Runtime only: predict cannot see the data.
 - Two-pass attributes are not mergeable: shard archives and parallel decode take the sequential shard iterator, walking every shard for both passes — global standardization.
 
 ## See

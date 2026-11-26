@@ -26,14 +26,14 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | int | 4 | Number of buckets; set on `Group.Interval`. 4 (quartiles), 10 (deciles), 100 (percentiles). |
-| `fit` | enum | `global` | `global`: cut once over the filtered set, any position. `within`: recut per bucket of the groupers before it (crosstab: rows, then columns); a no-op outermost. Each recut is a Components `buckets` entry (`group_key` = the outer bucket); the slot floor stays the whole-set cut. |
+| `interval` | int | 4 | Number of buckets; the slot's top-level `interval`, not `params`. 4 (quartiles), 10 (deciles), 100 (percentiles). |
+| `fit` | enum | `global` | `global`: cut once over the filtered set, any position. `within`: recut per bucket of the groupers before it (crosstab: rows, then columns); a no-op outermost. Each recut is a components `buckets` entry (`group_key` = the outer bucket); the slot floor stays the whole-set cut. |
 
 Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted order statistics (the weighted-percentile rule; `probability` rescaled to the row count). A heavy row spanning a cut lands whole in the higher bucket; `count` / `total_n` stay raw rows.
 
 ## Inputs
 
-`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -45,7 +45,6 @@ Bucket label per row (`Qk` / `Dk` / `Pk`). Rows emit in bucket order (`D1`, `D2`
 - `method` — Interpolation (`"linear"`)
 - `edges` — Sorted cutpoints
 - `buckets` — `{key, low, high, count}`
-- `BufferedComponents`: needs the sorted full input.
 
 ## Contract
 
@@ -57,7 +56,7 @@ Bucket label per row (`Qk` / `Dk` / `Pk`). Rows emit in bucket order (`D1`, `D2`
 ## Gotchas
 
 - Forces buffered execution — disables fused crosstab.
-- `Group.Include` on `groups` is refused (`PROCESSING_CONFIG`) — buckets are derived ranks; a crosstab axis keeps it for order.
+- `include` on `groups` is refused (`PROCESSING_CONFIG`) — buckets are derived ranks; a crosstab axis keeps it for order.
 
 ## See
 

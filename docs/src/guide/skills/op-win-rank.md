@@ -30,11 +30,11 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-- `Field` — must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only
+- `field` — must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only
 
 ## Output
 
-One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on every `order_by` key) share a rank; next distinct row advances by the tie count — `(1, 2, 2, 4, 5)`. Rank resets per partition.
+One integer per row written to `label` (default `WIN_RANK`). Ties (rows equal on every `order_by` key) share a rank; next distinct row advances by the tie count — `(1, 2, 2, 4, 5)`. Rank resets per partition.
 
 ## Reading the output
 
@@ -52,7 +52,7 @@ One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on
 
 - `order_by` defines BOTH scan order AND tie key — same field choice changes the answer.
 - Multiple `order_by` keys: tie only when ALL keys equal.
-- Result rows are NOT reordered — use `Request.Sort` for response order.
+- Result rows are NOT reordered — use `sort` for response order.
 
 ## See
 

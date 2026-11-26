@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [multivariate, feature-engineering, comparison]
 ```
 
-Row scalars; no `Response.Components`.
-
 ## Use when
 
 Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives.

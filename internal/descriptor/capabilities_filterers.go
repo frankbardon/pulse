@@ -61,7 +61,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_INCLUDE),
 			Category:        "filterer",
-			Description:     "Keep records whose field value appears in the supplied Values list.",
+			Description:     "Keep records whose field value appears in the supplied values list.",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_INCLUDE),
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
@@ -70,7 +70,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_EXCLUDE),
 			Category:        "filterer",
-			Description:     "Drop records whose field value appears in the supplied Values list.",
+			Description:     "Drop records whose field value appears in the supplied values list.",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_EXCLUDE),
 			EmitsTypeNote:   "record-level predicate (no emitted column)",
 			Streamable:      true,
@@ -79,7 +79,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_RANGE),
 			Category:        "filterer",
-			Description:     "Keep records whose numeric field value falls within [low, high]; Values=[low, high].",
+			Description:     "Keep records whose numeric field value falls within [low, high]; values = [low, high].",
 			AcceptsTypes:    fieldaccept.TypeNames(string(types.FILTER_RANGE), fieldaccept.SlotField),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -88,7 +88,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_EXPRESSION),
 			Category:        "filterer",
-			Description:     "Keep records for which Expression evaluates truthy; reads any record field.",
+			Description:     "Keep records for which the slot's expression evaluates truthy; reads any record field.",
 			AcceptsTypes:    allCohortFieldTypes,
 			ReadsExpression: true,
 			EmitsTypeNote:   "record-level predicate",
@@ -98,7 +98,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_NULL),
 			Category:        "filterer",
-			Description:     "Keep records based on null state of Field. Values=[\"is_null\"] keeps null-valued records; Values=[\"is_not_null\"] keeps non-null records.",
+			Description:     "Keep records based on the null state of field. values [\"is_null\"] keeps null-valued records; values [\"is_not_null\"] keeps non-null records.",
 			AcceptsTypes:    allCohortFieldTypes,
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -107,7 +107,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_TRUE),
 			Category:        "filterer",
-			Description:     "Keep records where Field is logically true. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+			Description:     "Keep records where field is logically true. Strict mode (default, omit values) requires packed_bool. Opt into JavaScript-style coercion across any field type with values [\"truthy\"].",
 			AcceptsTypes:    nonVectorFieldTypes,
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -116,7 +116,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_FALSE),
 			Category:        "filterer",
-			Description:     "Keep records where Field is logically false. Strict mode (default, omit Values) requires packed_bool. Opt into JavaScript-style coercion across any field type with Values=[\"truthy\"].",
+			Description:     "Keep records where field is logically false. Strict mode (default, omit values) requires packed_bool. Opt into JavaScript-style coercion across any field type with values [\"truthy\"].",
 			AcceptsTypes:    nonVectorFieldTypes,
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -125,7 +125,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.FILTER_DATE_RANGES),
 			Category:    "filterer",
-			Description: "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride Params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
+			Description: "Keep records whose date field falls inside any of a validated set of labeled date ranges; ranges ride params ({ranges:[{label,start,end}]}). A datetime field is truncated to its local calendar day in the resolved zone (slot tz / request time_zone, or the row's tz_field zone; UTC when none applies) before matching; range bounds are local days. Null dates and out-of-range rows are dropped.",
 			Params: []descriptor.Param{
 				{Name: "ranges", Type: "array", Required: false, Description: "Ordered list of {label, start, end} labeled date ranges (ISO date literals; an omitted bound is open; inclusive; non-overlapping, distinct labels). Give exactly one of ranges and table."},
 				{Name: "table", Type: "string", Required: false, Description: "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to filter by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."},
@@ -138,7 +138,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_SET_CONTAINS_ANY),
 			Category:        "filterer",
-			Description:     "Keep records where the set field shares at least one bit with the supplied Values labels.",
+			Description:     "Keep records where the set field shares at least one bit with the supplied values labels.",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_ANY),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -147,7 +147,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_SET_CONTAINS_ALL),
 			Category:        "filterer",
-			Description:     "Keep records where the set field has every bit in the supplied Values labels set.",
+			Description:     "Keep records where the set field has every bit in the supplied values labels set.",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_ALL),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -156,7 +156,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_SET_CONTAINS_NONE),
 			Category:        "filterer",
-			Description:     "Keep records where the set field shares no bits with the supplied Values labels (null rows pass).",
+			Description:     "Keep records where the set field shares no bits with the supplied values labels (null rows pass).",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_CONTAINS_NONE),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,
@@ -165,7 +165,7 @@ func filtererCapabilities() []descriptor.Operator {
 		{
 			Name:            string(types.FILTER_SET_EQUALS),
 			Category:        "filterer",
-			Description:     "Keep records whose set field mask exactly matches the supplied Values labels.",
+			Description:     "Keep records whose set field mask exactly matches the supplied values labels.",
 			AcceptsTypes:    tableAcceptsTypes(types.FILTER_SET_EQUALS),
 			EmitsTypeNote:   "record-level predicate",
 			Streamable:      true,

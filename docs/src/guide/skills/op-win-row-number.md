@@ -31,11 +31,11 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-- `Field` — must be empty / omitted — no value field is read
+- `field` — must be empty / omitted — no value field is read
 
 ## Output
 
-One `int64` per row written to `Label` (default `WIN_ROW_NUMBER`). Counts `1, 2, 3, ...` in scan order, resets per partition. NEVER ties — row order is stable (nulls last) on the `order_by` comparator.
+One integer per row written to `label` (default `WIN_ROW_NUMBER`). Counts `1, 2, 3, ...` in scan order, resets per partition. NEVER ties — row order is stable (nulls last) on the `order_by` comparator.
 
 ## Contract
 
@@ -47,7 +47,7 @@ One `int64` per row written to `Label` (default `WIN_ROW_NUMBER`). Counts `1, 2,
 
 - Ties on `order_by`: ROW_NUMBER picks a deterministic but arbitrary order.
 - Common top-N idiom: `WIN_ROW_NUMBER` partitioned by group, then a range filter on the label `[1, N]`. Filters run BEFORE windows, and a chain stage refuses windows: write the label first with `pulse_materialize` ([`derived-cohorts`](derived-cohorts.md)), then filter the new cohort.
-- Result rows are NOT reordered — use `Request.Sort` for response order.
+- Result rows are NOT reordered — use `sort` for response order.
 
 ## See
 
