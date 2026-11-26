@@ -35,10 +35,10 @@ record byte(s) and resolve to the string at that index.
 | `categorical_u16` | 65,536       | 2 |
 | `categorical_u32` | 4,294,967,295 | 4 |
 
-The import path samples the source (`--sample-rows`, default 500) to
-estimate cardinality and picks the smallest width that fits. You can
-also force a width by editing the schema template (`pulse import
-schema-template SOURCE`).
+Inference samples the source (`--sample-rows`, default 500), picks the
+smallest width that fits and promotes it if later rows outgrow it. To
+force a width, edit the schema template (`pulse import schema-template
+SOURCE`) and import with `--schema`.
 
 ## Set fields share the block, not the capacity
 
@@ -66,36 +66,29 @@ variable-width set type.
 
 ## Overflow and unbounded errors
 
-`AddWithLimit` enforces the per-type cap and returns
-`PULSE_IMPORT_CATEGORICAL_OVERFLOW` when the source has more distinct
-values than the dictionary can hold:
+What happens when a column outgrows its dictionary depends on where its
+type came from:
 
-```json
-{
-  "code": "PULSE_IMPORT_CATEGORICAL_OVERFLOW",
-  "message": "categorical dictionary overflow: max 256 entries",
-  "details": {"max_entries": 256, "value": "the_257th_distinct_string"}
-}
-```
-
-The companion code `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` fires when the
-import path detects an effectively unbounded categorical column (the
-schema declared `categorical_u32` and the column still grew past the
-caller-provided guardrails). Both errors halt the import — fail-closed,
-no partial output.
-
-Recovery options, in order of preference:
-
-1. Re-import with a wider categorical type
-   (`categorical_u8` → `categorical_u16` → `categorical_u32`).
-2. Drop the categorical encoding (treat the column as a plain string
-   field — but Pulse has no native variable-string type; you'd add a
-   pre-import transform to bucket values).
-3. Pre-filter the source to a smaller distinct set and re-import.
+- **Inferred** (`import <format>` without `--schema`, `import auto`,
+  `convert`): the rung promotes `categorical_u8` → `u16` → `u32` and
+  warns `PULSE_IMPORT_WIDTH_PROMOTED`
+  ([Width promotion](../cli/flags.md#width-promotion-inferred-imports-and-converts)).
+  Only a dictionary past `categorical_u32` refuses the import.
+- **Declared** (`--schema`, an SPSS schema): a value past the cap is
+  `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, and its row is skipped as a
+  `PULSE_IMPORT_ROW_ERROR`. The good rows are written with a
+  `PULSE_IMPORT_ROWS_DROPPED` warning; `--strict` makes it fatal and
+  writes nothing ([`--strict`](../cli/flags.md#--strict-import)). Fix it
+  by declaring a wider rung.
+- **All sampled values unique:** inference refuses the column with
+  `PULSE_IMPORT_CATEGORICAL_UNBOUNDED` (an ID or free-text column, not a
+  category). Pulse has no variable-width string type: drop or bucket
+  the column before import, or raise `--sample-rows` if its cardinality
+  really is bounded.
 
 ## Inspect behaviour
 
-`pulse cohort inspect --json` reports each categorical field's
+`pulse cohort inspect --json` reports each categorical and set field's
 dictionary entry count and sample values. By default the inline list
 is capped at 100 entries (`DefaultDictionaryLimit`); pass `--full-dict`
 to print the full dictionary:
@@ -109,11 +102,10 @@ count for programmatic consumers.
 
 ## Performance notes
 
-Dictionary reads are amortised: the reader allocates one shared byte
-buffer for all string payloads, then does one `string(...)` copy per
-entry. This avoids the "one allocation per entry" overhead that
-naively reading length-prefixed strings would produce. The dictionary
-itself is held in memory for the life of the cohort's schema parse.
+The reader reads every label into one reused scratch buffer and copies
+it once into a string, so decoding a dictionary costs one allocation per
+entry and no per-entry read buffer. A forged count over a short tail
+fails `ENCODING_INVALID` after allocating only for the bytes present.
 
 For very large dictionaries, the `categorical_u32` path is still O(N)
 to deserialise; if you find yourself near the 32-bit cap, you almost

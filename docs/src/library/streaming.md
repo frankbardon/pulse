@@ -100,12 +100,8 @@ if !pred.Streamable {
 }
 ```
 
-The streaming-eligible request shapes are listed in
-[Performance Notes → Streaming path](../ops/performance.md#streaming-path-what-stays-out-of-memory).
-
-The complement — the request shapes that force the buffered path —
-is at [Performance Notes → Buffered
-path](../ops/performance.md#buffered-path-when-pulse-has-to-materialise).
+Which request shapes stream and which force the buffered path:
+[Performance Notes → Streaming or buffered](../ops/performance.md#streaming-or-buffered).
 
 `Streamable=false` doesn't mean the iterator is broken; it just
 means rows materialise inside the engine before `Next` yields them.

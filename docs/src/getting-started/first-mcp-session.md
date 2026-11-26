@@ -14,7 +14,7 @@ one JSON-RPC line per request on stdout:
     '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"shell","version":"0"}}}' \
     '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-  sleep 2; } | pulse mcp | cut -c1-200
+  sleep 2; } | pulse mcp | cut -c1-240
 ```
 
 The first line names the server (`"serverInfo":{"name":"pulse",…}`) and

@@ -2,11 +2,10 @@
 
 **Audience:** anyone decoding a `.pulse` file by hand or writing a
 non-Go reader. The schema block follows the 9-byte
-[header](header.md) and carries one descriptor per column.
-
-> **From CLAUDE.md, byte-layout invariants for `.pulse` files,** plus
-> the on-disk format documented in
-> [`encoding/schema.go`](https://github.com/frankbardon/pulse/blob/main/encoding/schema.go).
+[header](header.md) and carries one descriptor per field. The
+authority is the layout comment on `WriteSchema` in
+[`encoding/schema.go`](https://github.com/frankbardon/pulse/blob/main/encoding/schema.go)
+and, for `0x02`, `encoding/group_wire.go`.
 
 ## Top-level shape
 
@@ -21,23 +20,32 @@ The layout depends on the header's [format version](header.md):
 `encoding.ReadSchema(r, version)` takes the version `ReadHeader`
 returned. A `0x01` block ends at the last field record. A `0x02` block
 appends a length-prefixed **schema extension block**, so the start of the
-record region is always derivable without understanding the payload. The
-payload is a list of tagged sections, each always REQUIRED and written in
-tag order: `1` GROUPS, the [parent-group](parent-groups.md) descriptors
+record region is always derivable without understanding the payload:
+
+```
+u16 section_count
+per section: u16 tag, u8 flags (bit 0 = REQUIRED, bits 1-7 reserved 0),
+             u64 section_length, section_length bytes
+```
+
+Three sections are defined, each always REQUIRED and written in
+ascending tag order, one per `0x02` feature the schema uses: `1` GROUPS, the [parent-group](parent-groups.md) descriptors
 and their dictionaries; `2` VECTORS, the dims of the `vec_*` fields
 ([Vector fields](field-types.md#vector-fields)); `3` ZONE, the cohort's
 default zone field (below). A schema is written at `0x02` exactly when
 it declares a group, a vector field or a default zone field. An
 unknown REQUIRED section is refused with `ENCODING_INVALID` rather than
-skipped, because its bytes change how records decode.
+skipped, because its bytes change how records decode; an unknown section
+without the flag is skipped. A repeated tag, a set reserved bit or a
+section not consumed exactly is `ENCODING_INVALID`.
 
 ### Cohort default zone (ZONE, tag 3)
 
 `encoding.Schema.ZoneField` names a field holding each row's time zone,
 the cohort's default for zone-aware operators. The section body is
 `u16 name_length` + the field's UTF-8 name, written only when a default
-is declared — a cohort without one is byte-identical to a file written
-before the section existed (a flat cohort stays `0x01`). The writer and
+is declared; a cohort without one carries no ZONE section (a flat
+cohort stays `0x01`). The writer and
 the reader hold it to one rule (`Schema.ValidateZoneField`): the field
 must exist (`ENCODING_INVALID`), be `categorical_u8` / `u16` / `u32`
 (`ENCODING_INVALID`), and every dictionary entry must be `"UTC"` or an
@@ -90,7 +98,8 @@ of the record stride.
 For every other type, `bit_position` is always `0`.
 
 `byte_offset` is a reader convenience, not the authority: record stride
-is derived from the type bytes alone (`Schema.RecordByteSize`).
+is derived from the schema (`Schema.FieldWidth`, summed by
+`Schema.RecordByteSize`).
 
 Record layout mechanics — the bit-packing rule, record-size
 computation and the trailing null bitmap — are in
@@ -116,10 +125,10 @@ A field with none of the above writes nothing after the description.
 The description string is UTF-8 with a 2-byte length prefix. The
 import path rejects descriptions longer than 1000 bytes
 (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`) and warns on low-quality
-descriptions (empty, under 10 characters, or generic words like
-`"n/a"`, `"tbd"`, `"unknown"`, `"field"`, `"data"`, `"value"`,
-`"column"`) — that warning is `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`,
-upgraded to an error under `--strict`.
+descriptions (empty, or under 10 bytes once trimmed, which catches
+placeholders such as `"n/a"` and `"tbd"`). That warning is
+`PULSE_FIELD_DESCRIPTION_LOW_QUALITY`, upgraded to an error under
+`--strict`.
 
 When the description is empty, `pulse cohort inspect` synthesises a
 fallback string (`Categorical field: <name>` or `Numeric field:
@@ -137,7 +146,7 @@ bytes on disk remain empty.
   naming a missing or non-categorical field fail loud
   (`ENCODING_INVALID`); a ZONE field entry that is not a valid zone is
   `PULSE_TIMEZONE_UNKNOWN`.
-- Truncated records fail loud at the first short read.
+- A truncated schema block fails loud at the first short read.
 - The reader produces a `*encoding.Schema` with one
   `encoding.Field` per record; `Schema.Field(name)` looks fields up by
   name.

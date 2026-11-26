@@ -58,7 +58,9 @@ prints it.
 - A revision is **not dropped** within v1 without a documented
   deprecation first: a release note and a row on this page marking it
   deprecated, at least one minor release before the release that drops
-  it. The MCP row of the v1 stability policy states the same promise.
+  it. The MCP row of the
+[v1 stability policy draft](https://github.com/frankbardon/pulse/blob/main/docs/roadmap/v1.0.0-api-and-release/02-stability-policy.md)
+states the same promise.
 
 Tool names, input fields, resource URI schemes and prompt names follow
 the stability policy independently of the protocol revision.

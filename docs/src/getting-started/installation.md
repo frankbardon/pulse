@@ -66,7 +66,7 @@ make build      # binary at ./bin/pulse
 ## Set the data directory
 
 `PULSE_DATA_DIR` is the one required environment variable: `pulse mcp`
-refuses to start without it and serves the cohorts under it. The other
+refuses to start without it (or `--data-dir`) and serves the cohorts under it. The other
 CLI commands resolve paths against the working directory, so the next
 pages work inside the data directory:
 

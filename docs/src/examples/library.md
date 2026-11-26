@@ -1,6 +1,6 @@
 # Request Example Library
 
-Pulse ships a searchable, embedded catalogue of runnable request JSON files
+Pulse ships a searchable, embedded library of runnable request JSON files
 spanning every operator category. They are checked into the repo
 under `internal/examples/`, mounted into the binary at compile time via `//go:embed`,
 and surfaced through three peer access paths:
@@ -120,22 +120,14 @@ carries that.
 
 ## Adding a new example
 
-1. Write the request JSON under `internal/examples/<category>/`. Use existing files as
-   shape templates. Keep `cohort.data_dir = ".data"` and reference one of the
-   fixture cohorts.
-2. Add a `_meta` block at the top of the file:
-   - `name` — kebab-case-with-underscores, unique across the whole library.
-   - `category` — must match the parent directory.
-   - `tags` — pick 3-6 from the taxonomy above.
-   - `operators` — the list of `AGG_* / ATTR_* / FILTER_* / GROUP_* / WIN_* / FEAT_* / TEST_*` types appearing in the body, alphabetized and deduped.
-   - `description` — one-sentence, present-tense summary.
-3. Re-run `go test ./internal/examples/... ./internal/descriptor/...` to confirm the new file passes:
-   - `TestExamples_AllParseAsRequest`
-   - `TestExamples_UniqueNames`
-   - `TestExamples_TagsFromTaxonomy`
-   - `TestExamples_OperatorsMatchBody`
-   - `TestExamples_CategoryMatchesDirectory`
-   - `TestManifestExamplesPopulated`
-4. Keep the `_meta` block in sync by hand when the body changes —
-   `TestExamples_OperatorsMatchBody` fails the moment `operators` drifts
-   from the types the request actually uses.
+Write the request under `internal/examples/<category>/` against one of the
+fixture cohorts (`cohort.data_dir = ".data"`) and give it a `_meta` block:
+`name` (snake_case, unique), `category` (the directory), `tags` from the
+taxonomy above, `operators` (every operator type in the body, alphabetized),
+`intents` and a one-sentence `description`. Every key and its rule is in
+[`internal/examples/README.md`](https://github.com/frankbardon/pulse/blob/main/internal/examples/README.md)
+("The `_meta` block"). Then run
+`go test -count=1 ./internal/examples/... ./internal/descriptor/...`; the
+`TestExamples_*` gates (`TestExamples_DecodeStrictly`,
+`TestExamples_OperatorsMatchBody`, `TestExamples_IntentsFromTaxonomy`, …)
+name any key that is wrong.
