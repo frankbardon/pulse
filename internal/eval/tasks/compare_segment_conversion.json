@@ -1,0 +1,17 @@
+{
+  "id": "compare_segment_conversion",
+  "intent": "compare_groups",
+  "question": "In the experiment data, does the share of people who converted differ between the three user segments, or could the gaps be luck?",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "tests": [{"type": "TEST_CHISQ", "rows": "segment", "cols": "converted"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["TEST_CHISQ", "TEST_FISHER_EXACT", "OVERLAY_CHISQ_MATRIX"]},
+    {"kind": "value", "key": "p_value", "max": 0.001}
+  ]
+}

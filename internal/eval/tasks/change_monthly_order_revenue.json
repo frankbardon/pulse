@@ -1,0 +1,20 @@
+{
+  "id": "change_monthly_order_revenue",
+  "intent": "change_over_time",
+  "question": "How did total order revenue move month by month through 2025, and which month was the best?",
+  "cohorts": ["orders"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "orders.pulse"},
+      "groups": [{"type": "GROUP_DATE", "field": "order_date", "params": {"frequency": "month"}}],
+      "aggregations": [{"type": "AGG_SUM", "field": "revenue"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["GROUP_DATE"]},
+    {"kind": "rows", "section": "data", "count": 12},
+    {"kind": "value", "section": "data", "metric": {"types": ["AGG_SUM"], "field": "revenue"}, "near": 16551.35, "tol": 1},
+    {"kind": "top", "section": "data", "metric": {"types": ["AGG_SUM"], "field": "revenue"}, "value": "2025-07"}
+  ]
+}

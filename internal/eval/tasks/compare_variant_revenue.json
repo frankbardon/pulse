@@ -1,0 +1,17 @@
+{
+  "id": "compare_variant_revenue",
+  "intent": "compare_groups",
+  "question": "In our A/B experiment, did people in the variant arm bring in more revenue than people in the control arm, by more than chance would explain?",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "tests": [{"type": "TEST_T", "field": "revenue", "split_by": "treatment"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["TEST_T", "TEST_WELCH", "TEST_Z_TWO_SAMPLE", "TEST_MANN_WHITNEY_U"]},
+    {"kind": "value", "section": "tests", "key": "p_value", "max": 0.05}
+  ]
+}

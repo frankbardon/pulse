@@ -1,0 +1,18 @@
+{
+  "id": "drivers_session_minutes_effect",
+  "intent": "drivers",
+  "question": "Once you account for how much someone spent before the experiment, how much extra revenue does each additional minute of session time bring, and is that real?",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "regressions": [{"type": "REG_OLS", "target": "revenue", "predictors": ["session_minutes", "revenue_before"]}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["REG_OLS", "REG_GLM", "REG_BAYES_LINEAR"]},
+    {"kind": "value", "section": "regressions", "key": "coefficients.session_minutes", "min": 0.08, "max": 0.47},
+    {"kind": "value", "section": "regressions", "key": "p_values.session_minutes", "max": 0.05}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "relationship_prior_spend",
+  "intent": "relationship",
+  "question": "Do people who spent more before the experiment also tend to spend more during it, and how strong is that link?",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "tests": [{"type": "TEST_PEARSON_R", "field": "revenue_before", "field2": "revenue"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["TEST_PEARSON_R", "TEST_SPEARMAN_R", "TEST_KENDALL_TAU", "MAT_CORRELATION"]},
+    {"kind": "any", "assertions": [
+      {"kind": "value", "section": "tests", "key": "statistic", "min": 0.85, "max": 1},
+      {"kind": "value", "section": "matrices", "min": 0.85, "max": 0.999}
+    ]}
+  ]
+}
