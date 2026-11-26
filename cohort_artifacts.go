@@ -69,7 +69,7 @@ func (p *Pulse) CohortArtifacts(ctx context.Context, cohort string) ([]string, e
 	}
 	idxName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `\.[0-9a-f]{16}(\.idx|` + regexp.QuoteMeta(encx.ArchiveBloomSetSuffix) + `)$`)
 	// A shard archive's per-shard files: "<base>#<shard>.<keyhash>.idx"
-	// (and a legacy ".bloom"); the shard name is never empty.
+	// (or a ".bloom"); the shard name is never empty.
 	shardName := regexp.MustCompile(`^` + regexp.QuoteMeta(base) + `#.+\.[0-9a-f]{16}(\.idx|` + regexp.QuoteMeta(encx.ShardBloomSuffix) + `)$`)
 
 	entries, err := afero.ReadDir(p.fsys, dir)

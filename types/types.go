@@ -132,7 +132,7 @@ const (
 	// AGG_WELFORD emits the streaming Welford-Pébaÿ triple — running
 	// mean, running sample variance (n-1 denominator), and observed
 	// count — over a numeric field. Returns the running mean through
-	// the legacy float64 contract and the typed WelfordTriple via the
+	// the scalar float64 contract and the typed WelfordTriple via the
 	// RichAggregator interface so overlay handlers (OVERLAY_T_CELL /
 	// OVERLAY_Z_CELL) can type-switch on the moment payload
 	// without re-deriving variance from raw rows. Streamable; mergeable
@@ -178,7 +178,7 @@ const (
 	// seen-mask sets.
 	AGG_SET_DISTINCT_VALUES AggregationType = "AGG_SET_DISTINCT_VALUES"
 
-	// Vector aggregators (U27). Each reads a vector input — the slot's
+	// Vector aggregators. Each reads a vector input — the slot's
 	// Vector (a Request.Vectors name) or inline Fields, never Field —
 	// and emits one figure PER MEMBER, in member order: a JSON array
 	// through the RichAggregator lift (ArrayValued). Missing data is per
@@ -1158,7 +1158,7 @@ type OrderKey struct {
 }
 
 // FrameSpec specifies the window frame bounds.
-// Mode is "rows" — only frame mode supported in v1.
+// Mode is "rows", the only supported frame mode.
 // Preceding nil means UNBOUNDED PRECEDING; Following nil means UNBOUNDED FOLLOWING.
 // Following==0 with Preceding==0 selects the current row only.
 type FrameSpec struct {
@@ -1669,8 +1669,8 @@ type Request struct {
 	Populations []PopulationRef `json:"populations,omitempty"`
 
 	// Joins describes pushdown hash-join legs attached to the primary
-	// cohort. v1 supports exactly one inner join per Request; multi-
-	// join chains and the left/outer/anti kinds land in a follow-up.
+	// cohort. A Request supports exactly one inner join; multi-join
+	// chains and the left/outer/anti kinds are refused.
 	// When set, the orchestrator opens each Right cohort, builds a
 	// hash table over the smaller side's join keys, and streams the
 	// larger side as the probe — joined records flow through the
@@ -1713,8 +1713,8 @@ type Request struct {
 	// `false` — the standard tri-state override pattern.
 	//
 	// When the resolved decision is "disabled", Response.Components stays
-	// nil and the wire form is byte-identical to the pre-Components
-	// baseline; format_version is not bumped. The gate sits at the
+	// nil and the response has no `components` key; format_version is
+	// unchanged. The gate sits at the
 	// processor's attach helpers, so the MetaAggregator.Components and
 	// MetaGrouper.Components construction work is skipped — not
 	// built-then-discarded.
@@ -1879,12 +1879,12 @@ type Response struct {
 	// the parity overlays, etc.) live on Components.
 	//
 	// Additive omitempty contract: the slot is `*ResponseComponents` so
-	// an unpopulated run marshals to no `components` key at all —
-	// byte-identical to the pre-Components wire form. Every nested
+	// an unpopulated run marshals to no `components` key at all. Every
+	// nested
 	// slice / pointer / map is `omitempty` for the same reason; an
 	// AGG-only run with no groupers omits `groupers`, a no-filter run
-	// omits `filterers`, etc. format_version stays at "1.0" because
-	// the slot is additive.
+	// omits `filterers`, etc. format_version is unchanged because the
+	// slot is additive.
 	Components *ResponseComponents `json:"components,omitempty"`
 
 	// Returned marks a response shaped by a non-identity `return`
@@ -1905,8 +1905,8 @@ type Response struct {
 // ResponseComponents carries the constituent-parts metadata emitted by
 // each operator slot during a processing run. Every nested field is
 // `omitempty` so partially populated runs (an AGG-only request, a
-// filter-free request, etc.) marshal to byte-identical wire output
-// against the pre-Components baseline. See Response.Components for the
+// filter-free request, etc.) marshal only the keys they populate. See
+// Response.Components for the
 // runtime-facts vs computational-components naming-collision note.
 //
 // Field-level semantics:

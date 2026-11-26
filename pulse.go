@@ -373,7 +373,7 @@ type Options struct {
 
 	// ShardDistinctLimit caps the keys a shard archive writer holds per
 	// field per shard while counting the exact distinct values it
-	// records in `_schema.pulse` (U73 #500; the DIST trailer: create,
+	// records in `_schema.pulse` (the DIST trailer: create,
 	// add, remove, compact and filter-to-file all write one). Counted
 	// fields are u32, u64, date, datetime, f32 and f64, on the stored
 	// bit pattern, nulls excluded. A shard's field with more distinct
@@ -1016,7 +1016,7 @@ func autoLabelPtrs(bindings []LabelBinding) []*types.LabelBinding {
 // purposes of facade methods. Anchors require an archive backing the
 // path; using `#` against a single-file `.pulse` raises
 // PULSE_ARCHIVE_MAGIC_INVALID. A literal `#` in a filename is not
-// supported in v1.
+// supported.
 //
 // Anchor parsing happens inside internal/service.Service.Open as well, so the
 // other facade methods (Process, Sample, Facet, ...) that receive an
@@ -1258,7 +1258,7 @@ type ChainResponse = types.ChainResponse
 // ProcessChain executes a source-rooted linear chain of Process
 // requests. The first stage runs against the cohort identified by
 // req.Cohort; each subsequent stage receives the previous stage's
-// rows as its input. All stages must be mergeable per the v1 chain
+// rows as its input. All stages must be mergeable per the chain
 // gate (an extension aggregator qualifies when its registration
 // declares Mergeable); a non-mergeable stage surfaces
 // PULSE_CHAIN_NOT_MERGEABLE with the offending stage index so the

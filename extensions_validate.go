@@ -28,7 +28,7 @@ import (
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
-// built-ins use the legacy two-segment form (AGG_COUNT, ATTR_ZSCORE)
+// built-ins use the two-segment form (AGG_COUNT, ATTR_ZSCORE)
 // and are exempt from this regex; they are registered statically by
 // the engine, not by embedders. A built-in whose own name happens to
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
@@ -582,7 +582,7 @@ func validateOperatorSlice[R any](
 		// Built-in collision check runs first: a registration that
 		// shadows a Pulse-shipped name is more informative as
 		// PULSE_EXTENSION_NAME_COLLISION than as a regex failure,
-		// even when the built-in itself uses the legacy two-segment
+		// even when the built-in itself uses the two-segment
 		// form (AGG_COUNT, ATTR_ZSCORE).
 		if _, dup := builtins[name]; dup {
 			return errors.NewCodedErrorWithDetails(
@@ -830,7 +830,7 @@ func validateAttributeModes(regs []AttributeRegistration) error {
 }
 
 // validateAttributeDictionaries checks each InheritsDictionary
-// declaration (U67 E3-S2):
+// declaration:
 //
 //   - PULSE_EXTENSION_PARAM_INVALID, reason dictionary_param_undeclared
 //     — a Param that names no declared ParamMeta, one whose JSONType is

@@ -160,7 +160,7 @@ type Manifest struct {
 	ErrorCodesCount int `json:"error_codes_count"`
 	// ErrorDomains is the alphabetized list of distinct domain prefixes
 	// (e.g. "CLI", "DATA", "ENCODING", "PROCESSING", "PULSE",
-	// "SERVICE"). One entry per domain, six entries in v1.
+	// "SERVICE"). One entry per domain.
 	ErrorDomains []string `json:"error_domains"`
 	// ErrorCodes is the alphabetized list of code identifiers.
 	// Per-code Message + Fixup prose lives behind the
@@ -194,8 +194,8 @@ type Manifest struct {
 	ProcessChain *ProcessChainCapability `json:"process_chain,omitempty"`
 
 	// Join is the pushdown hash-join capability descriptor (one
-	// entry today: hash_join). Carries the kind allowlist, spill
-	// envelope, and v1 limitations.
+	// entry: hash_join). Carries the kind allowlist, spill envelope,
+	// and limitations.
 	// Omitted (nil) when the instance does not offer capability:joins.
 	Join *JoinCapability `json:"join,omitempty"`
 
@@ -237,7 +237,7 @@ type Manifest struct {
 
 	// Matrix is the matrix-slot capability descriptor
 	// (Request.Vectors + Request.Matrices): encodings, matrix kinds,
-	// missing modes, the merge block size and the v1 limitations.
+	// missing modes, the merge block size and the limitations.
 	// Omitted (nil) when the instance does not offer
 	// capability:matrices.
 	Matrix *MatrixCapability `json:"matrix,omitempty"`

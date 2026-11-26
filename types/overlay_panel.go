@@ -75,7 +75,7 @@ type PanelOverlayParams struct {
 // ever refers to a pair axis. Every mode is read once per slot, at the
 // coordinate being tested, and the pairing happens afterwards.
 const (
-	// PanelNSourceRowMarginValue is the legacy default (empty means
+	// PanelNSourceRowMarginValue is the default (empty means
 	// this): the slot's per-row margin VALUE, read off the
 	// MatrixPayload's RowMargins by row key.
 	//
@@ -97,9 +97,8 @@ const (
 	// and is refused like any other.
 	//
 	// A missing or zero row margin is read as n = 0, so every pair
-	// involving that slot is NaN with PULSE_OVERLAY_REF_ZERO. The
-	// historical `<= 0` fall back to the cell value was removed (U08 E4
-	// statistics review, OS-11); see PanelNSourceFallsBackToCellValue.
+	// involving that slot is NaN with PULSE_OVERLAY_REF_ZERO; it never
+	// falls back to the cell value (see PanelNSourceFallsBackToCellValue).
 	PanelNSourceRowMarginValue = "row_margin_value"
 
 	// PanelNSourceCellNUnweighted is the COUNTED per-cell leg: the
@@ -121,7 +120,7 @@ const (
 	// CARRIER, and it is in the name. It reads exactly where
 	// PanelNSourceRowMarginValue reads — the margin CELL's value off
 	// MatrixPayload.RowMargins — so with NWithinDepth omitted it IS
-	// the legacy leg's number and the two agree byte-for-byte
+	// the row_margin_value leg's number and the two agree byte-for-byte
 	// wherever that margin is present. The `_within` suffix denotes
 	// the SCOPE (a within-prefix denominator, the same Pulse-W
 	// `normalize_within` notion CrosstabHostView.RowSlabN serves on
@@ -287,7 +286,7 @@ func PanelNSourcesUsingWithinDepth() []string {
 // PanelNSourceReadsComponents reports whether s reads
 // Response.Components.Crosstab on each slot rather than the
 // MatrixPayload. The handler's up-front per-slot components gate keys
-// off this predicate, so the gate is NOT applied to the legacy
+// off this predicate, so the gate is NOT applied to the
 // payload-read default — a panel that has never needed components must
 // not start refusing when a caller spells its existing behaviour out.
 func PanelNSourceReadsComponents(s string) bool {
@@ -312,15 +311,13 @@ func PanelNSourceReadsDistinctKeys(s string) bool {
 // PanelNSourceFallsBackToCellValue reports whether s substitutes the
 // CELL VALUE for a non-positive sample size.
 //
-// It is false for every mode. The legacy default (row_margin_value)
-// once borrowed the cell value for a missing or zero row margin; that
-// forced the slot's share to 1 and, against a slot with a real margin,
-// produced a finite and spuriously small p-value with no warning. The
-// U08 E4 statistics review (OS-11) removed the substitution on both
-// OVERLAY_PROP_Z_CELL and this panel: a missing margin now reads as
-// n = 0 and the prop-Z kernel reports each affected pair as NaN with
-// PULSE_OVERLAY_REF_ZERO. The predicate stays so existing callers keep
-// compiling, and so a future mode cannot quietly reintroduce the
+// It is false for every mode. Borrowing the cell value for a missing
+// or zero row margin would force the slot's share to 1 and, against a
+// slot with a real margin, produce a finite and spuriously small
+// p-value with no warning. Neither OVERLAY_PROP_Z_CELL nor this panel
+// substitutes: a missing margin reads as n = 0 and the prop-Z kernel
+// reports each affected pair as NaN with PULSE_OVERLAY_REF_ZERO. The
+// predicate exists so a new mode cannot quietly introduce the
 // substitution without changing it.
 //
 // The COUNTED modes and the within-prefix modes go further and SKIP

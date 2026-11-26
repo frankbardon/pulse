@@ -26,8 +26,7 @@ const (
 )
 
 // schemaReader buffers a schema-block decode without ever reading a
-// byte past the block's end — the first record byte (archive-storage
-// E5-S4, TODO #722). The block carries no total length (a 0x01 block has
+// byte past the block's end — the first record byte. The block carries no total length (a 0x01 block has
 // no prefix at all, and a 0x02 extension length does not cover the
 // inline dictionaries), so decoding it straight off a file handle cost
 // one read per primitive: two per inline dictionary entry, ~1.2M reads

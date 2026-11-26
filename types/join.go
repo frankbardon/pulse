@@ -6,19 +6,17 @@ package types
 // "left"/"outer"/"anti" kinds are reserved and return
 // PULSE_JOIN_KIND_NOT_IMPLEMENTED.
 //
-// Cardinality: at most one JoinSpec per Request in v1. Multi-join
-// chains will land when the orchestrator gains a per-join intermediate
-// state machine.
+// Cardinality: at most one JoinSpec per Request
+// (PULSE_JOIN_TOO_MANY).
 type JoinSpec struct {
 	// Right is the cohort path for the right side. Single-file `.pulse`,
 	// shard archive, or `archive#shard.pulse` anchor — same dispatch
 	// rules as the primary cohort path.
 	Right string `json:"right"`
 
-	// Kind selects the join semantic. "inner" (the only kind in v1)
-	// emits one joined record per matched (left, right) pair. The
-	// reserved kinds "left", "outer", "anti" will land once the null
-	// bitmap correctness path is fully wired.
+	// Kind selects the join semantic. "inner" (the only supported
+	// kind) emits one joined record per matched (left, right) pair. The
+	// reserved kinds "left", "outer", "anti" are refused.
 	Kind string `json:"kind,omitempty"`
 
 	// On lists the equi-join key pairs. At least one entry is required.

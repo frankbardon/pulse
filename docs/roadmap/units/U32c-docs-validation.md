@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32b]
 soft_depends_on: []
 blocks: [U33]
-todo_items: [166, 167, 775]
+todo_items: [166, 167, 775, 800, 801]
 branch: docs-validation
 ---
 
@@ -32,6 +32,8 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 - [ ] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
 - [ ] **#775** (11. Documentation audit) Restructure `.claude/reference/guided-analysis/explain-and-skills.md` for readability (dense one-paragraph bullets), keeping every rule and the slice ceiling
+- [ ] **#800** (11. Documentation audit) Name the referent of every "byte-identical" in `.claude/reference/` and `docs/src/library/`, or keep the idiom by decision and state the convention once
+- [ ] **#801** (11. Documentation audit) Rewrite the remaining public GoDoc history prose ("today", "future work", "was") to state the current contract only
 
 ## Scope
 
@@ -78,9 +80,11 @@ Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-validation/E
 
 ## Handed on from U32b
 
-Found in docs-content (E6-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
+Found in docs-content (E6-S4, E8-S5); full text in [`TODO.md`](../TODO.md); tick there when delivered.
 
 - [ ] **#775** — **`explain-and-skills.md` is accurate but hard to read**; restructure it without losing a rule or raising the ceiling.
+- [ ] **#800** — **"byte-identical" leaves its referent implicit** in the contributor reference pages; name it, or keep the idiom by decision.
+- [ ] **#801** — **public GoDoc still says "today" / "future work"**; rewrite those comments to the current contract.
 
 ## Notes
 

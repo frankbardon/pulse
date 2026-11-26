@@ -86,9 +86,9 @@ type CrosstabCapability struct {
 	Shapes []string `json:"shapes"`
 
 	// SummableAggregators is the alphabetized list of aggregator names
-	// whose margin equals the sum of cells. v1 recomputes every margin
-	// from raw rows for correctness; the classification is exposed so
-	// callers can reason about future fast-path optimizations.
+	// whose margin equals the sum of cells. Pulse recomputes every
+	// margin from raw rows for correctness; the classification tells a
+	// caller which margins could be summed from the cells.
 	SummableAggregators []string `json:"summable_aggregators"`
 	// MeanReducibleAggregators lists aggregators whose margin is
 	// derivable when each cell also carries its count.
@@ -116,8 +116,8 @@ type CrosstabCapability struct {
 	// SupportsNormalizeLevel reports whether the engine honors
 	// CrosstabSpec.NormalizeLevel — the depth-index selector that
 	// picks a parent grouper as the 100% denominator on nested row /
-	// column axes. Always true in v1; carried so clients can detect
-	// the feature without inferring it from CLI version.
+	// column axes. Always true; carried so clients can detect the
+	// feature without inferring it from the CLI version.
 	SupportsNormalizeLevel bool `json:"supports_normalize_level"`
 
 	// NormalizeLevelRules names the rejection rules specific to the
@@ -372,7 +372,7 @@ type FacetCapability struct {
 
 // JoinCapability describes the pushdown hash-join endpoint surfaced
 // by Request.Joins. The manifest carries one JoinCapability entry
-// under Manifest.Join so LLM clients can detect the v1 envelope
+// under Manifest.Join so LLM clients can detect the supported envelope
 // (inner-only, single-join) without inspecting the source.
 type JoinCapability struct {
 	// Name is the canonical identifier ("hash_join").
@@ -396,7 +396,7 @@ type JoinCapability struct {
 	// spill threshold. Set when the spill path lands.
 	SpillEnv string `json:"spill_env,omitempty"`
 
-	// Limitations lists the v1 envelope notes for LLM clients.
+	// Limitations lists the envelope notes for LLM clients.
 	Limitations []string `json:"limitations"`
 }
 
@@ -473,8 +473,7 @@ type MetricMeta struct {
 // OverlayCapability per types.AllOverlayKinds() entry under
 // Manifest.Overlays.
 //
-// Field shape mirrors the kind-catalog-v1 PRD §I-FR-I2 contract:
-// kind × supported shapes × supported scopes × valid ref kinds ×
+// Field shape: kind × supported shapes × supported scopes × valid ref kinds ×
 // buffered flag × description.
 type OverlayCapability struct {
 	// Kind is the on-wire SCREAMING_SNAKE OverlayKind value.
@@ -585,7 +584,8 @@ type RegressionMeta struct {
 	Description string `json:"description"`
 
 	// AcceptsTypes lists the schema field types valid as Target /
-	// Predictors entries (numeric only in v1).
+	// Predictors entries (the accepted-types table's predictor slot;
+	// categorical and set fields are refused).
 	AcceptsTypes []string `json:"accepts_types"`
 
 	// EmitsTypeNote describes the structured output (RegressionResult)
@@ -714,7 +714,7 @@ type MatrixOutputKeys struct {
 // MatrixCapability is the matrix-slot capability descriptor
 // (Manifest.Matrix): the Values encodings and matrix kinds a
 // MatrixResult can carry, the missing-data modes, the blocked-merge
-// block size and the v1 limitations. Omitted when the instance hides
+// block size and the limitations. Omitted when the instance hides
 // capability:matrices.
 type MatrixCapability struct {
 	// Name is the canonical identifier ("matrices").
@@ -738,7 +738,7 @@ type MatrixCapability struct {
 	// VectorKinds lists the vector kinds (VectorSpec.kind) in canonical
 	// order with the metric each defaults to per form.
 	VectorKinds []VectorKindMeta `json:"vector_kinds"`
-	// Limitations lists the v1 envelope notes for LLM clients.
+	// Limitations lists the envelope notes for LLM clients.
 	Limitations []string `json:"limitations"`
 }
 

@@ -90,20 +90,16 @@ How the lists work: `docs/src/contributing/doc-checks.md`.
 
 ## Epics & stories
 
-Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-content/E<n>-S<m>): …`; close each epic with `milestone(docs-content/E<n>): vertical slice complete — <epic title>`.
+Each story is one commit, `feat|fix|docs|test(docs-content/E<n>-S<m>): …`, with a checkpoint after each test group. Epic completion is recorded in the PR's story list, not in a milestone commit.
 
-### E1 — The baselines are empty
-- S1: burn down each U32 allowlist (link, snippet, help-parity, removed-name, coverage matrix)
-- S2: `TestDocsBaselinesEmpty` and the gate-table row
-
-### E2 — Everything says what v1 actually does
-- S1: accuracy and currency: mdBook, README / CONTRIBUTING / SECURITY / STABILITY, `.claude/reference/`
-- S2: accuracy and currency: skills, examples, MCP text, fixups, manifest, `Purpose` / `Interpretation` / glossary
-- S3: terminology and removed-name purge
-
-### E3 — New users and agents succeed on the first try
-- S1: Getting Started and the embedder guide
-- S2: library pages and the protocol-version page
+- **E1 — The checks see everything** (5 stories)
+- **E2 — The baselines are empty** (4 stories)
+- **E3 — New users and embedders succeed first try** (3 stories)
+- **E4 — Known gaps closed** (4 stories)
+- **E5 — Read: human docs** (7 stories)
+- **E6 — Read: contributor reference** (5 stories)
+- **E7 — Read: skills** (5 stories)
+- **E8 — Read: agent surfaces, close-out** (5 stories)
 
 ## Acceptance criteria
 
@@ -116,7 +112,15 @@ Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-content/E<n>
 
 ## Gates & tests
 
-- New: `TestDocsBaselinesEmpty`
+- New: `TestDocsBaselinesEmpty` — every allowlist under `internal/doccheck/allowlists/` is empty
+- New: `TestNoRemovedNamesInPromptsAndReference` (heavy) — no removed name in MCP prompts or the exported reference
+- New: `TestEmittedCodeLiteralsRegistered` — every error-code literal the code emits is registered
+- New: `TestRefusalMessagesUseWireKeys` — validator refusal messages name request keys as the wire spells them
+- New: `TestSupportedProtocolVersionsPinned` — the supported MCP protocol revisions match the pinned list and the protocol page
+- New: `TestInstallDocAssetNamesMatchRelease` — the install page's download table names exactly the release archives
+- New: `TestDocsExampleTagTableMatchesCanonicalTags` — the example-library tag table matches `CanonicalTags`
+- New: `TestCLIReferenceCurrent` — the generated CLI reference page matches the mounted command tree
+- New: `TestFlagUsageOneWordingPerName` — a flag name reads the same on every leaf that mounts it
 - Every U32 check, now with empty baselines
 
 ## Update Demand companions

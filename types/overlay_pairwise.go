@@ -20,7 +20,7 @@ type PairwiseOverlayParams struct {
 	PairAlongDim *int `json:"pair_along_dim,omitempty"`
 
 	// NSource selects where the sample-size leg is read. One of the
-	// PairwiseNSource* constants. Empty reads the cell's BASE (U47 #324):
+	// PairwiseNSource* constants. Empty reads the cell's BASE:
 	// under normalize none the cell itself (cell_n_unweighted, or N* on
 	// a weighted host); on a normalised host the denominator normalize
 	// divided the cell by — row / column / grand margin, or the
@@ -51,7 +51,7 @@ type PairwiseOverlayParams struct {
 	// of the PairwiseNBasis* constants. Read by no other kind.
 	NBasis string `json:"n_basis,omitempty"`
 
-	// Letters, when non-nil, asks for significance letters (U47 #327):
+	// Letters, when non-nil, asks for significance letters:
 	// the layer adds the payload part `letters` on the host coordinates —
 	// per cell of a compared pair-axis index its letter, its comparison
 	// group, the letters it is HIGHER than (the sign of each pair's test

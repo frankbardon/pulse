@@ -168,7 +168,7 @@ var (
 	cC = ConsumerCorrespondence
 )
 
-// registry is the v1 metric set, in canonical order.
+// registry is the metric set, in canonical order.
 var registry = []*definition{
 	{
 		name: "euclidean", family: FamilyPlain, direction: Distance, forms: []Form{Distance},

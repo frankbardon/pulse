@@ -727,8 +727,8 @@ const (
 	PULSE_DECIMAL_DIVIDE_BY_ZERO Code = "PULSE_DECIMAL_DIVIDE_BY_ZERO"
 
 	// PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL refuses a built-in aggregation
-	// with no decimal128 implementation (e.g., AGG_MEDIAN, AGG_PERCENTILE
-	// in v1) over a decimal128 field, at any aggregation slot. Predict and
+	// with no decimal128 implementation (e.g., AGG_MEDIAN, AGG_PERCENTILE)
+	// over a decimal128 field, at any aggregation slot. Predict and
 	// the runtime raise it alike (the accepted-types table's decimal
 	// rule); registered extension aggregators are exempt.
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
@@ -1286,9 +1286,7 @@ const (
 	PULSE_TEST_SHAPIRO_N_BOUND Code = "PULSE_TEST_SHAPIRO_N_BOUND"
 
 	// PULSE_TEST_FISHER_R_OR_C_GT_2 indicates a Fisher exact request on
-	// a contingency table larger than 2×2. The v1 implementation
-	// supports only 2×2; the network algorithm needed for r×c lands
-	// later.
+	// a contingency table larger than 2×2. Only 2×2 is supported.
 	PULSE_TEST_FISHER_R_OR_C_GT_2 Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
 
 	// PULSE_EXTENSION_NAME_INVALID indicates an embedder registration
@@ -2239,10 +2237,8 @@ const (
 	PULSE_JOIN_TYPE_MISMATCH Code = "PULSE_JOIN_TYPE_MISMATCH"
 
 	// PULSE_JOIN_KIND_NOT_IMPLEMENTED indicates a join spec whose Kind
-	// is reserved but not yet implemented ("left", "outer", "anti").
-	// v1 supports "inner" (and empty == "inner"); the remaining kinds
-	// land once the null bitmap correctness path is fully wired for
-	// outer-join fills.
+	// is reserved but not implemented ("left", "outer", "anti"). Only
+	// "inner" is supported (empty == "inner").
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED Code = "PULSE_JOIN_KIND_NOT_IMPLEMENTED"
 
 	// PULSE_UNION_COHORT_CONFLICT indicates a request set both Cohort
@@ -2313,9 +2309,7 @@ const (
 	PULSE_JOIN_KEYS_EMPTY Code = "PULSE_JOIN_KEYS_EMPTY"
 
 	// PULSE_JOIN_TOO_MANY indicates a Request with more than one
-	// JoinSpec. v1 supports exactly one join per Request; multi-join
-	// chains land when the orchestrator gains a per-join intermediate
-	// state machine.
+	// JoinSpec. A Request supports exactly one join.
 	PULSE_JOIN_TOO_MANY Code = "PULSE_JOIN_TOO_MANY"
 
 	// PULSE_JOIN_FIELD_COLLISION indicates the joined schema would
@@ -2471,11 +2465,10 @@ const (
 	// columns are the implicit Total column).
 	PULSE_CROSSTAB_EMPTY_ROWS Code = "PULSE_CROSSTAB_EMPTY_ROWS"
 
-	// PULSE_CROSSTAB_EMPTY_COLUMNS is NO LONGER RAISED. It refused a
-	// Crosstab section with no column-axis groupers until U47 made the
-	// column axis optional: absent (or empty) Columns now yields one
-	// implicit column keyed types.CrosstabTotalColumnKey ("Total").
-	// The code is retained rather than retired — the precedent of
+	// PULSE_CROSSTAB_EMPTY_COLUMNS is not raised. The column axis is
+	// optional: absent (or empty) Columns yields one implicit column
+	// keyed types.CrosstabTotalColumnKey ("Total"). The code is
+	// retained rather than retired — the precedent of
 	// PULSE_SPSS_EXPORT_UNSUPPORTED: removing a code breaks the public
 	// constant, the manifest's error list and every embedder lookup of
 	// it, where a code that is merely never raised breaks nothing.
@@ -2648,9 +2641,9 @@ const (
 	// WARNING when OVERLAY_PAIRWISE_WELCH_T / _TWO_MEANS_Z refuse ONE
 	// measure of a multi-measure crosstab (crosstab.cells) whose cells
 	// carry no Welford triple (OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z: no
-	// weighted moments, U66 E8-S1) while another measure scores: that
-	// measure's rows are null cells; details carry "measure",
-	// "measure_index", "cell_type" and "reason" (U66 #476).
+	// weighted moments) while another measure scores: that measure's
+	// rows are null cells; details carry "measure", "measure_index",
+	// "cell_type" and "reason".
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE Code = "PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE"
 
 	// PULSE_OVERLAY_COMPONENTS_REQUIRED indicates an overlay kind that
@@ -2778,7 +2771,7 @@ const (
 	// (`annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`).
 	// The supported set is the minimum frequency catalog needed to cover
 	// the GROUP_DATE component family — finer-than-hourly or coarser-
-	// than-annual frequencies are explicit non-goals in v1. Surfaced at
+	// than-annual frequencies are not supported. Surfaced at
 	// both predict (descriptor.validateOverlayYoY) and runtime
 	// (processing.applyYoY) with Details carrying the offending
 	// `frequency` value plus the supported list.
@@ -2898,9 +2891,9 @@ const (
 	// or series group-keys present on one slot's Data rows but absent
 	// on another's. Compose-only overlays require strict cross-Request
 	// key alignment so the renderer can fold target values against the
-	// reference at byte-equal coordinates; tolerant alignment is an
-	// explicit non-goal for v1 (callers needing it pre-align their
-	// inputs or fall back to a multi-reference kind). Details carry the
+	// reference at byte-equal coordinates; there is no tolerant
+	// alignment (callers needing it pre-align their inputs or fall back
+	// to a multi-reference kind). Details carry the
 	// `reference` slot label, the offending `target` slot label, the
 	// `missing` key-set (keys present on the reference but absent from
 	// the target), and the `extra` key-set (keys present on the target
@@ -2913,8 +2906,8 @@ const (
 	// runtime from the data; predict-compose (Gate 4) raises the
 	// structural half — two SERIES slots whose group key columns differ
 	// by name, Details {index, reference, target, reference_fields,
-	// target_fields}. A SERIES slot keys on its group columns alone
-	// (U46): aggregation values never enter the key.
+	// target_fields}. A SERIES slot keys on its group columns alone:
+	// aggregation values never enter the key.
 	PULSE_OVERLAY_KEY_SET_DIVERGENT Code = "PULSE_OVERLAY_KEY_SET_DIVERGENT"
 
 	// PULSE_OVERLAY_SCHEMA_DIVERGENT indicates a Compose overlay spec
@@ -3102,11 +3095,11 @@ const (
 	// and the index no longer covers the archive.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
-	// PULSE_INDEX_UNSUPPORTED_SHARDED is NO LONGER RAISED. It refused
-	// point-lookup index build / lookup / verify / list / drop against a
-	// shard-archive cohort until U51 indexed archives one sidecar per
-	// shard plus a manifest entry recording the covered shards. The code
-	// is retained rather than retired — the precedent of
+	// PULSE_INDEX_UNSUPPORTED_SHARDED is not raised. A shard-archive
+	// cohort is indexed one sidecar per shard, plus a manifest entry
+	// recording the covered shards, so point-lookup index build /
+	// lookup / verify / list / drop all accept one. The code is
+	// retained rather than retired — the precedent of
 	// PULSE_CROSSTAB_EMPTY_COLUMNS: removing a code breaks the public
 	// constant, the manifest's error list and every embedder lookup of
 	// it, where a code that is merely never raised breaks nothing.
@@ -3149,11 +3142,9 @@ const (
 	// PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED is a WARNING-class code
 	// emitted by the CSV (and TSV) export adapter when an overlay-bearing
 	// Response is exported to a flat tabular format that cannot encode
-	// nested overlay payloads. Per
-	// research/export-embedding-shape.md § 7 the adapter implements
-	// warn-and-skip: the host CSV body is written verbatim (byte-
-	// identical to a pre-overlay export) and the overlay layers are
-	// dropped on the floor. The warning carries `layer_count`,
+	// nested overlay payloads. The adapter warns and skips: the host
+	// CSV body is written verbatim (identical to an export without
+	// overlays) and the overlay layers are dropped. The warning carries `layer_count`,
 	// `layer_names`, and `layer_kinds` so callers can audit which
 	// layers were dropped. Surfaced as a Response.Warning / envelope
 	// warnings entry, never as an envelope error — the host export

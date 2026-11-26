@@ -1,6 +1,6 @@
 package types
 
-// BannerSpec is a Compose banner table (U47 #326): one base request, a
+// BannerSpec is a Compose banner table: one base request, a
 // list of stub SECTIONS (each its own rows, measures and filter, so KPIs
 // with different bases sit in one table) and a list of column GROUPS
 // (the banner: Gender, Age, Region, …), plus an optional Total block.

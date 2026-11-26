@@ -167,7 +167,7 @@ func asAnchorFault(err error) (*anchorFault, bool) {
 // a no-execute read (Predict, Inspect, the guidance surfaces). A
 // returned *anchorFault is an unresolvable anchor; any other error is
 // the open itself. An anchored shard is predicted as the single file it
-// is: its run reads only that shard (U51), so no archive term applies.
+// is: its run reads only that shard, so no archive term applies.
 func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
 	if archivePath, e, ok := service.SplitAnchorPath(path); ok {

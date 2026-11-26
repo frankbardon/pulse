@@ -41,7 +41,7 @@ type AggregatorComponentsFunc func(instance extend.Aggregator) (map[string]any, 
 // embedder's concrete type succeeds.
 type GrouperComponentsFunc func(instance extend.Grouper) (map[string]any, error)
 
-// FiltererComponentsFunc is the filterer-shape sibling. In v1 every
+// FiltererComponentsFunc is the filterer-shape sibling. Every
 // built-in filterer leaves its operator-specific payload empty
 // (uniform floor of {n_in, n_out, n_null_input}); extensions may opt
 // in by supplying a ComponentSchema + this emitter. The instance passed
@@ -635,7 +635,7 @@ type FiltererRegistration struct {
 	FieldInputs FieldInputsFunc
 	// ComponentSchema declares the per-operator components contract
 	// surfaced through Response.Components.Filterers[i].Operator.
-	// v1 ships every built-in filterer as floor-only
+	// Every built-in filterer is floor-only
 	// (uniform {n_in, n_out, n_null_input}); extensions may opt in by
 	// declaring a non-empty ComponentSchema alongside a ComponentsFunc
 	// or a builder with its own Components() method. Mismatch between

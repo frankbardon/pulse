@@ -1,5 +1,5 @@
 // Public alias facade over internal/io and internal/iocore, narrowed to
-// the v1 kept subset: the import / export / convert / dedup / transfer
+// the public subset: the import / export / convert / dedup / transfer
 // jobs and their reports, the Reader / Writer contracts with their
 // optional interfaces, and the types those signatures force public.
 // Every type is an alias and every function a one-line forward; the
@@ -317,7 +317,7 @@ type ImportProjection = iio.ImportProjection
 // channel only: a report exists precisely because some rows did import.
 // When a non-empty source yields zero importable rows, ImportJob.Run
 // returns a coded error and no report at all, so a caller that checks only
-// the error return can no longer read total failure as success.
+// the error return cannot read total failure as success.
 //
 // PromotedFields names the columns an inferred import widened to nullable
 // because a null cell fell outside the bounded inference sample window
@@ -687,8 +687,8 @@ type RowError = iio.RowError
 // The row form for "no selection" is a cell of ONE BARE DELIMITER
 // ("|") — the exported constant EmptySetCell. The empty string cannot
 // serve, because it is a null token and is consumed before any
-// dictionary is consulted. It is no longer a SchemaAwareReader
-// peculiarity: ExportJob.Run writes the same marker for every format,
+// dictionary is consulted. It is not a SchemaAwareReader peculiarity:
+// ExportJob.Run writes the same marker for every format,
 // so the convention is one contract shared by the whole adapter set
 // (see EmptySetCell and docs/src/internals/adding-io-format.md). That
 // the bare delimiter works is not a trick but the composition of two

@@ -15,7 +15,7 @@
 //
 // # The registry
 //
-// All returns the 15 v1 metrics in a fixed order:
+// All returns the metrics in a fixed order:
 //
 //   - plain: euclidean, sq_euclidean, manhattan, chebyshev, cosine,
 //     correlation, hellinger, aitchison;

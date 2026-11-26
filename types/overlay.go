@@ -180,8 +180,8 @@ const (
 	// OVERLAY_INDEX_VS_POP, OVERLAY_ZSCORE_VS_POP) and the first
 	// inferential FACET-host kind. Pairs with the
 	// MATRIX-host CHISQ family (CHISQ_MATRIX / CHISQ_ROW / CHISQ_COL) as
-	// the canonical χ² family — the viz developer renders the SCALAR
-	// statistic as a goodness-of-fit badge near the facet header.
+	// the canonical χ² family. The SCALAR statistic suits a
+	// goodness-of-fit badge near the facet header.
 	//
 	// Math:
 	//
@@ -214,10 +214,9 @@ const (
 	// only on POST-FINALIZE state so running it against a streaming
 	// Facet host vs a buffered one produces byte-identical output.
 	//
-	// Inferential — ALWAYS BUFFERED (per PRD §2 Non-Goals "Streaming
-	// overlay path for inferential kinds"). The streamability row is
-	// `false` regardless of host streamability — inferential overlays as
-	// a family stay buffered until a streamable-test path is plumbed.
+	// Inferential — ALWAYS BUFFERED. The streamability row is `false`
+	// regardless of host streamability: every inferential overlay is
+	// buffered.
 	// Distinct from the streamable INDEX_VS_POP / ZSCORE_VS_POP siblings
 	// which emit per-value descriptive statistics.
 	//
@@ -231,8 +230,8 @@ const (
 	// count of low-expected categories and the offending minimum.
 	// Canonical errors.PULSE_OVERLAY_EXPECTED_LOW constant — the same
 	// warning shape the MATRIX-host CHISQ family + FISHER_EXACT_CELL
-	// use (PRD FR-J1 — the warning code is shared with the crosstab
-	// Fisher exact path).
+	// use (the warning code is shared with the crosstab Fisher exact
+	// path).
 	//
 	// Degenerate inputs:
 	//   - Empty host distribution (no values): the layer emits a SCALAR
@@ -260,7 +259,7 @@ const (
 	// values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the
 	// implicit-ref family.
 	//
-	// Renderer-facing shape: the viz developer reads `OverlayPayload.Scalar`
+	// Renderer-facing shape: a renderer reads `OverlayPayload.Scalar`
 	// for the χ² statistic and `OverlaySummary` for the renderer
 	// metadata. The recommended rendering is a goodness-of-fit badge
 	// near the facet header carrying the (statistic, df, p-value) triple
@@ -363,9 +362,8 @@ const (
 	//     under the fully-degenerate hypergeometric) without a warning.
 	//
 	// Inherently buffered because the host crosstab path is always
-	// buffered (margins recomputed from raw rows). PRD § 4.C FR-C2
-	// calls out OVERLAY_FISHER_EXACT_CELL as the canonical low-count
-	// contingency overlay closing the inferential family.
+	// buffered (margins recomputed from raw rows). It is the low-count
+	// contingency overlay of the inferential family.
 	OverlayKindFisherExactCell OverlayKind = "OVERLAY_FISHER_EXACT_CELL"
 
 	// OverlayKindFormula emits a per-cell / per-entry / per-scalar
@@ -386,9 +384,8 @@ const (
 	//	  "params": { "formula": "(cell - margin_grand) / sd_grand" }
 	//	}
 	//
-	// Per-host-shape variable namespace (resolved in research note
-	// `.planning/result-overlay-system/research/formula-namespace.md`
-	// § 2 and bound by the per-shape binder):
+	// Per-host-shape variable namespace (bound by the per-shape
+	// binder):
 	//
 	//   - MATRIX host (Crosstab): `cell`, `margin_row`, `margin_col`,
 	//     `margin_grand`, `sd_row`, `sd_col`, `sd_grand` (+ `ref_cell`
@@ -436,24 +433,20 @@ const (
 	//     table or the function set. Carries `{ident, host_shape,
 	//     available_vars}` Details.
 	//
-	// Buffered-only at v1 across every host shape — the variable
-	// namespace depends on post-fold state (margins / totals / SDs are
-	// not available mid-stream). The streamability row in
-	// `types/overlay_streamability.go` stays `false` regardless of
-	// host streamability. Future work may carve out a streamable
-	// variant under a distinct kind constant without re-opening this
-	// kind's contract; see research note § 6 for the rationale.
+	// Buffered-only across every host shape — the variable namespace
+	// depends on post-fold state (margins / totals / SDs are not
+	// available mid-stream). The streamability row in
+	// `types/overlay_streamability.go` is `false` regardless of host
+	// streamability.
 	//
 	// Scope / Ref handling: the resolved host shape determines which
 	// scope values are accepted (MATRIX hosts accept `cell`; SERIES
 	// hosts accept `group`; SCALAR hosts accept `total`). Ref family
 	// pointers are NOT required — the `ref_cell` / `ref_value` / `ref`
 	// COMPOSE variables source from the slot's reference shape (the
-	// per-shape binder resolves them). v1 ships in-Request
-	// (`Request.Overlays`) and Compose (`ComposedRequest.Overlays`)
-	// FORMULA surfaces only; whole-chain FORMULA is deferred
-	// (the `stage.<id>.<var>` namespace is documented in the research
-	// note for forward-compat).
+	// per-shape binder resolves them). FORMULA runs in-Request
+	// (`Request.Overlays`) and in Compose (`ComposedRequest.Overlays`);
+	// there is no whole-chain FORMULA.
 	//
 	// Embedder extensibility: `pulse.Options.Extensions.ExprFunctions`
 	// merges into the FORMULA env. Functions widen the function
@@ -598,7 +591,7 @@ const (
 	// emits a delta against that fixed reference point. The sibling
 	// group itself emits `0` (self-vs-self under additive subtraction).
 	//
-	// Buffered (per kind-catalog-v1 "Streaming-capable subset"): sibling
+	// Buffered: sibling
 	// resolution requires the full materialised SeriesPayload — the
 	// streaming Process pass cannot resolve a `(Field, Value)` lookup
 	// against the per-group accumulators until they are finalised, so the
@@ -759,14 +752,14 @@ const (
 	// guarantee for the host Facet path holds because the handler depends
 	// ONLY on POST-FINALIZE state.
 	//
-	// Categorical host fast path (v1 scope): the handler walks the
+	// Categorical host fast path: the handler walks the
 	// host's `FacetDiscrete.Values` slice in payload order (descending by
 	// count, ties ascending by value-string) and the resolver looks each
 	// value up in the population's discrete payload via
 	// `FacetPopulationView.DiscreteFrequency(value)`. One division per
 	// host value.
 	//
-	// Numeric host path (v1 scope): the handler walks the host's
+	// Numeric host path: the handler walks the host's
 	// histogram bins (when `IncludeHistogram` was true on the host
 	// FacetRequest) and emits one index per bin via the resolver's
 	// `NumericHistogram()` surface — same `subset_bin_freq /
@@ -815,8 +808,7 @@ const (
 	// host-side streaming Facet pass keeps its existing online
 	// accumulators (Welford / per-value count map); the overlay does
 	// NOT widen the streaming carrier — it consumes finalized state.
-	// Streamable matches the kind-catalog-v1 "Streaming-capable subset"
-	// — `OVERLAY_INDEX_VS_POP` is explicitly listed as YES.
+	// `OVERLAY_INDEX_VS_POP` is streamable.
 	//
 	// Renderers centre diverging colour ramps on `baseline = 100`
 	// (mirrors `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL` /
@@ -870,11 +862,9 @@ const (
 	// `PULSE_OVERLAY_REF_ZERO` contract used by the share / index /
 	// zscore family.
 	//
-	// Forward-compat lag knob: the `Ref.Prior.Lag` slot is reserved for
-	// future window-N priors (e.g. lag-3 for "compare against three
-	// points ago"). v1 ships lag-1 only — non-zero `Lag` is not
-	// exercised by this kind today; later stories will widen the carrier
-	// to a small ring buffer.
+	// Lag: the `Ref.Prior.Lag` slot is reserved for window-N priors
+	// (e.g. lag-3 for "compare against three points ago"). Only lag-1
+	// is supported; a non-zero `Lag` is refused.
 	//
 	// Ref handling: the windowed `Ref.Prior` arm is the implicit default
 	// for this kind. The validator accepts both a populated
@@ -912,10 +902,8 @@ const (
 	// `OverlaySpec.Params["window"]` as a positive integer (mirrors the
 	// `WIN_*` operator convention; see `skills/window-design.md` for the
 	// pattern). The `Ref.RollingMean` arm is an empty marker struct
-	// (`OverlayRollingMeanRef{}`) tagging the ref family — the v1 window
-	// value lives entirely on `Params`. Forward-compat: `OverlayRollingMeanRef`
-	// may grow non-Window knobs (e.g. weighting modes) without re-opening
-	// the parent `OverlayRef`.
+	// (`OverlayRollingMeanRef{}`) tagging the ref family — the window
+	// value lives entirely on `Params`.
 	//
 	// Math (per host group ordinal `i`):
 	//
@@ -1028,7 +1016,7 @@ const (
 	// slot explicitly overrides the default. `Ref` has no default —
 	// every spec MUST name a baseline stage explicitly.
 	//
-	// Shape-divergence rule (PRD §6 FR-F2): when the target stage's host
+	// Shape-divergence rule: when the target stage's host
 	// shape (matrix vs series vs scalar) differs from the reference
 	// stage's host shape the divergence is a
 	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
@@ -1084,7 +1072,7 @@ const (
 	// centre diverging colour ramps on `baseline = 0` (mirrors the rest
 	// of the DELTA family on other host shapes).
 	//
-	// Shape-divergence rule (PRD §6 FR-F2): same as
+	// Shape-divergence rule: same as
 	// `OVERLAY_INDEX_VS_STAGE` — when the target stage's host shape
 	// differs from the reference stage's host shape the divergence is a
 	// `PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT` WARNING on predict-chain
@@ -1107,7 +1095,7 @@ const (
 	// emits an index against that fixed reference point. The sibling
 	// group itself emits `100.0` (self-vs-self under the ratio scaling).
 	//
-	// Buffered (per kind-catalog-v1 "Streaming-capable subset"): sibling
+	// Buffered: sibling
 	// resolution requires the full materialised SeriesPayload — the
 	// streaming Process pass cannot resolve a `(Field, Value)` lookup
 	// against the per-group accumulators until they are finalised, so the
@@ -1155,9 +1143,8 @@ const (
 	// host group key the layer surfaces `(group_val / grand_total) *
 	// 100.0`. GROUP scope over a SERIES (grouped Process) host with
 	// SERIES payload — one SeriesEntry per host group key in host order,
-	// each carrying the index score on `Summary.Statistic`. First
-	// streamable overlay in the catalog (per kind-catalog-v1 §
-	// "Streaming-capable subset"): the handler folds at the end of the
+	// each carrying the index score on `Summary.Statistic`. Streamable:
+	// the handler folds at the end of the
 	// existing streaming Process pass via a running grand-total
 	// accumulator that runs alongside the per-group accumulators — no
 	// second pass over records, the post-host finalize divides each
@@ -1219,9 +1206,8 @@ const (
 	// the canonical NUMERIC-arm distributional-shift indicator — it pairs
 	// with CHISQ_VS_POP as the two inferential FACET-host kinds: CHISQ
 	// quantifies divergence on categorical distributions, KS quantifies
-	// divergence on numeric distributions. The viz developer renders the
-	// SCALAR statistic as a distributional-shift indicator near the facet
-	// header.
+	// divergence on numeric distributions. The SCALAR statistic suits a
+	// distributional-shift indicator near the facet header.
 	//
 	// Math:
 	//
@@ -1290,9 +1276,8 @@ const (
 	// implementation is path-agnostic at the dispatch level so adding the
 	// raw-value path is a strictly additive change.
 	//
-	// Inherently buffered (per PRD §2 Non-Goals "Streaming overlay path
-	// for inferential kinds"). The streamable subset stays empty for KS
-	// because the empirical-CDF construction requires sorted values on
+	// Inherently buffered, like every inferential overlay. KS is not
+	// streamable because the empirical-CDF construction requires sorted values on
 	// both sides; an online folded shape would have to widen the streaming
 	// carrier to a heap or a histogram per group. The streamability row in
 	// types/overlay_streamability.go is `false` regardless of host
@@ -1327,7 +1312,7 @@ const (
 	// zero values fire PULSE_OVERLAY_LEVEL_OUT_OF_RANGE mirroring the
 	// implicit-ref family.
 	//
-	// Renderer-facing shape: the viz developer reads `OverlayPayload.Scalar`
+	// Renderer-facing shape: a renderer reads `OverlayPayload.Scalar`
 	// for the KS distance D and `OverlaySummary` for the renderer
 	// metadata. The recommended rendering is a distributional-shift badge
 	// near the facet header carrying the (D, p_value) pair — large D and
@@ -1393,9 +1378,8 @@ const (
 	//     SeriesEntry whose Summary leaves Statistic unset and do NOT
 	//     contribute to the grand total.
 	//
-	// The kind-catalog-v1 interview's resolved-decision rule kept the
-	// SHARE and INDEX kind names distinct ("readable kind names beat
-	// scale-param overloading at JSON-authoring time"), so the SERIES
+	// The SHARE and INDEX kind names are distinct (readable kind names
+	// rather than an overloaded scale param), so the SERIES
 	// SHARE_OF_TOTAL dispatch is intentionally a separate kind from
 	// INDEX_VS_TOTAL even though the math overlaps — callers cannot
 	// confuse `share` with `index / 100` at the spec authoring surface.
@@ -1670,15 +1654,11 @@ const (
 	// streaming-aware shape; when that lands the streamability flag flips
 	// to true.
 	//
-	// Chan-Welford merge documentation (per CLAUDE.md § Execution modes
-	// → Parallel buffered Process): the Welford triple combines under
-	// Chan-Welford with the standard `delta = mean_B - mean_A;
-	// mean = mean_A + delta * n_B/n;
-	// M2 = M2_A + M2_B + delta² * n_A*n_B/n` recurrence. v1 ships
-	// serial-per-group execution so the merge path is not exercised
-	// today, but the carrier shape stays parallel-safe so future work
-	// that lifts the rolling fold into the parallel buffered Process
-	// pipeline can reuse the existing merge plumbing.
+	// Chan-Welford merge: the Welford triple combines under the
+	// standard `delta = mean_B - mean_A; mean = mean_A + delta * n_B/n;
+	// M2 = M2_A + M2_B + delta² * n_A*n_B/n` recurrence. Execution is
+	// serial per group, so the merge path is not exercised; the carrier
+	// shape is parallel-safe.
 	//
 	// Renderers centre diverging colour ramps on `baseline = 0` (mirrors
 	// `OVERLAY_ZSCORE_VS_TOTAL` / `OVERLAY_ZSCORE_VS_MARGIN` — every
@@ -1692,8 +1672,8 @@ const (
 	// payload order, each carrying the z-score on `Summary.Statistic`.
 	// Sibling streamable FACET-host kind to `OVERLAY_INDEX_VS_POP`
 	// (OVERLAY_INDEX_VS_POP); pairs with that kind as the two streamable Facet overlay
-	// kinds — a viz developer requesting both together gets two parallel
-	// series layers from a single Facet pass.
+	// kinds — a request for both gets two parallel series layers from a
+	// single Facet pass.
 	//
 	// Math:
 	//
@@ -1793,7 +1773,7 @@ const (
 	//	                        host.Key(i).AddDate(-1, 0, 0); Feb 29 in a
 	//	                        non-leap prior year emits NaN (no exact-key
 	//	                        match — explicit non-goal: no day-of-week or
-	//	                        leap-year realignment in v1).
+	//	                        leap-year realignment).
 	//	            hourly    ⇒ exact-key lookup against host key index at
 	//	                        host.Key(i).Add(-365*24*time.Hour) with the
 	//	                        same exact-key rule.
@@ -1853,7 +1833,7 @@ const (
 	// not per cell).
 	//
 	// Ref handling: `Ref.YoY` MUST be populated (empty marker is fine —
-	// the v1 frequency value lives on Params per the WIN_* operator
+	// the frequency value lives on Params per the WIN_* operator
 	// convention). Any other ref-family pointer (`Margin` / `Sibling` /
 	// `BaselineIndex` / `Prior` / `RollingMean` / `Population` / `Stage` /
 	// `Slot`) fires `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
@@ -2076,9 +2056,7 @@ const (
 	// affected cell carrying the offending diagnostic. Mirrors the
 	// `OVERLAY_FISHER_EXACT_CELL` cell-level warning emission shape.
 	//
-	// Buffered. Inferential overlays as a family stay buffered until a
-	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
-	// overlay path for inferential kinds").
+	// Buffered, like every inferential overlay.
 	OverlayKindPropZCell OverlayKind = "OVERLAY_PROP_Z_CELL"
 
 	// OverlayKindPropZPanel is the COMPOSE-host multi-reference per-cell
@@ -2145,8 +2123,7 @@ const (
 	// slot surface an empty (nil) per-cell vector with one
 	// `PULSE_OVERLAY_REF_ZERO` warning carrying `ref_missing: true`.
 	//
-	// Buffered. Inferential overlays as a family stay buffered until a
-	// streamable-test path is plumbed (PRD §2 Non-Goals).
+	// Buffered, like every inferential overlay.
 	OverlayKindPropZPanel OverlayKind = "OVERLAY_PROP_Z_PANEL"
 
 	// The OVERLAY_PAIRWISE_* family is the intra-matrix axis-pairwise
@@ -2214,8 +2191,7 @@ const (
 	// (cell n, weight sums, Welford triples, margin counts). A host built
 	// with components disabled fires PULSE_OVERLAY_COMPONENTS_REQUIRED.
 	//
-	// Buffered. Inferential overlays stay buffered until a streamable-test
-	// path is plumbed (PRD §2 Non-Goals).
+	// Buffered, like every inferential overlay.
 
 	// OverlayKindPairwiseProbitT is the intra-matrix axis-pairwise probit
 	// t-test (syndicated meaningfulness / uniqueness family). Per opposite-
@@ -2369,7 +2345,7 @@ const (
 	// `Params["sample_size_target"]` / `Params["sample_size_ref"]` (or the
 	// symmetric `variance` / `sample_size`), each a finite number > 0;
 	// there is no default — PULSE_OVERLAY_PARAM_MISSING on predict and
-	// runtime (U46 E4-S16; it was var = 1.0, n = 2).
+	// runtime.
 	//
 	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
 	OverlayKindTCell OverlayKind = "OVERLAY_T_CELL"
@@ -2399,7 +2375,7 @@ const (
 	// `Params["sample_size_target"]` / `Params["sample_size_ref"]` (or the
 	// symmetric `variance` / `sample_size`), each a finite number > 0;
 	// there is no default — PULSE_OVERLAY_PARAM_MISSING on predict and
-	// runtime (U46 E4-S16; it was var = 1.0, n = 2).
+	// runtime.
 	//
 	// Buffered. Same rationale as `OVERLAY_PROP_Z_CELL`.
 	OverlayKindZCell OverlayKind = "OVERLAY_Z_CELL"
@@ -2426,7 +2402,7 @@ const (
 	// R's chisq.test(target[C], p = ref[C], rescale.p = TRUE). A target
 	// count in a cell outside C (the reference never shows it) is left
 	// out of the statistic, target_N and df, with one
-	// `PULSE_OVERLAY_REF_ZERO` warning per such cell (U36 E3-S1).
+	// `PULSE_OVERLAY_REF_ZERO` warning per such cell.
 	//
 	// Reuses the `chiSquareSurvival` helper backing `TEST_CHISQ` and the
 	// MATRIX-host CHISQ family so the overlay and the row-test surface
@@ -2483,9 +2459,7 @@ const (
 	// NaN. Degenerate inputs (`se == 0`, n < 2) produce NaN p-values
 	// with the same warning.
 	//
-	// Buffered. Inferential overlays as a family stay buffered until a
-	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
-	// overlay path for inferential kinds"). Even though the SERIES
+	// Buffered, like every inferential overlay. Even though the SERIES
 	// host carrying the Welch t arms may individually stream, the
 	// inferential family is buffered as a matter of policy.
 	OverlayKindTVsRef OverlayKind = "OVERLAY_T_VS_REF"
@@ -2529,15 +2503,13 @@ const (
 	// NaN. Degenerate inputs (`se == 0`, n < 2) produce NaN p-values
 	// with the same warning.
 	//
-	// Buffered. Inferential overlays as a family stay buffered until a
-	// streamable-test path is plumbed (PRD §2 Non-Goals "Streaming
-	// overlay path for inferential kinds"). Even though the SERIES
+	// Buffered, like every inferential overlay. Even though the SERIES
 	// host carrying the z arms may individually stream, the
 	// inferential family is buffered as a matter of policy.
 	OverlayKindZVsRef OverlayKind = "OVERLAY_Z_VS_REF"
 
 	// OverlayKindTVsPrior, OverlayKindZVsPrior and OverlayKindPropZVsPrior
-	// are the INFERENTIAL prior-period kinds (U47 #328): each tests one
+	// are the INFERENTIAL prior-period kinds: each tests one
 	// period against the period before it — a Welch t-test on the means,
 	// a two-means z-test, or a pooled two-proportion z-test — reusing the
 	// OVERLAY_PAIRWISE_* kernels. GROUP scope, Ref.Prior (lag 1; an empty
@@ -2713,8 +2685,7 @@ const (
 // without importing internal/processing/ — preserving the
 // TestPredictNoExecutionImports gate (CLAUDE.md "What NOT to Do").
 //
-// Per-shape contents (research note
-// `.planning/result-overlay-system/research/formula-namespace.md` § 2):
+// Per-shape contents:
 //
 //   - OverlayShapeMatrix:  cell, margin_row, margin_col, margin_grand,
 //     sd_row, sd_col, sd_grand. ref_cell + slot.<label>.cell live on
@@ -2780,7 +2751,7 @@ const (
 	OverlayScopeMatrix OverlayScope = "matrix"
 
 	// OverlayScopeGroup decorates one grouper level. Reserved for future
-	// nested-axis families; v1 emits OVERLAY_NOT_IMPLEMENTED if used
+	// nested-axis families; Pulse emits OVERLAY_NOT_IMPLEMENTED if used
 	// against OVERLAY_INDEX_VS_MARGIN.
 	OverlayScopeGroup OverlayScope = "group"
 
@@ -2887,7 +2858,7 @@ type OverlayBaselineIndexRef struct {
 
 // OverlayPriorRef is the ref-arm that carries the "previous point in the
 // ordered axis" semantics for windowed-SERIES kinds (the windowed
-// catalog — see kind-catalog-v1 PRD §4 windowed family). It tags a spec
+// catalog). It tags a spec
 // as "compare against the lag-N point" against a SERIES host whose
 // group-key order is the chronological ordering the orchestrator baked
 // in at finalize time (typically a `GROUP_DATE`-keyed grouped Process
@@ -2896,27 +2867,26 @@ type OverlayBaselineIndexRef struct {
 // `OVERLAY_INDEX_VS_PRIOR` is the first kind to consume this
 // arm and ships with lag-1 only. The `Lag` slot is reserved for future
 // window-N priors (lag-3 for "compare against three points ago", etc.);
-// non-zero `Lag` is NOT exercised by any shipping kind today. The
-// authoring shape stays forward-compatible — a v1 caller can leave
+// no kind accepts a non-zero `Lag`. A caller can leave
 // `Ref` entirely empty (the implicit default for the kind) OR populate
 // `Ref.Prior` with `Lag = 0` (or unset), and both shapes spell "lag-1
-// prior". When later windowed-N stories land they will accept positive
-// `Lag` values and the runtime carrier widens from a single f64 to a
+// prior". A kind that accepts positive `Lag` values widens the runtime
+// carrier from a single f64 to a
 // small ring buffer.
 type OverlayPriorRef struct {
 	// Lag pins the window width back along the ordered axis. Zero (the
 	// omitempty default) means lag-1 — the immediately preceding point.
-	// Reserved: v1 windowed kinds ship lag-1 only and reject non-zero
-	// values at predict time; later stories widen the carrier.
+	// Reserved: windowed kinds support lag-1 only and reject non-zero
+	// values at predict time.
 	Lag int `json:"lag,omitempty"`
 }
 
 // OverlayYoYRef is the ref-arm that tags a spec as a year-over-year
-// windowed kind (windowed catalog — see kind-catalog-v1 PRD §4
-// windowed family) against a SERIES host whose grouper is `GROUP_DATE`.
+// windowed kind (windowed catalog) against a SERIES host whose grouper
+// is `GROUP_DATE`.
 //
 // `OVERLAY_YOY` is the first kind to consume this arm and the
-// empty marker is intentional — the v1 frequency value lives on
+// empty marker is intentional — the frequency value lives on
 // `OverlaySpec.Params["frequency"]` (the YoY's own override) or falls
 // back to the host's `GROUP_DATE` config at
 // `req.Groups[0].Params["frequency"]`. The supported frequencies are
@@ -2943,13 +2913,12 @@ type OverlayPriorRef struct {
 type OverlayYoYRef struct{}
 
 // OverlayRollingMeanRef is the ref-arm that tags a spec as a windowed
-// rolling-mean kind (windowed catalog — see kind-catalog-v1 PRD §4
-// windowed family) against a SERIES host whose group-key order is the
+// rolling-mean kind (windowed catalog) against a SERIES host whose group-key order is the
 // chronological ordering the orchestrator baked in at finalize time
 // (typically a `GROUP_DATE`-keyed grouped Process result).
 //
 // `OVERLAY_INDEX_VS_ROLLING_MEAN` is the first kind to consume
-// this arm and the empty marker is intentional — the v1 window width
+// this arm and the empty marker is intentional — the window width
 // lives on `OverlaySpec.Params["window"]` per the `WIN_*` operator
 // convention (see `skills/window-design.md`). The empty struct tags
 // the ref family so the validator's "exactly one ref arm populated per
@@ -3415,11 +3384,9 @@ type OverlayLayer struct {
 
 	// Warnings carries per-layer diagnostics emitted by the overlay
 	// handler. Additive slot — empty in the per-Request overlay path
-	// (existing handlers do not produce warnings via this carrier
-	// today). Populated by the Compose-host fold and the
-	// Chain-host barrier when the previously-discarded warning
-	// slices get wired through. `omitempty` keeps overlay-free
-	// marshals byte-identical to the legacy overlay-free shape.
+	// (no built-in handler produces warnings through this carrier).
+	// `omitempty` drops the key when there are none, so an
+	// overlay-free response has no `warnings` key here.
 	Warnings []OverlayWarning `json:"warnings,omitempty"`
 
 	// Multiplicity echoes the multiple-comparison correction that ran

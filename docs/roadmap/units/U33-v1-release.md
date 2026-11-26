@@ -3,7 +3,7 @@ id: U33
 slug: v1-release
 title: "Pulse v1.0.0 is released with a written stability promise"
 track: API & release
-size: S
+size: XL
 status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
@@ -16,7 +16,7 @@ branch: v1-release
 
 **Outcome:** Pulse v1.0.0 is released with a written stability promise.
 
-**Track:** API & release · **Size:** S · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
+**Track:** API & release · **Size:** XL · **Depends on:** [U32](U32-docs-audit.md), [U32b](U32b-docs-content.md), [U32c](U32c-docs-validation.md) · **Soft:** all other units · **Unblocks:** —
 
 ## Summary
 
