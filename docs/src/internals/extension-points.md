@@ -27,9 +27,11 @@ importable by embedders; `extend` imports only `encoding`, `types` and
 `linalg` from the module, `errors` also allowed (`TestExtendImportBoundary`,
 `TestExtendImportBoundary_NoTransitiveEngine`), and no public root
 signature names an engine type (`TestRootSurfaceNamesNoProcessing`).
-Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`
-and the engine's merge hooks (`MergeOnline`, `MergeGrouperState`) —
-are deliberately absent from `extend`
+Engine-only capabilities — the `Meta*` components hooks (the adapter
+builds them from `ComponentsFunc`), `StreamableGrouper` (the adapter
+synthesizes its `KeyFor` from your `KeyForRow`), `IncludeOrdered`,
+`ExtensionAware` and the weight machinery (`StampWeights`,
+`WeightRowTally`, `WeightFloor`) — are deliberately absent from `extend`
 (`TestExtendOmitsEngineOnlyCapabilities`); merging is public through
 `extend.MergeableAggregator` / `extend.MergeableGrouper` /
 `extend.MergeableAttribute`, behind an explicit `Mergeable`
@@ -42,28 +44,25 @@ lift each `extend` operator onto the engine at `pulse.New`),
 `extensions_probe.go` (factory probe and components parity),
 `extensions_runtime.go` (built-in/extension fold into the runtime
 registry), `extensions_snapshot.go` (descriptor-side read-only
-projection), and `internal/processing/extensions.go` (the runtime
-overlay the engine consults).
+projection), the per-category files (`extensions_matrix_runtime.go`,
+`extensions_regression.go`, `extensions_overlay.go`,
+`extensions_postfit.go`, `extensions_guidance.go`, `extensions_probe_*.go`)
+and `internal/processing/extensions.go` (the runtime overlay the engine
+consults).
 
 ## The `extend` contract: `Record`, `Rows` and reuse
 
 `extend.Record` exposes `Schema`, `IsNull`, `NumericValue`,
 `Uint64Value`, `StringValue`, `SetMaskValue`, `DecimalValue`, `VectorValue` and
 `Weight`; `extend.Rows` exposes `Len` and `At(i)`. Accessors never
-return an error — every "no value" answer is a false second return. The
-silent cases: `NumericValue` is false for a null, projected-out or
-missing field AND for every `set_*` field (read those with
-`SetMaskValue`) and every `vec_f32` / `vec_f64` field (read those with
-`VectorValue`: the elements as `float64`, a fresh copy safe to keep,
-NaN elements verbatim) — though a native vector's element member
-`f[k]` (below) reads through `NumericValue`; a categorical field's
-`NumericValue` is its dictionary INDEX; `date` is epoch days and
-`datetime` epoch seconds; `NumericValue` on a `u64` above 2^53 is only
-the float echo (2^53 and 2^53+1 read alike) — `Uint64Value` returns the
-exact stored word on every decode path (streaming, buffered, parallel,
-shard archive, point lookup, filter-to-file), up to `math.MaxUint64`,
-and is `(0, false)` exactly when `NumericValue` is false; `decimal128`
-needs `DecimalValue` for exactness.
+return an error — every "no value" answer is a false second return. Each
+method's GoDoc states its read semantics; the silent traps are that
+`NumericValue` is always false on a `set_*` field (use `SetMaskValue`)
+and a `vec_*` field (use `VectorValue`, or the element member `f[k]`,
+below), is a categorical field's dictionary INDEX, is only a float echo
+of a `u64` above 2^53 (use `Uint64Value`, exact on every decode path)
+and a rounded echo of a `decimal128` (use `DecimalValue`); `date` is
+epoch days and `datetime` epoch seconds.
 
 **Reuse contract.** The engine decodes into reusable buffers, so a
 `Record` or `Rows` is valid ONLY for the call that received it. Never
@@ -75,9 +74,11 @@ methods may be added in a minor release.
 
 ## Row weights: `WeightAware` and `Record.Weight()`
 
-`AggregatorRegistration`, `AttributeRegistration` and
-`TestRegistration` carry `WeightAware bool`, projected as the manifest
-extension entry's `weight_aware` (omitted when false). A WeightAware
+`AggregatorRegistration`, `AttributeRegistration`,
+`TestRegistration`, `MatrixOpRegistration`, `RegressionRegistration` and
+`OverlayRegistration` carry `WeightAware bool`, projected as the manifest
+extension entry's `weight_aware` (omitted when false); the matrix,
+regression and overlay rules are in their sections below. A WeightAware
 operator reads the row weight the engine resolved for its slot — slot
 `weight` → request `weight` → `pulse.Options.DefaultWeight` — through
 `extend.Record.Weight() (float64, bool)`:
@@ -249,7 +250,8 @@ Failure modes raised at registration time:
   nil `Factory` the same way in its own pass (table below); a test
   refuses a missing `RowFactory` / `PostFactory` per tier.
 
-Two embedders in the same process must use disjoint namespaces.
+Extension sets combined into one instance must use disjoint
+namespaces: a shared name is `PULSE_EXTENSION_DUPLICATE`.
 
 ## Per-category registration shapes
 
@@ -283,7 +285,9 @@ checked exactly like a built-in's manifest list: a request slot whose
 (`aggregations[0].params.wieghts`) and a nearest-key suggestion — by
 predict and by every runtime arm, before the factory runs. A vector-input
 aggregator also accepts the engine's `labels` / `expand`, a matrix
-operator the engine's `missing` / `max_drop_share` / `fit`. A
+operator the engine's `missing` / `max_drop_share` (and `fit` when it
+declares `Streamable`), an overlay kind declaring `HonoursField` /
+`HonoursPartitionBy` the engine's `field` / `partition_by`. A
 registration that declares **no** params is not checked: its params
 reach the factory untouched, and predict adds the advisory
 `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` (`details.slot`,
@@ -566,7 +570,7 @@ through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 `Row` drive, `buffered` runs `Compute` over the materialised rows. Like
 the built-in two-pass attributes (`ATTR_ZSCORE`, …), a `two_pass`
 extension runs buffered when the request also carries a grouper,
-feature, regression or tier-1 test.
+feature, regression, matrix or tier-1 test.
 On the streaming drive every attribute runs in declared order, so a
 `two_pass` attribute can read an earlier attribute's label: the engine
 learns which earlier labels it reads from `Field` plus its
@@ -613,8 +617,8 @@ slot with the same code, message and details: `PROCESSING_CONFIG`
 `details.reason` `source_unset` (no field, or the param is absent /
 not a string) or `source_not_cohort_field`, and
 `PULSE_FIELD_TYPE_UNSUPPORTED` `source_not_coded`; details carry
-`attribute`, `source` (`field` / `params.<name>`), `field` and
-`field_type`. A value that is no code — not an integer in `[0, entry
+`attribute` and `source` (`field` / `params.<name>`), plus `field` once
+a name is known and `field_type` on `source_not_coded`. A value that is no code — not an integer in `[0, entry
 count)`, or `NaN` from a value that is not nullable — fails the run
 with `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` reason
 `dictionary_code_out_of_range` (`details.value` as text,
@@ -730,7 +734,8 @@ returned value (the adapter exposes the streaming sibling iff the
 embedder's value implements it), so a streaming extension feature does
 stream on `Process` — while predict reads the declared `Streamable`.
 `pulse.New` therefore probes each feature factory once (empty schema,
-a spec carrying only the `Name`) and refuses a declaration that
+the probe spec: its `Name` plus the [probe params](#probe-validation-full-surface))
+and refuses a declaration that
 disagrees with the value IN EITHER DIRECTION with
 `PULSE_EXTENSION_STREAMABLE_MISMATCH` (details `category: "feature"`,
 `streamable` = the declaration): `Streamable: true` needs a value
@@ -1050,7 +1055,8 @@ runtime adapter alike:
 | `save` | `Scorer` |
 | `conf_level` | always honoured — the engine's intervals (see **Intervals**) |
 | `order` | always honoured — the engine sorts and gap-checks the rows before the model sees them; required (`order_required`) when `RequiresOrder` says so |
-| `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
+| `holdout` | always honoured — the engine fits the train rows and scores the held-out ones through the model's `Scorer` (without one: `PULSE_MODEL_SCORE_INVALID` `no_scorer`) |
+| `unpenalized`, `bounds`, `family`, `link`, `theta`, `dispersion`, `reference`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`), `intercept`, `solver`, `collinearity`, `exponentiate`, `term_tests` | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params` | always honoured |
 | `multiplicity` | method `none` always; any other method needs `PValues` (`PULSE_MULTIPLICITY_INVALID` otherwise, from the shared multiplicity resolver) |
@@ -1373,10 +1379,15 @@ Custom Go functions become callable from `ATTR_FORMULA` and
 }
 ```
 
-Pulse passes `Fn` to expr-lang's `expr.Function(name, fn)`. expr-lang
-accepts typed functions via reflection — `func(v float64) float64` and
-`func(args ...any) (any, error)` both work. Use the variadic shape
-when zero-allocation calling matters.
+Pulse registers `Fn` with expr-lang under `Name`. The canonical shape
+`func(args ...any) (any, error)` is called directly; any other typed
+function (`func(v float64) float64`) goes through a one-shot reflective
+trampoline, so prefer the canonical shape on a hot path. A `decimal128`
+argument arrives as `encoding.Decimal128`. A name must be unique
+(`PULSE_EXTENSION_DUPLICATE`) and is refused
+`PULSE_EXTENSION_NAME_RESERVED` when it claims an engine-owned function
+(`total`, `sweep_axis`, `response`, `result`, `range_label`, `ref`) or
+any other built-in expression function.
 
 **Derivatives for `optimize`.** A Compose `optimize` block
 differentiates its objective and constraints exactly (forward mode).
@@ -1566,11 +1577,10 @@ non-empty and unique, at least one profile, non-empty keys, one value
 per label, every value finite. The instance copies the tables (later
 mutation of your maps has no effect), lists each in the manifest
 `extensions.reference_vectors` (`name`, `description`, `labels`,
-`keys` — never the values) and as an ontology table node, and merges
-several `Extensions` values like the other named tables (a later table
-of the same name wins). Reference vectors are programmatic only — no
-environment directory loads them — and, like lookup tables, they are
-not features: no feature profile gates them.
+`keys` — never the values) and as an ontology table node. Reference vectors are programmatic only — no
+environment directory loads them — and, unlike lookup tables
+(`capability:lookup_tables`), they are not features: no feature profile
+gates them.
 
 `ref` is a reserved expression name (an `ExprFunction` claiming it is
 `PULSE_EXTENSION_NAME_RESERVED`). The built-in reference-comparison
@@ -1601,8 +1611,10 @@ ext := pulse.Extensions{
 does the same for every `*.pulse-population.json` directly in a
 directory, each under its file stem; other files are skipped unread. A
 missing directory is a no-op, a path that is not a directory an error.
-Every document is decoded at `pulse.New` (`PULSE_MODEL_FILE_INVALID` /
-`_VERSION_UNSUPPORTED`, `details.registered` naming it) and frozen;
+Every document is decoded at `pulse.New` (`PULSE_MODEL_FILE_UNREADABLE`,
+`PULSE_MODEL_FILE_INVALID` or `PULSE_MODEL_VERSION_UNSUPPORTED`, with
+`details.registered` naming it; a blank name is `PULSE_MODEL_REF_INVALID`)
+and frozen;
 nothing registers after `New`. A name declared both here and in the
 directory is `PULSE_EXTENSION_DUPLICATE` — the label- and range-table
 directories follow the same rule. A request entry or Compose fit
@@ -1641,8 +1653,8 @@ this section covers only the extension-side wiring.
 | Test | No | Test results carry their own typed shape. |
 | Matrix | Optional | Matrix floor `{n, n_null, n_listwise_dropped}` (+ pairwise and weighted floor keys) filled by the engine; the operator's own keys ride `MatrixOutput.Components` (no `ComponentsFunc`). See "Matrix operator (`MatrixOps`)". |
 
-A registration in a category that does not declare a `ComponentSchema`
-silently ignores the field if you set it.
+Window, feature and test registrations have no `ComponentSchema`
+field.
 
 ### Declaration shape
 
@@ -1654,8 +1666,9 @@ type ComponentSchema struct {
 
 type ComponentKey struct {
     Name        string  // snake_case, matches the runtime emission key
-    Type        string  // "int" | "float64" | "string" | "map" | "array" | "object"
+    Type        string  // the value's kind name, e.g. "int", "float64", "map"
     Description string  // surfaces in manifest + MCP schema
+    Optional    bool    // emitted only under a condition Description states
 }
 ```
 
@@ -1681,7 +1694,7 @@ single aggregator:
 
 | Value | Meaning | Examples |
 |---|---|---|
-| `Mergeable` | Stream-safe. State composes through the same `MergeOnline` path as the scalar value. Streaming chunks carry `ComponentsDelta`; consumers reconcile. | Welford-family (sums, sums-of-squares), running counts, set masks, weighted accumulators. |
+| `Mergeable` | Stream-safe. The components state folds across partitions through the same associative path as the scalar value (your `Merge` / `MergeState` / `MergeTally`). | Welford-family (sums, sums-of-squares), running counts, set masks, weighted accumulators. |
 | `Partial` | Unions across chunks but at non-trivial allocation cost — map / set unions where the merge is associative but not constant-space. The orchestrator may stage the merge at terminal flush. | `AGG_MODE_COUNT`, `AGG_MODE`, `AGG_DISTINCT_COUNT`, `AGG_DISTINCT_SUM`. |
 | `None` | Terminal-only. Needs sorted full input. Streaming chunks omit components entirely; only the terminal buffered flush emits. Predict declares the slot buffered-components-only. | `AGG_MEDIAN`, `AGG_PERCENTILE`. |
 
@@ -1733,11 +1746,13 @@ The closure signatures, defined in `extensions.go`, are:
 type AggregatorComponentsFunc func(instance extend.Aggregator)         (map[string]any, error)
 type GrouperComponentsFunc    func(instance extend.Grouper)             (map[string]any, error)
 type FiltererComponentsFunc   func(instance extend.FiltererBuilder)     (map[string]any, error)
+type AttributeComponentsFunc  func(instance extend.AttributeComputer)   (map[string]any, error)
 ```
 
 The orchestrator invokes each func ONCE after the operator's terminal
 pass (post-`Aggregate`/`Finalize` for aggregators; post-partition for
-groupers; post-eval for filterers). Returning `(nil, nil)` is the
+groupers; post-eval for filterers; after every filter-passing row is
+scored for attributes). Returning `(nil, nil)` is the
 canonical signal for "no operator-specific keys; the orchestrator's
 universal floor is the entire payload" — the floor-only shape.
 
@@ -1797,9 +1812,9 @@ value's own `Components()` method; both are held to the same table:
 | Condition | Error code |
 |---|---|
 | `ComponentsFunc` set (or the value's own `Components()` method adopted) but `ComponentSchema.Keys` empty | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
-| `ComponentsFunc` returns a key NOT present in `ComponentSchema.Keys` (after the floor-tolerance carve-out), or order diverges from the declared order | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
-| `ComponentsFunc` returns a universal-floor key the orchestrator owns | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
-| a `Components()` method emits a key outside `Keys` + floor (`details.emitter` `"Components()"`) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+| `ComponentsFunc` or a `Components()` method returns a key outside `Keys` plus the category's universal floor (`details.emitter` names which); a floor key is tolerated either way, the orchestrator overwrites it | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+| `ComponentSchema.Keys` with no `Mergeability` | `PULSE_EXTENSION_PARAM_INVALID` |
+| `Mergeability` with no `Keys` | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
 | `Components()` (or `ComponentsFunc`) panics or errors on the probe instance | `PULSE_EXTENSION_FACTORY_PANIC` |
 
 Fetch the Message + Fixup template via `pulse errors lookup <CODE>`
@@ -1845,7 +1860,8 @@ carrying only the operator `Name` plus the probe params below.
 
 **Probe params.** Every constructed factory — aggregator, attribute,
 grouper, feature, a `WeightAware` test, a matrix operator (its spec and
-`MatrixInput.Params`) and a regression model — gets a `params` object
+`MatrixInput.Params`), a regression model and an overlay kind's probe
+spec — gets a `params` object
 that satisfies its registration's own `Params` declaration
 (`extensions_probe_params.go`), the same guarantee a request gives it:
 
@@ -1872,9 +1888,10 @@ with `PULSE_EXTENSION_FACTORY_PANIC`, `details.probe_params` carrying
 the object it was handed: declare a `ParamMeta.Example` the factory
 accepts (the probe then hands it that value), accept the placeholder as
 a valid build-time value, or validate that param in `Finalize` / `Fit`
-instead. Filterers
-(a no-argument factory) and windows are never constructed by the
-probe, so their params are not synthesized. The probe never feeds real records;
+instead. A filterer's factory takes no spec (the probe builds the
+builder but never calls `Build`) and a window factory is never called,
+so their params are not synthesized; an overlay kind's handlers run over
+a synthetic host ([Adding an Overlay Kind](adding-overlay.md)). The probe never feeds real records;
 the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned
 listwise co-moment over three `f64` members (rows attached only on the
 `Streamable: false` tier), run once unweighted and, for a `WeightAware`
@@ -1908,12 +1925,13 @@ components-contract failures are listed in the table above.
 
 ## Manifest visibility and the extensions snapshot
 
-`pulse --json` and `pulse_manifest` include a top-level
-`extensions` block whenever the host registered anything:
+The manifest (`pulse --json`, `pulse_manifest`) always carries a
+top-level `extensions` block, every list empty when nothing is
+registered. Its `data` object, abridged:
 
 ```json
 {
-  "format_version": "1.1",
+  "format_version": "1.0",
   "components": { ... built-ins ... },
   "extensions": {
     "aggregators": [
@@ -2024,7 +2042,7 @@ arm, whose overlay hook has no schema in reach.
 ## DependsOn (feature-profile dependencies)
 
 Every operator registration (aggregator, attribute, filterer, grouper,
-window, feature, test, matrix, regression, overlay) accepts an optional
+window, feature, test, matrix, regression, overlay, post-fit) accepts an optional
 `DependsOn []string`: the
 features the operator needs. Each entry is an AND edge — a
 [feature profile](../library/feature-profiles.md) that enables the
@@ -2109,7 +2127,9 @@ declared by a built-in or an earlier extension. An
 `Interpretation` is checked for **structure only** — path syntax,
 `Means` or a known `Shared` rule set, `Bands` with a `Convention`,
 `Sign` keys `+` / `-` — since a test declares no output keys to
-probe. A regression's `Interpretation` is also held to what the model
+probe. An overlay kind declaring `Inferential` must carry one (rule
+`required`), and its paths are held to the kind's declared payload
+shape. A regression's `Interpretation` is also held to what the model
 can report: a coefficient-keyed figure as `<key>.*` (`coefficients`,
 `std_errors`, `statistics`, `p_values`), a fit statistic (`r2`,
 `adj_r2`, `residual_std_err`, `df`, `deviance`, `null_deviance`,
@@ -2157,22 +2177,16 @@ operators registered through this surface are opaque by default —
 without a `FieldInputs` hook, the projection extractor widens the
 retained set to "every field" so the runtime stays correct.
 
-A built-in whose **`Params` name a schema field** is the one shape
-introspection does not get for free, because the name lives nowhere on
-the operator's own struct. `addAggParamFields` is the built-in
-counterpart of `FieldInputs` and must gain an arm on the same day such
-an operator does — `AGG_DISTINCT_SUM`'s `distinct_by`,
-`AGG_WEIGHTED_MEAN`'s `weight_field`, `AGG_RATIO`'s
-`numerator_field` / `denominator_field`, `FEAT_TRAIN_TEST_SPLIT`'s
-`stratify` and `FEAT_TARGET_ENCODE`'s `target` (plus every field its
-`fit_on` expression reads) are the whole set today, and the field-reference rule (`aggParamFieldKeys` in
-`internal/descriptor/field_refs.go`) must gain the same arm so an
-unknown name there is refused rather than read as all-null. **Forgetting one fails silently, not loudly:** the field is
-decoded onto no `Record`, `Record.NumericValue` answers `ok=false` for
-it on every row, and the operator reads that as a missing input rather
-than as a broken request — so the request succeeds and publishes a
-confident zero, with `n_null` equal to the full admitted record count
-as the only signature.
+A field named only in `params` is the shape introspection does not
+get for free, for a built-in too: its arms live in
+`internal/processing/projection.go` (`addAggParamFields`, whose doc
+comment lists the aggregators, and the feature arms) and in the
+field-reference rule (`aggParamFieldKeys`). **A missed one fails
+silently:** the field is decoded onto no `Record`, `NumericValue`
+answers `ok=false` on every row, and the operator publishes a confident
+zero with `n_null` equal to the admitted count. The same holds for an
+extension that reads a param-named field without declaring it in
+`FieldInputs`.
 
 The extractor must also walk **every request slot that can carry an
 operator**, not merely the well-known ones. `Crosstab.MarginAggregations`
@@ -2244,8 +2258,9 @@ Return-value semantics:
   runs on the hot path and should be allocation-free. Anything that
   needs decoding belongs in the factory.
 
-For filterers the callback receives `nil` as `raw` (filterers do not
-carry a Params block today). Tier-2 post-tests do not decode source
+For filterers the callback receives `nil` as `raw`, although a
+filterer slot may carry `params`: return a fixed list, since a field
+named in a filterer's params cannot be declared per request. Tier-2 post-tests do not decode source
 records and should leave `FieldInputs` nil.
 
 The hook is plumbed via `buildRuntimeExtensions` into the engine's
@@ -2267,9 +2282,9 @@ ranges.
 ## Validate hook (spec-only refusals at predict)
 
 Predict never calls a factory — that would execute embedder code — so a
-refusal raised inside one (`params.k` must be positive) used to surface
-only at run time. A registration may instead carry an opt-in, spec-only
-**`Validate`** hook, `extend.SpecValidator[S]`:
+refusal raised inside one (`params.k` must be positive) surfaces only at
+run time. To let predict report it, a registration carries an opt-in,
+spec-only **`Validate`** hook, `extend.SpecValidator[S]`:
 
 ```go
 type SpecValidator[S any] func(spec *S) error
@@ -2823,7 +2838,7 @@ ext := pulse.Extensions{
 
 | Stem | Frontmatter | Documents |
 |---|---|---|
-| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, … `OVERLAY`, `POSTFIT`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
+| `op-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, … `OVERLAY`, `POSTFIT`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
 | `ext-<kebab>.md` | `kind: design`, no `operator:` / `category:`, optional `requires:` | a topic — how your operators fit a workflow |
 
 The frontmatter keys and the required `##` sections are the built-in
@@ -2846,7 +2861,7 @@ The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
 |---|---|
 | `layout` | the root reads; every entry is a regular top-level `.md` file |
 | `builtin` / `duplicate` (COLLISION) | the stem is not a built-in (or virtual `glossary` / `intents`) skill and is shipped once across every merged `Extensions` value — embedders never override or shadow the shipped pack |
-| `stem` | `op-<category>-<kebab>` naming its operator, or `ext-<kebab>` |
+| `stem` | `op-<kebab>` naming its operator, or `ext-<kebab>` |
 | `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
 | `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
 | `sections` | the family's required `##` headings |
@@ -3004,15 +3019,17 @@ Fetch the Message + Fixup template for any of these via
 | Code | Trigger |
 |---|---|
 | `PULSE_EXTENSION_NAME_INVALID` | name fails the registration regex |
-| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` is named `total` (engine-owned) or a reserved built-in (`vsum` … `overlap`, `ref`) |
+| `PULSE_EXTENSION_NAME_RESERVED` | namespace is BUILTIN/STANDARD/CORE/PULSE, or an `ExprFunction` claims an engine-owned name (`total`, `sweep_axis`, `response`, `result`, `range_label`, `ref`) or another built-in expression function |
 | `PULSE_EXTENSION_NAME_COLLISION` | name matches a built-in |
-| `PULSE_EXTENSION_DUPLICATE` | same name registered twice, or a label table / range table / population declared both programmatically and in its directory |
+| `PULSE_EXTENSION_DUPLICATE` | same name registered twice, or a lookup table / label table / range table / population declared both programmatically and in its directory |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
 | `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test, regression or overlay `Interpretation` is invalid |
-| `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
+| `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, attribute `Mergeable` on a `Mode` other than `row_local`, value lacks `extend.MergeableAggregator` (or, for an emitting grouper / attribute, `extend.MergeableGrouper` / `extend.MergeableAttribute`), or `ComponentSchema` keys classified `None` |
+| `PULSE_EXTENSION_ARRAY_VALUED_MISMATCH` | `ArrayValued` without `VectorInput`, beside a `MarginReducibility`, or on a value that is no `extend.RichAggregator` |
+| `PULSE_EXTENSION_OVERLAY_OUTPUT_MISMATCH` | an overlay kind's output breaks its declaration (shape, p-values, partitions — `details.reason`), on the probe or any run |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
-| `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
+| `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, on the probe's synthetic co-moment or on any run, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_ATTRIBUTE_OUTPUT_MISMATCH` | an attribute declaring `InheritsDictionary` emitted a value that is no code of its source's dictionary (on a run, or over the probe's three-entry source), or declares a non-`float64` `Emits` |
 | `PULSE_EXTENSION_POSTFIT_OUTPUT_MISMATCH` | a post-fit operator returned output its declared `Outputs` do not admit (`details.reason`) |
 | `PULSE_POSTFIT_INVALID` | a `post_fit` entry's label, type or `fits` breaks a request rule |
@@ -3022,12 +3039,13 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_SPEC_REFUSED` | a `Validate` hook refused a slot's spec with an uncoded error, or panicked judging it — at predict and at runtime alike |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
-| `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
+| `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key outside `ComponentSchema.Keys` plus the floor (a matrix operator: any floor key too) |
 | `PULSE_EXTENSION_SKILL_INVALID` | an `Extensions.Skills` file breaks a rule in "Embedder skills" — `details.reason` names which |
 | `PULSE_EXTENSION_SKILL_COLLISION` | an `Extensions.Skills` stem is a built-in skill or is shipped twice |
 | `PULSE_EXTENSION_EXAMPLE_INVALID` | an `Extensions.Examples` file breaks a rule in "Embedder examples" — `details.reason` names which |
 | `PULSE_EXTENSION_EXAMPLE_COLLISION` | an `Extensions.Examples` name is a built-in example or is shipped twice |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
+| `PULSE_FEATURE_PROFILE_DEPENDENCY` | a feature profile enables an extension operator but not a feature its `DependsOn` names |
 | `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute, test, matrix operator or regression |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
