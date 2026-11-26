@@ -783,7 +783,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:          string(types.AGG_WELFORD),
 			Category:      "aggregator",
-			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Returns the running mean as the scalar fallback; rich payload is a typed WelfordTriple for overlay handlers (OVERLAY_T_CELL / OVERLAY_Z_CELL) to consume without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
+			Description:   "Streaming Welford-Pébaÿ moment triple — running mean, unbiased sample variance (n-1), and observed count — over a numeric field. Its row value is the triple {mean, variance, n}, which the t / z cell overlays (OVERLAY_T_CELL / OVERLAY_Z_CELL) read without re-deriving variance from raw rows. Margin recompute (variance does not pool by addition).",
 			AcceptsTypes:  tableAcceptsTypes(types.AGG_WELFORD),
 			EmitsTypeNote: "scalar float64 (running mean; NaN, null in JSON, when no rows); the row value is the non-scalar triple {mean, variance, n}, so an overlay scoring it (params.field, else aggregations[0]) is refused PROCESSING_CONFIG reason non_scalar — except the two-sample t / z vs-ref and vs-prior overlays, which read the triple from the slot's per-group components (components disabled on that slot: PULSE_OVERLAY_COMPONENTS_REQUIRED reason components_disabled); OVERLAY_PROP_Z_VS_PRIOR refuses it with its own PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE measure_type refusal",
 			Streamable:    true,
@@ -948,7 +948,7 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 			{
 				Name:        "labels",
 				Type:        "list",
-				Description: "Display label per member, inline fields only (a named vector carries its own Request.Vectors labels); one per resolved member. Names the elements in labels (components). Default: the member names.",
+				Description: "Display label per member, inline fields only (a named vector carries its own vectors entry labels); one per resolved member. Names the elements in labels (components). Default: the member names.",
 			},
 			{
 				Name:        "expand",

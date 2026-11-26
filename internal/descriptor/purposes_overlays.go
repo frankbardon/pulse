@@ -1341,7 +1341,7 @@ var (
 		},
 		Assumptions: []string{
 			"Small categories give unstable index values: a handful of rows can produce 300 or 20, so check the counts behind them.",
-			"A category absent from the population gets no value and a warning; a numeric field needs IncludeHistogram for bins.",
+			"A category absent from the population gets no value and a warning; a numeric field needs include_histogram for bins.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"baseline", "index-value", "sample-size"},
@@ -1444,7 +1444,7 @@ var (
 			{When: "you want tests between every pair of requests", Use: "OVERLAY_PROP_Z_PANEL"},
 		},
 		Assumptions: []string{
-			"Every target must share a schema with the reference and line up on the same keys; OverlayOptions.MaxPanelTargets caps the number of targets.",
+			"Every target must share a schema with the reference and line up on the same keys; options.max_panel_targets caps the number of targets.",
 			"A zero reference value gives no value; a small one makes the index swing widely.",
 		},
 		Level:    descriptor.LevelIntermediate,

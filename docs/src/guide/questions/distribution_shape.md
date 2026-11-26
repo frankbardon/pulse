@@ -53,8 +53,8 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 | Use | In plain words | Level |
 |---|---|---|
-| [`FEAT_LOG`](../catalog/feature.md#op-feat_log) | Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. | intermediate |
-| [`FEAT_SQRT`](../catalog/feature.md#op-feat_sqrt) | Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. | intermediate |
+| [`FEAT_LOG`](../catalog/feature.md#op-feat_log) | Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. | intermediate |
+| [`FEAT_SQRT`](../catalog/feature.md#op-feat_sqrt) | Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. | intermediate |
 
 ### Statistical tests
 

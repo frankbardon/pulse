@@ -46,10 +46,10 @@ func apiProcessCmd() *cli.Command {
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {\"warnings\":[...]} line"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
 			&cli.BoolFlag{Name: "strict", Usage: "Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field)"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized (post-defaults) request on the envelope under \"request\". Streaming output skips this — NDJSON has no envelope."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit the response's components (the per-aggregator / per-grouper / per-filterer / crosstab / run counts behind each figure); every other key is unchanged"},
 			&cli.BoolFlag{Name: "no-project", Usage: "Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -151,9 +151,9 @@ func apiProcessChainCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Chain request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
-			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ChainRequest on the envelope under \"request\". Each stage's Request reflects the per-stage post-defaults form captured during execution."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-stage Response. Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized chain request on the envelope under \"request\". Each stage's request reflects the per-stage post-defaults form captured during execution."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit components from every stage's response; every other key is unchanged"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")
@@ -209,9 +209,9 @@ func apiComposeCmd() *cli.Command {
 			&cli.BoolFlag{Name: "stream-fits", Usage: "Under --stream, end the stream with one {\"fits\":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
-			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
-			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized ComposedRequest on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
-			&cli.BoolFlag{Name: "no-components", Usage: "Suppress Response.Components on every per-slot Response in ComposedResponse.Responses. Wire form is byte-identical to the pre-Components baseline."},
+			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit type on every aggregation and grouper"},
+			&cli.BoolFlag{Name: "echo-request", Usage: "Include the normalized compose request on the envelope under \"request\". Each slot reflects its post-defaults form. Streaming output skips this."},
+			&cli.BoolFlag{Name: "no-components", Usage: "Omit components from every slot's response under responses; every other key is unchanged"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			reqPath := cmd.String("request")

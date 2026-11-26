@@ -11,11 +11,11 @@ examples_tags: [feature-engineering, streaming-friendly]
 
 ## Use when
 
-Adds a 1 / 0 column saying whether each row's multi-select field includes one named option.
+Adds a 1 / 0 field saying whether each row's multi-select field includes one named option.
 
 Questions it answers:
 
-- Which respondents ticked 'price' among their reasons, as a column to cross with other answers?
+- Which respondents ticked 'price' among their reasons, as a field to cross with other answers?
 - Which tickets carry the 'urgent' tag?
 
 Use something else:

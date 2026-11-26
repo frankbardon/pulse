@@ -8,8 +8,7 @@ import (
 )
 
 // processChainCapability returns the canonical ProcessChainCapability
-// entry. Static today; bumps require updating
-// skills/process-chain.md and CLAUDE.md.
+// entry. A change updates skills/process-chain.md.
 func processChainCapability() descriptor.ProcessChainCapability {
 	return descriptor.ProcessChainCapability{
 		Name:      "process_chain",
@@ -44,14 +43,14 @@ func processChainCapability() descriptor.ProcessChainCapability {
 			"chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
 			"chain rejects an ATTR_REG_PREDICT carrying adstock (params.order: a pre-pass over every scored row, not row-local)",
 			"chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
-			"chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
+			"chain rejects extension attributes not declared row_local, and component-emitting ones not declared mergeable",
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
 			"chain rejects GROUP_QUANTILE / GROUP_DATE / GROUP_KMEANS (non-mergeable)",
 			"chain rejects built-in aggregators over decimal128 targets",
-			"chain rejects a numeric aggregator over a column an earlier stage forwarded as a categorical code (AGG_MODE over a categorical): PULSE_FIELD_TYPE_UNSUPPORTED, details.forwarded_code",
-			"chain rejects extension aggregators and groupers not declared Mergeable",
+			"chain rejects a numeric aggregator over a field an earlier stage forwarded as a categorical code (AGG_MODE over a categorical): PULSE_FIELD_TYPE_UNSUPPORTED, details.forwarded_code",
+			"chain rejects extension aggregators and groupers not declared mergeable",
 			"chain rejects non-streamable filterers",
-			"chain rejects Joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)",
+			"chain rejects joins on any stage after stage 0 (PULSE_CHAIN_STAGE_JOIN)",
 		},
 		OverlayKinds: []string{
 			"OVERLAY_DELTA_VS_STAGE",

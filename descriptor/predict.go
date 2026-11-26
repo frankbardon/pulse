@@ -78,10 +78,10 @@ type PredictResult struct {
 	Suggestions []Suggestion `json:"suggestions"`
 	// DefaultsApplied lists every operator slot whose Type was inferred
 	// from the named field's schema type. Predict computes this on a
-	// clone of the request, so the echoed Request reflects exactly what
-	// the engine would run; the DefaultsApplied list shows what would
-	// have been filled in. Empty when no defaults fire; never nil in
-	// JSON output.
+	// clone of the request, so the echoed Request is the request as
+	// submitted (a defaulted slot keeps `type: ""`); the resolved type
+	// is here and on the per-slot Aggregations / Groups entries. Empty
+	// when no defaults fire; never nil in JSON output.
 	DefaultsApplied []DefaultApplied `json:"defaults_applied"`
 
 	// Aggregations mirrors req.Aggregations in order, attaching the

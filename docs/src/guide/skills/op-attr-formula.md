@@ -16,11 +16,11 @@ Adds a number to every row computed from the row's own fields with an expression
 Questions it answers:
 
 - What is each order's line total from its price and quantity?
-- Which rows meet a combined rule, as a 0/1 column for counting?
+- Which rows meet a combined rule, as a 0/1 field for counting?
 
 Use something else:
 
-- `FILTER_EXPRESSION` when you want to keep or drop rows by a rule rather than add a column.
+- `FILTER_EXPRESSION` when you want to keep or drop rows by a rule rather than add a field.
 - `FEAT_LOG` when you want the logarithm of a field.
 
 ## Params

@@ -34,7 +34,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 | Use | In plain words | Level |
 |---|---|---|
-| [`FEAT_POLY`](../catalog/feature.md#op-feat_poly) | Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. | advanced |
+| [`FEAT_POLY`](../catalog/feature.md#op-feat_poly) | Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. | advanced |
 
 ### Statistical tests
 

@@ -263,7 +263,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -275,7 +275,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -287,7 +287,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -931,4 +931,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f6f18cfa75ca34e50b352646ae564e451e3f0b65c21d8aac0c4723cbc4a39c08
+// golden-hash: 9e1dde16f2e987f9a4d22dd404d8ba3b4c6ab18ae2c96e4e043a042d0f96bf4e

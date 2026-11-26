@@ -421,7 +421,7 @@ var (
 			{When: "there are only two conditions", Use: "TEST_PAIRED_T"},
 		},
 		Assumptions: []string{
-			"The same subjects (SubjectField) are measured once under every condition; subjects missing a condition are dropped.",
+			"The same subjects (subject_field) are measured once under every condition; subjects missing a condition are dropped.",
 			"Subjects are independent of each other.",
 			"The measure is roughly normally distributed within each condition.",
 			"Sphericity: differences between each pair of conditions are about equally variable. No correction is applied, so violations make the p-value too small.",
@@ -824,7 +824,7 @@ var (
 			{When: "you relate two numeric fields rather than one series in order", Use: "TEST_KENDALL_TAU"},
 		},
 		Assumptions: []string{
-			"It runs on result rows (a post-test) in OrderBy order, such as a grouped or windowed series.",
+			"It runs on result rows (a post-test) in order_by order, such as a grouped or windowed series.",
 			"Successive points are independent; seasonality or autocorrelation makes the p-value too small.",
 			"It detects a monotonic trend, not a straight-line slope and not which periods differ.",
 			"The p-value is a two-sided normal approximation; treat it as advisory below about 10 points (Pulse warns below 8).",
@@ -865,7 +865,7 @@ var (
 			"Rows are independent of each other.",
 			"Needs at least 3 values per group; the p-value is only calibrated for 5 to 5000 values, so treat it as advisory below 5 or above 5000 (Pulse warns).",
 			"With few rows it has low power and can miss real departures; with very large samples even trivial departures are flagged, so look at the shape too.",
-			"Pulse computes the Shapiro-Francia form, a close approximation to Shapiro-Wilk; with SplitBy the headline is the group that departs most.",
+			"Pulse computes the Shapiro-Francia form, a close approximation to Shapiro-Wilk; with split_by the headline is the group that departs most.",
 		},
 		Level: descriptor.LevelIntermediate,
 		Glossary: []string{

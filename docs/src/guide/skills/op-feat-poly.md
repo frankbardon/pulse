@@ -13,7 +13,7 @@ Feature operators write derived fields before filters run; no `Response.Componen
 
 ## Use when
 
-Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
+Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve.
 
 Questions it answers:
 
@@ -22,7 +22,7 @@ Questions it answers:
 
 Use something else:
 
-- `REG_OLS` when you want to fit the curve itself, not just build its columns.
+- `REG_OLS` when you want to fit the curve itself, not just build its fields.
 
 ## Params
 

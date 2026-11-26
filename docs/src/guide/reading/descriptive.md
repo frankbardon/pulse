@@ -785,7 +785,7 @@ The share of records carrying this record's category, as a fraction between 0 an
 
 ### `FEAT_LOG`
 
-Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. See its [catalog entry](../catalog/feature.md#op-feat_log).
+Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model. See its [catalog entry](../catalog/feature.md#op-feat_log).
 
 #### `value`
 
@@ -807,7 +807,7 @@ The natural log of 1 + the value: ln(1 + x). 0 reads 0, e - 1 (about 1.72) reads
 
 ### `FEAT_POLY`
 
-Adds columns holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. See its [catalog entry](../catalog/feature.md#op-feat_poly).
+Adds fields holding the value squared, cubed and so on up to a chosen power, so a straight-line model can bend into a curve. See its [catalog entry](../catalog/feature.md#op-feat_poly).
 
 #### `value.*`
 
@@ -825,7 +825,7 @@ One column per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (
 
 ### `FEAT_SQRT`
 
-Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. See its [catalog entry](../catalog/feature.md#op-feat_sqrt).
+Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail. See its [catalog entry](../catalog/feature.md#op-feat_sqrt).
 
 #### `value`
 

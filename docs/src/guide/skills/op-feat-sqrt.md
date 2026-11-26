@@ -13,7 +13,7 @@ Feature operators write derived fields before filters run; no `Response.Componen
 
 ## Use when
 
-Adds a column holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
+Adds a field holding the square root of the value, a gentler squeeze than a log for counts with a moderate long tail.
 
 Questions it answers:
 

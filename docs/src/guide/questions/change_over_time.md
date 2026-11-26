@@ -58,7 +58,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 | Use | In plain words | Level |
 |---|---|---|
-| [`FEAT_DATE_FEATURES`](../catalog/feature.md#op-feat_date_features) | Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled. | basic |
+| [`FEAT_DATE_FEATURES`](../catalog/feature.md#op-feat_date_features) | Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled. | basic |
 
 ### Statistical tests
 

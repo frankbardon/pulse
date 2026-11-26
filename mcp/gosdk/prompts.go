@@ -79,10 +79,10 @@ const bootstrapPromptBody = `You are using a Pulse MCP server to answer analytic
 
 The operator catalog, request-shape contracts, and runnable examples ship with the server. Do not infer request shapes from external documentation, blog posts, or source code — those may be out of date for this deployment.
 
-1. **pulse_manifest** — call once at session start, cache the result. Lists every registered aggregator, attribute, filterer, grouper, window, feature, regression, and statistical test, with their params, accepted field types, and streamability flags.
+1. **pulse_manifest** — call once at session start, cache the result. Lists every registered operator with its params, accepted field types and streamability.
 2. **pulse_examples_search** + **pulse_examples_get** — the example library. Search by keywords, tags, or category to find a runnable template that matches the user's question; fetch the body and modify the field names for the target cohort.
 3. **pulse_skills_list** + **pulse_skills_get** — domain guides for operator families (regression-modeling, statistical-testing, financial-cohorts, geospatial-cohorts, etc.).
-4. **pulse_errors_lookup** — per-code Message + Fixup detail.
+4. **pulse_errors_lookup** — per-code message and fixups.
 
 # Recommended flow for a new question
 
@@ -90,7 +90,7 @@ The operator catalog, request-shape contracts, and runnable examples ship with t
 2. Call ` + "`pulse_examples_search`" + ` with keywords from the user's question.
 3. If a match is found, ` + "`pulse_examples_get`" + ` and clone the body. Swap field names to match the target cohort.
 4. Call ` + "`pulse_predict`" + ` to validate the assembled request. Then call ` + "`pulse_process`" + ` to execute it.
-5. On any error code in the response envelope, call ` + "`pulse_errors_lookup`" + ` for the prescribed fix.
+5. On any error code in a tool result, call ` + "`pulse_errors_lookup`" + ` for the prescribed fix.
 
 # When the example library does not match
 

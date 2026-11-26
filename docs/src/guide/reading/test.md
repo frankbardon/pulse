@@ -782,20 +782,20 @@ W' (Shapiro-Francia) measures how closely the sorted values follow the straight 
 
 **Caveats:**
 
-- With SplitBy, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
+- With split_by, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
 
 #### `p_value`
 
 **Caveats:**
 
 - A small p-value is evidence against normality; a large one only means a departure was not detected, which is likely with few rows.
-- With SplitBy the headline is the smallest p across groups, so it is more likely to be small than any single group's p.
+- With split_by the headline is the smallest p across groups, so it is more likely to be small than any single group's p.
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.per_group`
 
-One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
+One entry per group (or one overall without split_by) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
 
 <a id="op-test_spearman_r"></a>
 
@@ -942,8 +942,8 @@ The Mann-Kendall Z score: the trend count S (details.s) in standard errors, with
 
 **Sign:**
 
-- `+`: the series tends to rise over the OrderBy sequence
-- `-`: the series tends to fall over the OrderBy sequence
+- `+`: the series tends to rise over the order_by sequence
+- `-`: the series tends to fall over the order_by sequence
 
 #### `p_value`
 

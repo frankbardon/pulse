@@ -43,7 +43,7 @@ Use something else:
 ## Reading the output
 
 - `statistic`: W' (Shapiro-Francia) measures how closely the sorted values follow the straight line expected of normal data, up to 1; values clearly below 1 point to skew, heavy tails or other departures from normal.
-  - Caveat: With SplitBy, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
+  - Caveat: With split_by, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
 ## Contract

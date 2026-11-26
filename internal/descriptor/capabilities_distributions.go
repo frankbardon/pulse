@@ -93,7 +93,7 @@ func distributionCapabilities() []descriptor.DistributionMeta {
 		},
 		{
 			Name:        synth.DistDiscrete,
-			Description: "Exact per-level histogram for an integer-valued column: one declared value per observed level, drawn at its own weight. What `profile create` reconstructs every u4/u8/u16/u32/u64 field from, so a coded scale keeps its real shape instead of a clamped normal's bell.",
+			Description: "Exact per-level histogram for an integer-valued field: one declared value per observed level, drawn at its own weight. What `profile create` reconstructs every u4/u8/u16/u32/u64 field from, so a coded scale keeps its real shape instead of a clamped normal's bell.",
 			AppliesTo:   []string{"numeric"},
 			Params: []descriptor.Param{
 				{Name: "values", Type: "list", Required: true, Description: "Strictly ascending list of the integer levels to draw from."},

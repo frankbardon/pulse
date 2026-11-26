@@ -13,7 +13,7 @@ Feature operators write derived fields before filters run; no `Response.Componen
 
 ## Use when
 
-Adds a column holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
+Adds a field holding the natural log of 1 + the value, which pulls in a long tail of large values so a skewed field is easier to model.
 
 Questions it answers:
 

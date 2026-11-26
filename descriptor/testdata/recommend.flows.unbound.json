@@ -55,7 +55,7 @@
         ],
         "alternatives": [
           {
-            "when": "the data already holds one row per subject with a from column and a to column",
+            "when": "the data already holds one row per subject with a from field and a to field",
             "use": "GROUP_CATEGORY"
           },
           {
@@ -71,4 +71,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2df4416e0a98820ddda648c175addf29f179119773edbe1629a4b90896082f45
+// golden-hash: 31434af2dd151b8236c338e91ca9cfaf2bd640f15357132bc3641eeed5424104

@@ -360,7 +360,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.In
 			},
 			"stages": map[string]any{
 				"type":        "array",
-				"description": "Ordered list of chain stages. Mergeable-only at v1; see Manifest.ProcessChain for the per-stage catalog gate.",
+				"description": "Ordered list of chain stages, each limited to the mergeable operators the manifest's process_chain block lists.",
 				"items":       stageItem,
 			},
 			"overlays": overlaysSchemaForFacade(overlayFacadeChain, inst),
@@ -381,7 +381,7 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 	filterTypes := mergeEnumNames(stringSlice(types.AllFiltererTypes()), inst, "filterer")
 	requestObject := map[string]any{
 		"type":        "object",
-		"description": "pulse.FacetRequest — schema-bound for this cohort. fields and additive_fields enums are constrained to the cohort's actual fields.",
+		"description": "A pulse_facet_schema request, bound to this cohort: the fields and additive_fields enums list its fields.",
 		"properties": map[string]any{
 			"cohort": map[string]any{
 				"type": "object",
@@ -594,7 +594,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 					"type": "object",
 					"properties": map[string]any{
 						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in accepted field-type classes. AGG_SUM, AGG_AVERAGE, AGG_STDDEV, AGG_MIN and AGG_MAX need numeric fields. AGG_COUNT, AGG_MODE_COUNT, AGG_MODE and AGG_DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table."),
-						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see Type description and the manifest's Operator.AcceptsTypes."),
+						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see the type's description and its manifest accepts_types."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
 						"weight": slotWeightSchema(c),
@@ -718,7 +718,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		}
 	}
 	reqProps["multiplicity"] = multiplicitySchema(
-		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
+		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the compose request, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
 		types.AllMultiplicityFamilies(), true)
 	bindAttributeFieldTypes(reqProps, c, attrTypes, inst)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
@@ -919,7 +919,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	addUnionSlots(props)
 	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
 	props["time_zone_field"] = zoneFieldSchema("Request-level per-row zone: a categorical field of IANA zone names inherited by every zone-capable slot that sets neither `tz` nor `tz_field`; outranks time_zone (expressions' to_day() still read time_zone).")
-	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses Response.Components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
+	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses the response's components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
 	props["return"] = returnSchema("Response shaping for this request: a preset, include / exclude paths over the Response, a wire float precision. Omitted on pulse_process / pulse_compose slots, the MCP default preset `standard` applies; {\"preset\":\"full\"} returns everything.")
 	props["joins"] = joinsSchema(c)
 	props["regressions"] = regressionsSchema(c, inst)
@@ -946,7 +946,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	itemProps("groups")["vector"] = groupVectorSchema()
 	itemProps("groups")["fields"] = groupFieldsSchema()
 	aggs := itemProps("aggregations")
-	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD, and any extension aggregator whose manifest entry declares vector_input): the Request.Vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
+	aggs["vector"] = map[string]any{"type": "string", "description": "Vector aggregators (AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD, and any extension aggregator whose manifest entry declares vector_input): the request's vectors entry whose members are aggregated; exactly one of vector / fields, and no field."}
 	aggs["fields"] = map[string]any{"type": "array", "description": "Vector aggregators (built-in, or an extension declaring vector_input): inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr := itemProps("attributes")
 	attr["target"] = enumStringField(c.Numeric, "Dependent variable for the regression attributes (ATTR_REG_FITTED / RESIDUAL / LEVERAGE / INFLUENCE).")
@@ -1012,7 +1012,7 @@ func zoneFieldSchema(description string) map[string]any {
 // groupVectorSchema / groupFieldsSchema declare a grouper slot's
 // vector input (GROUP_KMEANS), on groups and both crosstab axes.
 func groupVectorSchema() map[string]any {
-	return map[string]any{"type": "string", "description": "Vector-input groupers (GROUP_KMEANS): the Request.Vectors entry whose members are clustered; exactly one of vector / fields, and no field."}
+	return map[string]any{"type": "string", "description": "Vector-input groupers (GROUP_KMEANS): the request's vectors entry whose members are clustered; exactly one of vector / fields, and no field."}
 }
 
 func groupFieldsSchema() map[string]any {
@@ -1061,7 +1061,7 @@ func joinsSchema(c fieldClassification) map[string]any {
 	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Hash joins against another cohort (at most one in v1). Field enums carry the joined names only for a join target named when the schema was bound (pulse_inspect `joins`); predict resolves the joined schema.",
+		"description": "Hash join against another cohort (at most one per request). Field enums carry the joined names only for a join target named when the schema was bound (pulse_inspect `joins`); predict resolves the joined schema.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1146,7 +1146,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"rng_seed":         integer("Bootstrap RNG and jackknife_groups assignment seed."),
 				"selection":        enumStringField([]string{"forward", "backward", "stepwise"}, "Subset selection; omit for none."),
 				"intercept":        map[string]any{"type": "boolean", "description": "REG_OLS only: false fits through the origin (intercept pinned to 0, null inference on it; uncentred R², df N − p). Unpenalized, unbounded, classical covariance only."},
-				"solver":           enumStringField(regsolve.Solvers(), "REG_OLS least-squares method of an unpenalized, unbounded fit: qr (default, streaming QR) or normal (normal equations, pre-alpha.35)."),
+				"solver":           enumStringField(regsolve.Solvers(), "REG_OLS least-squares method of an unpenalized, unbounded fit: qr (default, streaming QR) or normal (normal equations by Cholesky, less accurate on an ill-conditioned design)."),
 				"criterion":        enumStringField([]string{"aic", "bic"}, "Information criterion; required with selection."),
 				"vcov":             map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
 				"covariance": map[string]any{
@@ -1413,7 +1413,7 @@ func overlayRefSchema() map[string]any {
 	strs := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 	return map[string]any{
 		"type":          "object",
-		"description":   "Discriminated reference: set at most one arm; empty for implicit-margin kinds. Which arm a kind reads is in Manifest.Overlays.",
+		"description":   "Discriminated reference: set at most one arm; empty for implicit-margin kinds. Which arm a kind reads is its manifest overlays[].ref_kinds.",
 		"maxProperties": 1,
 		"properties": map[string]any{
 			"margin":         obj("Margin reference.", map[string]any{"axis": map[string]any{"type": "string"}}),
@@ -1425,7 +1425,7 @@ func overlayRefSchema() map[string]any {
 			"population":     obj("Population cohort (facet kinds).", map[string]any{"cohort": map[string]any{"type": "string"}}),
 			"slot":           obj("Compose slot reference.", map[string]any{"name": map[string]any{"type": "string"}}),
 			"stage":          obj("Chain stage reference; one of index / name.", map[string]any{"index": map[string]any{"type": "integer", "minimum": 0}, "name": map[string]any{"type": "string"}}),
-			"matrix":         obj("Matrix-result reference: a Request.Matrices spec by effective name (every group bucket).", map[string]any{"name": map[string]any{"type": "string"}}),
+			"matrix":         obj("Matrix-result reference: a request matrices entry by effective name (every group bucket).", map[string]any{"name": map[string]any{"type": "string"}}),
 		},
 		"additionalProperties": false,
 	}
@@ -1564,7 +1564,7 @@ func columnInputAnyOf() []any {
 // wire like every aggregation slot's, refused by the crosstab rule
 // unless params.element selects one element.
 func crosstabArrayValuedVectorSchema() map[string]any {
-	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (Manifest.Crosstab.ArrayValuedAggregators, an extension's array_valued) unless a built-in AGG_VEC_* sets params.element to one member label (a scalar cell)."}
+	return map[string]any{"type": "string", "description": "Vector aggregators only (AGG_VEC_*, or an extension declaring vector_input), which a crosstab refuses when array-valued (the manifest's crosstab.array_valued_aggregators, an extension's array_valued) unless a built-in AGG_VEC_* sets params.element to one member label (a scalar cell)."}
 }
 
 func crosstabArrayValuedFieldsSchema() map[string]any {
@@ -1602,7 +1602,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			},
 			"cell": map[string]any{
 				"type":        "object",
-				"description": "Cell aggregation. Most aggregators emit scalar cells (number in matrix payload). Map-valued aggregators (advertised under Manifest.Crosstab.MapValuedCellAggregators — AGG_SET_FREQUENCY today) emit per-label row-count maps (object); pairing them with normalize=row/column/total raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
+				"description": "Cell aggregation. Most aggregators emit scalar cells (number in matrix payload). Map-valued aggregators (the manifest's crosstab.map_valued_cell_aggregators) emit per-label row-count maps (object); pairing them with normalize=row/column/total raises PULSE_CROSSTAB_NORMALIZE_MAP_VALUED.",
 				"properties": map[string]any{
 					"type":   enumStringField(aggTypes, ""),
 					"field":  enumStringField(c.AllFields, "Field the cell aggregation reads. AGG_COUNT may name any field."),
@@ -1671,7 +1671,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			"shape": map[string]any{
 				"type":        "string",
 				"enum":        []string{"matrix", "long"},
-				"description": "Output shape. matrix (default) populates Response.Crosstab.Matrix; long emits tuple rows on Response.Data.",
+				"description": "Output shape. matrix (default) fills the response's crosstab.matrix; long emits tuple rows under data.",
 			},
 			"normalize_level": map[string]any{
 				"type":        "integer",
@@ -1833,7 +1833,7 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 	kinds := overlayKindEnumForFacade(facade, inst)
 	kindField := map[string]any{
 		"type":        "string",
-		"description": "Overlay catalog kind. Enum is constrained to the kinds the bound facade's request shape accepts (Request / Compose / Facet / Chain). Drawn from descriptor.OverlayCapabilities() filtered by facade membership; new kinds in the same facade flow through automatically. See Manifest.Overlays for the per-kind shape / scope / ref-kind matrix.",
+		"description": "Overlay kind. The enum lists the kinds this request shape (process, compose, facet or chain) accepts; the manifest's overlays entries give each kind's shapes, scopes and ref kinds.",
 	}
 	if len(kinds) > 0 {
 		kindField["enum"] = kinds
@@ -1864,7 +1864,7 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 						"additionalProperties": false,
 					},
 					"multiplicity": multiplicitySchema(
-						"This layer's own multiple-comparison correction; omit to inherit the ComposedRequest's. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer, `compose` pools with every compose-family member of the batch.",
+						"This layer's own multiple-comparison correction; omit to inherit the compose request's. Family `layer` (default) corrects the layer's p-values together, `row` / `column` per row / column of a matrix layer, `compose` pools with every compose-family member of the batch.",
 						[]types.MultiplicityFamily{types.MultiplicityFamilyLayer, types.MultiplicityFamilyRow, types.MultiplicityFamilyColumn, types.MultiplicityFamilyCompose}, true),
 				},
 				"required":             []string{"kind", "reference"},
@@ -1876,8 +1876,8 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 			"type":        "object",
 			"description": "Discriminated stage reference — populate exactly one of index / name.",
 			"properties": map[string]any{
-				"index": map[string]any{"type": "integer", "minimum": 0, "description": "Zero-based stage index into ChainRequest.Stages."},
-				"name":  map[string]any{"type": "string", "description": "Matches against ChainStage.Name verbatim."},
+				"index": map[string]any{"type": "integer", "minimum": 0, "description": "Zero-based index into the chain's stages."},
+				"name":  map[string]any{"type": "string", "description": "Matches a stage's name verbatim."},
 			},
 			"additionalProperties": false,
 		}
@@ -1936,9 +1936,9 @@ func testsArraySchema(c fieldClassification, testTypes []string) map[string]any 
 				"rows":          enumStringField(c.AllFields, "Row-axis categorical field for TEST_CHISQ."),
 				"cols":          enumStringField(c.AllFields, "Column-axis categorical field for TEST_CHISQ."),
 				"subject_field": enumStringField(c.AllFields, "Within-subject grouping for TEST_ANOVA_RM."),
-				"vector":        map[string]any{"type": "string", "description": "Vector-input tests (TEST_HOTELLING_T2, TEST_MANOVA, TEST_BOX_M, TEST_BARTLETT_SPHERICITY, TEST_MARDIA): the Request.Vectors entry whose members are the test's columns; exactly one of vector / fields."},
+				"vector":        map[string]any{"type": "string", "description": "Vector-input tests (TEST_HOTELLING_T2, TEST_MANOVA, TEST_BOX_M, TEST_BARTLETT_SPHERICITY, TEST_MARDIA): the request's vectors entry whose members are the test's fields; exactly one of vector / fields."},
 				"fields":        map[string]any{"type": "array", "description": "Vector-input tests: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}},
-				"vector2":       map[string]any{"type": "string", "description": "Paired vector-input tests: the second member set's Request.Vectors entry (same member count)."},
+				"vector2":       map[string]any{"type": "string", "description": "Paired vector-input tests: the second member set's vectors entry (same member count)."},
 				"fields2":       map[string]any{"type": "array", "description": "Paired vector-input tests: the second member set inline.", "items": map[string]any{"type": "string"}},
 				"alpha":         map[string]any{"type": "number"},
 				"label":         map[string]any{"type": "string"},
@@ -1978,7 +1978,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"multiplicity": multiplicitySchema(
 				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
 				types.AllMultiplicityFamilies(), true),
-			"return":   returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
+			"return":   returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the compose result and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
 			"sweep":    sweepSchema(inst),
 			"fits":     fitsSchema(reqSchema, inst),
 			"banner":   bannerSchema(reqSchema),
@@ -2384,8 +2384,8 @@ func samplingSweepSchema() map[string]any {
 				},
 			},
 			"mode":    enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once); de: adaptive differential evolution over `budget` slots, needs rank; bo: adaptive Bayesian optimisation (GP surrogate, expected improvement) over `budget` slots, needs rank."),
-			"samples": map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
-			"budget":  map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward MaxComposeSlots). An axis lists values or carries a range."},
+			"samples": map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward the max_compose_slots limit)."},
+			"budget":  map[string]any{"type": "integer", "minimum": 1, "description": "Adaptive modes (required there, with rank): the number of slots evaluated, in rounds — each round's points chosen from the ranked values before (counts toward the max_compose_slots limit). An axis lists values or carries a range."},
 			"de": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
@@ -2604,7 +2604,7 @@ func weightSpecSchema(c fieldClassification, description string) map[string]any 
 		"type":        "object",
 		"description": description,
 		"properties": map[string]any{
-			"field": enumStringField(c.Weight, "Weight field: an unsigned-integer or float column."),
+			"field": enumStringField(c.Weight, "Weight field: an unsigned-integer or float field."),
 			"kind":  enumStringField([]string{string(types.WeightKindProbability), string(types.WeightKindFrequency)}, "probability (default) or frequency (a replication count; non-integer values are invalid)."),
 		},
 		"required":             []string{"field"},

@@ -40,9 +40,9 @@ In depth: [api compose](api-compose.md)
 | `--stream-fits` |  |  | Under --stream, end the stream with one {"fits":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream |
 | `--parallel` | int | `1` | Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential |
 | `--no-fail-fast` |  |  | Aggregate errors instead of cancelling on first failure (parallel only) |
-| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit Type on every aggregation and grouper |
-| `--echo-request` |  |  | Include the normalized ComposedRequest on the envelope under "request". Each slot reflects its post-defaults form. Streaming output skips this. |
-| `--no-components` |  |  | Suppress Response.Components on every per-slot Response in ComposedResponse.Responses. Wire form is byte-identical to the pre-Components baseline. |
+| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit type on every aggregation and grouper |
+| `--echo-request` |  |  | Include the normalized compose request on the envelope under "request". Each slot reflects its post-defaults form. Streaming output skips this. |
+| `--no-components` |  |  | Omit components from every slot's response under responses; every other key is unchanged |
 
 ### `pulse api facet`
 
@@ -176,10 +176,10 @@ In depth: [api process](api-process.md)
 | `--request`, `-r` | string |  | **Required.** Request JSON file path |
 | `--json` |  |  | Output the result as a JSON envelope |
 | `--stream` |  |  | Stream rows as NDJSON (one row per line) instead of buffering; a run that warned ends with one {"warnings":[...]} line |
-| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit Type on every aggregation and grouper |
+| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit type on every aggregation and grouper |
 | `--strict` |  |  | Promote request-validation warnings into hard errors (e.g. numeric aggregation on a categorical field) |
 | `--echo-request` |  |  | Include the normalized (post-defaults) request on the envelope under "request". Streaming output skips this — NDJSON has no envelope. |
-| `--no-components` |  |  | Suppress Response.Components (per-aggregator / per-grouper / per-filterer / crosstab / run constituent-parts metadata). Wire form is byte-identical to the pre-Components baseline. |
+| `--no-components` |  |  | Omit the response's components (the per-aggregator / per-grouper / per-filterer / crosstab / run counts behind each figure); every other key is unchanged |
 | `--no-project` |  |  | Disable buffered-decode field projection; force full-record decode. Projection is on by default and output-transparent (same result, only faster), so this is an opt-out for debugging or full-map decode. |
 
 ### `pulse api process-chain`
@@ -194,9 +194,9 @@ In depth: [api process](api-process.md)
 |---|---|---|---|
 | `--request`, `-r` | string |  | **Required.** Chain request JSON file path |
 | `--json` |  |  | Output the result as a JSON envelope |
-| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit Type on every aggregation and grouper |
-| `--echo-request` |  |  | Include the normalized ChainRequest on the envelope under "request". Each stage's Request reflects the per-stage post-defaults form captured during execution. |
-| `--no-components` |  |  | Suppress Response.Components on every per-stage Response. Wire form is byte-identical to the pre-Components baseline. |
+| `--no-defaults` |  |  | Disable smart operator defaults; require an explicit type on every aggregation and grouper |
+| `--echo-request` |  |  | Include the normalized chain request on the envelope under "request". Each stage's request reflects the per-stage post-defaults form captured during execution. |
+| `--no-components` |  |  | Omit components from every stage's response; every other key is unchanged |
 
 ### `pulse api sample`
 

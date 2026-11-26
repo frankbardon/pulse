@@ -13,7 +13,7 @@ Feature operators write derived fields before filters run; no `Response.Componen
 
 ## Use when
 
-Splits a date into year, month, day, day of week and quarter columns, so each part can be filtered, grouped or modelled.
+Splits a date into year, month, day, day of week and quarter fields, so each part can be filtered, grouped or modelled.
 
 Questions it answers:
 

@@ -16,7 +16,7 @@ Adds to every row its score on one principal component of several related numeri
 Questions it answers:
 
 - What is each respondent's score on the main dimension behind these rating questions?
-- Can I replace these five correlated measures with one summary column for a later model?
+- Can I replace these five correlated measures with one summary field for a later model?
 
 Use something else:
 

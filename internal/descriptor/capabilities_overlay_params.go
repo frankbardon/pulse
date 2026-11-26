@@ -144,7 +144,7 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 			descriptor.Param{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Exact 2 x 2 only: coverage of the odds-ratio interval (R binom.test conf.level), in (0, 1). Without exact true it is refused (reason needs_exact), on k x k reason needs_2x2; outside (0, 1) reason out_of_range."},
 		)
 	case types.OverlayKindChiSqMatrix:
-		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); Summary.Parameters adds continuity_correction (Y). Inert on any larger table."})
+		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); summary.parameters adds continuity_correction (Y). Inert on any larger table."})
 	case types.OverlayKindMarkov:
 		ps = append(ps,
 			descriptor.Param{Name: "steps", Type: "list", Required: false, Description: "Distinct step counts 1-1000 (at most 64) to project; default [1, 3, 6, 12]."},

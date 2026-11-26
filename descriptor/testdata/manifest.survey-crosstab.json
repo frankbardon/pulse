@@ -676,7 +676,7 @@
         "name": "TEST_CHISQ",
         "family": "TEST_CHISQ",
         "tier": 1,
-        "description": "Chi-square independence test on a 2D Rows×Cols contingency table; with params.expected and no Cols, a goodness-of-fit test of Rows' level counts against expected proportions.",
+        "description": "Chi-square independence test on a 2D rows×cols contingency table; with params.expected and no cols, a goodness-of-fit test of rows level counts against expected proportions.",
         "streamable": true,
         "params": [
           {
@@ -684,14 +684,14 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
             "name": "expected",
             "type": "object",
             "required": false,
-            "description": "Goodness of fit: map of Rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects Variant goodness_of_fit (df = labels − 1) and requires Cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
+            "description": "Goodness of fit: map of rows level to expected proportion (each \u003e 0, summing to 1 within 1e-9; never renormalised). Selects variant goodness_of_fit (df = labels − 1) and requires cols absent; an observed level it omits is refused, a listed level never observed counts as 0."
           },
           {
             "name": "correct",
@@ -714,7 +714,7 @@
         "name": "TEST_T",
         "family": "TEST_T",
         "tier": 1,
-        "description": "One-sample or two-sample t-test on a numeric Field; SplitBy switches to the two-sample variant (Welch, or Student's pooled-variance t under params.variance pooled).",
+        "description": "One-sample or two-sample t-test on a numeric field; split_by switches to the two-sample variant (Welch, or Student's pooled-variance t under params.variance pooled).",
         "streamable": true,
         "params": [
           {
@@ -722,7 +722,7 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
@@ -730,19 +730,19 @@
             "type": "float",
             "required": false,
             "default": 0,
-            "description": "Hypothesized mean for the one-sample variant (ignored when SplitBy is set)."
+            "description": "Hypothesized mean for the one-sample variant (ignored when split_by is set)."
           },
           {
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs split_by; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
             "names_column": true
           },
           {
@@ -750,7 +750,7 @@
             "type": "enum",
             "required": false,
             "default": "unequal",
-            "description": "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; Variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs SplitBy, else PROCESSING_CONFIG.",
+            "description": "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs split_by, else PROCESSING_CONFIG.",
             "enum_values": [
               "pooled",
               "unequal"
@@ -769,7 +769,7 @@
         "name": "TEST_WELCH",
         "family": "TEST_WELCH",
         "tier": 1,
-        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with SplitBy.",
+        "description": "Explicit two-sample Welch t-test alias; identical to TEST_T with split_by.",
         "streamable": true,
         "params": [
           {
@@ -777,20 +777,20 @@
             "type": "float",
             "required": false,
             "default": 0.05,
-            "description": "Significance level in (0, 1); RejectNull is true when PValue \u003c alpha.",
+            "description": "Significance level in (0, 1); reject_null is true when p_value \u003c alpha.",
             "slot": true
           },
           {
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "SplitBy level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: alphabetical). A split_by level (\"0\" / \"1\" on a packed_bool) and needs SplitBy, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
             "type": "string",
             "required": false,
-            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of Field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs SplitBy; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
+            "description": "Numeric pre-period column (CUPED): the test runs on y − θ·(x − x̄), θ the slope of field on it pooled over both groups, so diff, its interval, the statistic, p and cohens_d are adjusted; details add diff_unadjusted, theta, covariate_mean, variance_reduction, n_covariate_dropped (null-covariate rows dropped). Needs split_by; else, or non-numeric, PULSE_TEST_COVARIATE_INVALID — as on any other test.",
             "names_column": true
           }
         ],
@@ -1033,7 +1033,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -1045,7 +1045,7 @@
       },
       {
         "name": "pulse_facet_schema",
-        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional NumericPercentiles (forces buffered per-field sort), IncludeHistogram + HistogramRange + HistogramBins for fixed-width binning, DiscreteTopK truncation, and AdditiveFields contribution counts that strip the field's own filter clauses so the LLM/UI can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
+        "description": "CALL TO SUMMARISE SEVERAL FIELDS AT ONCE WITH COUNTS, NULLS, STATS OR HISTOGRAMS. Multi-field rich facet endpoint. Returns per-field summaries (discrete value/count lists with null tallies for categorical/boolean/geo fields; streaming statistics — count, sum, min, max, mean, stddev — for numeric fields), with optional `numeric_percentiles` (forces a buffered per-field sort), `include_histogram` + `histogram_range` + `histogram_bins` for fixed-width binning, `discrete_top_k` truncation, and `additive_fields` contribution counts that strip the field's own filter clauses so you can report 'if I added value V to my filter on F, this is the population that survives'. Filterers reuse the standard FILTER_* surface. Use this instead of repeated pulse_facet calls when summarising more than one field, when you need counts (not just distinct values), or when building a faceted UI."
       },
       {
         "name": "pulse_inspect",
@@ -1053,7 +1053,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The LLM-authored-request bootstrap blob. Carries per-operator params + accepted field types + streamability, tier-1 + tier-2 test catalogs as peer slices, regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
       },
       {
         "name": "pulse_predict",
@@ -1069,7 +1069,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack — domain guides covering aggregation, attributes, groupers, windows, features, statistical testing, regression modeling, MCP integration, error code reference, request recipes, cohort schema design, financial / geospatial / time-series patterns, and the contributor workflow. Each entry returns (name, description, applies_to). Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -1881,8 +1881,8 @@
       "supports_additive": true,
       "supports_overlays": true,
       "streamable_conditions": [
-        "NumericPercentiles is empty (percentiles force a buffered per-field value slice + sort)",
-        "IncludeHistogram=false OR HistogramRange supplies caller-known [min, max] bounds"
+        "numeric_percentiles is empty (percentiles force a buffered per-field sort)",
+        "include_histogram is false, or histogram_range supplies known [min, max] bounds"
       ]
     },
     "crosstab": {
@@ -1959,7 +1959,7 @@
           "level",
           "within"
         ],
-        "description": "Per-cell index score against the matching axis margin: 100 * cell / margin. CELL scope over a MATRIX (crosstab) host with a Margin reference. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation.",
+        "description": "Per-cell index against the matching crosstab margin (ref.margin.axis row, column or grand): 100 · cell / margin. level / within truncate the margin to a nested-axis prefix.",
         "intents": [
           "benchmark"
         ]
@@ -1975,7 +1975,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Intra-matrix axis-pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads the {mean, variance, n} Welford triple from CellComponents). A cell whose declared ComponentSchema lacks mean + variance fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, at predict and at runtime. n_source and p_source are NOT accepted on this kind: n, mean and variance all come from the triple, so setting either selector was a silent no-op and predict now refuses it with PULSE_OVERLAY_PARAM_MISSING; a distinct-key n_source is refused at runtime too, under that same code. MATRIX payload: the PAIR axis carries one entry per evaluated (i, j) index pair (key = the 2-tuple of the compared legs' labels), the OPPOSITE axis echoes the host's other axis, and each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). The Ref union is left empty (intra-matrix). n_within_distinct sums per-cell cardinalities, so the summed-across pair-axis dims must PARTITION the key set — a fan-out grouper at a depth beyond n_within_depth fires PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED at predict AND at runtime, while row_margin_distinct / column_margin_distinct accumulate over raw records and are exact by construction, never gated. Reads Response.Components.Crosstab — a components-disabled host fires PULSE_OVERLAY_COMPONENTS_REQUIRED, at predict and at runtime. RAW p-values; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). Buffered (inferential).",
+        "description": "Pairwise Welch–Satterthwaite t-test on AGG_WELFORD cells (Welch SE + Satterthwaite df, Student-t tail; reads each cell's {mean, variance, n} from the crosstab components). A cell whose component schema lacks mean and variance is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (predict and runtime). The payload matrix has one pair-axis entry per tested (i, j) pair, keyed by the two legs' labels, against the host's other axis; each cell holds the pair's two-sided p-value (absent when a leg is unreadable or the test degenerate). No ref. Reads the crosstab components: a host with components disabled is PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). p-values are raw; params.letters adds a letters part (per host cell: its letter, comparison group, and the letters it is higher than and significantly above). Detail: skill pairwise-n-sources.",
         "intents": [
           "compare_groups"
         ],
@@ -2025,7 +2025,7 @@
           "level",
           "within"
         ],
-        "description": "Per-cell share-of-row ratio: cell / row_margin. CELL scope over a MATRIX (crosstab) host. Row cells sum to 1.0 in the absence of missing cells; renderers can present the layer as a 100%-stacked horizontal projection. Honours OverlaySpec Level / Within slots for nested-axis denominator truncation.",
+        "description": "Per-cell share of its row (ref.margin.axis row): cell / row margin. A row's cells sum to 1 when none is missing. level / within truncate the margin to a nested-axis prefix.",
         "intents": [
           "composition"
         ]
@@ -2487,4 +2487,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fcd80001edd8bcecb25ce2ca9336e9eecefbde31c44744ec422527a8ae9723b7
+// golden-hash: f09c177e4869d55e591ebbf758047cf0e1093a109b08f1a9c8c520099396d87e

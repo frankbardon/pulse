@@ -13,16 +13,16 @@ Feature operators write derived fields before filters run; no `Response.Componen
 
 ## Use when
 
-Turns a category field into one 0/1 column per category, so a model or a sum can treat each category as its own yes/no.
+Turns a category field into one 0/1 field per category, so a model or a sum can treat each category as its own yes/no.
 
 Questions it answers:
 
 - How do I feed region into a regression as separate yes/no predictors?
-- Which rows are in each plan tier, as columns I can sum?
+- Which rows are in each plan tier, as fields I can sum?
 
 Use something else:
 
-- `FEAT_FREQUENCY_ENCODE` when the field has hundreds of categories and one column each is too many.
+- `FEAT_FREQUENCY_ENCODE` when the field has hundreds of categories and one field each is too many.
 
 ## Params
 
