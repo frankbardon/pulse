@@ -35,7 +35,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2856 | 0 |
+| [Go API symbols](#go-api-symbols) | 2857 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -46,7 +46,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
 | [Field types](#field-types) | 22 | 0 |
-| [Error codes](#error-codes) | 492 | 0 |
+| [Error codes](#error-codes) | 493 | 0 |
 | [Environment variables](#environment-variables) | 10 | 0 |
 
 ## Go API symbols
@@ -971,6 +971,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PROCESSING_REGRESSION_NO_CONVERGE` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_ORDER` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_RANK_DEFICIENT` |  |  | yes |
+| `errors.PROCESSING_REGRESSION_REGULARIZED_SELECTION` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_SEPARATION` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_SINGULAR_GRAM` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED` |  |  | yes |
@@ -3706,6 +3707,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PROCESSING_REGRESSION_NO_CONVERGE` | yes | yes |
 | `PROCESSING_REGRESSION_ORDER` | yes | yes |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT` | yes | yes |
+| `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | yes | yes |
 | `PROCESSING_REGRESSION_SEPARATION` | yes | yes |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM` | yes |  |
 | `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` | yes | yes |

@@ -115,6 +115,13 @@ const (
 	// with this code.
 	PROCESSING_REGRESSION_DIAGNOSTIC Code = "PROCESSING_REGRESSION_DIAGNOSTIC"
 
+	// PROCESSING_REGRESSION_REGULARIZED_SELECTION is a predict WARNING:
+	// a REG_OLS, REG_GLM or REG_MULTINOMIAL slot sets both a Penalty and
+	// a Selection. The penalty already shrinks (l2) or selects (l1 /
+	// elasticnet), so layering greedy subset search on it is unusual but
+	// valid; the fit runs. details carry type, penalty and selection.
+	PROCESSING_REGRESSION_REGULARIZED_SELECTION Code = "PROCESSING_REGRESSION_REGULARIZED_SELECTION"
+
 	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
 	// expression function (dot, dist, cosine) was handed two vectors of
 	// unequal length. The run fails rather than reading the pair as NaN;
@@ -5021,6 +5028,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
 	PROCESSING_REGRESSION_ORDER,
 	PROCESSING_REGRESSION_DIAGNOSTIC,
+	PROCESSING_REGRESSION_REGULARIZED_SELECTION,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	PROCESSING_AUC_OUTCOME_NOT_BINARY,
 	// SERVICE

@@ -217,6 +217,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_REGULARIZED_SELECTION: {
+		Message: "A linear, generalized linear or multinomial regression slot sets both a Penalty and a Selection. The penalty already shrinks (l2) or selects (l1 / elasticnet) coefficients, so a greedy stepwise / forward / backward search on top is unusual and can yield a model harder to read than either alone. A predict warning only: the fit runs. details carry type, penalty and selection.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Regressions", "*", "Selection"},
+				Hint:   "Drop Selection and let the penalty choose (l1 / elasticnet zero coefficients), or drop Penalty and keep the subset search; keep both only if the combination is intended.",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
 		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net or a penalised multinomial fit (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac, driscoll_kraay) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value (within one entity, under covariance.entity). details.reason names which.",
 		Fixups: []Fixup{

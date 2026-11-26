@@ -319,7 +319,7 @@ func checkRegressionSpec(env *descriptor.Envelope, i int, reg *types.RegressionS
 	// Warn the user so they know the combination is unusual.
 	if (reg.Type == types.REG_OLS || reg.Type == types.REG_GLM || reg.Type == types.REG_MULTINOMIAL) && reg.Penalty != "" && reg.Selection != "" {
 		env.AddWarning(
-			"PROCESSING_REGRESSION_REGULARIZED_SELECTION",
+			string(errors.PROCESSING_REGRESSION_REGULARIZED_SELECTION),
 			string(reg.Type)+" combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
 			map[string]any{"penalty": reg.Penalty, "selection": reg.Selection, "type": string(reg.Type)},
 		)
