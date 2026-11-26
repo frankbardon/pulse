@@ -380,7 +380,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`type-decimal128`](skills/type-decimal128.md): 128-bit fixed-point decimal with per-field (precision, scale); exact base-10 arithmetic.
 - [`type-f32`](skills/type-f32.md): IEEE-754 single-precision float; ~7 significant digits.
 - [`type-f64`](skills/type-f64.md): IEEE-754 double-precision float; ~15 significant digits.
-- [`type-packed-bool`](skills/type-packed-bool.md): 1-bit boolean; bit-packed with adjacent packed_bool / u4 fields.
+- [`type-packed-bool`](skills/type-packed-bool.md): 1-bit boolean; bit-packed into one whole record byte of its own.
 - [`type-set-u128`](skills/type-set-u128.md): 16-byte multi-select bitmask over an inline dictionary of up to 128 labels.
 - [`type-set-u16`](skills/type-set-u16.md): 2-byte multi-select bitmask over an inline dictionary of up to 16 labels.
 - [`type-set-u256`](skills/type-set-u256.md): 32-byte multi-select bitmask over an inline dictionary of up to 256 labels — the widest set rung.
@@ -389,7 +389,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`type-set-u8`](skills/type-set-u8.md): 1-byte multi-select bitmask over an inline dictionary of up to 8 labels.
 - [`type-u16`](skills/type-u16.md): 2-byte unsigned integer; fits cardinals through 65,535.
 - [`type-u32`](skills/type-u32.md): 4-byte unsigned integer; the common wide-cardinal default.
-- [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
+- [`type-u4`](skills/type-u4.md): 4-bit unsigned integer; bit-packed into one whole record byte of its own.
 - [`type-u64`](skills/type-u64.md): 8-byte unsigned integer; for sub-day timestamps and very wide cardinals.
 - [`type-u8`](skills/type-u8.md): 1-byte unsigned integer; fits cardinals through 255.
 - [`type-vec-f32`](skills/type-vec-f32.md): Fixed-dim vector of float32 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema.

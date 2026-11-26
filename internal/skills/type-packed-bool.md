@@ -1,14 +1,14 @@
 ---
 name: type-packed-bool
 kind: type
-description: 1-bit boolean; bit-packed with adjacent packed_bool / u4 fields.
+description: 1-bit boolean; bit-packed into one whole record byte of its own.
 type: reference
 applies_to: inspect, predict
 ---
 
 ## Bytes
 
-`ByteSize() == 0` — bit-packed. Each value is 1 bit; eight `packed_bool` fields share one byte. Stride math handled by `Schema.RecordByteSize`; place packed runs together for optimal layout. `FieldType.IsBitPacked()` reports `true`.
+`ByteSize() == 0` — bit-packed, yet each `packed_bool` takes one whole record byte (`Schema.FieldWidth` = 1); the value is `(b >> BitPosition) & 1`. Fields never share a byte, so order does not change the stride. `FieldType.IsBitPacked()` reports `true`.
 
 ## Range
 

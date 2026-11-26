@@ -1,14 +1,14 @@
 ---
 name: type-u4
 kind: type
-description: 4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields.
+description: 4-bit unsigned integer; bit-packed into one whole record byte of its own.
 type: reference
 applies_to: inspect, predict
 ---
 
 ## Bytes
 
-`ByteSize() == 0` — bit-packed. Each value is 4 bits; two `u4` fields share one byte (high nibble + low nibble). Stride math handled by `Schema.RecordByteSize`; place packed runs together for optimal layout. `FieldType.IsBitPacked()` reports `true`.
+`ByteSize() == 0` — bit-packed, yet each `u4` takes one whole record byte (`Schema.FieldWidth` = 1); `BitPosition` picks the nibble (`> 0` high, `0` low). Fields never share a byte, so order does not change the stride. `FieldType.IsBitPacked()` reports `true`.
 
 ## Range
 

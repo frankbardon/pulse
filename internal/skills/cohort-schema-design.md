@@ -65,7 +65,7 @@ Counts / IDs → smallest unsigned width that fits the max. Measurements → `f3
 
 ## Bit-packed runs
 
-`u4` and `packed_bool` report `ByteSize() == 0` and share bytes with adjacent packed fields. Keep packed fields adjacent; reordering moves byte offsets.
+`u4` and `packed_bool` report `ByteSize() == 0`, yet each takes one whole record byte; fields never share a byte. Size with `Schema.FieldWidth`.
 
 ## Field descriptions
 

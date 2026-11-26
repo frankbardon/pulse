@@ -1743,7 +1743,7 @@
       },
       {
         "name": "type-packed-bool",
-        "description": "1-bit boolean; bit-packed with adjacent packed_bool / u4 fields."
+        "description": "1-bit boolean; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-set-u128",
@@ -1779,7 +1779,7 @@
       },
       {
         "name": "type-u4",
-        "description": "4-bit unsigned integer; bit-packed with adjacent u4 / packed_bool fields."
+        "description": "4-bit unsigned integer; bit-packed into one whole record byte of its own."
       },
       {
         "name": "type-u64",
@@ -2487,4 +2487,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9eabe9f0bd5bc9a668f901bd77bdf821c2ee5d15b564dacb8d148f4de14a4868
+// golden-hash: 726de17e75f96492d76dee5769b195570005939312ac0a2f68c55c4dfa2f70aa
