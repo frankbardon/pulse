@@ -171,7 +171,7 @@ pulse cohort inspect survey.pulse --json
 }
 ```
 
-`AGG_MEAN` over `income` is now the mean of the incomes. `GROUP_CATEGORY`
+`AGG_AVERAGE` over `income` is the mean of the incomes. `GROUP_CATEGORY`
 over `income_missing` is the item-non-response breakdown. Neither needed
 a filter.
 
@@ -276,9 +276,7 @@ label and Pulse ID:
 }
 ```
 
-The flag is additive and `omitempty`, so a file declaring no categorical
-user-missing codes writes a document byte-identical to the shape before
-it existed; the sidecar's own `format_version` does not move.
+The flag is omitted when false.
 
 The import raises `PULSE_SPSS_CATEGORICAL_USER_MISSING` as the
 **import-time** signal — one informational diagnostic for the whole file,
@@ -434,10 +432,8 @@ option. And when the answer raises a question the mask cannot settle —
 - **Over 256 constituents, no derived column.** `set_u256` is the widest
   set type Pulse has, so a battery naming more constituents than that has
   no honest mask. The import emits the constituents and warns
-  `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set. The ceiling was 64 until
-  `set_u128` / `set_u256` landed; a 206-option battery derives now, and
-  the importer reads the ceiling off the same width ladder `internal/io/infer.go`
-  uses rather than carrying a copy.
+  `PULSE_SPSS_MR_SET_NOT_DERIVED` naming the set. The ceiling is read off
+  the same width ladder inference uses.
 
 ### When a set does not derive
 
@@ -573,7 +569,7 @@ phantom variable that was never in the source, or a real column dropped.
 }
 ```
 
-`kind` is a **closed vocabulary** — those two values today. A consumer
+`kind` is a **closed vocabulary** of those two values. A consumer
 meeting a third must refuse rather than skip it: a column whose fold-back
 is unknown has no safe default.
 
@@ -645,8 +641,8 @@ place to generate a label table from.
 > ```
 >
 > A typo'd label table must surface as an error, not as a table that is
-> quietly not there. A dedicated label-tables directory remains the
-> tidier habit, but it is no longer a requirement.
+> quietly not there. A dedicated label-tables directory is still the
+> tidier habit.
 
 ## Flags and what SPSS ignores
 
@@ -755,6 +751,8 @@ each.
 | `PULSE_SPSS_CHARSET_MISMATCH` | The file states its character encoding twice and the two disagree — see [Character encoding](#character-encoding) |
 | `PULSE_SPSS_MAGIC_FLAG_MISMATCH` | The 4-byte magic and the compression flag disagree about whether the file is a ZSAV — see [Byte order and damaged files](#byte-order-and-damaged-files) |
 | `PULSE_SPSS_VALUE_LABELS_DROPPED` | A record `3`/`4` value-label set names variables it cannot be bound to; that set is dropped and the data imports — see [Byte order and damaged files](#byte-order-and-damaged-files) |
+| `PULSE_SPSS_MR_SET_NOT_DERIVED` | A multiple-dichotomy set got no `set_*` convenience column — names the set and why; every constituent still imports — see [Multiple-response sets](#multiple-response-sets) |
+| `PULSE_SPSS_DERIVED_NAME_COLLISION` | A multiple-dichotomy set's derived name is taken by a real variable (fatal for a `<var>_missing` sibling, below) |
 
 ## Character encoding
 
@@ -763,10 +761,8 @@ ISO-8859-1, Shift_JIS and the rest — not in UTF-8. Pulse decodes every
 string it reads into UTF-8, so a French or German survey saved in 2004
 imports as `Zürich` and `Männlich`, not as `Z?rich` and `M?nnlich`.
 
-Decoding is done with [`golang.org/x/text`](https://pkg.go.dev/golang.org/x/text/encoding),
-which this feature promoted from an indirect to a **direct** module
-dependency — it was already in the graph via the Arrow and Excel
-adapters. No cgo, so the `CGO_ENABLED=0` build is unaffected.
+Decoding is done with [`golang.org/x/text`](https://pkg.go.dev/golang.org/x/text/encoding)
+(pure Go; the `CGO_ENABLED=0` build is unaffected).
 
 **Where the charset comes from**, highest precedence first:
 
@@ -855,7 +851,7 @@ is two segments declaring 255 and 4, whose declared widths sum to 259 —
 three more bytes than the variable can hold. Only a 252-byte stride
 reproduces a 256-byte value.
 
-Pulse folds all of that away. `pulse inspect` and the imported cohort
+Pulse folds all of that away. `pulse cohort inspect` and the imported cohort
 show **one column**, under the variable's own name; the generated
 segment names (`COMMENT0`, `COMMENT1`, …) never appear:
 
@@ -864,6 +860,7 @@ $ pulse import spss -i survey.sav -o survey.pulse
 Imported 2 rows to survey.pulse
 
 $ pulse cohort inspect survey.pulse
+Records: 2
 Fields: 2
   ID                             f64                  Numeric field: ID
   Comments                       categorical_u8       Free text
@@ -1027,8 +1024,8 @@ the bytecode codes above (`PULSE_SPSS_COMPRESSION_INVALID`,
 `PULSE_SPSS_DATA_TRUNCATED`), not a ZSAV code — the zlib layer was
 intact, so pointing at it would send you to the wrong place.
 
-> **Read-only by design.** Pulse never writes ZSAV, and there is no
-> `pulse export spss` at all.
+> **ZSAV is read-only.** [`pulse export spss`](export-spss.md) writes
+> uncompressed or bytecode `.sav`, never ZSAV.
 
 ## Fatal errors
 
@@ -1045,9 +1042,7 @@ intact, so pointing at it would send you to the wrong place.
 | `PULSE_SPSS_DATA_TRUNCATED` | The data section ends mid-case, or a `253` command's value is missing |
 | `PULSE_SPSS_CATEGORICAL_OVERFLOW` | A labelled variable has more distinct codes than `categorical_u32` holds |
 | `PULSE_SPSS_DERIVED_NAME_COLLISION` | A generated column has the same name as a real variable — names both sides. A **hard error** for a `<var>_missing` sibling (see [Missing values](#missing-values)); a **warning** for a multiple-dichotomy `set_*` column, which is additive (see [Multiple-response sets](#multiple-response-sets)) |
-| `PULSE_SPSS_MR_SET_NOT_DERIVED` | A multiple-dichotomy set got no `set_*` convenience column — names the set and why. Warning only: every constituent is imported regardless — see [Multiple-response sets](#multiple-response-sets) |
 | `PULSE_SPSS_MISSING_MODE_INVALID` | `--spss-missing` was given a value other than `auto` or `null` |
-| `PULSE_SPSS_CATEGORICAL_USER_MISSING` | Informational: one or more categorical columns carry user-missing codes as ordinary dictionary entries — one diagnostic per file, naming every flagged variable and entry under `details.missing_categories` — see [Categorical user-missing codes](#categorical-user-missing-codes) |
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` | The declared character encoding resolves to no decoder — see [Character encoding](#character-encoding) |
 | `PULSE_SPSS_CHARSET_INVALID` | A byte sequence is not decodable in the declared character encoding — names the variable and the value |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` | Something in the cohort has no honest `.sav` form — an empty `set_*` dictionary, a value with no recorded SPSS code, or a rendered row stream with no cohort behind it. Raised on the WRITE side |
@@ -1057,11 +1052,9 @@ and `offset` details pinpointing where in the file they were raised, and
 the `PULSE_SPSS_ZSAV_*` pair additionally carries `block`;
 schema-mapping diagnostics carry `variable`.
 
-> On the `--json` path a **fatal** import error is currently reported
-> under the generic envelope code `IMPORT_ERROR` (`CLI_ERROR` for a
-> convert), with the `PULSE_SPSS_*` code carried inside the `message`
-> string. Non-fatal `PULSE_SPSS_*` warnings do reach `warnings[].code`
-> structurally.
+On the `--json` path a fatal error reports its own `PULSE_SPSS_*` code
+in `errors[0].code` (exit 1), on `import spss`, `import predict` and
+`convert` alike.
 
 ## Byte order and damaged files
 
@@ -1182,7 +1175,7 @@ name a .sav can carry as a variable: it contains ' ' at byte 9
 ## Related
 
 - [`pulse cohort inspect`](cohort-inspect.md) — read the schema and dictionaries the import produced
-- [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `schema_source: "authoritative"` and `export: true`
+- [The manifest](manifest.md) (`pulse --json`) — `import.formats[]` declares `spss` with `schema_source: "authoritative"` and `export: true`
 - [`pulse export spss`](export-spss.md) — the write half: the sidecar read, the derived-column fold, the name boundary, the four write flags
 - [Adding an I/O Format](../internals/adding-io-format.md) — the `SchemaAwareReader` / `SourceWarningEmitter` / `SidecarEmitter` / `CohortWriter` / `TargetWarningEmitter` contracts this adapter implements
 - `skills/spss-cohorts.md` — the agent-facing SPSS surface: mapping table, derived columns, missing-value split, metadata sidecar, diagnostics

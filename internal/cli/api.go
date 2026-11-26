@@ -205,7 +205,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile, \"sweep_trace\" under an adaptive mode); optimize blocks end with one {\"optimizations\":[...]} line"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a sampling sweep (random / lhs) adds one {\"sweep_seed\":N} line; then, in this order, a ranked sweep adds one {\"ranking\":[...]} line (plus \"ranking_profile\" under rank.profile, \"sweep_trace\" under an adaptive mode), a banner one {\"banner\":{...}} line, optimize blocks one {\"optimizations\":[...]} line and nested-model comparisons one {\"comparisons\":[...]} line"},
 			&cli.BoolFlag{Name: "stream-fits", Usage: "Under --stream, end the stream with one {\"fits\":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
@@ -472,7 +472,7 @@ func apiFacetCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
 			&cli.StringSliceFlag{Name: "field", Aliases: []string{"f"}, Usage: "Field name to facet (repeat for multiple)"},
-			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (overrides flags)"},
+			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full FacetRequest JSON file (flags layer on top of the file)"},
 			&cli.IntFlag{Name: "top-k", Usage: "Cap discrete values per field"},
 			&cli.Float64SliceFlag{Name: "percentile", Usage: "Numeric percentile (repeatable, in (0,1))"},
 			&cli.BoolFlag{Name: "histogram", Usage: "Include numeric histograms"},

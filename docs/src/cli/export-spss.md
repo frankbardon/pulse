@@ -115,12 +115,8 @@ report: empty warning lists are omitted, and each entry is the standard
 `{code, message, details}` shape of the envelope's `errors` /
 `warnings`.
 
-> **`pulse export predict` does not validate the `.sav` write.**
-> `ExportJob.Predict` reads only the source cohort's header and schema and
-> reports the field count and estimated rows; the target writer is never
-> constructed, so `--format spss` is accepted and unused there. Nothing
-> short of a real export exercises the name boundary, the sidecar verdict
-> or the charset encode.
+`pulse export predict --format spss` runs the same checks without
+writing — see [Checking first](#checking-first-pulse-export-predict---format-spss).
 
 ## The metadata sidecar: absent, stale, ignored
 
@@ -474,8 +470,7 @@ means no schema-level refusal was found, not that the export cannot fail.
 It deliberately does not guess at the right-hand column — a false refusal
 would block an export that would have worked, with no way to appeal it.
 
-Without `--format` the leaf is target-blind exactly as it was before, and
-says so:
+Without `--format` the leaf is target-blind, and says so:
 
 ```
 Schema: 12 fields
@@ -483,9 +478,9 @@ Estimated rows: 1200
 Target: not checked (pass --format to validate against the format you will export to)
 ```
 
-Predict against a **non-`.sav`** target is also unchanged: no other writer
-implements `io.CohortValidator` today, so `--format csv` reports the same
-schema and row estimate it always did.
+No other writer implements `io.CohortValidator`, so against a
+non-`.sav` target (`--format csv`) predict reports the schema and row
+estimate only.
 
 ## Converting from a text source
 
@@ -588,7 +583,7 @@ constituent variable — a `vec_f32` element) so a re-import restores it — see
 from the source is dropped and re-derived from the cohort, so a column
 retyped since import never keeps a stale one; a column the plain import
 already types correctly gets none, so an SPSS-origin cohort nothing
-retyped exports exactly as before. A source `7/18` the writer cannot parse
+retyped carries no hints. A source `7/18` the writer cannot parse
 stays verbatim and gains no hint. A value-labelled integer column (a
 `--labels` binding) carries no hint: its labels make the re-import
 categorical.
@@ -631,9 +626,8 @@ library `Export` under `Options.Strict` (or `ExportJob.Strict`), a
 
 ## What the fidelity claim rests on
 
-The effort's justification was fidelity, so it is worth being precise
-about which parts are *proven* and which rest on the PSPP specification
-alone.
+Which parts of the round trip are *proven*, and which rest on the PSPP
+specification alone:
 
 **Gated in CI.** `TestRoundTrip_*` runs import → export → import over a
 matrix covering all three source encodings, both multiple-response
@@ -643,7 +637,7 @@ very long strings and both endiannesses. It asserts that the re-imported
 byte-identity, which is unreachable for the correct reasons above — that
 the emitted `.sav` is a **fixed point** under a second export, and that it
 declares exactly the source's own variables.
-`TestRoundTrip_MatrixCoversFR62` fails if any axis loses its last fixture,
+A coverage gate (`TestRoundTrip_MatrixCoversFR62`) fails if any axis loses its last fixture,
 so nothing can be quietly skipped.
 
 **Verified locally, not in CI.** The R cross-checks
@@ -675,7 +669,7 @@ it; there is no partial or degraded path.
 
 - [`pulse import spss`](import-spss.md) — the read half, in full detail
 - [`pulse cohort inspect`](cohort-inspect.md) — see the cohort's schema and dictionaries before exporting
-- [`pulse manifest`](manifest.md) — `import.formats[]` declares `spss` with `export: true`; `export.formats[]` declares its `warn_and_skip` overlay support
+- [The manifest](manifest.md) (`pulse --json`) — `import.formats[]` declares `spss` with `export: true`; `export.formats[]` declares its `warn_and_skip` overlay support
 - [Adding an I/O Format](../internals/adding-io-format.md) — the `CohortWriter` / `CohortValidator` / `TargetWarningEmitter` contracts this adapter implements
 - `skills/spss-cohorts.md` — the agent-facing SPSS surface, read and write
 - `skills/session-format-flags.md` — the four write flags in the CLI flag map

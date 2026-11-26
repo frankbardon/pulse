@@ -29,25 +29,15 @@ pulse profile create --input PATH --output PATH
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--input`                | `-i` | string | (required) | Source `.pulse` cohort |
-| `--output`               | `-o` | string | (required) | Output profile JSON path |
-| `--top-k`                |      | int    | 32         | Top-K categorical entries to retain per field |
-| `--include-stats`        |      | bool   | true       | Include percentile / std stats |
-| `--include-correlations` |      | bool   | false      | Capture pairwise numeric correlations |
-| `--correlation-top-k`    |      | int    | 16         | Cap on retained correlation pairs |
-| `--conditional`          |      | bool   | false      | Capture row-aligned numeric-numeric pair structure (`conditional.numeric_pairs`), categorical-categorical contingency tables (`conditional.categorical_pairs`), categorical-numeric conditional means (`conditional.categorical_numeric_pairs`), and — per option of any `set_*` field — the same three pair kinds against categorical/numeric/other-set fields (`conditional.set_categorical_pairs`, `conditional.set_numeric_pairs`, `conditional.set_set_pairs`) |
-| `--fit-shape`            |      | bool   | false      | Fit a 2-component Gaussian mixture per numeric field, kept as `numeric.shape` only when it's a genuine improvement over plain normal (BIC) |
-| `--fit-models`           |      | bool   | false      | Fit one linear model per numeric field — the field regressed on the categorical levels, set options and earlier-declared numeric fields automatic predictor selection admits — capturing coefficients, residual scale and fitted residuals (see below) |
-| `--residual-correlations` |     | bool   | false      | Capture the full correlation submatrix among `--fit-models`' fitted residuals (`residual_correlations`); every pair, measured or explicitly unmeasured — never a top-K sample and never a fabricated zero (see below). Requires `--fit-models` |
-| `--suggest-rules`        |      | string | (off)      | Detect structural rules on the same scan — GATING relationships (`set_null`) and CO-MISSING question blocks (`null_together`) — and write them to this path as a standalone rules file, the bare JSON array `synth from-profile --rules` consumes unmodified. PROPOSED, never applied; the profile document itself gains no section (see below) |
-| `--run-continuation`     |      | bool   | false      | Measure per-field run-continuation — the fraction of adjacent row pairs whose on-wire bytes and null bit repeat, i.e. the run-skip decode's hit rate — into the additive `run_continuation` section, with the high-continuation fields and advice on sorting the source upstream (see below) |
-| `--time-zone`            |      | string | (none)     | Capture every `datetime` field on this IANA zone's LOCAL clock and rebuild it zoned (see below). Exclusive with `--time-zone-field` |
-| `--time-zone-field`      |      | string | (none)     | Capture every `datetime` field on each row's LOCAL clock, read from this `categorical_*` field of IANA zone names; overrides the cohort's declared default zone field (see below) |
-| `--sample-limit`         |      | int    | 0 (unlimited) | Cap rows ingested for the profile (0 disables) |
-| `--seed`                 |      | int    | 0          | Deterministic RNG seed for `--conditional`'s categorical-categorical reservoir sampling and `--fit-models`' residual reservoir (see below); each draws from its own stream, so the two flags never perturb each other, and the same `(--input, --seed)` produces byte-identical captured output |
-| `--json`                 |      | bool   | false      | Also print the envelope to stdout |
+Each flag's help text and default is in the
+[Command & flag reference](reference.md#pulse-profile-create); the
+capture flags (`--conditional`, `--fit-shape`, `--fit-models`,
+`--residual-correlations`, `--suggest-rules`, `--run-continuation`,
+`--time-zone` / `--time-zone-field`) each have a section below.
+`--include-stats` is on by default (`--include-stats=false` drops the
+percentiles); `--seed` drives `--conditional`'s and `--fit-models`'
+reservoirs from separate streams, so the same `(--input, --seed)` gives
+byte-identical output.
 
 ## What the profile captures
 
@@ -64,34 +54,15 @@ pulse profile create --input PATH --output PATH
 
 ## Boolean fields
 
-A `packed_bool` is summarised by the numeric accumulator — it is neither
-date, categorical nor set — so its profile entry looks exactly like any
-other numeric's: `mean`, `std`, `min: 0`, `max: 1`. The obvious reading of
-that entry is `normal(mean, std)` clamped to `[0, 1]`, and it is wrong on
-the wire.
-
-The field holds **one bit**. Generation therefore has to reduce a
-continuous draw to 0 or 1, and no threshold over a clamped normal lands in
-the right place — a clamped normal is exactly 0 only where the underlying
-draw fell below zero, so the historical `value != 0` threshold gave
-`P(false) = Φ(−p/σ)`:
-
-| Source prevalence | Generated (before) |
-|---|---|
-| 0.20 | 0.691 |
-| 0.50 | 0.842 |
-| 0.80 | 0.977 |
-
-On a real 381,324-row survey cohort with 90 `packed_bool` fields, the mean
-prevalence error was **0.47** and **89 of 90** fields were off by more than
-0.05 — every 11–14% brand-attribute item generated at around 64%, which
-turns a rare attribute into the majority answer. The marginals looked
-plausible in isolation; nothing compared them to the source.
-
-`synth from-profile` now reconstructs a `packed_bool` as **`bernoulli`**
-with `p` = the observed mean. No threshold is involved, so the prevalence
-is exact by construction (same cohort after the fix: mean error 0.0032,
-max 0.0116, nothing off by more than 0.05). Two details follow from it:
+A `packed_bool` is summarised by the numeric accumulator, so its entry
+looks like any numeric's (`mean`, `std`, `min: 0`, `max: 1`). Generation
+does **not** read it as a clamped `normal(mean, std)` — no threshold over
+a clamped normal lands the prevalence in the right place (a 20% boolean
+would generate at about 69%; figures in
+[Synth calibration](synth-calibration.md#the-boolean-defect-bernoulli-marginals)).
+`synth from-profile` reconstructs a `packed_bool` as **`bernoulli`** with
+`p` = the observed mean, so the prevalence is exact by construction. Two
+details follow from it:
 
 - **The boolean arm outranks `--fit-shape`.** A two-component mixture fits
   a 0/1 column very well by BIC — two near-zero-variance spikes — and
@@ -110,36 +81,17 @@ max 0.0116, nothing off by more than 0.05). Two details follow from it:
 
 ## Small-integer fields
 
-Same defect class as "Boolean fields" above, one type wider, and it is the
-one that bites a survey cohort hardest: a `u4`/`u8`/`u16`/`u32`/`u64`
-column falls to the numeric accumulator too, so its entry is `mean`, `std`,
-`min`, `max` — and the writer stores `floor(v + 0.5)`, so a clamped-normal
-reconstruction is quantized on the way to the file. What comes back is a
-bell where the source had a U, a J or a spike, and **the mean is roughly
-right**, which is why it went unnoticed.
-
-Measured on the same 381,324-row survey cohort, generating 40,000 rows:
-
-| Field | Level | Source share | Generated (before) |
-|---|---|---|---|
-| `familiarity` (u4, 1–7) | 1 | 0.2526 | **0.1373** |
-| `familiarity` | 7 | 0.2198 | 0.1323 |
-| `nps` (u4, 0–10) | 10 | 0.3200 | 0.2253 |
-| `nps` | 0 | 0.0284 | **0.0020** |
-| `useCon` (u4, 1–6) | 6 | 0.3143 | 0.1806 |
-| `sow` (u16, 0–15) | 0 | 0.6469 | **0.3804** |
-
-`sow`'s levels 10 and 12–15 were never generated at all. Every one of those
-fields' means came back within about 3%.
+A `u4`/`u8`/`u16`/`u32`/`u64` column also falls to the numeric
+accumulator, and the writer stores `floor(v + 0.5)`, so a clamped-normal
+reconstruction would come back as a bell where the source had a U, a J or
+a spike — with the mean roughly right, which hides it (figures in
+[Synth calibration](synth-calibration.md#the-small-integer-defect-discrete-marginals)).
 
 The capture therefore records the **exact per-level histogram** on
 `numeric.discrete` — one `{value, count, frequency}` entry per observed
 level, in ascending order — and `synth from-profile` reconstructs the field
 as the `discrete` distribution from it. A level's observed count *is* its
-weight, so no threshold is involved and the marginal is exact by
-construction. Same cohort after the fix: `familiarity` level 1 at 0.2493,
-`nps` level 10 at 0.3310 and level 0 at 0.0269, `useCon` level 6 at 0.3154,
-`sow` level 0 at 0.6460, every level present.
+weight, so the marginal is exact by construction.
 
 ```json
 "nps": {
@@ -178,15 +130,13 @@ Four details follow from it.
 - **A modelled integer target is an ordered probit.** `--fit-models` on one
   still works and its coefficients still order rows, but the staircase `Q`
   means they shift the *latent*, not the value: a coefficient is **not**
-  "this many points on the scale". The fidelity report reports these
-  targets as unidentified rather than fabricating a recovered figure,
-  because a level pins the latent to an interval rather than a point.
+  "this many points on the scale". Because a level pins the latent to an
+  interval rather than a point, the fidelity report recovers these targets
+  on the calibrated probit score (`"scale": "probit_score"`).
 
-The capture is unconditional — there is no flag — because this is the
-default reconstruction being wrong rather than an enhancement. It rides the
-existing single scan (one bounded map per eligible column) and adds one
-`omitempty` key: a document captured before the key existed still
-reconstructs exactly as it did, through the clamped normal.
+The capture is unconditional — there is no flag. It rides the single scan
+(one bounded map per eligible column) and adds one optional key; a profile
+without it reconstructs through the clamped normal.
 
 ## Vector fields
 
@@ -216,8 +166,10 @@ correlations.
 - The full categorical dictionary beyond `--top-k`.
 - Correlations unless `--include-correlations` or `--conditional` is set.
 
-This is by design — profiles are intended to be safe to share with
-parties who shouldn't see the underlying data.
+A profile holds summary statistics only, but it is **not** anonymised:
+rare categorical values, percentile ranges and model structure leak
+through it (see the privacy note on
+[`synth from-profile`](synth-from-profile.md)).
 
 ## `--conditional`: row-aligned pair reconstruction
 
@@ -230,14 +182,13 @@ observation count is only an approximation of true co-occurrence.
 entry's `rho` and `n` are computed only from rows where BOTH fields were
 simultaneously non-null. `synth.SpecFromProfile` prefers
 `conditional.numeric_pairs` over `pairwise` when both are present, and
-`internal/synth/copula.go`'s conditional-Gaussian construction (the mechanism
-that actually reconstructs the requested correlation, replacing the old
-approximate ±5%·std blend) consumes either shape identically. A pair
+`internal/synth/copula.go`'s conditional-Gaussian construction (the
+mechanism that reconstructs the requested correlation) consumes either
+shape identically. A pair
 whose `n` falls below **30** (`internal/synth.MinPairObservations`) is still
 shipped — never refused — but appends a warning to `warnings` naming the
 pair. The section is entirely absent (not empty) when `--conditional`
-is not passed, and profiles captured before this flag existed remain
-valid `synth from-profile` input.
+is not passed.
 
 ## `--conditional`: categorical-categorical contingency capture
 
@@ -267,9 +218,10 @@ never a second competing entry, so the table always saturates to
 exactly the cap (never more, and never silently fewer) whenever the
 raw cardinality exceeds it. A cell whose count falls below **30**
 (`internal/synth.MinPairObservations`) still ships — never dropped — but appends
-the same thin-pair warning numeric pairs use, to `warnings`. This story
-only captures the contingency table; `synth from-profile` does not yet
-sample from it (a later addition).
+the same thin-pair warning numeric pairs use, to `warnings`.
+`synth.SpecFromProfile` consumes it into `Spec.CategoricalPairs`: at
+generation field B is resampled from the table, conditioned on field A's
+drawn value.
 
 ## `--conditional`: categorical-numeric conditional-mean capture
 
@@ -484,7 +436,7 @@ flag, a satisfaction score) after their drivers to read the models in
 the natural direction. Two numerics joined this way measure a residual
 correlation of about zero under `--residual-correlations`: the model
 already carries what they share. A cohort with no categorical or `set_*`
-field now fits models whenever its numerics relate; when none relate,
+field fits models whenever its numerics relate; when none relate,
 every numeric is still skipped as having nothing to regress on.
 
 Each admitted categorical contributes one column per retained level
@@ -641,9 +593,8 @@ runs in the same process as the capture, so they stay reachable through
 `synth.Profile.FittedModels()` and are absent from a document read back
 off disk.
 
-A capture **without** `--fit-models` emits no `models` key at all and is
-byte-for-byte the document it has always been; a capture **with** it
-moves nothing but that one key. `--conditional`,
+A capture **without** `--fit-models` emits no `models` key at all; a
+capture **with** it adds that one key and changes nothing else. `--conditional`,
 `--include-correlations`, `--correlation-top-k` and `--fit-shape` all
 keep their exact meaning, flag present or absent.
 
@@ -719,19 +670,11 @@ above — is dropped with a
 per document: a field that gains no model must not also lose the
 structure `--conditional` measured for it.
 
-Without the section — every document written before this flag existed
-included — nothing changes: all five arms populate exactly as before.
+Without the section all five conditional arms populate as usual.
 
 ### `--fit-shape` and `--fit-models` compose
 
-A `--fit-shape` target used to be a drop reason: its mixture had no
-quantile function a linear predictor could ride, so `synth
-from-profile` kept the fitted shape and discarded the model. On a real
-cohort that removed every measured conditioning relationship from
-exactly the numerics whose distributions had been interesting enough
-to earn a shape fit.
-
-They now compose. A modelled numeric is drawn as
+A modelled numeric is drawn as
 `value = Q(Φ(μ(row) + σ·z))`, and `Q` is the field's own marginal — so
 a fitted mixture simply *becomes* `Q` while the predictors shift the
 latent, the same way a hand-authored `lognormal` target already keeps
@@ -830,8 +773,8 @@ finish.
 ### The full submatrix, not a top-K sample
 
 `--correlation-top-k` retains the strongest *K* pairs because its
-consumer applies one pair at a time. This section's eventual consumer is
-a joint draw over every participant at once — a Cholesky factor of the
+consumer applies one pair at a time. This section's consumer is a joint
+draw over every participant at once — a Cholesky factor of the
 whole matrix — and a matrix is not a ranked list. A pair left out of it
 is not "weak", it is a hole the factorization has to fill with
 something. So every pair among participants is visited.
@@ -904,8 +847,8 @@ standard-normal vector per row — the same Cholesky, the same completion
 policy and the same ridge report the value-scale `correlations` matrix
 uses, with a different consumer rather than a second construction. The
 predictors move the prediction, the shared vector correlates the
-residual, and neither overwrites the other, so a field is finally able
-to be both conditioned and correlated.
+residual, and neither overwrites the other, so a field can be both
+conditioned and correlated.
 
 The `unmeasured` list is translated into **nothing at all**. An absent
 pair is completed as independent by the generator, which counts and
@@ -928,7 +871,7 @@ roughly half the modelled targets carry no predictor, so
 ### What the generator does with an incomplete matrix
 
 Both correlation surfaces — `correlations` on the value scale and
-`residual_correlations` on the residual scale — now say out loud what
+`residual_correlations` on the residual scale — say out loud what
 they had to invent, in the same words and through the same code. A
 correlation surface is a list and the Cholesky needs a matrix, so
 every pair the list does not name is filled with zero — those fields are
@@ -941,14 +884,13 @@ completion that adds no structure the caller did not ask for. What was
 not acceptable is doing it silently.
 
 The ridge fallback likewise stays — it is the safety net for a matrix
-whose *supplied* entries are not jointly realizable — but now reports
-the diagonal jitter it had to add. A regularized matrix means the
-realized correlations will be pulled toward zero, which a caller
-previously could only infer from the output.
+whose *supplied* entries are not jointly realizable — and reports the
+diagonal jitter it had to add. A regularized matrix means the realized
+correlations will be pulled toward zero.
 
 ## `--suggest-rules`: proposing structural rules from the data
 
-The `rules[]` layer (`docs/src/cli/synth-from-schema.md`) can state the
+The [`rules[]` layer](synth-from-schema.md#structural-rules) can state the
 facts no statistical summary can — a question block not ASKED of a
 respondent who failed a screener, a flag that is a band of another
 column — but its value is bounded entirely by rule COVERAGE, and rules
@@ -1171,7 +1113,7 @@ A survey question block is asked or skipped as a unit, so its fields are
 present or absent together. Generation draws each field's null
 independently from its own scalar `null_rate`, which turns the block into
 a lottery — the defect `null_together` exists to fix
-(`docs/src/cli/synth-from-schema.md`). This detector finds the blocks.
+([`null_together`](synth-from-schema.md#null_together-one-null-decision-for-a-block)). This detector finds the blocks.
 
 ### An identical `null_rate` is never enough
 
@@ -1274,10 +1216,7 @@ placeholder with `null_rate` 1.0, so every row is nulled and the type's
 zero is written behind a set null bit. Measured: the motivating cohort's
 `lgbt` came back null on 20,000 of 20,000 generated rows.
 
-An earlier version of this line claimed generation "fabricates a
-distribution" for such a column. It does not — the no-marginal arm is
-reached precisely BECAUSE there is nothing to fabricate from. The
-finding stays worth an analyst's eye, but the thing to check is the
+The finding is worth an analyst's eye, but the thing to check is the
 source or the slice profiled, not the rules file.
 
 ### Emitted order is applied order
@@ -1464,7 +1403,7 @@ wrong before it was measured right (see
 
 - **`round()`, uniformly.** A generated row holds the sampler's float and
   the file holds the stored integer, so a bare `nps >= 9` classifies
-  against a value the file does not show. Measured on this story's own
+  against a value the file does not show. Measured on the regression
   suite: 838 of 4,495 scored rows disagree without it.
 - **No normalisation rule.** The rounding is INSIDE each band predicate
   rather than in a separate `{"set_expr": {"nps": "round(nps)"}}` rule,
@@ -1522,8 +1461,8 @@ Thin candidates are **not** suppressed — they ship with
 Gating candidates, then co-missing blocks, then dependencies. A
 dependency rule writes VALUES and carries its own `null_together`, so
 placed last it re-resolves that block from the source AFTER every
-null-state rule has decided the source's own null state. Measured on this
-story's suite with a hand-narrowed `set_null` over the source alone:
+null-state rule has decided the source's own null state. Measured on the
+regression suite with a hand-narrowed `set_null` over the source alone:
 dependency-last leaves **0** orphan rows, dependency-first leaves **940**.
 
 The one exception is the writer-before-reader rule above: a dependency
@@ -1639,9 +1578,9 @@ These flags pick the clock every `datetime` field is captured on:
 - `--time-zone-field FIELD` — a `categorical_*` field of IANA names,
   each row read in its own zone;
 - neither, and the cohort declares a default zone field (the `.pulse`
-  ZONE section, `zone_field` in `pulse inspect`) — that field, per row;
-- none of these, or `--time-zone UTC` — UTC, byte-identical to a capture
-  before the flags (no zone is recorded).
+  ZONE section, `zone_field` in `pulse cohort inspect --json`) — that
+  field, per row;
+- none of these, or `--time-zone UTC` — UTC (no zone is recorded).
 
 The day range and the weekday, hour and month counts are then LOCAL, the
 `datetime` section records `time_zone` or `time_zone_field`, and
@@ -1675,36 +1614,18 @@ Profile schema lives in `internal/synth/profile.go` and is documented in
 ### Reproducibility — across machines, not just across runs
 
 The same `(--input, --seed, flags)` produces a **byte-identical** profile
-document, and that now holds **across CPU architectures** as well as
-across runs on one machine. A profile document is something you
-commit, review in a diff and hand to a colleague, so a guarantee that
-only held per-machine was not much of a guarantee: two engineers, one on
-an arm64 laptop and one on an amd64 build box, captured the same cohort
-and got documents that differed in the last bits of every `std` and
-`rho`.
-
-Two causes, both closed:
+document on every machine and CPU architecture, so a profile can be
+committed, diffed and shared:
 
 - **Fold order.** Anywhere capture folds several accumulators into one
-  shared bucket — canonically the `--top-k` collapse folding every
-  out-of-top-K category into `"other"` — the fold walks sorted keys.
-  Float addition is not associative and Go randomizes map iteration, so
-  a map-order fold gave a different answer per *process*.
-- **Float fusion.** Go permits `a + b*c` to be contracted into a single
-  fused multiply-add; arm64 does it, amd64 does not. Every product in a
-  capture formula now carries an explicit `float64(...)` conversion,
-  which the language defines as forbidding contraction.
-
-A third cause, the transcendental kernels, is closed too: `math.Exp` /
-`math.Log` are architecture-specific in the standard library, so
-`--fit-shape`'s EM fit (and every exp / log / erf the generator evaluates)
-runs on portable ports with identical bits on every machine.
-
-`--fit-models` solves its least squares in `internal/processing/regression`,
-which runs on an FMA-free port of the SPD solver since the
-cross-architecture determinism work, so a `models` coefficient has the
-same bits on every machine too. A document captured with `--fit-models`
-diffs clean across CPUs.
+  bucket — canonically the `--top-k` collapse into `"other"` — the fold
+  walks sorted keys, never Go's randomized map order.
+- **No float fusion.** Every product in a capture formula carries an
+  explicit `float64(...)` conversion, which forbids fused multiply-add
+  contraction (arm64 would otherwise fuse where amd64 does not).
+- **Portable kernels.** `exp` / `log` / `erf` (`--fit-shape`'s EM fit,
+  the generator) and the `--fit-models` least-squares solver run on
+  FMA-free ports with identical bits everywhere.
 
 ### Text mode summary
 
@@ -1712,8 +1633,7 @@ diffs clean across CPUs.
 Profiled 50000 rows from sales.pulse -> sales.profile.json
 ```
 
-That single line is the whole of **stdout**, so `pulse profile create …
-> log` and any pipeline over it keep exactly the bytes they always had.
+That single line is the whole of **stdout**; warnings go to stderr.
 `--run-continuation` adds exactly one more stdout line, and only when it
 is passed:
 
@@ -1748,8 +1668,7 @@ Three properties are load-bearing:
 - **Kinds needing attention come first**, marked `!`, whatever their
   count. A single model that could not be applied stays visible above
   two thousand nine hundred thin-pair lines; sorting by volume would
-  bury it, which is exactly how a defect that disabled most of
-  `--fit-models` survived undetected.
+  bury it.
 - **Expected outcomes are counted separately** and marked `-`. A
   zero-predictor model is a *complete* model, a thin pair still ships,
   and an arbitrated pair claim is the design working; none of them
@@ -1860,7 +1779,7 @@ jq '.models[] | select(.field == "spend")
 }
 ```
 
-Three separate categoricals now condition `spend` additively: a `west`
+Three separate categoricals condition `spend` additively: a `west`
 row in the `enterprise` segment on the `gold` tier gets all three
 offsets, not whichever pair happened to claim the field first. The
 `"shrinkage_alpha": null` is `jq` making an absent key explicit — every
@@ -1889,7 +1808,8 @@ pulse profile create --input ops.pulse --output ops.profile.json --sample-limit 
 
 ```bash
 pulse profile create --input sales.pulse --output sales.profile.json
-pulse synth from-profile --profile sales.profile.json --output sales.synth.pulse --rows 10000 --seed 1
+pulse synth from-profile --profile sales.profile.json --source sales.pulse \
+    --output sales.synth.pulse --rows 10000 --seed 1
 pulse cohort inspect sales.synth.pulse
 ```
 

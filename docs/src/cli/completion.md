@@ -81,7 +81,8 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   (`pulse coh<TAB>` → `cohort`, `pulse cohort <TAB>` → its leaves).
 - **Flags.** A word starting with `-` completes the flags of the command
   typed so far, the root's persistent flags (`--log-level`,
-  `--log-format`, `--shard-workers`, `--decode-workers`, `--limit`) included.
+  `--log-format`, `--shard-workers`, `--decode-workers`, `--limit`,
+  `--memory-limit`) included.
 - **Flag values.** After a flag that takes a value (`--mode <TAB>`), a
   closed vocabulary completes from the same library list the flag's
   validator reads, so the candidates are always exactly what the flag

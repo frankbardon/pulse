@@ -35,21 +35,13 @@ pulse api facet --input PATH --field NAME [--json]
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--input`          | `-i` | string | (required for simple mode) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
-| `--field`          | `-f` | string | (required for simple mode) | Field name to facet on; repeat for rich mode |
-| `--request`        | `-r` | string | (none) | Full `FacetRequest` JSON file; individual flags layer on top of (override) it |
-| `--top-k`          |      | int    | 0      | Cap discrete values per field (rich mode) |
-| `--percentile`     |      | float  | (none) | Numeric percentile in `(0, 1)`; repeatable (rich mode) |
-| `--histogram`      |      | bool   | false  | Include numeric histograms (rich mode) |
-| `--histogram-bins` |      | int    | 20     | Histogram bin count |
-| `--histogram-min`  |      | float  | (none) | Histogram lower bound (required with `--histogram`) |
-| `--histogram-max`  |      | float  | (none) | Histogram upper bound (required with `--histogram`) |
-| `--additive`       |      | string | (none) | Compute additive contribution counts for this field; repeatable |
-| `--labels`         |      | string | (none) | Label binding on a categorical field, or an integer-coded u4/u8/u16/u32 field in augment mode: `field=table[:replace|augment]`. Repeatable |
-| `--json`           |      | bool   | false  | Emit the standard envelope |
-| `--echo-request`   |      | bool   | false  | Include the resolved `FacetRequest` on `envelope.request` |
+Each flag's type, default and help text is in the
+[Command & flag reference](reference.md#pulse-api-facet). With
+`--request`, flags layer on top of the `FacetRequest` file; `--input`
+replaces its `cohort` (filename and `data_dir`). `--histogram` needs
+`--histogram-min` and `--histogram-max`. `--labels` takes the
+[export binding](flags.md#--labels-export) (an integer-coded field in
+augment mode only).
 
 Mode dispatch: simple mode runs when exactly one `--field` is passed
 without any rich-mode flag. Any other combination switches to rich
@@ -57,12 +49,13 @@ mode and calls `FacetSchema`.
 
 ## Output (text mode)
 
-One value per line:
+One value per line, unsorted — dictionary order for a categorical
+field, first-seen record order otherwise:
 
 ```
-east
-north
 south
+north
+east
 west
 ```
 
@@ -71,7 +64,7 @@ west
 ```json
 {
   "format_version": "1.1",
-  "data": ["east", "north", "south", "west"],
+  "data": ["south", "north", "east", "west"],
   "errors": [],
   "warnings": []
 }
@@ -82,7 +75,7 @@ west
 | Field type | Behaviour |
 |---|---|
 | `categorical_u8` / `_u16` / `_u32` | Read directly from the schema's inline dictionary; O(distinct values), no record scan |
-| Non-categorical | Full scan; values collected into a set, then returned sorted |
+| Non-categorical | Full scan; distinct values in first-seen order |
 
 For columns with very high cardinality on the non-categorical path,
 expect memory proportional to distinct value count.
@@ -92,7 +85,7 @@ expect memory proportional to distinct value count.
 | Code | Meaning |
 |---|---|
 | 0 | Success (warnings allowed) |
-| 1 | File not found, field name not found, or unsupported version — in the envelope's `errors` under `--json` |
+| 1 | Any coded error (missing cohort, unknown field, unknown request key, …) — in the envelope's `errors` under `--json` |
 | 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 See [Exit status](flags.md#exit-status): under `--json` a fatal error is the envelope's `errors` (exit 1); warnings alone exit 0.

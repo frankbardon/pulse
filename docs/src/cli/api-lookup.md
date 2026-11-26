@@ -29,15 +29,10 @@ pulse api lookup --input PATH --key FIELD=VALUE [--key FIELD=VALUE ...]
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
-| `--key`           | `-k` | string | (required unless `--request`) | `field=value` pair; repeat for a composite key, in the same column order the sidecar index was built with |
-| `--return`        |      | string | (none) | Comma-separated field names to project into each result row; omit for every schema field |
-| `--mode`          |      | string | `assert_unique` | Multiplicity when the key matches more than one row: `assert_unique` (errors `PULSE_LOOKUP_AMBIGUOUS`; the hyphen form `assert-unique` is accepted as an alias), `first`, or `all` |
-| `--request`       | `-r` | string | (none) | Full `LookupRequest` JSON file; flags layer on top of (override) the file |
-| `--json`          |      | bool   | false  | Emit the standard envelope |
-| `--echo-request`  |      | bool   | false  | Include the resolved `LookupRequest` on `envelope.request` |
+Flags are listed in the [Command & flag reference](reference.md#pulse-api-lookup).
+`--input` and `--key` are required unless `--request` names a full
+`LookupRequest` file; flags override the file (`--input` replaces its
+`cohort`, filename and `data_dir`).
 
 Composite keys are **order-significant end to end**: `--key
 region=EU --key date=2026-01-01` and the reverse order name the same
@@ -53,8 +48,7 @@ a set.
   "data": {
     "rows": [
       { "order_id": 42, "region": "EU", "revenue": "129.50" }
-    ],
-    "warnings": []
+    ]
   },
   "errors": [],
   "warnings": []
@@ -72,9 +66,10 @@ Not every field type may serve as a lookup key. ALLOW `u4` / `u8` /
 `u16` / `u32` / `u64`, `f32` / `f64` (raw IEEE-754 bit-pattern equality
 — `-0.0` and `0.0` key differently, NaN never self-matches),
 `date`, `decimal128` (exact mantissa, no float round-trip),
-`categorical_*` (dictionary ID), `packed_bool`. REJECT `set_*` — a
-multi-select bitmask has no single unambiguous equality value; use a
-`FILTER_SET` predicate via `pulse api process` instead.
+`datetime`, `categorical_*` (dictionary ID), `packed_bool`. REJECT
+`set_*` — a multi-select bitmask has no single unambiguous equality
+value; use a `FILTER_SET` predicate via `pulse api process` instead —
+and `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`; key on a scalar field).
 
 ## Exit codes / coded errors
 

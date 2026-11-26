@@ -17,7 +17,7 @@ concepts behind them.
 ## Global flags
 
 The bare `pulse` invocation takes `--json` (print the manifest, the
-discovery entry point documented at [`pulse manifest`](manifest.md)),
+discovery entry point documented on [the manifest page](manifest.md)),
 `--slim` (drop prose descriptions) and `--intent ID` (scope the manifest
 to one intent-taxonomy ID; an unknown ID is a
 `PULSE_RECOMMEND_INTENT_UNKNOWN` error envelope). `--log-level`,
@@ -31,7 +31,7 @@ Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
 carry identifiers, counts, timings, enums and error codes only — never
 row data, filter values or error messages. An unknown value is
-`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `--limit` likewise reaches every instance a leaf builds — `pulse api compose --limit max_compose_slots=2000` runs a 2,000-slot batch — and under `pulse mcp` wins over the feature profile's `limits` per key; an unknown name or bad value is a usage error carrying `CLI_INPUT` (details `{flag, value, limit?}`). Limits are instance-level only: no request carries one. `--memory-limit` is different: the Go runtime's soft limit is process-global, so it has no `pulse.Options` field and no `PULSE_*` form (`GOMEMLIMIT` is the environment variable), and it only makes the garbage collector work harder near the cap — it never refuses a request (`--limit max_estimated_memory` does). `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
+`CLI_INPUT`. There are no environment-variable forms. Leaves that build no Pulse instance (`import <format>`, `import predict`, `skills`, `errors`, `version`, `features`, and `convert` without `--labels`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `--limit` likewise reaches every instance a leaf builds — `pulse api compose --limit max_compose_slots=2000` runs a 2,000-slot batch — and under `pulse mcp` wins over the feature profile's `limits` per key; an unknown name or bad value is a usage error carrying `CLI_INPUT` (details `{flag, value, limit?}`). Limits are instance-level only: no request carries one. `--memory-limit` is different: the Go runtime's soft limit is process-global, so it has no `pulse.Options` field and no `PULSE_*` form (`GOMEMLIMIT` is the environment variable), and it only makes the garbage collector work harder near the cap — it never refuses a request (`--limit max_estimated_memory` does). `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
 
 ## Environment variables
 
@@ -45,19 +45,19 @@ row data, filter values or error messages. An unknown value is
 | `PULSE_FEATURE_PROFILE` | `pulse mcp` only                                                     | no | OS path (cwd-relative or absolute) to a feature profile JSON file. Same as `--feature-profile`, which wins when both are set. Every other leaf ignores it |
 
 `PULSE_DATA_DIR` is the only required `PULSE_*` environment variable.
-The Makefile auto-loads a repo-root `.env` file so you can keep these
-(and any future env vars) there for development.
-
-When embedding the library, you can bypass the env vars entirely by
-passing `pulse.Options{DataDir: "/path"}`, `pulse.Options{ImportsDir,
-ImportTTL, LabelTablesDir, FS: myFs}` etc. — see
-[`pulse.New` & Options](../library/options.md).
+Every leaf that builds a Pulse instance also reads the table, population
+and template directories (`PULSE_RANGE_TABLES_DIR`,
+`PULSE_LOOKUP_TABLES_DIR`, `PULSE_POPULATIONS_DIR`,
+`PULSE_TEMPLATES_DIR`); the full list, and the `pulse.Options` field
+that overrides each one, is in
+[`pulse.New` & Options](../library/options.md#environment-variables).
+The Makefile (not the binary) auto-loads a repo-root `.env` file for
+development.
 
 ## `--json` envelope
 
 Almost every leaf command accepts `--json`, which switches output
-from human prose to a structured envelope. The envelope shape is
-fixed and documented in CLAUDE.md → Output Format Contract:
+from human prose to a structured envelope of a fixed shape:
 
 ```json
 {
@@ -69,9 +69,10 @@ fixed and documented in CLAUDE.md → Output Format Contract:
 }
 ```
 
-`format_version` is currently `"1.1"`. `errors` and `warnings` are
-always arrays (never null) so JSON consumers can index without
-nullable-check overhead. `request` is opt-in (`--echo-request`, on the
+`format_version` is `"1.1"`; new `data` fields never change it, a
+rename or removal does. `errors` and `warnings` are always arrays (never
+null), each entry `{code, message, details}`. A non-finite float is
+`null` with its key kept. `request` is opt-in (`--echo-request`, on the
 leaves the [flags by name](reference.md#flags-by-name) index lists); `data.components` is the
 additive `Response.Components` slot documented per leaf — see
 [`api process` → `--json`](api-process.md#--json).
@@ -106,8 +107,8 @@ each one is in the [flags by name](reference.md#flags-by-name) index.
 ### `--input` / `-i`
 
 The cohort path, resolved against the working directory (an absolute
-path is used as-is). `cohort inspect`, `widen`, `dedup` and the `index`
-leaves also accept it as the positional argument; the flag wins when
+path is used as-is). `cohort inspect`, `cohort zone`, `widen`, `dedup`,
+`rake` and the `index` leaves also accept it as the positional argument; the flag wins when
 both are given. Paired with `--request` (`api facet`, `api lookup`), the
 flag **replaces** the request file's `cohort` outright — `filename` and
 `data_dir` — so `-i x.pulse -r req.json` reads `x.pulse` whatever
@@ -117,14 +118,15 @@ flag **replaces** the request file's `cohort` outright — `filename` and
 ### `--strict`
 
 Treat request-validation warnings (e.g. numeric aggregation on a
-categorical field, low-quality field description) as errors. On
-`api predict` and the three `api predict-*` leaves this fails
-validation (every warning the leaf reports becomes an error); on
-`api process` it refuses to execute. Useful in CI gates that want the strictest possible
-validation.
+categorical field) as errors. On `api predict` and the three
+`api predict-*` leaves this fails validation (every warning the leaf
+reports becomes an error); on `api process` it refuses to execute; on
+`api materialize` a weak output-field description
+(`PULSE_FIELD_DESCRIPTION_LOW_QUALITY`) fails and writes nothing. Useful
+in CI gates that want the strictest validation.
 
-`import <format>`, `import auto` and `convert` also take `--strict`,
-with an import meaning: it escalates a partial import
+`import <format>`, `import auto`, `import predict`, `dedup` and
+`convert` also take `--strict`, with an import meaning: it escalates a partial import
 (`PULSE_IMPORT_ROWS_DROPPED`) and, on `import <format>`, the parent-group
 viability warnings — see [`--strict` (import)](#--strict-import). On
 `convert` into `.sav` it also refuses a `u64` past 2^53
@@ -205,16 +207,6 @@ elided fields are printed, and reported as `elided_constants` under
 
 ### `--group`
 
-Repeatable — one parent
-group per flag. On `import auto` the group is judged at the default
-ratio floor and its findings are always warnings (`--json` puts them in
-`warnings`, the per-group figures under `data.groups`); the floor and
-the group findings' `--strict` stay on the per-format leaves, since
-neither changes the bytes written (`import auto --strict` escalates a
-partial import only).
-On `import predict` the declaration is evaluated, not applied: see
-[`--suggest-groups`](#--suggest-groups).
-
 `--group KEY[,KEY...]:MEMBER[,MEMBER...]` declares a **parent group**:
 the key fields identify a parent (a customer ID, say) and the members
 are the fields that key determines (its name, region, tier). Each
@@ -250,7 +242,25 @@ or that makes the file no smaller, is still written, with a
 dictionary bytes and the byte delta. Other groups on the same import
 are unaffected. The text output prints each group's ratio, resident
 dictionary bytes and byte delta; `--json` reports them per group under
-`Groups` and the findings in `warnings`.
+`data.groups` (entry count, entry width, member bytes per row, index
+width, verdict) and the findings in `warnings` and `data.group_warnings`.
+
+Repeatable — one group per flag. Groups are named in errors and output
+by position and key (`group 1 [key: cust_id]`) — the format stores no
+group name. Declared members are never constant-elided, so `--group`
+composes with `--elide-constants`. Field names containing `,` or `:`
+cannot be declared here; use `io.ImportJob.Groups`. The output is a
+format `0x02` cohort that binaries predating `0x02` cannot open; with no
+`--group` the import writes no group. `pulse_import` (MCP) takes the
+same declarations as structured `groups: [{key, members}]` entries,
+plus `suggest_groups` to return measured candidates in the same shape.
+See [parent groups](../format/parent-groups.md).
+
+On `import auto` the group is judged at the default ratio floor and its
+findings are always warnings; the floor and the group findings'
+`--strict` stay on the per-format leaves (`import auto --strict`
+escalates a partial import only). On `import predict` the declaration is
+evaluated, not applied: see [`--suggest-groups`](#--suggest-groups).
 
 ### `--suggest-groups`
 
@@ -278,8 +288,8 @@ dozen parents, and a column that happens to be constant across so few
 looks like a parent attribute. Candidates are then **confirmed and
 measured over every row**. A member that varies within its key later in
 the file is dropped and listed under `rejected_members`. The figures
-therefore come from the same conversion and the same `internal/encoding.DedupGate`
-arithmetic the import uses, so they are not a sample estimate. They
+therefore come from the same conversion and the same gate arithmetic
+the import uses, so they are not a sample estimate. They
 equal what `import --group` reports and what `cohort inspect` shows
 afterwards. A dependency can still break in a later re-export of the
 same source; the import catches that with
@@ -375,18 +385,6 @@ On `import <format>` and `import predict` it also turns the parent-group
 viability warnings (`PULSE_GROUP_TOO_NARROW`, `PULSE_DEDUP_LOW_RATIO`)
 into errors: the import fails with that code and writes nothing. Other
 import warnings are unaffected.
-Groups are named in errors and output by position and key
-(`group 1 [key: cust_id]`) — the format stores no group name. Each group
-is printed with its distinct-tuple count, and reported under `Groups`
-with `--json` (entry count, entry width, member bytes per row, index
-width). Declared members are never constant-elided, so `--group`
-composes with `--elide-constants`. Field names containing `,` or `:`
-cannot be declared here; use `io.ImportJob.Groups`. The output is a
-format `0x02` cohort that binaries predating `0x02` cannot open; with no
-`--group` the import is unchanged. `pulse_import` (MCP) takes the same
-declarations as structured `groups: [{key, members}]` entries, plus
-`suggest_groups` to return measured candidates in the same shape. See
-[parent groups](../format/parent-groups.md).
 
 ### `--vector` / `--vector-kind`
 
@@ -439,7 +437,7 @@ null vector; a null element is `NaN`. The whole import is refused with
 outside 2..1024 (`dim_out_of_range`), or no non-null list at all
 (`list_dim_unknown`); CSV / TSV / Excel have no typed lists
 (`no_columns`). Without the flag a list column imports as a `set_*`
-field exactly as before.
+field.
 
 ```sh
 pulse import parquet -i embeddings.parquet -o emb.pulse \
@@ -457,8 +455,7 @@ imports only — a fixed offset `+HH:MM` / `-HH:MM`. Repeatable
 `CLI_INPUT` when `col` is not a column, or is not `datetime` (a `date` is
 a calendar day and has no zone). The bare form skips `date` columns. A
 value carrying its own `Z` or offset names that instant and ignores the
-zone. Without `--source-tz` the cohort is byte-identical to before. The
-offset form is import-only: a request `time_zone` or slot `tz` refuses
+zone. The offset form is import-only: a request `time_zone` or slot `tz` refuses
 `+05:00` with `PULSE_TIMEZONE_UNKNOWN` (spell it `Etc/GMT-5` there; see
 [Time Zones](../library/time-zones.md)).
 
@@ -522,7 +519,7 @@ pulse import csv -i shipments.csv -o shipments.pulse \
 field: `col` must import as a `categorical_*` column whose every value is
 `UTC` or an IANA `Area/Location` name (never a fixed offset). The cohort
 stores it in its schema (the `0x02` ZONE section, so it travels with every
-copy) and `pulse inspect` shows it as `zone_field`; every zone-aware slot
+copy) and `pulse cohort inspect --json` reports it as `zone_field`; every zone-aware slot
 then reads each row in its own zone unless the request names a zone
 (predict echoes `source: "cohort"`). It is declared explicitly and is never
 implied by `--source-tz-field`, which says how the SOURCE's literals were
@@ -538,7 +535,7 @@ judges the declaration over the dictionaries the import would write. On
 carries no schema), so without `--keep-pulse` it is refused
 (`reason` `no_cohort`). `import auto` records it on the sidecar
 (`zone_field`) and refuses it for a `.pulse` source (`reason`
-`passthrough`). Without the flag the cohort is byte-identical to before.
+`passthrough`).
 
 ```bash
 pulse import csv -i shipments.csv -o shipments.pulse \
@@ -557,8 +554,8 @@ re-importing the export (offset literals keep their instant) round-trips
 every value exactly. `date` columns are calendar days and never move.
 `Zone` is an IANA name or `UTC` — no fixed offsets, abbreviations or
 `Local` (`PULSE_TIMEZONE_UNKNOWN`, from `export predict` too). Absent,
-`UTC` or a UTC-equivalent zone (`Etc/UTC`) is byte-identical to today's
-output. An instant whose historical offset is not a whole minute (a
+`UTC` or a UTC-equivalent zone (`Etc/UTC`) writes the canonical `…Z`
+form. An instant whose historical offset is not a whole minute (a
 pre-1900 local mean time) keeps the `…Z` form: RFC 3339 cannot spell it.
 
 Text formats carry the literal as text, and so do `arrow` / `parquet`,
@@ -584,7 +581,7 @@ on both predicate shapes (`--filter` alone, and `--include-from` AND
 `FilterToFileRequest.TimeZone` would. `Zone` is an IANA name or `UTC`;
 an unknown name is a `PULSE_TIMEZONE_UNKNOWN` envelope, exit 1, refused
 before the cohort is read and with nothing written. Absent, `to_day`
-reads UTC and the output is byte-identical to today's. The output path
+reads UTC. The output path
 is always `-o`; the leaf does no dedup naming (that is
 [`FilterToFileWithRequest`](../library/filter-to-file.md)).
 
@@ -620,7 +617,8 @@ pulse cohort filter -i sales.pulse -o eu_flat.pulse --flatten --filter 'region =
 ### `--labels` (export)
 
 `--labels FIELD=TABLE[:replace|augment]` binds a label table (from
-`PULSE_LABEL_TABLES_DIR`) to a field. On every row format (`csv`, `tsv`,
+`PULSE_LABEL_TABLES_DIR`) to a field. `api sample` and `api facet` take
+the same binding on their output. On every row format (`csv`, `tsv`,
 `ndjson`, `jsonarray`, `excel`, `arrow`, `parquet`) `replace` rewrites
 the cell to its label and `augment` adds a `FIELD_label` column after
 it; `export spss` writes value labels instead (see
@@ -695,8 +693,8 @@ pulse api process --help
 pulse mcp --help
 ```
 
-`--help` output is the urfave/cli v3 default — a usage block,
-description, flag list, and an examples block where applicable.
+`--help` prints the usage line, description and flag list; the
+[reference](reference.md) is generated from the same command tree.
 
 ## Cross-references
 

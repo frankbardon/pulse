@@ -19,18 +19,18 @@ pulse api predict --request FILE [--json] [--strict] [--echo-request]
 
 ## Flags
 
-| Flag | Alias | Type | Default | Purpose |
-|---|---|---|---|---|
-| `--request`      | `-r` | string | (required) | Request JSON path |
-| `--json`         |      | bool   | false      | Emit the standard envelope |
-| `--strict`       |      | bool   | false      | Treat warnings as errors |
-| `--echo-request` |      | bool   | false      | Include the normalized request on `envelope.request` (distinct from `PredictResult.Request`, which echoes the raw input) |
+Each flag's help text is in the
+[Command & flag reference](reference.md#pulse-api-predict). `--strict`
+turns every warning into an error (`valid: false`, exit 1);
+`--echo-request` puts the normalized, defaults-applied request on
+`envelope.request`, while `data.request` always echoes the request as
+submitted.
 
 ## Structural ban
 
-`internal/descriptor/predict.go` cannot import `internal/service/` or `internal/processing/`.
-This is enforced by `TestPredictNoExecutionImports`. Predict is
-guaranteed to never touch the executor.
+Predict never touches the executor: `internal/descriptor/` cannot import
+`internal/service/` or `internal/processing/`
+(`TestPredictNoExecutionImports`).
 
 ## Output (text mode)
 
@@ -54,9 +54,10 @@ non-zero.
     "schema_info": {"field_count": 7},
     "streamable": false,
     "streamable_reasons": [
-      "AGG_MEDIAN on field price"
+      "aggregation AGG_MEDIAN is not streamable"
     ],
-    "request": { /* the request as predict resolved it, with defaults applied */ }
+    "defaults_applied": [ /* each slot a smart default filled */ ],
+    "request": { /* the request as submitted */ }
   },
   "errors":  [],
   "warnings": [
@@ -72,7 +73,7 @@ Notes](../ops/performance.md) for the full streaming/buffered table.
 
 `computed_before_filters` lists the output label of every attribute
 the engine computes over the whole unfiltered cohort before the filters
-run (today only `ATTR_PREVIOUS_STATE`, so a date window keeps each
+run (only `ATTR_PREVIOUS_STATE`, so a date window keeps each
 subject's first in-window transition). Absent when there is none.
 
 For a crosstab request, `crosstab_fusable` reports whether the grid
@@ -89,7 +90,7 @@ arm. An engine built with `Options.DisableCrosstabFusion` answers
 exceeds a limit. A `certain` finding is an exact figure — the request
 is refused with `PULSE_LIMIT_EXCEEDED` (`valid: false`), exactly as
 `process` would refuse it before reading a record. A `possible` finding
-is an upper bound and only a warning. Today predict reports
+is an upper bound and only a warning. Predict reports
 `max_groups` (`possible`: the group buckets the first grouper can
 create — a categorical's dictionary size, a boolean's two values, an
 `include` list, a quantile's bins, or a date-ranges grouper's ranges
@@ -121,10 +122,9 @@ no `multiplicity` block corrects. An `uncorrected` count at or above
 it can over- or under-count) or `lower_bound`. See
 [Multiple-Comparison Correction](../library/multiplicity.md).
 
-`request` echoes the request **after defaults have been applied** so
-you can see what would actually run. To suppress defaults, run with
-`--no-defaults` on the executing leaf (`api process`,
-`api compose`); predict reports `defaults_applied` regardless.
+`data.request` echoes the request as submitted; `defaults_applied` lists
+every slot a smart default filled, and `--echo-request` shows the
+resolved request that would actually run.
 
 ## Smart defaults
 
@@ -137,8 +137,12 @@ before running the request. Predict reports the inferred slot under
 |---|---|---|
 | `u4`, `u8`..`u64`, `f32`, `f64`, `decimal128` | `AGG_SUM` | `GROUP_RANGE` (interval 10) |
 | `categorical_u8`/`u16`/`u32` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
-| `date` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
+| `date`, `datetime` | (none — must be explicit) | `GROUP_DATE` (component `"day"`) |
 | `packed_bool` | `AGG_MODE_COUNT` | `GROUP_CATEGORY` |
+| `set_*` | `AGG_SET_FREQUENCY` | `GROUP_SET_PER_ELEMENT` |
+
+A `vec_*` field has no default; the source of truth is
+`internal/descriptor/defaults.go`.
 
 The `Nullable` flag on a field never changes its default operator — it
 only controls per-record null-bitmap participation.

@@ -36,7 +36,7 @@ In depth: [api compose](api-compose.md)
 |---|---|---|---|
 | `--request`, `-r` | string |  | **Required.** Composed request JSON file path |
 | `--json` |  |  | Output the result as a JSON envelope |
-| `--stream` |  |  | Stream rows as NDJSON; each line is {"index":N,"row":{...}}; a batch that warned adds one {"warnings":[...]} line after the rows; a ranked sweep ends with one {"ranking":[...]} line (plus "ranking_profile" under rank.profile, "sweep_trace" under an adaptive mode); optimize blocks end with one {"optimizations":[...]} line |
+| `--stream` |  |  | Stream rows as NDJSON; each line is {"index":N,"row":{...}}; a batch that warned adds one {"warnings":[...]} line after the rows; a sampling sweep (random / lhs) adds one {"sweep_seed":N} line; then, in this order, a ranked sweep adds one {"ranking":[...]} line (plus "ranking_profile" under rank.profile, "sweep_trace" under an adaptive mode), a banner one {"banner":{...}} line, optimize blocks one {"optimizations":[...]} line and nested-model comparisons one {"comparisons":[...]} line |
 | `--stream-fits` |  |  | Under --stream, end the stream with one {"fits":{...}} line (the buffered fits object, after every other line) when the request declares fits; ignored without --stream |
 | `--parallel` | int | `1` | Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential |
 | `--no-fail-fast` |  |  | Aggregate errors instead of cancelling on first failure (parallel only) |
@@ -56,7 +56,7 @@ In depth: [api facet](api-facet.md)
 |---|---|---|---|
 | `--input`, `-i` | string |  | Input .pulse cohort file path |
 | `--field`, `-f` | string, repeatable |  | Field name to facet (repeat for multiple) |
-| `--request`, `-r` | string |  | Full FacetRequest JSON file (overrides flags) |
+| `--request`, `-r` | string |  | Full FacetRequest JSON file (flags layer on top of the file) |
 | `--top-k` | int |  | Cap discrete values per field |
 | `--percentile` | float, repeatable |  | Numeric percentile (repeatable, in (0,1)) |
 | `--histogram` |  |  | Include numeric histograms |
@@ -1081,7 +1081,7 @@ In depth: [profile create](profile-create.md)
 | `--input`, `-i` | string |  | **Required.** Input .pulse cohort file path |
 | `--output`, `-o` | string |  | **Required.** Output profile JSON path |
 | `--top-k` | int | `32` | Top-K categorical values to retain per field |
-| `--include-stats` |  |  | Include percentile / std stats |
+| `--include-stats` |  |  | Include percentile / std stats (default true; --include-stats=false omits them) |
 | `--include-correlations` |  |  | Capture pairwise numeric correlations |
 | `--correlation-top-k` | int | `16` | Cap on retained correlation pairs |
 | `--conditional` |  |  | Capture row-aligned numeric-numeric pair structure (rho + true co-occurrence N) for exact correlation reconstruction; pairs below 30 supporting observations warn rather than refuse |
