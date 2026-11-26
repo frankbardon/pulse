@@ -2881,7 +2881,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `types.ReturnPresetFull` |  |  | yes |
 | `types.ReturnPresetMinimal` | yes |  | yes |
 | `types.ReturnPresetStandard` | yes |  | yes |
-| `types.ReturnedMarker` | yes |  | yes |
+| `types.ReturnedMarker` | yes | yes | yes |
 | `types.RunComponents` |  |  | yes |
 | `types.SEMFitGroup` |  |  | yes |
 | `types.SEMFitGroupLevel` |  |  | yes |
@@ -3017,7 +3017,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `DisableShardDistinct` | yes |  | yes |
 | `EchoRequest` | yes |  | yes |
 | `Extensions` | yes | yes | yes |
-| `FS` | yes | yes | yes |
+| `FS` | yes |  | yes |
 | `FeatureProfile` | yes |  | yes |
 | `FeatureProfileFile` | yes |  | yes |
 | `Hooks` | yes |  | yes |
@@ -3109,7 +3109,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse api process-chain` | yes | yes | yes |
 | `pulse api sample` | yes | yes | yes |
 | `pulse cohort filter` | yes | yes | yes |
-| `pulse cohort inspect` | yes |  | yes |
+| `pulse cohort inspect` | yes | yes | yes |
 | `pulse cohort zone clear` | yes | yes | yes |
 | `pulse cohort zone set` | yes | yes | yes |
 | `pulse completion bash` | yes |  | yes |
@@ -3991,7 +3991,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_RAKE_INVALID` | yes | yes |
 | `PULSE_RAKE_MISSING_VALUE` | yes | yes |
 | `PULSE_RAKE_NOT_CONVERGED` | yes | yes |
-| `PULSE_RAKE_SIDECARS_INVALIDATED` | yes |  |
+| `PULSE_RAKE_SIDECARS_INVALIDATED` | yes | yes |
 | `PULSE_RAKE_UNKNOWN_CATEGORY` | yes | yes |
 | `PULSE_RAKE_UNTARGETED_CATEGORY` | yes | yes |
 | `PULSE_RANGE_DUPLICATE_LABEL` | yes |  |

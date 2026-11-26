@@ -1,6 +1,6 @@
 ```yaml
 name: synth-structural-rules
-description: Entry point for synth spec `rules[]` and `constraints[]` — the five rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules.
+description: Entry point for synth spec `rules[]` and `constraints[]` — the rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
@@ -10,7 +10,7 @@ requires: [capability:synth]
 
 # Synth structural rules
 
-Two synth-spec slots act ON a drawn row rather than describing its variation: `constraints[]` rejects a row and makes the generator redraw; `rules[]` masks or overwrites named fields on the rows a predicate selects. Both compile against the SAME `expr-lang` row environment (`rowExprEnv`) — a second hand-rolled env is what produced issue #258.
+Two synth-spec slots act ON a drawn row rather than describing its variation: `constraints[]` rejects a row and makes the generator redraw; `rules[]` masks or overwrites named fields on the rows a predicate selects. Both compile against the SAME `expr-lang` row environment (`rowExprEnv`).
 
 Every measurement behind a figure here, and the closed design questions: `docs/src/cli/synth-calibration.md`.
 
@@ -29,7 +29,7 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 
 ## Structural rules
 
-`rules[]` (additive, `omitempty`) state what no statistical summary can — and what therefore comes back from marginals as soft noise with a plausible rate and no gate: a question block not ASKED of a respondent who failed a screener, a flag that is a band of another column.
+`rules[]` (additive, `omitempty`) state what no statistical summary can — and what therefore comes back from marginals as soft noise with a plausible rate and no gate: a question block not ASKED of a respondent who failed a screener, a flag that is a band of another field.
 
 ```json
 "rules": [
@@ -39,11 +39,11 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 ]
 ```
 
-Five slots plus one modifier: `when` optional predicate (**absent means EVERY row**, not "never"); `set` assigns LITERALS; `set_expr` expression RESULTS; `null_together` nulls a block as one decision; `owns_nulls` changes what a `set_null` MEANS rather than adding an action. `when` must return bool.
+Slots plus one modifier: `when` optional predicate (**absent means EVERY row**, not "never"); `set_null` nulls fields; `set` assigns LITERALS; `set_expr` expression RESULTS; `null_together` nulls a block as one decision; `owns_nulls` changes what a `set_null` MEANS rather than adding an action. `when` must return bool.
 
 **`set` and `set_expr` are sibling keys, never one map with a `{"$expr": …}` marker** — one map leaves `{"set": {"region": "west"}}` undecidable between a literal and an identifier.
 
-The pass consumes no RNG and allocates nothing per row, so a rules-free spec is byte-identical to pre-slot output. **The standalone rules-file format is this array itself** — an inline declaration and a `--rules` file are the same JSON.
+The pass consumes no RNG and allocates nothing per row. **The standalone rules-file format is this array itself** — an inline declaration and a `--rules` file are the same JSON.
 
 ### Order and placement
 
@@ -58,7 +58,7 @@ The pass consumes no RNG and allocates nothing per row, so a rules-free spec is 
 
 A `set` literal is coerced to the row's Go shape once at compile time via `constantRowValue`, which turns a `set_*` target's `["tv","radio"]` into the row's `map[string]bool`.
 
-**ACROSS rules an expression sees EARLIER writes, not LATER ones. WITHIN one rule order is UNOBSERVABLE:** every expression, `when` included, reads the row as it stood BEFORE the rule ran, and all its writes land after — so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works and does NOT pre-claim the field. The alternative exposes an order nobody can SEE: a rule's slots are Go maps, JSON key order is gone after decode, and the surviving order is ALPHABETICAL, so renaming a column would silently change a number.
+**ACROSS rules an expression sees EARLIER writes, not LATER ones. WITHIN one rule order is UNOBSERVABLE:** every expression, `when` included, reads the row as it stood BEFORE the rule ran, and all its writes land after — so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works and does NOT pre-claim the field. The alternative exposes an order nobody can SEE: a rule's slots are Go maps, JSON key order is gone after decode, and the surviving order is ALPHABETICAL, so renaming a field would silently change a number.
 
 **Declaration order is also ACCEPTED-row order — rows are never shuffled**, which is what lets `row()` / `lag()` ([`synth-cross-row`](synth-cross-row.md)) mean "the previous row".
 

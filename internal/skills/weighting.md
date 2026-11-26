@@ -9,7 +9,7 @@ requires: [capability:weighting]
 ---
 # Row weighting
 
-A per-row weight column makes each row count as `w` rows in a weight-aware figure.
+A per-row weight field makes each row count as `w` rows in a weight-aware figure.
 
 ## Surface
 
@@ -32,7 +32,7 @@ Per slot: its own `weight` (`null` ⇒ opted out) → request `weight` → `Opti
 
 ## Invalid weights
 
-Never coerced; zero is valid and adds nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight column (`details.by_reason`); `--strict` errors.
+Never coerced; zero is valid and adds nothing. Null, negative, NaN / ±Inf and (`frequency`) non-integer weights drop the row from that slot (`n_weight_invalid`), with one `PULSE_WEIGHT_INVALID_ROWS` warning per weight field (`details.by_reason`); `--strict` errors.
 
 ## What honours a weight
 
@@ -67,7 +67,7 @@ Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweigh
 <!-- feature: capability:crosstab -->
 ## Crosstab and the unweighted base
 
-Cells, margins and normalizations recompute from the WEIGHTED rows; `CellCounts` and margin counts stay raw. Show the unweighted base with an auxiliary that opts out:
+Cells, margins and normalizations recompute from the WEIGHTED rows; `cell_counts` and margin counts stay raw. Show the unweighted base with an auxiliary that opts out:
 
 ```json
 {"weight": {"field": "wt"},

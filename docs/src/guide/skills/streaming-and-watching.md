@@ -13,13 +13,7 @@ covers: [Request.Hash, StreamResult, Watch, WatchDir, FilterToFileWithRequest, C
 
 `Hash()` is a 32-char hex digest of canonical JSON. Supported: `Request`, `ComposedRequest`, `FacetRequest`, `ChainRequest`, `synth.Spec`. Lower-level: `types.CanonicalHash(tag, v)`.
 
-Guarantees: stable across processes/versions; field-order invariant; `null` / zero ≡ omitted, but `"disable_components": false` is not; `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash.
-
-```go
-key := req.Hash()
-if v, ok := cache.Get(key); ok { return v }
-resp, _ := p.Process(ctx, req); cache.Set(key, resp)
-```
+Guarantees: stable across processes, and across versions while the request's meaning is unchanged; field-order invariant; `null` / zero ≡ omitted, but `"disable_components": false` is not; `-0.0` ≡ `0.0`; a namespace tag separates shapes. `return` is part of the hash. Use it as a cache key.
 
 ## `StreamResult[T]`
 
@@ -31,7 +25,7 @@ type StreamResult[T any] struct {
 }
 type StreamChunk[T any] struct {
     Sequence int; Data T; Progress float64
-    Components *types.ResponseComponents
+    Components *types.ResponseComponents; Returned *types.ReturnedMarker
 }
 ```
 
@@ -77,7 +71,7 @@ for ev := range p.WatchDir(ctx, "cohorts/", true) { handle(ev.Kind, ev.Path, ev.
 
 No pre-seed: existing files surface as `ChangeCreated` on the first tick.
 
-`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network FS: ~30s.
+`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `< 0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems: `PollInterval` ~30 s.
 
 Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp has an editor/atomic-write name, and both fall inside `CoalesceWindow`.
 

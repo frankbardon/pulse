@@ -25,7 +25,7 @@ A rule can DRAW: `uniform()` and `bernoulli(p)` let an outcome be drawn against 
 
 ## Determinism
 
-- **A draw never touches the generation RNG.** Each call site — one `uniform()` / `bernoulli()` call in one rule slot — has its own stream, so a spec without draws is byte-identical to one from before they existed, and ADDING a draw moves no other field's value.
+- **A draw never touches the generation RNG.** Each call site — one `uniform()` / `bernoulli()` call in one rule slot — has its own stream, so ADDING a draw moves no other field's value.
 - A value is a pure function of `(seed, call site, accepted-row ordinal, attempt, call)`. The site is the rule's index, its slot (`when`, or `set_expr` and the target field) and the call's position in that expression — moving a rule to a new index changes its draws; editing another rule does not.
 - **A constraint-rejected attempt's draws are discarded, never replayed.** The row is redrawn at the same ordinal with the next attempt number, so it reads FRESH values (replaying would reject the same draw forever) and the accepted row is a function of spec and seed alone.
 - Two calls never share a value: `uniform() - uniform()` is not 0. To use ONE draw twice, store it.
@@ -36,9 +36,9 @@ A rule can DRAW: `uniform()` and `bernoulli(p)` let an outcome be drawn against 
 {"name": "true_pd", "type": "f64", "distribution": "constant", "params": {"value": 0}, "output": false}
 ```
 
-- Drawn in its declaration position like any field, so hiding one moves no other column: the written columns are value-identical to the same spec with the helper written.
+- Drawn in its declaration position like any field, so hiding one moves no other field: the written fields hold the same values as with the helper written.
 - Every rule and constraint reads it (`isnull` too), and a rule may write it. `lag` reads its final value.
-- Absent from the written schema and records — so from `inspect`, a profile and the fidelity report (a model or pair over a helper is reported as not scored, not as an empty partition). At least one field must be written. `"output": true` and omitting the key are identical.
+- Absent from the written schema and records — so from `pulse cohort inspect`, a profile and the fidelity report (a model or pair over a helper is reported as not scored, not as an empty partition). At least one field must be written. `"output": true` and omitting the key are identical.
 
 ## Recipe: an outcome drawn from a model
 

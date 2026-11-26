@@ -1,6 +1,6 @@
 ---
 name: synth-rules-from-profile
-description: Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the three detectors.
+description: Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the detectors.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
@@ -23,7 +23,7 @@ Refusals name the FILE as well as the rule index (`details.path` on every `PULSE
 
 ## Detecting rules from the data (`--suggest-rules`)
 
-Coverage bounds the layer's value and rules get written from RECALL. `pulse profile create --suggest-rules <path>` runs three detectors on the SAME scan (no extra byte read) and writes the bare rules array `--rules` consumes UNMODIFIED. Per-detector treatment: `docs/src/cli/profile-create.md`.
+Coverage bounds the layer's value and rules get written from RECALL. `pulse profile create --suggest-rules <path>` runs its detectors on the SAME scan (no extra byte read) and writes the bare rules array `--rules` consumes UNMODIFIED. Per-detector treatment: `docs/src/cli/profile-create.md`.
 
 **Proposed, never applied.** A detected pattern can be a coincidence of the sample, and detection finds the STATISTICAL gate while a human knows the SEMANTIC one — on a real cohort two different predicates gated the identical rows with identical evidence to sixteen digits, so nothing in the data could separate them. Read each candidate's evidence, correct the `when`, delete the rest.
 

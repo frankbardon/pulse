@@ -9,12 +9,12 @@ covers: [vec_f32, vec_f64, native vector, vector field, list column, element mem
 
 # Native vector fields
 
-A `vec_f32` / `vec_f64` field stores a fixed-length numeric vector (dim 2..1024) per row, instead of dim scalar columns. Bytes, range and null bits: [`type-vec-f32`](type-vec-f32.md) / [`type-vec-f64`](type-vec-f64.md). The field carries its own kind (`measure`, `scale`, `composition`, `binary`), optional scale range and element labels in the schema; `pulse_inspect` reports them under the field's `vector` block.
+A `vec_f32` / `vec_f64` field stores a fixed-length numeric vector (dim 2..1024) per row, instead of dim scalar fields. Bytes, range and null bits: [`type-vec-f32`](type-vec-f32.md) / [`type-vec-f64`](type-vec-f64.md). The field carries its own kind (`measure`, `scale`, `composition`, `binary`), optional scale range and element labels in the schema; `pulse_inspect` reports them under the field's `vector` block.
 
 ## Creating one
 
 - **Fold columns:** `--vector NAME:/REGEX/` or `NAME:COL1,COL2,...` (`NAME:f32:...` for `vec_f32`); MCP `pulse_import` takes the same strings as `vectors` / `vector_kinds`. The members vanish from the cohort. Declare meaning with `--vector-kind NAME:KIND[:MIN:MAX]`.
-- **Native list column** (Arrow FixedSizeList / LIST, Parquet LIST, NDJSON / JSON array, read typed, never via pipe-joined text): a bare `--vector NAME` (or `NAME:f32`). Dim = the first non-null list's length; no labels. A null list or all-null elements = a null vector, a null element = `NaN`. Without a declaration a list column still imports as a multi-select `set_*`, byte-identically.
+- **Native list column** (Arrow FixedSizeList / LIST, Parquet LIST, NDJSON / JSON array, read typed, never via pipe-joined text): a bare `--vector NAME` (or `NAME:f32`). Dim = the first non-null list's length; no labels. A null list or all-null elements = a null vector, a null element = `NaN`. Without a declaration a list column imports as a multi-select `set_*`.
 - **Schema file:** type `vec_f64` / `vec_f32` with a required `dim`, optional `labels`, `kind`, `scale_min` / `scale_max`.
 - **Go:** `Pulse.NewCohortBuilder` takes a slice of exactly dim elements per cell.
 
@@ -26,11 +26,11 @@ Vector import is never feature-gated; only the matrix operators that consume vec
 
 A native vector needs no `Request.Vectors` entry: name the field in any `vector` slot (`"vector": "emb"`). A spec named like a native field is `PULSE_VECTOR_NAME_COLLISION` (`details.native: true`). To re-kind, re-label or re-scope one for a single request, list it in a spec's `fields` — a literal or glob that matches it expands to its element members. A single element is `emb[k]` (**1-based**, 1..dim). Default element labels are the schema's, else `emb_<k>` (the same names an expanded export uses).
 
-**Member identity differs from a scalar twin.** A battery stored as columns `q1..q5` and the same battery as a native vector give identical values, counts and labels, but wherever a result names a member (`row_keys`, `details` `members`, warning text) the native one says `emb[k]` where the twin says the column name. Map names before comparing runs.
+**Member identity differs from a scalar twin.** A battery stored as fields `q1..q5` and the same battery as a native vector give identical values, counts and labels, but wherever a result names a member (`row_keys`, `details` `members`, warning text) the native one says `emb[k]` where the twin says the field name. Map names before comparing runs.
 
 ## Null and NaN
 
-A null vector is the field's null bit; a NaN element is a stored value. In a vector slot a NaN element is a null member and a null vector makes every element null, exactly as the scalar twin's null columns behave. Presence slots (counts, null counts, the null filter, the `{n, n_null}` floor) count a null vector as null and any other as present.
+A null vector is the field's null bit; a NaN element is a stored value. In a vector slot a NaN element is a null member and a null vector makes every element null, exactly as the scalar twin's null fields behave. Presence slots (counts, null counts, the null filter, the `{n, n_null}` floor) count a null vector as null and any other as present.
 
 ## What refuses a vector
 

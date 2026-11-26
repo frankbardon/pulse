@@ -44,7 +44,7 @@ One reference level per categorical drops into the intercept (full level set + i
 - `references[]` is why a reader holding *k−1* of *k* levels need not guess the baseline. Set-only model ⇒ none.
 - `shrinkage_alpha` `omitempty`; absent ⇔ unpenalized OLS (`synth-model-selection`).
 - Fitted **residual reservoir** (`FieldModel.Residuals` / `ResidualPresent`) also `json:"-"` — reach it via `synth.Profile.FittedModels()`, never a re-read document.
-- No flag ⇒ no `models` key ⇒ byte-identical to a pre-flag document. An unsolvable design, or a fit that would serialise a non-finite float, loses only ITS model, named in `Profile.Warnings`. Never a refusal.
+- No flag ⇒ no `models` key. An unsolvable design, or a fit that would serialise a non-finite float, loses only ITS model, named in `Profile.Warnings`. Never a refusal.
 - A vector field is never a target or predictor; a spec naming one in a model is refused.
 - Spec `residual_correlations` entries: `{a, b, rho}`.
 
@@ -62,7 +62,7 @@ Both guards make **`models` and the two numeric-target fidelity sections disjoin
 
 A model **dropped in translation** (unknown predictor kind, or zero predictors) leaves its field's pair STANDING and warns `model for numeric field %q not applied: …`. It is never reconstructed from nothing.
 
-The three **non-numeric-target** arms (`CategoricalPairs`, `SetCategoricalPairs`, `SetSetPairs`) still arbitrate pick-one: a model targets a numeric only. `--conditional` + `--fit-models` keeps both halves. Absent `models`, every arm populates exactly as before.
+The three **non-numeric-target** arms (`CategoricalPairs`, `SetCategoricalPairs`, `SetSetPairs`) still arbitrate pick-one: a model targets a numeric only. `--conditional` + `--fit-models` keeps both halves. Absent `models`, every arm populates.
 
 ## See
 

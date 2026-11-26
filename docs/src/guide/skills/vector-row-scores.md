@@ -49,7 +49,7 @@ Execution and failure:
 | `{table, key_field}` | its own profile, keyed by a categorical or `u4`…`u64` field in exact base-10 form (`u64` above 2^53 too) |
 | `{centroid: {filter?, by?}}` | the weighted per-member mean of the rows `filter` admits (= `AGG_VEC_MEAN`); `by` = one centroid per exact key, each row against its own |
 | `{population: name}` | a bound vector fit's mean ([`compose-fits`](compose-fits.md)); a distance's population need not be its `fit` |
-| `{record: {cohort?, keys}}` | one stored row, point-looked-up through its cohort's index (the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)), read by member column (null = a missing element) |
+| `{record: {cohort?, keys}}` | one stored row, point-looked-up through its cohort's index (the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)), read by member field (null = a missing element) |
 
 - `min_valid` (default 1) — the fewest complete pairs; below it the row is null. A distance's sums rescale by p / p_observed.
 - A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation (`hellinger`, `aitchison`) nulls the row and warns `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate. Components count them: `n_reference_missing`, `n_domain_invalid`.

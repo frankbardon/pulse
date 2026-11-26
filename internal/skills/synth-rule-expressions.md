@@ -12,7 +12,7 @@ requires: [capability:synth]
 
 ## Constraints
 
-`constraints[]` reuse `expr-lang/expr`. Any constraint returning false rejects the row; the generator redraws until `row_count`. Reject cap 50% (`max_rejection_rate`); beyond it `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`.
+`constraints[]` reuse `expr-lang/expr`. Any constraint returning false rejects the row; the generator redraws until `row_count`. Reject cap `max_rejection_rate` (default 0.5); beyond it `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`.
 
 **Env types are the ROW's types**: every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal).
 
@@ -20,7 +20,7 @@ requires: [capability:synth]
 
 ### Functions
 
-Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula attribute's maths, on portable kernels (same bits everywhere):
+expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula attribute's maths, on portable kernels (same bits everywhere):
 
 | call | |
 |---|---|
@@ -63,7 +63,7 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 {"when": "!isnull(nps)", "set_expr": {"nps": "round(nps)"}}
 ```
 
-**LIVE only where row value and stored value differ** — `f32`/`f64`, an integer column over 64 observed levels (a clamped normal), a hand-authored continuous distribution on an integer field. A small integer reconstructs as `discrete` and a `packed_bool` as `bernoulli`, so for those the row value already IS the stored integer and the normalisation is a no-op.
+**LIVE only where row value and stored value differ** — `f32`/`f64`, an integer field over 64 observed levels (a clamped normal), a hand-authored continuous distribution on an integer field. A small integer reconstructs as `discrete` and a `packed_bool` as `bernoulli`, so for those the row value already IS the stored integer and the normalisation is a no-op.
 
 ## See
 

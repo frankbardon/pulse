@@ -15730,11 +15730,11 @@
       },
       {
         "name": "spss-cohorts",
-        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived columns, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
+        "description": "Entry point for SPSS .sav / .zsav cohorts — the three surprises (extra derived fields, codes-not-labels dictionaries, the label-tables directory trap), why dictionaries hold codes, and which focused SPSS skill answers each import, missing-value, sidecar and .sav-writing question. Read this when a cohort came from SPSS or when emitting a .sav."
       },
       {
         "name": "spss-export",
-        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the four write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
+        "description": "Writing .sav — the dictionary + data-section writer, bytecode compression, the write flags, why the writer takes the whole cohort rather than rendered rows, how a .sav-to-.sav convert carries the source through, and asking export predict first."
       },
       {
         "name": "spss-export-fidelity",
@@ -15746,7 +15746,7 @@
       },
       {
         "name": "spss-import-schema",
-        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a column unexpectedly or refuses a file."
+        "description": "How a .sav / .zsav file imports — the declared dictionary replaces inference, the SPSS-to-Pulse type mapping, the three data encodings, charset and byte-order rules, and the fatal-vs-warning damage diagnostics. Read this when an SPSS import types a field unexpectedly or refuses a file."
       },
       {
         "name": "spss-metadata-sidecar",
@@ -15758,7 +15758,7 @@
       },
       {
         "name": "spss-response-sets",
-        "description": "SPSS multiple-response sets and the columns an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more columns than its .sav had variables."
+        "description": "SPSS multiple-response sets and the fields an import synthesises — the derived set_* mask beside a multiple-dichotomy set's constituents, why multiple-category sets derive nothing, and the closed derived registry the export folds by. Read this when a cohort has more fields than its .sav had variables."
       },
       {
         "name": "statistical-testing",
@@ -15786,7 +15786,7 @@
       },
       {
         "name": "synth-datetime",
-        "description": "Synthetic `datetime` columns — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read; rule functions `trend` / `season` / `between`; profile capture."
+        "description": "Synthetic `datetime` fields — `uniform_datetime` draws a LOCAL wall-clock time by weekday and hour weights in a fixed or per-row zone, resolves DST gaps / overlaps per `dst_policy`, and stores the UTC instant rules then read; rule functions `trend` / `season` / `between`; profile capture."
       },
       {
         "name": "synth-determinism",
@@ -15794,11 +15794,11 @@
       },
       {
         "name": "synth-disclosure-report",
-        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output column, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance comparison and memory limits."
+        "description": "The fidelity report's `disclosure` section — how close a `synth from-profile` twin sits to real records (exact-match rate over every output field, Gower distance to closest record on a seeded sample), how it is switched and sized (`--disclosure-sample`, `--no-disclosure`), and its charge against the instance comparison and memory limits."
       },
       {
         "name": "synth-fidelity-report",
-        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` column, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — every field type's marginal with effect sizes and rule notes, pairs, set fields, utility against the source — scored only over relationships generation actually applied."
+        "description": "The `pulse synth from-profile` tagged top-up contract (`_synthetic` field, new output path, `--rows` counts new rows) and the `--fidelity-report` sections — every field type's marginal with effect sizes and rule notes, pairs, set fields, utility against the source — scored only over relationships generation actually applied."
       },
       {
         "name": "synth-marginals",
@@ -15834,7 +15834,7 @@
       },
       {
         "name": "synth-rule-claims",
-        "description": "Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the four exclusions that are silent if got backwards, and why the fidelity report is the reason."
+        "description": "Which synth rules pre-claim a field ahead of its linear model, conditional pairs and residual correlations, the exclusions that are silent if got backwards, and why the fidelity report is the reason."
       },
       {
         "name": "synth-rule-detectors",
@@ -15854,11 +15854,11 @@
       },
       {
         "name": "synth-rule-validation",
-        "description": "Synth rule validation and diagnostics — the eight eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms."
+        "description": "Synth rule validation and diagnostics — the eager `PULSE_SYNTH_RULE_*` refusals, the non-nullable-target refusal, and the never-fired warning with its three cause arms."
       },
       {
         "name": "synth-rules-from-profile",
-        "description": "Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the three detectors."
+        "description": "Reaching synth rules from the profile path — `--rules` (replace semantics, load-time validation) and `--emit-spec` (the spec that generated) — and `profile create --suggest-rules`: proposed candidates, inert evidence, fixed thresholds and the detectors."
       },
       {
         "name": "synth-set-fields",
@@ -15870,7 +15870,7 @@
       },
       {
         "name": "synth-structural-rules",
-        "description": "Entry point for synth spec `rules[]` and `constraints[]` — the five rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules."
+        "description": "Entry point for synth spec `rules[]` and `constraints[]` — the rule slots, declaration order and last-write-wins, why the rule pass runs last, and which focused skill covers expressions, null handling, validation, claims and profile-derived rules."
       },
       {
         "name": "synthetic-data",
@@ -22159,4 +22159,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dd0b1852cfaa04bbc8b9e8cab556fb359aa12d1a49f14f9335da3518a4664ef3
+// golden-hash: 5fbdd5cb70271d61e90de95e511bc0ffdfcbe555e3b6b9d8573cb4b741ce0cd7
