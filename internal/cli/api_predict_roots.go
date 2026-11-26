@@ -89,11 +89,11 @@ func predictRootCmd(name, usage, requestUsage string,
 			}
 			p, err := newPulseOpts(ctx, pulse.Options{Strict: cmd.Bool("strict"), EchoRequest: cmd.Bool("echo-request")})
 			if err != nil {
-				return fail("PREDICT_ERROR", err)
+				return fail("CLI_ERROR", err)
 			}
 			env, err := predict(ctx, p, data)
 			if err != nil {
-				return fail("PREDICT_ERROR", err)
+				return fail("CLI_ERROR", err)
 			}
 
 			if jsonOut {

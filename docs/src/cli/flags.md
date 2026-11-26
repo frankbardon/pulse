@@ -82,7 +82,9 @@ additive `Response.Components` slot documented per leaf — see
 Scripts can trust the exit status. Every command except `pulse mcp` (a
 long-running server, see [its page](mcp.md#exit-codes)) follows the same
 three values, the bare `pulse --json` included. There are no per-domain
-codes; branch on `errors[0].code` for the reason.
+codes; branch on `errors[0].code` for the reason. A failure carries its
+own code; one that has none (a bare filesystem or decode error) is
+`CLI_ERROR`, its message the underlying error.
 
 | Status | Meaning |
 |---|---|

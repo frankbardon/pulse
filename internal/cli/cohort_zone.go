@@ -56,7 +56,7 @@ func cohortZoneSetCmd() *cli.Command {
 			}
 			res, err := p.SetCohortZoneField(ctx, input, field)
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "COHORT_ZONE_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			return writeCohortZoneResult(cmd, jsonOut, res)
 		},
@@ -88,7 +88,7 @@ func cohortZoneClearCmd() *cli.Command {
 			}
 			res, err := p.ClearCohortZoneField(ctx, input)
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "COHORT_ZONE_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			return writeCohortZoneResult(cmd, jsonOut, res)
 		},

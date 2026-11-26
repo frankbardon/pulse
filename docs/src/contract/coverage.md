@@ -35,7 +35,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2857 | 0 |
+| [Go API symbols](#go-api-symbols) | 2859 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -46,7 +46,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
 | [Field types](#field-types) | 22 | 0 |
-| [Error codes](#error-codes) | 493 | 0 |
+| [Error codes](#error-codes) | 495 | 0 |
 | [Environment variables](#environment-variables) | 10 | 0 |
 
 ## Go API symbols
@@ -894,6 +894,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.AllDomains` |  |  | yes |
 | `errors.ByDomain` |  |  | yes |
 | `errors.CLI_COMMAND` |  |  | yes |
+| `errors.CLI_ERROR` |  |  | yes |
 | `errors.CLI_INPUT` |  |  | yes |
 | `errors.CLI_INTERNAL` |  |  | yes |
 | `errors.CLI_OUTPUT` |  |  | yes |
@@ -1275,6 +1276,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_RETURN_PATH_UNKNOWN` |  |  | yes |
 | `errors.PULSE_RETURN_PATH_UNMATCHED` |  |  | yes |
 | `errors.PULSE_SEM_SCORE_LEVEL_UNSEEN` |  |  | yes |
+| `errors.PULSE_SHARD_AGGREGATE_DRIFT` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_INCOMPLETE` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_REFUSED` |  |  | yes |
 | `errors.PULSE_SHARD_APPEND_ROLLED_BACK` |  |  | yes |
@@ -3683,6 +3685,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | Identifier | mdBook | Skill pack |
 |---|---|---|
 | `CLI_COMMAND` | yes |  |
+| `CLI_ERROR` | yes |  |
 | `CLI_INPUT` | yes | yes |
 | `CLI_INTERNAL` | yes |  |
 | `CLI_OUTPUT` | yes |  |
@@ -4011,6 +4014,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_RETURN_PATH_UNKNOWN` | yes | yes |
 | `PULSE_RETURN_PATH_UNMATCHED` | yes | yes |
 | `PULSE_SEM_SCORE_LEVEL_UNSEEN` | yes | yes |
+| `PULSE_SHARD_AGGREGATE_DRIFT` | yes |  |
 | `PULSE_SHARD_APPEND_INCOMPLETE` | yes | yes |
 | `PULSE_SHARD_APPEND_REFUSED` | yes | yes |
 | `PULSE_SHARD_APPEND_ROLLED_BACK` | yes | yes |

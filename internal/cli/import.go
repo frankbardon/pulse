@@ -255,7 +255,7 @@ func runImport(ctx context.Context, cmd *cli.Command, format string) error {
 	if err != nil {
 		err = cliSourceZoneError(err)
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -398,7 +398,7 @@ func importPredictCmd() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}

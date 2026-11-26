@@ -79,8 +79,8 @@ func DedupCommand() *cli.Command {
 				// Every refusal a user hits carries its own code (the
 				// PULSE_GROUP_* family, the gate's codes under --strict,
 				// SERVICE_VALIDATION for a shard archive or an existing
-				// --out). DEDUP_ERROR is reached only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "DEDUP_ERROR", err)
+				// --out). CLI_ERROR is reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings())

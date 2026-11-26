@@ -49,7 +49,7 @@ func cohortInspectCmd() *cli.Command {
 			p, err := newPulse(ctx)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -63,7 +63,7 @@ func cohortInspectCmd() *cli.Command {
 			env, err := p.InspectEnvelope(ctx, path, &descriptor.InspectOptions{FullDict: fullDict})
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "INSPECT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -290,7 +290,7 @@ func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, inpu
 	rep, err := p.FilterToFileWithOptions(ctx, input, output, pulse.FilterToFileOptions{Expression: filterExpr, Flatten: flatten})
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -305,7 +305,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	schema, err := p.ResolveCanonicalSchema(ctx, input)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -336,7 +336,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	load, err := pulse.LoadMemberSetFromReader(f, schema, includeField)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -346,7 +346,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	})
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}

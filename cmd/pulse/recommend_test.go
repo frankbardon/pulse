@@ -96,7 +96,7 @@ func TestCliRecommend(t *testing.T) {
 	}{
 		{[]string{"--intent", "no_such_intent"}, "PULSE_RECOMMEND_INTENT_UNKNOWN"},
 		{[]string{"--intent", "describe", "--cohort", cohort, "--field", "nope"}, "SERVICE_VALIDATION"},
-		{[]string{"--intent", "describe", "--cohort", filepath.Join(dir, "missing.pulse")}, "DATA_FILE"},
+		{[]string{"--intent", "describe", "--cohort", filepath.Join(dir, "missing.pulse")}, "SERVICE_RESOURCE"},
 		{nil, "CLI_INPUT"},
 	} {
 		text, _ := runApp(t, append(append([]string{"recommend"}, tc.args...), "--json")...)

@@ -233,7 +233,7 @@ func (p *Pulse) Materialize(ctx context.Context, req *Request, out string, opts 
 // PULSE_FIELD_DESCRIPTION_LOW_QUALITY warning, as the run warns.
 //
 // A returned error is a cancelled ctx, a nil request or cohort
-// (SERVICE_VALIDATION), or a cohort that cannot be read (DATA_FILE;
+// (SERVICE_VALIDATION), or a cohort that cannot be read (SERVICE_RESOURCE;
 // ENCODING_INVALID for a malformed header or schema). Options.Strict
 // promotes every warning into an error; Options.EchoRequest sets
 // env.Request to the item-expanded request. Reports as a `predict`

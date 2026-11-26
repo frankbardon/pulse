@@ -141,12 +141,12 @@ func TestPredictRoots_Errors(t *testing.T) {
 	}{
 		{"facet nil", func() (*descriptor.Envelope, error) { return p.PredictFacet(ctx, nil) }, errors.SERVICE_VALIDATION},
 		{"facet no cohort", func() (*descriptor.Envelope, error) { return p.PredictFacet(ctx, &FacetRequest{}) }, errors.SERVICE_VALIDATION},
-		{"facet missing", func() (*descriptor.Envelope, error) { return p.PredictFacet(ctx, &FacetRequest{Cohort: missing}) }, errors.DATA_FILE},
+		{"facet missing", func() (*descriptor.Envelope, error) { return p.PredictFacet(ctx, &FacetRequest{Cohort: missing}) }, errors.SERVICE_RESOURCE},
 		{"chain nil", func() (*descriptor.Envelope, error) { return p.PredictChain(ctx, nil) }, errors.SERVICE_VALIDATION},
 		{"chain no cohort", func() (*descriptor.Envelope, error) { return p.PredictChain(ctx, &ChainRequest{Stages: stage}) }, errors.SERVICE_VALIDATION},
 		{"chain missing", func() (*descriptor.Envelope, error) {
 			return p.PredictChain(ctx, &ChainRequest{Cohort: missing, Stages: stage})
-		}, errors.DATA_FILE},
+		}, errors.SERVICE_RESOURCE},
 	} {
 		env, err := tc.call()
 		var ce *errors.CodedError

@@ -72,7 +72,7 @@ func TestPulseRecommend(t *testing.T) {
 		`{}`:                                     perr.PULSE_RECOMMEND_INTENT_UNKNOWN,
 		`{"intent":"nope"}`:                      perr.PULSE_RECOMMEND_INTENT_UNKNOWN,
 		`{"intent":"describe","level":"expert"}`: perr.SERVICE_VALIDATION,
-		`{"intent":"describe","cohort":"no.pulse"}`:                       perr.DATA_FILE,
+		`{"intent":"describe","cohort":"no.pulse"}`:                       perr.SERVICE_RESOURCE,
 		`{"intent":"describe","cohort":"` + path + `","fields":["nope"]}`: perr.SERVICE_VALIDATION,
 	} {
 		if _, err := invokeRecommend(t, p, args); !perr.HasCode(err, want) {

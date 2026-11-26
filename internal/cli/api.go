@@ -82,7 +82,7 @@ func apiProcessCmd() *cli.Command {
 				iter, err := p.ProcessStream(ctx, req)
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -119,7 +119,7 @@ func apiProcessCmd() *cli.Command {
 			resp, err := p.Process(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -181,7 +181,7 @@ func apiProcessChainCmd() *cli.Command {
 			resp, err := p.ProcessChain(ctx, chain)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PROCESS_CHAIN_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -251,7 +251,7 @@ func apiComposeCmd() *cli.Command {
 			}
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "COMPOSE_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -326,7 +326,7 @@ func apiSampleCmd() *cli.Command {
 				rows, err := p.Sample(ctx, input, count)
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -356,7 +356,7 @@ func apiSampleCmd() *cli.Command {
 			result, err := p.SampleWithRequest(ctx, sampleReq)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -406,7 +406,7 @@ func runSampleRequest(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, pat
 	result, err := p.SampleWithRequest(ctx, req)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "SAMPLE_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -520,7 +520,7 @@ func apiFacetCmd() *cli.Command {
 				values, err := p.Facet(ctx, input, fields[0])
 				if err != nil {
 					if jsonOut {
-						return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
+						return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 					}
 					return err
 				}
@@ -560,7 +560,7 @@ func apiFacetCmd() *cli.Command {
 			result, err := p.FacetSchema(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "FACET_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -663,14 +663,14 @@ func apiPredictCmd() *cli.Command {
 			p, err := newPulseOpts(ctx, pulse.Options{Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
 			env, err := p.PredictEnvelope(ctx, req)
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -780,7 +780,7 @@ func apiLookupCmd() *cli.Command {
 // a new cohort. All behaviour is pulse.Materialize; the leaf parses
 // flags, calls it once and formats the result. Every refusal carries
 // its own code (PULSE_MATERIALIZE_*, SERVICE_VALIDATION for an existing
-// target, the request's own pre-flight codes); MATERIALIZE_ERROR is
+// target, the request's own pre-flight codes); CLI_ERROR is
 // reached only by an uncoded error. --predict calls
 // pulse.PredictMaterialize instead: the predict envelope is written as
 // it is, nothing is written at --out (which it does not need), and the
@@ -822,7 +822,7 @@ func apiMaterializeCmd() *cli.Command {
 				Strict:    cmd.Bool("strict"),
 			})
 			if err != nil {
-				return cliCodedError(cmd, jsonOut, "MATERIALIZE_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings)
@@ -844,7 +844,7 @@ func materializePredict(ctx context.Context, cmd *cli.Command, jsonOut bool, req
 	}
 	env, err := p.PredictMaterialize(ctx, req)
 	if err != nil {
-		return cliCodedError(cmd, jsonOut, "PREDICT_ERROR", err)
+		return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 	}
 	if jsonOut {
 		return writeJSON(cmd.Writer, env)
@@ -991,7 +991,7 @@ var lookupModeFlagUsage = "Multiplicity mode when the key matches more than one 
 // translateLookupMode resolves a --mode value through
 // types.ParseLookupMultiplicity: the wire spellings ("assert_unique" |
 // "first" | "all") and the hyphenated "assert-unique" alias. A refusal
-// stays uncoded (the leaf's placeholder code), as it always was.
+// stays uncoded (CLI_ERROR).
 func translateLookupMode(mode string) (types.LookupMultiplicity, error) {
 	m, ok := types.ParseLookupMultiplicity(mode)
 	if !ok {

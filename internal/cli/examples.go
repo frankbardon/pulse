@@ -61,7 +61,7 @@ func examplesSearchCmd() *cli.Command {
 			})
 			if err != nil {
 				// PULSE_RECOMMEND_INTENT_UNKNOWN keeps its own code.
-				return cliCodedError(cmd, jsonOut, "EXAMPLES_ERROR", err)
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 
 			if jsonOut {

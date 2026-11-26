@@ -189,14 +189,14 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 		report, perr := p.Export(ctx, job)
 		if perr != nil {
 			if jsonOut {
-				return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", perr)
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", perr)
 			}
 			return perr
 		}
 		emitted = true
 		if err := writer.Close(); err != nil {
 			if jsonOut {
-				return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", err)
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 			}
 			return err
 		}
@@ -206,7 +206,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	report, err := job.Run(ctx)
 	if err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -214,7 +214,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	emitted = true
 	if err := writer.Close(); err != nil {
 		if jsonOut {
-			return writeCodedErrorEnvelope(cmd.Writer, "EXPORT_ERROR", err)
+			return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 		}
 		return err
 	}
@@ -349,7 +349,7 @@ func exportPredictCmd() *cli.Command {
 			}
 			if err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}

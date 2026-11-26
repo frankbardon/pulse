@@ -284,12 +284,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	SERVICE_RESOURCE: {
-		Message: "A required resource could not be opened (missing .pulse file, unreadable path).",
+		Message: "A cohort (a .pulse file or shard archive) or a file Pulse writes beside it could not be opened, read or written.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Cohort", "Filename"},
-				Hint:   "Verify the cohort filename exists under PULSE_DATA_DIR (or the configured DataDir) and the process has read access.",
+				Hint:   "Check the path in the message (details.path when present) exists and is readable: the CLI resolves a relative path against the working directory, `pulse mcp` and a library instance against the data directory (PULSE_DATA_DIR, --data-dir or Options.DataDir).",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a failed write or rename, check the target directory is writable and has free space.",
 			},
 		},
 	},
@@ -309,11 +313,11 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- DATA ----------
 	DATA_FILE: {
-		Message: "A data file could not be opened or its layout is invalid.",
+		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, a docs export directory) could not be read, or its layout is invalid.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Verify the input file exists, is non-empty, and matches the declared format (CSV / TSV / NDJSON / Parquet / Excel).",
+				Hint:   "Check the path in the message (details.path when present) exists, is readable and is in the format its command expects; an import source must match its `pulse import <format>` leaf.",
 			},
 		},
 	},
@@ -380,6 +384,15 @@ var codeMetadata = map[Code]Metadata{
 	CLI_INTERNAL: {
 		Message:            "Internal invariant violated inside the CLI binary; report with reproducer.",
 		FixupNotApplicable: true,
+	},
+	CLI_ERROR: {
+		Message: "A CLI command failed with an error that carries no Pulse code of its own; the message is the underlying error (most often a file that cannot be read or written).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Read errors[0].message: check the path or argument it names exists and is readable (or writable), then re-run. A message that names no input is a Pulse bug: report it with the command line.",
+			},
+		},
 	},
 
 	// ---------- PULSE ----------
@@ -2449,6 +2462,15 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema", "Fields", "*", "Description"},
 				Hint:   "Update the source data's per-field description (or the vector's labels / kind / scale range) to match the canonical archive's, or accept the warning (downstream consumers see the canonical metadata).",
+			},
+		},
+	},
+	PULSE_SHARD_AGGREGATE_DRIFT: {
+		Message: "`shard verify` found the canonical schema's cached aggregate record count (details.canonical_aggregate) differs from the sum of the shards' own counts (details.live_aggregate); the per-shard counts are authoritative and every read uses them.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Run `pulse shard compact ARCHIVE` to rewrite the cached count; the archive was edited outside Pulse or a rewrite was interrupted.",
 			},
 		},
 	},

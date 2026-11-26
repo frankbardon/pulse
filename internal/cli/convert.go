@@ -153,7 +153,7 @@ func ConvertCommand() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -161,7 +161,7 @@ func ConvertCommand() *cli.Command {
 			emitted = true
 			if err := writer.Close(); err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "CONVERT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -283,7 +283,7 @@ func convertPredictCmd() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}

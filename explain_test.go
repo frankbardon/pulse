@@ -106,8 +106,8 @@ func TestExplain_FacadeErrors(t *testing.T) {
 	var ce *errors.CodedError
 	missing := &types.Cohort{Filename: "x.pulse"}
 	_, err = p.Explain(ctx, descriptor.ExplainRequest{Request: &types.Request{Cohort: missing}})
-	if !stderrors.As(err, &ce) || ce.Code != errors.DATA_FILE {
-		t.Errorf("missing cohort: err = %v, want DATA_FILE", err)
+	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_RESOURCE {
+		t.Errorf("missing cohort: err = %v, want SERVICE_RESOURCE", err)
 	}
 	// The request is checked before any cohort is opened.
 	_, err = p.Explain(ctx, descriptor.ExplainRequest{Request: &types.Request{Cohort: missing}, Detail: "chatty"})

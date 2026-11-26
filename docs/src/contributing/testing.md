@@ -82,6 +82,7 @@ How to run the documentation checks and work their allowlists:
 | `TestManifest*Complete`                 | Manifest enumerates every registered operator, test, distribution, MCP tool, error code |
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`                   | Each error code has a `codeMetadata` Message and at least one Fixup (or `FixupNotApplicable`) |
+| `TestEmittedCodeLiteralsRegistered`     | Every code-shaped string literal in non-test Go source is a registered code (`errors/codes.go`) |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 | `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Allowlist `internal/doccheck/allowlists/links.txt`, locked empty; `make linkcheck-external` checks http(s) links by hand |
 | `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and the generated `docs/src/cli/reference.md` carry the same leaves and, per leaf, the same flags (aliases included), plus the root's global flags, both directions; every flag the concepts page `docs/src/cli/flags.md` names is mounted somewhere; allowlist `cli-flags.txt`, locked empty |

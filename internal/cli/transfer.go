@@ -31,7 +31,7 @@ func exportTransferCmd() *cli.Command {
 			}
 			job := &pio.TransferExportJob{FS: afero.NewOsFs(), Source: input, Output: output, Level: int(cmd.Int("level"))}
 			report, err := job.Run(ctx)
-			return finishTransfer(cmd, "EXPORT_ERROR", "Compressed", report, err)
+			return finishTransfer(cmd, "CLI_ERROR", "Compressed", report, err)
 		},
 	}
 }
@@ -51,7 +51,7 @@ func importTransferCmd() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			job := &pio.TransferImportJob{FS: afero.NewOsFs(), Source: cmd.String("input"), Output: cmd.String("output"), Overwrite: cmd.Bool("overwrite")}
 			report, err := job.Run(ctx)
-			return finishTransfer(cmd, "IMPORT_ERROR", "Decompressed", report, err)
+			return finishTransfer(cmd, "CLI_ERROR", "Decompressed", report, err)
 		},
 	})
 }

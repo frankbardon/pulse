@@ -15,7 +15,7 @@ import (
 
 // featuresErrorFallback is the envelope placeholder for an uncoded
 // failure on a `pulse features` leaf. Every library refusal is coded.
-const featuresErrorFallback = "FEATURES_ERROR"
+const featuresErrorFallback = "CLI_ERROR"
 
 // FeaturesCommand returns the `pulse features` group: thin adapters over
 // the root feature-profile tooling (pulse.InitFeatureProfile,

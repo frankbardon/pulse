@@ -118,9 +118,9 @@ func ExplainCommand() *cli.Command {
 			res, err := p.Explain(ctx, req)
 			if err != nil {
 				// Every refusal carries its own code (SERVICE_VALIDATION,
-				// DATA_FILE, ENCODING_INVALID); EXPLAIN_ERROR is reached
-				// only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "EXPLAIN_ERROR", err)
+				// SERVICE_RESOURCE, ENCODING_INVALID); CLI_ERROR is
+				// reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)

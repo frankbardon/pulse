@@ -206,7 +206,10 @@ pulse shard list q1_2019.pulse
 
 Re-validates every shard's header + cohesion against the canonical
 schema. A shard whose own magic or format version is wrong fails with
-`PULSE_SHARD_HEADER_INVALID` (also on its first read). Useful after manual archive surgery or when a build pipeline
+`PULSE_SHARD_HEADER_INVALID` (also on its first read). A cached
+`aggregate_record_count` that disagrees with the shards' own counts is
+the warning `PULSE_SHARD_AGGREGATE_DRIFT` (reads use the shard counts;
+`compact` refreshes the cache). Useful after manual archive surgery or when a build pipeline
 appends shards from multiple producers. `--json` also reports the dead
 bytes in-place adds left (`data.dead_schema_copies`, `data.dead_bytes`;
 see "Dead bytes" below):

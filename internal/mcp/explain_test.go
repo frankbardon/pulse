@@ -98,7 +98,7 @@ func TestPulseExplain(t *testing.T) {
 		`{"request":` + req + `,"detail":"verbose"}`:                       perr.SERVICE_VALIDATION,
 		`{"request":` + req + `,"sample":{"n":1}}`:                         perr.SERVICE_VALIDATION,
 		`{"response":{"tests":[{"p_value":"x"}]}}`:                         perr.SERVICE_VALIDATION,
-		`{"request":{"cohort":{"filename":"no.pulse"},"aggregations":[]}}`: perr.DATA_FILE,
+		`{"request":{"cohort":{"filename":"no.pulse"},"aggregations":[]}}`: perr.SERVICE_RESOURCE,
 		`{"chain_response":{"stages":[]},"composed":{"requests":[]}}`:      perr.SERVICE_VALIDATION,
 	} {
 		if _, err := invokeExplain(t, p, args); !perr.HasCode(err, want) {

@@ -130,7 +130,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 115,
+    "error_codes_count": 116,
     "error_domains": [
       "CLI",
       "DATA",
@@ -141,6 +141,7 @@
     ],
     "error_codes": [
       "CLI_COMMAND",
+      "CLI_ERROR",
       "CLI_INPUT",
       "CLI_INTERNAL",
       "CLI_OUTPUT",
@@ -931,4 +932,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9e1dde16f2e987f9a4d22dd404d8ba3b4c6ab18ae2c96e4e043a042d0f96bf4e
+// golden-hash: 1553dda26e0f213073a2a6b7f69e501e3268990ea94c2b9f49f775781a03a2ce

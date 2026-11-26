@@ -12,7 +12,7 @@ import (
 
 // docsErrorFallback is the envelope placeholder for an uncoded failure
 // on a `pulse docs` leaf. Every library refusal is coded.
-const docsErrorFallback = "DOCS_ERROR"
+const docsErrorFallback = "CLI_ERROR"
 
 // DocsExportResult is the --json data payload of `pulse docs export`.
 type DocsExportResult struct {

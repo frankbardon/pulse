@@ -29,7 +29,7 @@ The recommendation set (no envelope): `intent`, `bound`, `shapes` (the roles a r
 - **`bound: false` on a cohort draft** means it `needs` a value only you can choose — a success value, a reference mean, a model family. Fill each `needs[].param` before running.
 - `bound: true` drafts passed predict; still read their `advisories`.
 - Empty `recommendations` + `routes_to` is not an error: tooling answers it, or nothing serves it yet.
-- Reads header, schema and sidecar only. Unreadable cohort → `DATA_FILE`.
+- Reads header, schema and sidecar only. Unreadable cohort → `SERVICE_RESOURCE`.
 - Ranking: hints, fully bound, level, fewest advisories, category, then operator name (alphabetical).
 - **A model reads a draft's column in the same request.** Label the score or feature entry, add the regression reading that label; no materialise step.
 - A native vector field is drafted whole as `"vector": "<field>"`, before a list of numeric columns, and only where its schema `kind` suits the operator; never in a scalar slot.

@@ -41,8 +41,8 @@ func TestRecommend_FacadeUnbound(t *testing.T) {
 		t.Errorf("unknown intent: err = %v", err)
 	}
 	_, err = p.Recommend(context.Background(), descriptor.RecommendRequest{Intent: "describe", Cohort: &types.Cohort{Filename: "x.pulse"}})
-	if !stderrors.As(err, &ce) || ce.Code != errors.DATA_FILE {
-		t.Errorf("missing cohort: err = %v, want DATA_FILE", err)
+	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_RESOURCE {
+		t.Errorf("missing cohort: err = %v, want SERVICE_RESOURCE", err)
 	}
 	// The request is checked before the cohort is opened.
 	_, err = p.Recommend(context.Background(), descriptor.RecommendRequest{Intent: "nope", Cohort: &types.Cohort{Filename: "x.pulse"}})

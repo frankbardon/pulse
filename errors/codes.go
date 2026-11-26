@@ -186,6 +186,12 @@ const (
 
 	// CLI_INTERNAL indicates unexpected errors in CLI layer.
 	CLI_INTERNAL Code = "CLI_INTERNAL"
+
+	// CLI_ERROR is the code a CLI leaf reports for a failure that
+	// carries no Pulse code of its own (a bare filesystem or decode
+	// error from a library call). A coded failure always reports its
+	// own code instead.
+	CLI_ERROR Code = "CLI_ERROR"
 )
 
 // PULSE domain - Pulse-specific error codes for I/O pipelines,
@@ -1664,6 +1670,13 @@ const (
 	// vector_scale (the vector's DIM is strict — a mismatch is
 	// PULSE_SHARD_SCHEMA_MISMATCH).
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
+
+	// PULSE_SHARD_AGGREGATE_DRIFT is a `shard verify` WARNING: the
+	// canonical schema's cached aggregate record count differs from the
+	// sum of the shards' own counts. The per-shard counts are
+	// authoritative; `shard compact` refreshes the cached value. details
+	// carry canonical_aggregate and live_aggregate.
+	PULSE_SHARD_AGGREGATE_DRIFT Code = "PULSE_SHARD_AGGREGATE_DRIFT"
 
 	// PULSE_SHARD_SET_WIDENED is emitted as a WARNING (not an error)
 	// when `pulse shard add` promotes a set_* field to a wider rung
@@ -5047,6 +5060,7 @@ var allCodes = []Code{
 	CLI_OUTPUT,
 	CLI_COMMAND,
 	CLI_INTERNAL,
+	CLI_ERROR,
 	// PULSE
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
 	PULSE_IMPORT_ROW_ERROR,
@@ -5235,6 +5249,7 @@ var allCodes = []Code{
 	PULSE_SHARD_DICT_DIVERGENCE,
 	PULSE_SHARD_DICT_WIDTH_OVERFLOW,
 	PULSE_SHARD_DESCRIPTION_DIVERGENCE,
+	PULSE_SHARD_AGGREGATE_DRIFT,
 	PULSE_SHARD_SET_WIDENED,
 	PULSE_SHARD_GROUPS_REWRITTEN,
 	PULSE_SHARD_ZONE_REWRITTEN,

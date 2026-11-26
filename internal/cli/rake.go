@@ -61,8 +61,8 @@ func RakeCommand() *cli.Command {
 			if err != nil {
 				// Every refusal carries its own code (the PULSE_RAKE_*
 				// family, SERVICE_VALIDATION for an existing or anchored
-				// --out). RAKE_ERROR is reached only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "RAKE_ERROR", err)
+				// --out). CLI_ERROR is reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings)

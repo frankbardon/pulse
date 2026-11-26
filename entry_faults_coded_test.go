@@ -30,10 +30,9 @@ func ftf(filts ...*types.Filterer) *pulse.FilterToFileRequest {
 // request, a request without a cohort, and a cohort that does not exist
 // each return a registered *errors.CodedError, never an uncoded fmt
 // error and never a panic — and pins the code: a missing input is
-// SERVICE_VALIDATION; an unopenable cohort on a no-execute surface is
-// DATA_FILE (the predict roots' code) with the fs error kept as Cause.
-// The executing Sample / Facet / Lookup arms keep the runtime open's
-// SERVICE_RESOURCE.
+// SERVICE_VALIDATION; an unopenable cohort is SERVICE_RESOURCE on a
+// no-execute surface (with the fs error kept as Cause) exactly as on the
+// executing Sample / Facet / Lookup arms.
 func TestEntryFaults_Coded(t *testing.T) {
 	t.Parallel()
 	p, err := pulse.New(pulse.Options{FS: pfs.NewMemMap().Fs()})
@@ -46,7 +45,6 @@ func TestEntryFaults_Coded(t *testing.T) {
 	discard := func(_ any, err error) error { return err }
 	const (
 		validation = perr.SERVICE_VALIDATION
-		dataFile   = perr.DATA_FILE
 		resource   = perr.SERVICE_RESOURCE
 	)
 	cases := map[string]struct {
@@ -55,24 +53,24 @@ func TestEntryFaults_Coded(t *testing.T) {
 	}{
 		"Predict nil":                 {func() error { return discard(p.Predict(ctx, nil)) }, validation},
 		"Predict no cohort":           {func() error { return discard(p.Predict(ctx, &types.Request{})) }, validation},
-		"Predict missing":             {func() error { return discard(p.Predict(ctx, &types.Request{Cohort: missing})) }, dataFile},
-		"Predict anchor":              {func() error { return discard(p.Predict(ctx, &types.Request{Cohort: anchor})) }, dataFile},
+		"Predict missing":             {func() error { return discard(p.Predict(ctx, &types.Request{Cohort: missing})) }, resource},
+		"Predict anchor":              {func() error { return discard(p.Predict(ctx, &types.Request{Cohort: anchor})) }, resource},
 		"PredictEnvelope nil":         {func() error { return discard(p.PredictEnvelope(ctx, nil)) }, validation},
 		"PredictEnvelope no cohort":   {func() error { return discard(p.PredictEnvelope(ctx, &types.Request{})) }, validation},
-		"PredictEnvelope missing":     {func() error { return discard(p.PredictEnvelope(ctx, &types.Request{Cohort: missing})) }, dataFile},
+		"PredictEnvelope missing":     {func() error { return discard(p.PredictEnvelope(ctx, &types.Request{Cohort: missing})) }, resource},
 		"PredictBytes nil":            {func() error { return discard(p.PredictBytes(ctx, nil, nil)) }, validation},
 		"PredictFacet nil":            {func() error { return discard(p.PredictFacet(ctx, nil)) }, validation},
 		"PredictFacet no cohort":      {func() error { return discard(p.PredictFacet(ctx, &types.FacetRequest{})) }, validation},
-		"PredictFacet missing":        {func() error { return discard(p.PredictFacet(ctx, &types.FacetRequest{Cohort: missing})) }, dataFile},
+		"PredictFacet missing":        {func() error { return discard(p.PredictFacet(ctx, &types.FacetRequest{Cohort: missing})) }, resource},
 		"PredictChain nil":            {func() error { return discard(p.PredictChain(ctx, nil)) }, validation},
-		"PredictChain missing":        {func() error { return discard(p.PredictChain(ctx, &types.ChainRequest{Cohort: missing})) }, dataFile},
+		"PredictChain missing":        {func() error { return discard(p.PredictChain(ctx, &types.ChainRequest{Cohort: missing})) }, resource},
 		"PredictMaterialize nil":      {func() error { return discard(p.PredictMaterialize(ctx, nil)) }, validation},
-		"PredictMaterialize missing":  {func() error { return discard(p.PredictMaterialize(ctx, &types.Request{Cohort: missing})) }, dataFile},
+		"PredictMaterialize missing":  {func() error { return discard(p.PredictMaterialize(ctx, &types.Request{Cohort: missing})) }, resource},
 		"PredictExport nil":           {func() error { return discard(p.PredictExport(ctx, nil)) }, validation},
-		"PredictExport missing":       {func() error { return discard(p.PredictExport(ctx, &pio.ExportJob{Source: "missing.pulse"})) }, dataFile},
-		"Inspect missing":             {func() error { return discard(p.Inspect(ctx, "missing.pulse")) }, dataFile},
-		"Inspect anchor":              {func() error { return discard(p.Inspect(ctx, "missing.pulse#a.pulse")) }, dataFile},
-		"InspectEnvelope missing":     {func() error { return discard(p.InspectEnvelope(ctx, "missing.pulse", nil)) }, dataFile},
+		"PredictExport missing":       {func() error { return discard(p.PredictExport(ctx, &pio.ExportJob{Source: "missing.pulse"})) }, resource},
+		"Inspect missing":             {func() error { return discard(p.Inspect(ctx, "missing.pulse")) }, resource},
+		"Inspect anchor":              {func() error { return discard(p.Inspect(ctx, "missing.pulse#a.pulse")) }, resource},
+		"InspectEnvelope missing":     {func() error { return discard(p.InspectEnvelope(ctx, "missing.pulse", nil)) }, resource},
 		"Sample missing":              {func() error { return discard(p.Sample(ctx, "missing.pulse", 3)) }, resource},
 		"SampleWithRequest nil":       {func() error { return discard(p.SampleWithRequest(ctx, nil)) }, validation},
 		"SampleWithRequest no cohort": {func() error { return discard(p.SampleWithRequest(ctx, &types.SampleRequest{})) }, validation},
@@ -141,7 +139,7 @@ func TestEntryFaults_Coded(t *testing.T) {
 			t.Errorf("%s: want %s, got %v", name, c.code, got)
 			continue
 		}
-		if (c.code == dataFile || name == "FilterToFile missing source") && !stderrors.Is(got, iofs.ErrNotExist) {
+		if c.code == resource && !stderrors.Is(got, iofs.ErrNotExist) {
 			t.Errorf("%s: the fs error is not kept as Cause: %v", name, got)
 		}
 	}

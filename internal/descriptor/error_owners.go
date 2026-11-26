@@ -132,6 +132,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.CLI_OUTPUT:                                  shared,
 	errors.CLI_COMMAND:                                 shared,
 	errors.CLI_INTERNAL:                                shared,
+	errors.CLI_ERROR:                                   shared,
 
 	// Import / export.
 	errors.PULSE_IMPORT_SCHEMA_AMBIGUOUS:       ownImportExport,
@@ -386,6 +387,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_DICT_DIVERGENCE:        own(featShard),
 	errors.PULSE_SHARD_DICT_WIDTH_OVERFLOW:    own(featShard),
 	errors.PULSE_SHARD_DESCRIPTION_DIVERGENCE: own(featShard),
+	errors.PULSE_SHARD_AGGREGATE_DRIFT:        own(featShard),
 	errors.PULSE_SHARD_SET_WIDENED:            own(featShard),
 	errors.PULSE_SHARD_GROUPS_REWRITTEN:       own(featShard),
 	errors.PULSE_SHARD_ZONE_REWRITTEN:         own(featShard),

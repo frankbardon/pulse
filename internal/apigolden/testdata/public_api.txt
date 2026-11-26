@@ -2751,6 +2751,7 @@ pulse/errors: func AllCodes() []pulse/errors.Code
 pulse/errors: func AllDomains() []string
 pulse/errors: func ByDomain(domain string) []pulse/errors.LookupResult
 pulse/errors: const CLI_COMMAND pulse/errors.Code = "CLI_COMMAND"
+pulse/errors: const CLI_ERROR pulse/errors.Code = "CLI_ERROR"
 pulse/errors: const CLI_INPUT pulse/errors.Code = "CLI_INPUT"
 pulse/errors: const CLI_INTERNAL pulse/errors.Code = "CLI_INTERNAL"
 pulse/errors: const CLI_OUTPUT pulse/errors.Code = "CLI_OUTPUT"
@@ -3148,6 +3149,7 @@ pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVAL
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
 pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
 pulse/errors: const PULSE_SEM_SCORE_LEVEL_UNSEEN pulse/errors.Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
+pulse/errors: const PULSE_SHARD_AGGREGATE_DRIFT pulse/errors.Code = "PULSE_SHARD_AGGREGATE_DRIFT"
 pulse/errors: const PULSE_SHARD_APPEND_INCOMPLETE pulse/errors.Code = "PULSE_SHARD_APPEND_INCOMPLETE"
 pulse/errors: const PULSE_SHARD_APPEND_REFUSED pulse/errors.Code = "PULSE_SHARD_APPEND_REFUSED"
 pulse/errors: const PULSE_SHARD_APPEND_ROLLED_BACK pulse/errors.Code = "PULSE_SHARD_APPEND_ROLLED_BACK"
@@ -7219,4 +7221,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 87f85dac1e40783018db2840a01ae9d27e38ec9be419b1663b82dcaf9775808f
+// golden-hash: 9205b1fb92eae30ccf23040fb3993917931bfcbc01147c82d02d789d8ada5d32

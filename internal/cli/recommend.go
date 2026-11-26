@@ -52,9 +52,9 @@ func RecommendCommand() *cli.Command {
 			if err != nil {
 				// Every refusal carries its own code
 				// (PULSE_RECOMMEND_INTENT_UNKNOWN, SERVICE_VALIDATION,
-				// DATA_FILE, ENCODING_INVALID); RECOMMEND_ERROR is reached
-				// only by an uncoded error.
-				return cliCodedError(cmd, jsonOut, "RECOMMEND_ERROR", err)
+				// SERVICE_RESOURCE, ENCODING_INVALID); CLI_ERROR is
+				// reached only by an uncoded error.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
 				return writeEnvelope(cmd.Writer, res)

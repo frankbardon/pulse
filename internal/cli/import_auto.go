@@ -85,7 +85,7 @@ func importAutoCmd() *cli.Command {
 			if err != nil {
 				err = cliSourceZoneError(err)
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "IMPORT_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}
@@ -256,7 +256,7 @@ func importDropCmd() *cli.Command {
 			}
 			if err := p.Drop(ctx, handle); err != nil {
 				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "DROP_ERROR", err)
+					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
 				}
 				return err
 			}

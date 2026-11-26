@@ -12568,7 +12568,7 @@
         ]
       }
     ],
-    "error_codes_count": 493,
+    "error_codes_count": 495,
     "error_domains": [
       "CLI",
       "DATA",
@@ -12579,6 +12579,7 @@
     ],
     "error_codes": [
       "CLI_COMMAND",
+      "CLI_ERROR",
       "CLI_INPUT",
       "CLI_INTERNAL",
       "CLI_OUTPUT",
@@ -12907,6 +12908,7 @@
       "PULSE_RETURN_PATH_UNKNOWN",
       "PULSE_RETURN_PATH_UNMATCHED",
       "PULSE_SEM_SCORE_LEVEL_UNSEEN",
+      "PULSE_SHARD_AGGREGATE_DRIFT",
       "PULSE_SHARD_APPEND_INCOMPLETE",
       "PULSE_SHARD_APPEND_REFUSED",
       "PULSE_SHARD_APPEND_ROLLED_BACK",
@@ -13099,7 +13101,7 @@
       },
       {
         "name": "pulse_explain",
-        "description": "CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself. Set exactly ONE root. Request mode: `request` (a pulse_process body), `composed`, `chain`, `facet` or `sample`; nothing runs — a root naming a cohort is predict-checked (header and schema only), so `valid`, `refusals`, `defaults_applied` and `advisories` say what would happen. Response mode: `response` (a pulse_process result), `composed_response`, `chain_response` or `facet_result`, ideally with the request that produced it beside it (`request` / `composed` / `chain` / `facet`) — without it an aggregation is described by count only and a caveat says the reading is partial. Pass results exactly as Pulse returned them: a null figure is undefined and stays undefined. Output: `summary` (one sentence), `findings[]` (per test, regression coefficient and fit, overlay layer, matrix and aggregation: `slot`, `verdict` — evidence_of_difference / no_evidence_of_difference / …_association / …_effect / descriptive / not_computable — read at the result's own alpha, adjusted when a correction ran; `strength_band` only with its `convention`; the `numbers` it rests on), `steps[]` in request mode, and `caveats` — relay them, never drop them. A non-significant result is \"no evidence of\" a difference, never evidence of none. `detail: full` adds narrative `sentences`, glossary refs, follow-ups and the tests' assumptions. Operator mode: `operator` alone (an operator name) returns `validation` — the external `references` its figures are pinned to (`against`, `tolerance`, `tests`), a stated `gap`, a pinned `weight_refusal` and NIST `certification` digits — so you can say how far to trust a figure. Zero or several roots, a companion beside the wrong result, or an unknown detail is SERVICE_VALIDATION; an unreadable cohort is DATA_FILE."
+        "description": "CALL TO SAY IN PLAIN WORDS WHAT A REQUEST WILL DO, OR WHAT A RESULT FOUND — instead of reading p-values yourself. Set exactly ONE root. Request mode: `request` (a pulse_process body), `composed`, `chain`, `facet` or `sample`; nothing runs — a root naming a cohort is predict-checked (header and schema only), so `valid`, `refusals`, `defaults_applied` and `advisories` say what would happen. Response mode: `response` (a pulse_process result), `composed_response`, `chain_response` or `facet_result`, ideally with the request that produced it beside it (`request` / `composed` / `chain` / `facet`) — without it an aggregation is described by count only and a caveat says the reading is partial. Pass results exactly as Pulse returned them: a null figure is undefined and stays undefined. Output: `summary` (one sentence), `findings[]` (per test, regression coefficient and fit, overlay layer, matrix and aggregation: `slot`, `verdict` — evidence_of_difference / no_evidence_of_difference / …_association / …_effect / descriptive / not_computable — read at the result's own alpha, adjusted when a correction ran; `strength_band` only with its `convention`; the `numbers` it rests on), `steps[]` in request mode, and `caveats` — relay them, never drop them. A non-significant result is \"no evidence of\" a difference, never evidence of none. `detail: full` adds narrative `sentences`, glossary refs, follow-ups and the tests' assumptions. Operator mode: `operator` alone (an operator name) returns `validation` — the external `references` its figures are pinned to (`against`, `tolerance`, `tests`), a stated `gap`, a pinned `weight_refusal` and NIST `certification` digits — so you can say how far to trust a figure. Zero or several roots, a companion beside the wrong result, or an unknown detail is SERVICE_VALIDATION; an unreadable cohort is SERVICE_RESOURCE."
       },
       {
         "name": "pulse_facet",
@@ -13167,7 +13169,7 @@
       },
       {
         "name": "pulse_recommend",
-        "description": "CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST. Turns an intent ID (the `intents` skill lists them: describe, compare_groups, relationship, drivers, change_over_time, …) into ranked draft requests instead of hand-built JSON. Without `cohort` the drafts are UNBOUND skeletons: every value you must supply is a \"\u003cplaceholder\u003e\" string named after its wire key and listed in `placeholders` — useful for planning before data exists. With `cohort` (a .pulse path) the drafts are BOUND to the cohort's own fields and each one has passed pulse_predict; a draft with `bound: false` still `needs` a value only you can choose (a success value, a reference mean, a model family). `fields` pins hint fields to roles (cohort only); `level` (basic / intermediate / advanced) ranks that level first; `limit` caps the list (default 10; `truncated` and `candidates_considered` say what was cut). Each draft carries `why`, the intent's field `shapes`, predict `advisories`, `alternatives` and `follow_ups`. A non-analytic intent (prepare, simulate, lookup) or one nothing serves returns an empty `recommendations` list plus `routes_to` — the tooling that answers it — never an error. An unknown intent is PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists every ID); a bad field hint is SERVICE_VALIDATION; an unreadable cohort is DATA_FILE. Reads the cohort header, schema and sidecar only."
+        "description": "CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST. Turns an intent ID (the `intents` skill lists them: describe, compare_groups, relationship, drivers, change_over_time, …) into ranked draft requests instead of hand-built JSON. Without `cohort` the drafts are UNBOUND skeletons: every value you must supply is a \"\u003cplaceholder\u003e\" string named after its wire key and listed in `placeholders` — useful for planning before data exists. With `cohort` (a .pulse path) the drafts are BOUND to the cohort's own fields and each one has passed pulse_predict; a draft with `bound: false` still `needs` a value only you can choose (a success value, a reference mean, a model family). `fields` pins hint fields to roles (cohort only); `level` (basic / intermediate / advanced) ranks that level first; `limit` caps the list (default 10; `truncated` and `candidates_considered` say what was cut). Each draft carries `why`, the intent's field `shapes`, predict `advisories`, `alternatives` and `follow_ups`. A non-analytic intent (prepare, simulate, lookup) or one nothing serves returns an empty `recommendations` list plus `routes_to` — the tooling that answers it — never an error. An unknown intent is PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists every ID); a bad field hint is SERVICE_VALIDATION; an unreadable cohort is SERVICE_RESOURCE. Reads the cohort header, schema and sidecar only."
       },
       {
         "name": "pulse_sample",
@@ -22195,4 +22197,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6e3e254184421eec76adf9644e17c6bbe0bb52ac70f192d9ec48b4510b676820
+// golden-hash: f2edd86fe8f13877e0bfb0994344d0380a3769075c3dab6088ad1e896814b281

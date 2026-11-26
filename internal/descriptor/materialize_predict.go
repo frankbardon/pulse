@@ -312,7 +312,7 @@ func validateMaterialize(env *descriptor.Envelope, result *descriptor.Materializ
 
 	rewind := func() bool {
 		if err := src.rewind(); err != nil {
-			fail(errors.WrapCodedError(err, errors.DATA_FILE, "predict materialize: rewinding the cohort"))
+			fail(errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "predict materialize: rewinding the cohort"))
 			return false
 		}
 		return true

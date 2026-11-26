@@ -226,7 +226,7 @@ both sides.
 
 A refused request comes back as coded `errors` beside `data.valid:
 false` (exit 1, under `--json` and in text mode alike). A request with no cohort is
-`SERVICE_VALIDATION`; an unreadable cohort is `DATA_FILE`
+`SERVICE_VALIDATION`; an unreadable cohort is `SERVICE_RESOURCE`
 (`ENCODING_INVALID` for a malformed header). Each fault keeps its own code
 in `errors[0]`. Over MCP the same three shapes are `pulse_predict`'s
 alternative roots: `composed`, `facet` or `chain`, alone at the root.
