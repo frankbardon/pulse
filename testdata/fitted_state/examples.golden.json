@@ -32,87 +32,13 @@
   "attributes": null,
   "data": [
    {
-    "mean_f1_bartlett": -0.07581931185986088,
-    "mean_f1_regression": -1.9353152098707334,
-    "sd_f1_bartlett": 1.0017792251022897,
-    "sd_f1_regression": 1.520398170361306,
-    "treatment": "control"
-   },
-   {
-    "mean_f1_bartlett": 0.07069143569542666,
-    "mean_f1_regression": 1.8044243261113788,
-    "sd_f1_bartlett": 1.0070917250671003,
-    "sd_f1_regression": 2.6229785924638813,
-    "treatment": "variant"
+    "mean_f1_bartlett": -2.040613048907384e-17,
+    "mean_f1_regression": -9.251858538542972e-20,
+    "sd_f1_bartlett": 1.0910433203869971,
+    "sd_f1_regression": 0.9137347045050392
    }
   ],
-  "warnings": [
-   {
-    "code": "PULSE_MATRIX_NOT_CONVERGED",
-    "message": "f1_regression: the minres extraction (fa_minres) stopped after 200 iterations, short of its tolerance; the scores use the last iterate",
-    "details": {
-     "attribute": "f1_regression",
-     "iterations": 200,
-     "max_iterations": 200,
-     "members": [
-      "revenue_before",
-      "revenue",
-      "session_minutes"
-     ],
-     "n": 400,
-     "n_star": 400,
-     "p": 3,
-     "scope": "fit",
-     "solver": "fa_minres",
-     "tolerance": 1e-10,
-     "type": "ATTR_FACTOR_SCORE"
-    }
-   },
-   {
-    "code": "PULSE_MATRIX_HEYWOOD",
-    "message": "f1_regression: a Heywood case — the fit gives 1 member(s) a uniqueness at or below 0 (or at the maximum-likelihood floor); the scores use the loadings as fitted, not repaired",
-    "details": {
-     "attribute": "f1_regression",
-     "heywood_members": [
-      "revenue"
-     ],
-     "members": [
-      "revenue_before",
-      "revenue",
-      "session_minutes"
-     ],
-     "n": 400,
-     "n_star": 400,
-     "p": 3,
-     "scope": "fit",
-     "type": "ATTR_FACTOR_SCORE",
-     "uniquenesses": [
-      -0.9004219233183652
-     ]
-    }
-   },
-   {
-    "code": "PULSE_MATRIX_NOT_CONVERGED",
-    "message": "f1_bartlett: the ml extraction (fa_ml) stopped after 200 iterations, short of its tolerance; the scores use the last iterate",
-    "details": {
-     "attribute": "f1_bartlett",
-     "iterations": 200,
-     "max_iterations": 200,
-     "members": [
-      "revenue_before",
-      "revenue",
-      "session_minutes"
-     ],
-     "n": 400,
-     "n_star": 400,
-     "p": 3,
-     "scope": "fit",
-     "solver": "fa_ml",
-     "tolerance": 1e-10,
-     "type": "ATTR_FACTOR_SCORE"
-    }
-   }
-  ]
+  "warnings": null
  },
  "18_vec_distance.json": {
   "attributes": [

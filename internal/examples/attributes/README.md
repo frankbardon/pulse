@@ -28,7 +28,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `11_code_in_top_box.json` | `ATTR_CODE_IN` | 1/0 code-list indicator; its weighted mean per crosstab cell is the share of the whole base (top-box) |
 | `12_mahalanobis.json` | `ATTR_MAHALANOBIS` | Multivariate outlier score (D² and its chi-square p) across age and income; `fit_on` fits on a subset while scoring every row |
 | `13_pc_score.json` | `ATTR_PC_SCORE` | Standardized principal component scores (unrotated PC1 and a varimax-rotated PC2 fitted on the control arm) averaged by treatment |
-| `14_factor_score.json` | `ATTR_FACTOR_SCORE` | Factor scores (regression on a minres fit, Bartlett on an ML fit) of one factor behind three measures, averaged by treatment; a Heywood case warns |
+| `14_factor_score.json` | `ATTR_FACTOR_SCORE` | Factor scores (regression on a minres fit, Bartlett on an ML fit) of the one engagement factor behind the six battery.pulse items, reverse-keyed item included |
 | `15_vector_battery.json` | `ATTR_FORMULA` | A named vector read by formulas: the mean of the valid members when at least 2 of 3 answered (else null), and a flat-profile (straight-lining) flag `vsd(...) == 0` |
 | `16_scale_score.json` | `ATTR_SCALE_SCORE` | A rating-battery score per row from a kind `scale` vector: the valid-item mean (an out-of-range value is scored as missing and warned), a reverse-keyed item by label, and the prorated sum over inline fields |
 | `17_profile_similarity.json` | `ATTR_PROFILE_SIMILARITY` | Each row's similarity to a target profile: the kind `scale` default (correlation) against a literal, and an explicit cosine against a label map matched by label (warned as a poor fit) |

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "attributes",
-    "description": "Per-row scores on one common factor behind revenue_before, revenue and session_minutes on experiment.pulse via ATTR_FACTOR_SCORE, each from an inline fit with MAT_FACTOR's knobs (the same loadings, order and sign as MAT_FACTOR on the same rows). f1_regression is the regression (Thurstone) score of the default minres fit; f1_bartlett the Bartlett score of a maximum-likelihood fit (params.extraction \"ml\"). session_minutes shares almost nothing with the revenue pair, so this is a poor one-factor battery and the warnings say so: neither fit converges within its iteration cap (PULSE_MATRIX_NOT_CONVERGED, fit scope, the scores use the last iterate), and the minres fit is a Heywood case (revenue's uniqueness below 0, PULSE_MATRIX_HEYWOOD), so its regression scores are improper, with a spread well above 1. The ML fit keeps every uniqueness positive: its Bartlett scores average about 0 on both arms with a standard deviation near 1. On a longer battery set params.factors and a rotation (two factors need at least five members). The fit is cohort-wide, never per treatment; grouping runs the request buffered.",
+    "description": "Per-respondent scores on the one engagement factor behind the six-item battery.pulse questionnaire via ATTR_FACTOR_SCORE, each from an inline fit with MAT_FACTOR's knobs (the same loadings, order and sign as MAT_FACTOR on the same rows: about 0.58 to 0.75 on the five positively keyed items, about -0.65 on the reverse-keyed bat_dread, every uniqueness between 0.43 and 0.67, no warning). f1_regression is the regression (Thurstone) score of the default minres fit; f1_bartlett the Bartlett score of a maximum-likelihood fit (params.extraction \"ml\"). Both average 0 over the cohort; the regression score's standard deviation is below 1 (about 0.91: it shrinks toward the mean, the better predictor of the factor) and the Bartlett score's above it (about 1.09: unbiased for each respondent's level). A reverse-keyed item needs no recoding: its loading takes the sign. On a battery with several traits set params.factors and a rotation (two factors need at least five members).",
     "intents": [
       "measure_construct",
       "prepare"
@@ -10,20 +10,25 @@
     "operators": [
       "AGG_AVERAGE",
       "AGG_STDDEV",
-      "ATTR_FACTOR_SCORE",
-      "GROUP_CATEGORY"
+      "ATTR_FACTOR_SCORE"
     ],
     "tags": [
       "multivariate",
-      "feature-engineering",
-      "buffered-pipeline"
+      "feature-engineering"
     ]
   },
   "attributes": [
     {
       "type": "ATTR_FACTOR_SCORE",
       "label": "f1_regression",
-      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "fields": [
+        "bat_energy",
+        "bat_proud",
+        "bat_absorbed",
+        "bat_recommend",
+        "bat_time_flies",
+        "bat_dread"
+      ],
       "params": {
         "factor": 1,
         "factors": 1
@@ -32,19 +37,20 @@
     {
       "type": "ATTR_FACTOR_SCORE",
       "label": "f1_bartlett",
-      "fields": ["revenue_before", "revenue", "session_minutes"],
+      "fields": [
+        "bat_energy",
+        "bat_proud",
+        "bat_absorbed",
+        "bat_recommend",
+        "bat_time_flies",
+        "bat_dread"
+      ],
       "params": {
         "factor": 1,
         "factors": 1,
         "extraction": "ml",
         "method": "bartlett"
       }
-    }
-  ],
-  "groups": [
-    {
-      "type": "GROUP_CATEGORY",
-      "field": "treatment"
     }
   ],
   "aggregations": [
@@ -70,7 +76,7 @@
     }
   ],
   "cohort": {
-    "filename": "experiment.pulse",
+    "filename": "battery.pulse",
     "data_dir": ".data"
   }
 }
