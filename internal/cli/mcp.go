@@ -33,9 +33,9 @@ func MCPCommand(version string) *cli.Command {
 		Name:  "mcp",
 		Usage: "Run the Model Context Protocol server over stdio",
 		Description: "Exposes Pulse as an MCP server. Resources and tools are " +
-			"rooted at PULSE_DATA_DIR (or --data-dir). The library facade is " +
-			"unchanged; the MCP server only translates between the protocol " +
-			"and library entrypoints.",
+			"rooted at PULSE_DATA_DIR (or --data-dir). The server only " +
+			"translates between the protocol and library entrypoints; it adds " +
+			"no behaviour of its own.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "data-dir",
