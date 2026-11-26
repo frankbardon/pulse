@@ -40,7 +40,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#768** (12. Release v1.0.0) `SECURITY.md` sends reporters to GitHub private vulnerability reporting, which is disabled on the repository: enable it (an owner action) or name a monitored contact before the v1.0.0 tag
 - [ ] **#769** (7. Guided analysis — docs, API & MCP) `pulse cohort inspect` text mode prints no `Zone field:` line for a cohort's default zone field (`--json` carries `zone_field`)
 - [ ] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table)
-- [ ] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
+- [x] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
 - [ ] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row
 - [ ] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
 - [ ] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines
@@ -263,7 +263,7 @@ Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, 
 - [ ] **#768** — **Private vulnerability reporting is disabled**, so `SECURITY.md`'s only reporting channel fails; enable it or name a monitored contact.
 - [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
 - [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.
-- [ ] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry.
+- [x] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry. *Done in U32b (E8-S4): both registered; `TestEmittedCodeLiteralsRegistered` gates emitted literals.*
 - [ ] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it).
 - [ ] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`.
 - [ ] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767).
