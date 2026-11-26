@@ -347,7 +347,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.In
 
 	requestObject := map[string]any{
 		"type":        "object",
-		"description": "pulse.ChainRequest — source-rooted linear chain. See types.ChainRequest.",
+		"description": "A process-chain request: a source-rooted linear chain of stages.",
 		"properties": map[string]any{
 			"cohort": map[string]any{
 				"type": "object",
@@ -576,7 +576,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 
 	requestObject := map[string]any{
 		"type":        "object",
-		"description": "types.Request — schema-bound for this cohort. Field-name enums are constrained to the cohort's actual fields.",
+		"description": "A request, schema-bound for this cohort: field-name enums are constrained to the cohort's actual fields.",
 		"properties": map[string]any{
 			"cohort": map[string]any{
 				"type": "object",
@@ -593,7 +593,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in accepted field-type classes. AGG_SUM, AGG_AVERAGE, AGG_STDDEV, AGG_MIN and AGG_MAX need numeric fields. AGG_COUNT, AGG_MODE_COUNT, AGG_MODE and AGG_DISTINCT_COUNT accept any. See pulse_manifest for the full Accepts table."),
+						"type":   enumStringField(aggTypes, "Aggregator. Operators differ in the field types they accept: most need a numeric field, AGG_MIN and AGG_MAX also take a date, and AGG_COUNT takes any field. The manifest's accepts_types per operator is the full table."),
 						"field":  enumStringField(c.AllFields, "Field to aggregate. Categorical and decimal fields are valid for some operators only — see the type's description and its manifest accepts_types."),
 						"label":  map[string]any{"type": "string"},
 						"params": map[string]any{},
@@ -641,7 +641,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 					"type": "object",
 					"properties": map[string]any{
 						"type":     enumStringField(groupTypes, ""),
-						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field. GROUP_ROUNDED, GROUP_RANGE and GROUP_NUMERIC_RANGES expect numeric. GROUP_DATE expects date or datetime."),
+						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY takes any field but a set or vector. GROUP_ROUNDED, GROUP_RANGE and GROUP_NUMERIC_RANGES expect numeric. GROUP_DATE expects date or datetime."),
 						"interval": map[string]any{"type": "number"},
 						"params":   map[string]any{},
 						"weight":   slotWeightSchema(c),
@@ -657,7 +657,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 					"type": "object",
 					"properties": map[string]any{
 						"type":         enumStringField(windowTypes, ""),
-						"field":        enumStringField(c.AllFields, "Source field for the window operator (omitted for ROW_NUMBER/RANK/DENSE_RANK)."),
+						"field":        enumStringField(c.AllFields, "Source field for the window operator (omitted for WIN_ROW_NUMBER / WIN_RANK / WIN_DENSE_RANK)."),
 						"label":        map[string]any{"type": "string"},
 						"partition_by": map[string]any{"type": "array", "items": enumStringField(c.AllFields, "Partition key field name.")},
 						"order_by":     map[string]any{"type": "array", "items": orderKeySchema(c.NumericOrDate)},
@@ -920,7 +920,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
 	props["time_zone_field"] = zoneFieldSchema("Request-level per-row zone: a categorical field of IANA zone names inherited by every zone-capable slot that sets neither `tz` nor `tz_field`; outranks time_zone (expressions' to_day() still read time_zone).")
 	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses the response's components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
-	props["return"] = returnSchema("Response shaping for this request: a preset, include / exclude paths over the Response, a wire float precision. Omitted on pulse_process / pulse_compose slots, the MCP default preset `standard` applies; {\"preset\":\"full\"} returns everything.")
+	props["return"] = returnSchema("Response shaping for this request: a preset, include / exclude paths over the response, a wire float precision. Omitted on pulse_process / pulse_compose slots, the MCP default preset `standard` applies; {\"preset\":\"full\"} returns everything.")
 	props["joins"] = joinsSchema(c)
 	props["regressions"] = regressionsSchema(c, inst)
 	props["vectors"] = vectorsSchema()
@@ -954,7 +954,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["penalty"] = enumStringField([]string{"l1", "l2", "elasticnet"}, "Regression-attribute OLS penalty; omit for none. ATTR_REG_LEVERAGE / ATTR_REG_INFLUENCE (and ATTR_REG_RESIDUAL kind standardized / studentized) refuse one.")
 	attr["alpha"] = map[string]any{"type": "number", "description": "Penalty strength (> 0) when penalty is set."}
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
-	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
+	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the request's vectors entry whose members are the attribute's fields; exactly one of vector / fields."}
 	attr["fields"] = map[string]any{"type": "array", "description": "Vector-input attributes: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
 	attr["subject_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the field identifying each record's subject (any scalar type but a set or vector).")
 	attr["order_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the date or datetime field ordering each subject's records by instant.")
@@ -1066,7 +1066,7 @@ func joinsSchema(c fieldClassification) map[string]any {
 			"type": "object",
 			"properties": map[string]any{
 				"right": map[string]any{"type": "string", "description": "Right-side cohort path (single file, shard archive or archive#shard.pulse)."},
-				"kind":  map[string]any{"type": "string", "description": "Join kind: inner (the only implemented kind; omit for inner)."},
+				"kind":  map[string]any{"type": "string", "description": "Join kind: inner, the only kind (omit for inner)."},
 				"as":    map[string]any{"type": "string", "description": "Prefix prepended to every right-side field name."},
 				"on": map[string]any{
 					"type":        "array",
@@ -1102,7 +1102,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 	integer := func(d string) map[string]any { return map[string]any{"type": "integer", "description": d} }
 	out := map[string]any{
 		"type":        "array",
-		"description": "Regression fits (REG_*), each a result in Response.regressions.",
+		"description": "Regression fits (REG_*), each a result in the response's regressions.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1151,7 +1151,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"vcov":             map[string]any{"type": "boolean", "description": "Also emit the coefficient covariance (vcov) and its correlation matrix; replicate covariance under resample, the final refit's under selection; refused on l1 / elasticnet."},
 				"covariance": map[string]any{
 					"type":        "object",
-					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator (REG_MULTINOMIAL: hc0, hc1, cluster); omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
+					"description": "REG_OLS / REG_GLM / REG_BAYES_LINEAR standard-error estimator (REG_MULTINOMIAL / REG_ORDINAL: hc0, hc1, cluster); omit for classical. Drives std_errors, p_values, ci_lower / ci_upper and vcov (Bayes: Muller sandwich posterior replaces the posterior covariance). Robust types run buffered; refused beside penalty, resample or selection.",
 					"properties": map[string]any{
 						"type":     enumStringField(stringSlice(types.AllCovarianceTypes()), "classical, hc0-hc3 (heteroskedasticity-robust), cluster (CR1; REG_OLS df = clusters - 1; two-way with cluster2), hac (Newey-West; per entity with entity), driscoll_kraay (panel: period-summed scores, Newey-West over the periods)."),
 						"cluster":  map[string]any{"type": "string", "description": "type cluster: categorical or unsigned-integer field whose levels are the clusters (at least 2)."},
@@ -1184,12 +1184,12 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 						"basis": enumStringField(types.AllCollinearityBases(), "model (default): the fit's weighted design (car::vif on the fit; IRLS working weights on REG_GLM); predictors: the prior-weighted predictor correlation alone."),
 						"groups": map[string]any{
 							"type":        "array",
-							"description": "Multi-column terms judged together by the generalized VIF (e.g. a one-hot block's dummies); every other predictor is its own term.",
+							"description": "Multi-predictor terms judged together by the generalized VIF (e.g. a one-hot block's dummies); every other predictor is its own term.",
 							"items": map[string]any{
 								"type": "object",
 								"properties": map[string]any{
 									"name":       map[string]any{"type": "string", "description": "The term's key in the result; unlike every other term's."},
-									"predictors": map[string]any{"type": "array", "description": "The term's columns, each a listed predictor in at most one group.", "items": enumStringField(c.Numeric, "")},
+									"predictors": map[string]any{"type": "array", "description": "The term's predictors, each a listed predictor in at most one group.", "items": enumStringField(c.Numeric, "")},
 								},
 								"required":             []string{"name", "predictors"},
 								"additionalProperties": false,
@@ -1204,7 +1204,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{
 					"type":        "object",
-					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD, and a value not of its declared json_type or a missing required param is PULSE_REQUEST_PARAM_INVALID. The built-ins (REG_OLS / REG_GLM / REG_BAYES_LINEAR) take no params.",
+					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD, and a value not of its declared json_type or a missing required param is PULSE_REQUEST_PARAM_INVALID. A built-in REG_* type takes no params: its options are the entry's top-level keys.",
 				},
 			},
 			"required":             []string{"type", "target"},
@@ -1344,7 +1344,7 @@ func populationsSchema() map[string]any {
 func vectorsSchema() map[string]any {
 	return map[string]any{
 		"type":        "array",
-		"description": "Named batteries of numeric columns that matrices reference by name. Set exactly one of fields and pattern.",
+		"description": "Named batteries of numeric fields that matrices reference by name. Set exactly one of fields and pattern.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1368,7 +1368,7 @@ func vectorsSchema() map[string]any {
 func matricesSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[string]any {
 	return map[string]any{
 		"type":        "array",
-		"description": "Matrix operators (MAT_*) over a vector or an inline member list, each a result in Response.matrices.",
+		"description": "Matrix operators (MAT_*) over a vector or an inline member list, each a result in the response's matrices.",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1521,7 +1521,7 @@ func multiplicitySchema(description string, families []types.MultiplicityFamily,
 // coefficients.
 func regressionMultiplicitySchema() map[string]any {
 	out := multiplicitySchema(
-		"Opt this regression's coefficient p-values into a multiple-comparison family (REG_OLS / REG_GLM; refused on REG_BAYES_LINEAR). Only a regression's own block makes it a member; method / family / alpha each inherit the request's when omitted. Family `request` (default) pools with the request's tests, `compose` (pulse_compose slots only) across the batch. Adds p_adjusted / significant_adjusted maps beside p_values.",
+		"Opt this regression's coefficient p-values into a multiple-comparison family; a type that reports no p-values refuses it. Only a regression's own block makes it a member; method / family / alpha each inherit the request's when omitted. Family `request` (default) pools with the request's tests, `compose` (pulse_compose slots only) across the batch. Adds p_adjusted / significant_adjusted maps beside p_values.",
 		[]types.MultiplicityFamily{types.MultiplicityFamilyRequest, types.MultiplicityFamilyCompose}, true)
 	out["properties"].(map[string]any)["coefficients"] = map[string]any{
 		"type":        "array",
@@ -1637,7 +1637,7 @@ func crosstabSchema(c fieldClassification, aggTypes, groupTypes []string) map[st
 			},
 			"margin_aggregations": map[string]any{
 				"type":        "array",
-				"description": "Auxiliary MARGIN-ONLY aggregations: evaluated into the row / column / grand margin accumulators and never into a cell. Use it to carry a second figure — canonically an unweighted respondent base beside a weighted cell metric — without a second scan of the cohort. Effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's, because margin components are keyed by label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring it on a section that displays no margin warns PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — the figures have nowhere to land; a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator. Figures surface on Response.Components.Crosstab as row_margin_aggregations / column_margin_aggregations / grand_total_aggregations, one map per margin slot keyed by effective label, each {value, present, components}; a slot that admitted no record carries present:false and NO value. An auxiliary sees the same record admission as the CELL — a record contributes only if it contributed to a cell — so a null cell field and an Include-excluded axis key are absent from it while the cell's own margins still count them.",
+				"description": "Auxiliary MARGIN-ONLY aggregations: evaluated into the row / column / grand margin accumulators and never into a cell. Use it to carry a second figure — canonically an unweighted respondent base beside a weighted cell metric — without a second scan of the cohort. Effective labels (label, else TYPE_field) must be unique across the slot and distinct from the cell's, because margin components are keyed by label (PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL). Declaring it on a section that displays no margin warns PULSE_CROSSTAB_MARGIN_AGG_UNOBSERVED — the figures have nowhere to land; a normalize direction does not satisfy it, because the margin it requires is a denominator and an auxiliary is never a denominator. Figures surface on components.crosstab as row_margin_aggregations / column_margin_aggregations / grand_total_aggregations, one map per margin slot keyed by effective label, each {value, present, components}; a slot that admitted no record carries present:false and NO value. An auxiliary sees the same record admission as the CELL — a record contributes only if it contributed to a cell — so a null cell field and an axis key its include list drops are absent from it while the cell's own margins still count them.",
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -1842,18 +1842,18 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 	case overlayFacadeCompose:
 		return map[string]any{
 			"type":        "array",
-			"description": "Compose-only overlay layer specifications. Each entry produces one OverlayLayer in ComposedResponse.Overlays in matching order. Reference + Targets resolve against per-Request Label fields (empty Labels auto-default to request_<i+1>). See types.ComposeOverlaySpec.",
+			"description": "Compose-only overlay layer specifications. Each entry produces one layer in the response's overlays, in matching order. reference and targets name slot labels (an empty label defaults to request_<i+1>).",
 			"items": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":      map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Reference+Targets."},
+					"name":      map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by kind, reference and targets."},
 					"kind":      kindField,
 					"scope":     map[string]any{"type": "string", "description": "Where the overlay lands relative to the target slot's result."},
-					"reference": map[string]any{"type": "string", "description": "Baseline slot's per-Request Label (after auto-default substitution)."},
+					"reference": map[string]any{"type": "string", "description": "The baseline slot's label (after the request_<i+1> default)."},
 					"targets":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "One-or-more slot labels whose results this overlay decorates."},
 					"level":     map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: same-axis prefix depth. Ignored on non-matrix kinds."},
 					"within":    map[string]any{"type": "integer", "minimum": 0, "description": "Matrix-shape Compose: opposite-axis prefix depth. Ignored on non-matrix kinds."},
-					"params":    map[string]any{"description": "Kind-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"params":    map[string]any{"description": "Kind-specific configuration: the manifest's overlays entry for the kind lists its params."},
 					"options": map[string]any{
 						"type":        "object",
 						"description": "Per-spec optimization knobs.",
@@ -1883,11 +1883,11 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 		}
 		return map[string]any{
 			"type":        "array",
-			"description": "Whole-chain overlay layer specifications. Each entry produces one OverlayLayer in ChainResponse.Overlays in matching order. Ref + Target are StageRef values pointing at stages of the parent ChainRequest. See types.ChainOverlaySpec.",
+			"description": "Whole-chain overlay layer specifications. Each entry produces one layer in the chain response's overlays, in matching order. ref and target each point at a stage of this chain.",
 			"items": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Ref+Target."},
+					"name":   map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by kind, ref and target."},
 					"kind":   kindField,
 					"scope":  map[string]any{"type": "string", "description": "Where the overlay lands relative to the target stage's result. Whole-chain kinds use scope=total."},
 					"ref":    stageRef,
@@ -1901,17 +1901,17 @@ func overlaysSchemaForFacade(facade overlayFacade, inst *descx.InstanceSnapshot)
 	default:
 		return map[string]any{
 			"type":        "array",
-			"description": "Overlay layer specifications. Each entry produces one OverlayLayer in the response's matching Overlays slot. See types.OverlaySpec.",
+			"description": "Overlay layer specifications. Each entry produces one layer in the response's overlays, in matching order.",
 			"items": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"name":         map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by Kind+Scope+Ref."},
+					"name":         map[string]any{"type": "string", "description": "Renderer-facing label. Empty triggers a deterministic default keyed by kind, scope and ref."},
 					"kind":         kindField,
 					"scope":        map[string]any{"type": "string", "description": "Where the overlay lands relative to the base result."},
 					"ref":          overlayRefSchema(),
 					"level":        map[string]any{"type": "integer", "minimum": 0, "description": "Same-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
 					"within":       map[string]any{"type": "integer", "minimum": 0, "description": "Opposite-axis prefix depth. Honoured by the share / index / delta / zscore family; non-zero rejected by implicit-margin kinds."},
-					"params":       map[string]any{"description": "Operator-specific configuration. Per-kind schema lives alongside the kind's processor."},
+					"params":       map[string]any{"description": "Kind-specific configuration: the manifest's overlays entry for the kind lists its params."},
 					"multiplicity": overlayMultiplicitySchema(facade),
 				},
 				"required":             []string{"kind", "scope"},
@@ -2232,7 +2232,7 @@ var forEachSlots = []string{"features", "attributes", "windows", "aggregations",
 func forEachSchema() map[string]any {
 	return map[string]any{
 		"type":        "object",
-		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward Limits.MaxDerivedColumns; the aggregations, matrices and optimize blocks it adds count toward Limits.MaxExpandedItems (each rendered matrix needs its own name; an optimize block's name must carry an {{axis}}, and an objective, constraint or bound varies only as a whole {\"$var\": \"axis\"} value). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
+		"description": "Fan this item out over parameter axes before validation: one item per axis combination, in place, rendered from this item's own body — `{{axis}}` inside any string (label, field), {\"$var\": \"axis\"} as a whole value inside params (type-preserving). Every axis must be referenced. A window, feature or attribute item's expansion counts toward the max_derived_columns limit; the aggregations, matrices and optimize blocks it adds count toward the max_expanded_items limit (each rendered matrix needs its own name; an optimize block's name must carry an {{axis}}, and an objective, constraint or bound varies only as a whole {\"$var\": \"axis\"} value). Not on a crosstab cell, nor inside a pulse_compose sweep body.",
 		"properties": map[string]any{
 			"axes": map[string]any{
 				"type":        "array",
@@ -2562,7 +2562,7 @@ func buildLabelsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Label bindings translate categorical values to display strings at output time. See types.LabelBinding.",
+		"description": "Label bindings translate categorical values to display strings at output time.",
 		"items":       binding,
 	}
 }
