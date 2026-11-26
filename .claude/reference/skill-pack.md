@@ -88,7 +88,7 @@ go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 
 ## Embedder skills
 
-`pulse.Options.Extensions.Skills` (an `fs.FS`) adds an embedder's own skills to the instance: atomic `op-<category>-<kebab>.md` for ONE registered extension operator and topical `ext-<kebab>.md` (`kind: design`; no built-in stem starts with `ext-`). They go through THIS file's rules — the same frontmatter, the "Required body sections" table and the "Token budget" table (one source: `internal/skills/families.go`, which `TestAtomicSkillHasRequiredSections` / `TestSkillTokenBudget` also read), "Feature fences" and "Fence coverage" (extension operator names join the scan list; an atomic skill is guarded by its operator and that operator's `DependsOn`) — but every rule is HARD at `pulse.New`, budgets included (the same atomic tier table — `op-*` ≤1800, `op-test-*` ≤2200, `op-reg-*` ≤3000 — and `ext-*` ≤6000), and a `## See` stem must resolve. A stem colliding with a built-in or virtual skill is refused: embedders never shadow the shipped pack. They are skill nodes of the instance ontology, pruned with their operator / `requires:`, and served by every discovery surface like built-ins. Rule table and error reasons: `docs/src/internals/extension-points.md` (Embedder skills); wiring: `.claude/reference/architecture.md` (Extension surface).
+`pulse.Options.Extensions.Skills` (an `fs.FS`) adds an embedder's own skills to the instance: atomic `op-<kebab>.md` (the operator name lowercased, `_` → `-`: `AGG_ACME_TRIM` → `op-agg-acme-trim`, `skills.OperatorStem`) for ONE registered extension operator and topical `ext-<kebab>.md` (`kind: design`; no built-in stem starts with `ext-`). They go through THIS file's rules — the same frontmatter, the "Required body sections" table and the "Token budget" table (one source: `internal/skills/families.go`, which `TestAtomicSkillHasRequiredSections` / `TestSkillTokenBudget` also read), "Feature fences" and "Fence coverage" (extension operator names join the scan list; an atomic skill is guarded by its operator and that operator's `DependsOn`) — but every rule is HARD at `pulse.New`, budgets included (the same atomic tier table — `op-*` ≤1800, `op-test-*` ≤2200, `op-reg-*` ≤3000 — and `ext-*` ≤6000), and a `## See` stem must resolve. A stem colliding with a built-in or virtual skill is refused: embedders never shadow the shipped pack. They are skill nodes of the instance ontology, pruned with their operator / `requires:`, and served by every discovery surface like built-ins. Rule table and error reasons: `docs/src/internals/extension-points.md` (Embedder skills); wiring: `.claude/reference/architecture.md` (Extension surface).
 
 ## Generated sections
 
@@ -167,11 +167,11 @@ Cross-cutting topics that are not operator-keyed route to the matching topical s
 
 ## Registered counts
 
-Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggregators,attributes,filterers,groupers,windows,features}`, `tests`, `post_tests`, `synth_distributions`, `regressions`, `mcp_tools`). Never hardcode these in docs — the manifest is the single source of truth and the per-category coverage gates (`TestSkillsCoverAll*`, `TestOperatorHasAtomicSkill`) reject drift.
+Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggregators,attributes,filterers,groupers,windows,features}`, `tests`, `post_tests`, `matrices`, `overlays`, `synth_distributions`, `regressions`, `mcp_tools`, `skills`). Never hardcode these in docs — the manifest is the single source of truth and the per-category coverage gates (`TestSkillsCoverAll*`, `TestOperatorHasAtomicSkill`) reject drift.
 
 ## Adding a skill
 
-1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
+1. Create the file at the conventional stem (`op-<kebab>.md`, the operator name lowercased with `_` → `-` as in `op-agg-set-union.md`; `tool-<kebab>.md`; `type-<kebab>.md`; or a new topical name).
 2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
 3. Stay under the "Token budget" tier for the stem (all hard).
 4. Run `go test ./internal/skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.

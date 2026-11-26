@@ -26,4 +26,4 @@ Three techniques, chosen per package:
 
 ## CLI
 
-CLI commands map 1:1 to manifest commands: `App()` in `internal/cli/app.go` defines the leaf tree (`cmd/pulse` only runs it), `pulse manifest --json` lists `commands`, and every leaf needs a `commandBindings` entry in `internal/descriptor/features.go` (`TestCommandBindings_Complete`). The leaf index for humans is `docs/src/cli/flags.md`. `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.
+CLI commands map 1:1 to manifest commands: `App()` in `internal/cli/app.go` defines the leaf tree (`cmd/pulse` only runs it), `pulse --json` lists `commands`, and every leaf needs a `commandBindings` entry in `internal/descriptor/features.go` (`TestCommandBindings_Complete`). The leaf index for humans is the generated `docs/src/cli/reference.md` (`make docs`); shared-flag semantics live in `docs/src/cli/flags.md`. `pulse schema` prints the payload JSON Schema RAW, not envelope-wrapped.

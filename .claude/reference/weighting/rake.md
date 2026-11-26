@@ -4,7 +4,7 @@ Slice of `.claude/reference/weighting.md` — load the index first, then only th
 
 ## Surface
 
-**`Pulse.Rake(ctx, RakeRequest) (*RakeResult, error)`** (`rake.go`) computes rim weights (raking) or cell weights (post-stratification) and writes them into a NEW single-file cohort: the source's logical fields verbatim, then a nullable `f64` weight column (`weight_field`, default `rake_weight`; with `overwrite`, an existing column of that name is replaced IN PLACE). Request / report types are root aliases of `internal/rake`, so the no-execute layer and the CLI / MCP adapters share one shape; `RakeResult` is root-native. Not payload-reachable: no `format_version` or payload-schema change. Observability kind `observe.OpRake`; feature `capability:rake` (facade ungated, like `materialize`). Skill: `skills/survey-weights.md`.
+**`Pulse.Rake(ctx, RakeRequest) (*RakeResult, error)`** (`rake.go`) computes rim weights (raking) or cell weights (post-stratification) and writes them into a NEW single-file cohort: the source's logical fields verbatim, then a nullable `f64` weight field (`weight_field`, default `rake_weight`; with `overwrite`, an existing field of that name is replaced IN PLACE). Request / report types are root aliases of `internal/rake`, so the no-execute layer and the CLI / MCP adapters share one shape; `RakeResult` is root-native. Not payload-reachable: no `format_version` or payload-schema change. Observability kind `observe.OpRake`; feature `capability:rake` (facade ungated, like `materialize`). Skill: `skills/survey-weights.md`.
 
 **Adapters.** CLI `pulse rake` and MCP `pulse_rake` (skill `skills/tool-rake.md`) hold no logic; the tool's input mirrors `RakeRequest` field for field so it converts by plain type conversion (drift fails to compile). No predict leaf: a future one must call `Compile`.
 
@@ -22,7 +22,7 @@ Targets: `targets_as: "shares"` (default) must sum to 1 (±1e-6) or 100 (±1e-4)
 
 ## Output weights are PROBABILITY weights
 
-Use the column with kind `probability` (the default). The weights are fractional, so kind `frequency` would reject them as non-integer. Under `by`, each group sums to its own n (or `total`): pooled figures weight groups by size.
+Use the field with kind `probability` (the default). The weights are fractional, so kind `frequency` would reject them as non-integer. Under `by`, each group sums to its own n (or `total`): pooled figures weight groups by size.
 
 ## Efficiency report
 
