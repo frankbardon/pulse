@@ -99,7 +99,7 @@ Extension kinds (`extensions.overlays`): a handler per host (<!-- feature: capab
 
 ## Per-layer warnings (`OverlayLayer.Warnings`)
 
-`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On a batch-root host it rides the layer that raised it (a fan-out target's)<!-- feature: capability:compose_banner --><!-- /feature -->; a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
+`warnings: [{code, message, details}]` per layer, `omitempty`. `PULSE_OVERLAY_REF_ZERO` (zero reference), `PULSE_OVERLAY_EXPECTED_LOW` (expected count below 5: χ² cells, symmetry pairs). On a batch-root host it rides the layer that raised it (a fan-out target's); a partitioned SERIES layer raises each code once (`details.partitions`). They never fail it.
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity

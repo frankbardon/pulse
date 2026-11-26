@@ -13,7 +13,7 @@ What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`;
 
 ## Slot keys
 
-Every param is a FLAT top-level key of the regression entry (manifest `slot: true`); a `params` key on a built-in `REG_*` is `PULSE_REQUEST_UNKNOWN_FIELD` (only a registered regression takes `params`).
+Every param is a FLAT top-level key of the regression entry (manifest `slot: true`); a `params` key on the OLS, GLM, Bayesian-linear or multinomial fit is `PULSE_REQUEST_UNKNOWN_FIELD` (the ordinal, media-mix and registered regressions take `params`).
 
 Knobs belong to their engine; another engine's knob is `PROCESSING_CONFIG`, at predict and at runtime alike:
 
@@ -41,7 +41,7 @@ Shared keys:
 
 ## OLS solver and intercept
 
-- `solver`: `qr` (default) solves a streaming QR of the design at κ(X); `normal` solves the normal equations at κ(X)² (pre-alpha.35 bits). Unpenalized, unbounded fits only.
+- `solver`: `qr` (default) solves a streaming QR of the design at κ(X); `normal` solves the normal equations at κ(X)². Unpenalized, unbounded fits only.
 - `intercept: false` fits through the origin: `(intercept)` stays 0 with null SE / p / CI, R² is uncentred Σŷ²/Σy², `DF` = N* − p (R `lm(y ~ 0 + x)`). Refused with a penalty, bounds, a modifier, a robust `covariance` or `normal`.
 
 ## Weighted fits

@@ -1,6 +1,6 @@
 ---
 name: process-chain
-description: ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
+description: ChainRequest source-rooted linear pipeline — the mergeable-only stage gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
 type: guide
 kind: design
 applies_to: process-chain, predict
@@ -36,9 +36,9 @@ Chain to "aggregate, then aggregate the aggregates" — revenue per store, then 
 Chain-level `params` merge into every stage: `request-params`.
 <!-- /feature -->
 
-## The stage gate (v1: mergeable only)
+## The stage gate (mergeable only)
 
-Stages bridge through a synthesised cohort: grouper keys become `categorical_u32` columns, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
+Stages bridge through a synthesised cohort: grouper keys become `categorical_u32` fields, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
 
 - **Smart defaults run first.** `{"field": "n"}` on a numeric field is gated as its default aggregator, and the next stage sees that default's output name.<!-- feature: capability:joins --> A joined stage 0 defaults against the joined schema.<!-- /feature -->
 - **A categorical modal value chains its DICTIONARY INDEX — still a code:** a later numeric reader over it ⇒ `PULSE_FIELD_TYPE_UNSUPPORTED` (`forwarded_code`); count it instead. A `packed_bool` mode still sums.
@@ -54,7 +54,7 @@ Stages bridge through a synthesised cohort: grouper keys become `categorical_u32
 On refusal, run stage 0 as an ordinary request<!-- feature: capability:process --> (`pulse_process`)<!-- /feature --> and finish the later steps client-side.
 <!-- feature: capability:materialize -->
 
-A later step that must READ a window, feature or attribute column cannot chain: write the column first with `pulse_materialize` (`derived-cohorts`), then run that step on the new cohort.
+A later step that must READ a window, feature or attribute output cannot chain: write it as a field first with `pulse_materialize` (`derived-cohorts`), then run that step on the new cohort.
 <!-- /feature -->
 
 ## Per-stage `Response.Components`
@@ -90,7 +90,7 @@ A whole-chain overlay fires only when ref and target produce the same host shape
 
 ## Hashing & echo
 
-`ChainRequest.Hash()` is a 32-char canonical-JSON digest; an overlay-free chain hashes as before. `--echo-request` puts each stage's post-defaults form on `envelope.request`.
+`ChainRequest.Hash()` is a 32-char canonical-JSON digest. `--echo-request` puts each stage's post-defaults form on `envelope.request`.
 
 ## See
 

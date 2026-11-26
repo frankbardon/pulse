@@ -1,6 +1,6 @@
 ---
 name: sem-groups
-description: The group of a multi-group MAT_SEM fit — which field or computed column splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level).
+description: The group of a multi-group MAT_SEM fit — which field or computed value splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level).
 kind: design
 type: guide
 applies_to: process, compose, predict
@@ -12,10 +12,10 @@ requires: [MAT_SEM, capability:sem_groups]
 
 `params.group` splits the rows into the groups of ONE joint fit (lavaan's `group =`). How the fit reads the groups: `sem-modeling`.
 
-## Which column
+## Which field
 
 - A cohort field: categorical (levels in dictionary order), `packed_bool` (`0`, `1`) or `u4` / `u8` (the values that hold rows, ascending).
-- A column the request computes — an attribute, feature or window label: a **derived group**. A cohort field of the same name wins. The column must hold a number per row (else `group_field_type`)<!-- feature: ATTR_PREVIOUS_STATE, ATTR_FORMULA -->: an `ATTR_PREVIOUS_STATE` over a categorical keeps the category — derive an integer from it with an `ATTR_FORMULA`<!-- /feature -->.
+- A value the request computes — an attribute, feature or window label: a **derived group**. A cohort field of the same name wins. It must hold a number per row (else `group_field_type`)<!-- feature: ATTR_PREVIOUS_STATE, ATTR_FORMULA -->: an `ATTR_PREVIOUS_STATE` over a categorical keeps the category — derive an integer from it with an `ATTR_FORMULA`<!-- /feature -->.
 - A null value, or NaN, drops the row listwise (`n_listwise_dropped`).
 - Refused as for any group: request `groups`<!-- feature: capability:crosstab --> / `crosstab`<!-- /feature --> (`group_with_groups`), a member, a standardizing vector, `params.fit`.
 
@@ -27,7 +27,7 @@ requires: [MAT_SEM, capability:sem_groups]
 "group_levels": [{"value": 1, "name": "from"}, {"value": 2, "name": "to"}]
 ```
 
-- `value` is an integer the column must equal exactly; `name` is the label (default: the value's text, `"1"`).
+- `value` is an integer the group value must equal exactly; `name` is the label (default: the value's text, `"1"`).
 - Array order is the `c(...)` position: `c(bfrom, bto)*x` reads `bfrom` on level `from`.
 - Labels key the outputs: estimate rows `[from] lval op rval`, `vectors.group`, `n_group_from`, `chi2_group_from`, `group_reference`. The default reference is the first declared level.
 - `bad_params`: fewer than two levels, a non-integer value, a repeated value or label, an empty name, `group_levels` on a cohort field, a `group_reference` that is no declared label, `c(...)` whose length is not the level count.
@@ -39,7 +39,7 @@ Without `group_levels` a derived group's levels are its integral values, ascendi
 <!-- feature: ATTR_FORMULA -->
 ## A wave pair from request params
 
-Map the two waves to declared levels with an attribute, so one stored request fits any pair. A categorical wave column reads as its label string, so the params are labels, not numbers:
+Map the two waves to declared levels with an attribute, so one stored request fits any pair. A categorical wave field reads as its label string, so the params are labels, not numbers:
 
 ```json cohort=brand_survey
 {"cohort": {"filename": "brand_survey.pulse"},
@@ -75,7 +75,7 @@ Fewer than two levels with rows, or a reference level without rows, still fails 
 `ATTR_SEM_SCORE` takes the same `group` and `group_levels`. Its group may be a feature output or the label of an attribute declared BEFORE the score slot (a later label is `bad_params`).
 
 - Inline, the fit is the `MAT_SEM` fit on the same rows, so scores match a cohort-field twin bit for bit. A row whose value is no level scores null, counted once in `PULSE_MATRIX_GROUP_LEVEL_UNDECLARED` (`details.attribute`, `count`); a known level without fit rows warns `PULSE_MATRIX_GROUP_LEVEL_EMPTY`; more than 256 undeclared levels null every score with `PULSE_MATRIX_GROUP_LEVEL_LIMIT`.
-- A bound fit (`params.fit`) taken on a derived group carries `group_derived` and its `group_levels`. The scoring request must compute the same column ahead of the slot, else `SERVICE_VALIDATION` `fit_group_field` (predict refuses it too). Rows match the fit's declared values exactly; another value scores null with `PULSE_MATRIX_GROUP_LEVEL_UNDECLARED`.
+- A bound fit (`params.fit`) taken on a derived group carries `group_derived` and its `group_levels`. The scoring request must compute the same label ahead of the slot, else `SERVICE_VALIDATION` `fit_group_field` (predict refuses it too). Rows match the fit's declared values exactly; another value scores null with `PULSE_MATRIX_GROUP_LEVEL_UNDECLARED`.
 - These warnings sit on the envelope's `warnings`; under Strict the run fails with their code.
 <!-- /feature -->
 

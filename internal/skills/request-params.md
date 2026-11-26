@@ -39,7 +39,7 @@ requires: [capability:params]
 ## Refusals (predict raises the same)
 
 - `params.x` where `x` is not declared → `PULSE_PARAMS_UNDECLARED`.
-- A cohort field, derived column or vector NAMED `params`, while the request reads `params.` → `PULSE_PARAMS_FIELD_COLLISION`. That column stays readable as bare `params` or `$env["params"]`.
+- A cohort field, derived label or vector NAMED `params`, while the request reads `params.` → `PULSE_PARAMS_FIELD_COLLISION`. That name stays readable as bare `params` or `$env["params"]`.
 - A bare `params` is never a parameter read.
 
 ## Batch roots
@@ -52,7 +52,7 @@ A sweep axis `"target": "params.x"` writes each slot's axis value into its `para
 ## Gotchas
 
 - `u64` fields compare exactly against params, literals and each other (`==`, `<`, `in`); arithmetic still goes through float64.
-- A profile hiding `capability:params` makes the slot unknown (`PULSE_REQUEST_UNKNOWN_FIELD`).
+- A feature profile hiding `capability:params` makes the slot unknown (`PULSE_REQUEST_UNKNOWN_FIELD`).
 - Not request templating: templates fill a request BEFORE it is validated; params are the request's own constants, read at compile time.
 <!-- feature: capability:templates -->
 - A template fills params with a marker, `"params":{"w":{"$var":"w"}}` (the number stays a number); `{{w}}` inside an expression is refused `PULSE_TEMPLATE_EXPR_SPLICE` (`request-templating`).

@@ -15602,11 +15602,11 @@
       },
       {
         "name": "pairwise-n-sources",
-        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
+        "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the n_source modes, the distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
       },
       {
         "name": "panel-n-sources",
-        "description": "The sample-size modes of the Compose-host proportion-z panel — the four n_source modes, the load-bearing n_within_depth pointer, the row partition gate, the distinct-key admission and its wholesale refusals, and why the pairwise spellings are not aliases."
+        "description": "The sample-size modes of the Compose-host proportion-z panel — the n_source modes, the load-bearing n_within_depth pointer, the row partition gate, the distinct-key admission and its wholesale refusals, and why the pairwise spellings are not aliases."
       },
       {
         "name": "predict-advisories",
@@ -15614,7 +15614,7 @@
       },
       {
         "name": "process-chain",
-        "description": "ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
+        "description": "ChainRequest source-rooted linear pipeline — the mergeable-only stage gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning."
       },
       {
         "name": "regression-collinearity",
@@ -15674,11 +15674,11 @@
       },
       {
         "name": "request-templating",
-        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
+        "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
       },
       {
         "name": "response-components",
-        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, and crosstab cell"
+        "description": "How Response.Components carries the constituent parts of every aggregation, grouper, filterer, attribute, matrix and crosstab cell"
       },
       {
         "name": "response-shaping",
@@ -15702,7 +15702,7 @@
       },
       {
         "name": "sem-groups",
-        "description": "The group of a multi-group MAT_SEM fit — which field or computed column splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level)."
+        "description": "The group of a multi-group MAT_SEM fit — which field or computed value splits the rows, its levels and their order, params.group_levels for a group the request computes (a wave pair chosen by request params), and the level warnings (an empty level, rows that are no level)."
       },
       {
         "name": "sem-modeling",
@@ -15718,15 +15718,15 @@
       },
       {
         "name": "session-format-flags",
-        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the four .sav write knobs with their refusal defaults."
+        "description": "Per-format CLI flags an agent must know — source-side read knobs (Excel sheet, SPSS missing-value mode and charset), parent-group declaration on the managed import path, the import source zone, the export render zone, and the .sav write knobs with their refusal defaults."
       },
       {
         "name": "session-skill-routing",
-        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest catalog entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
+        "description": "Which skill to fetch for a given trigger — operator family prefixes, manifest entries, request and response slots, request roots, CLI leaves and plain-language questions — plus how to read data.components on first sight."
       },
       {
         "name": "session-synth-flags",
-        "description": "The profile-capture and synth-generation CLI flags an agent must know — the five additive profile create sections, emitting the generating spec, supplying and suggesting structural rules — and why a model coefficient is a latent-scale quantity."
+        "description": "The profile-capture and synth-generation CLI flags an agent must know — the additive profile create sections, emitting the generating spec, supplying and suggesting structural rules — and why a model coefficient is a latent-scale quantity."
       },
       {
         "name": "spss-cohorts",
@@ -22159,4 +22159,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fb04727f6d958415ee4715b620a7d593b6b2401f7b7c45b512e15ad856d366f0
+// golden-hash: dd0b1852cfaa04bbc8b9e8cab556fb359aa12d1a49f14f9335da3518a4664ef3

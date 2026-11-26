@@ -13,7 +13,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skills index, extensions, capability blocks |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skill list, extensions, capability blocks |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `intent` + `tags` + `category` (CLI `pulse examples search --intent`)<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
@@ -23,7 +23,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 | 8 | `pulse_errors_lookup` | per unique `code` | canonical `message` + structured `fixups[]`. Authoritative — never paraphrase from memory |
 
 <!-- feature: capability:compose -->
-**Step 7 Compose return shape.** `pulse_compose`'s `data` is a `ComposedResponse` `{responses[], overlays[]}` — NOT the legacy `[]*Response`. Per-slot Components ride each `responses[i]`; overlay diagnostics ride `overlays[i].warnings`.
+**Step 7 Compose return shape.** `pulse_compose`'s `data` is a `ComposedResponse` `{responses[], overlays[]}`, not a bare array. Per-slot Components ride each `responses[i]`; overlay diagnostics ride `overlays[i].warnings`.
 <!-- /feature -->
 
 ## Which skill answers what

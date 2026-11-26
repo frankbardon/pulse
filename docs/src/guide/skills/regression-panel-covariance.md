@@ -47,7 +47,7 @@ REG_OLS reads it on t with the residual df N* − k.
 REG_GLM stays Wald z (the IRLS-score sandwich, dispersion-free).
 REG_BAYES_LINEAR: Müller's sandwich posterior with this meat; normal intervals, no p-values.
 
-`covariance` echoes `{type, order_by, lags, periods}` plus `entity` and `entities` (its level count) when an entity is set — `lags` resolved. A plain `hac` echo is unchanged (no `periods`).
+`covariance` echoes `{type, order_by, lags, periods}` plus `entity` and `entities` (its level count) when an entity is set — `lags` resolved. A plain `hac` echo has no `periods`.
 
 ## Refusals
 

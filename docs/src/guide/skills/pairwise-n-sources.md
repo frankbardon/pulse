@@ -1,6 +1,6 @@
 ```yaml
 name: pairwise-n-sources
-description: The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
+description: The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the n_source modes, the distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
 type: guide
 kind: design
 applies_to: process, compose, predict
@@ -23,7 +23,7 @@ The question is: **what does one observation mean here?**
 - The pair compares slices of a wider population (the share of a region WITHIN an issuer) → `n_within`, holding the first `n_within_depth`+1 dims fixed.
 - Several records per respondent and n must be respondents → a DISTINCT mode (below).
 
-## The nine n_source modes
+## The n_source modes
 
 | `n_source` | Leg |
 |---|---|

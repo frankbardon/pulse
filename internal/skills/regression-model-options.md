@@ -16,7 +16,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 | Need | Option | Model |
 |---|---|---|
 | A penalty, but controls or dummies must stay unshrunk | `unpenalized: [names]` | OLS, GLM, multinomial |
-| Slopes that cannot be negative (media spend, prices of goods) | `bounds: {nonnegative: [names]}` | OLS |
+| Slopes that cannot be negative (media spend) | `bounds: {nonnegative: [names]}` | OLS |
 | A prior centred on an experiment for ONE coefficient, flat or weak elsewhere | `prior_precision: [..]` per coefficient | Bayesian linear |
 | A curve or fit no built-in covers | a registered regression | manifest `extensions.regressions` |
 <!-- feature: capability:models -->
@@ -38,7 +38,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 
 ## Per-coefficient prior precision
 
-`prior_precision` takes a number (ε·I, unchanged) or an array of predictors + 1 entries, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` is flat on that coefficient, a large entry pins it to its `prior_mu`. A wrong length or negative entry is `PROCESSING_CONFIG`; an improper flat prior `PROCESSING_REGRESSION_RANK_DEFICIENT`.
+`prior_precision` takes a number (ε·I) or an array of predictors + 1 entries, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` is flat on that coefficient, a large entry pins it to its `prior_mu`. A wrong length or negative entry is `PROCESSING_CONFIG`; an improper flat prior `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 
 ## Media-mix recipe (one request)
 
@@ -62,7 +62,7 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in, plus `params`.
 
-- `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
+- `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). Built-in OLS, GLM, Bayesian, multinomial fits take no `params`.
 - `outputs`: the model's own figures, keyed by the manifest's `output_schema` (`regressions[i].outputs.<key>`); a sweep can `rank` on one.
 - A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}`.
 - `conf_level` and `order` always work, `resample` unless the row lists no `resample` slot (then `PROCESSING_CONFIG`): intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.

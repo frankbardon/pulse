@@ -17,7 +17,7 @@ A GLM coefficient is on the link scale (log-odds, log counts). `margins` reports
   "predictors": ["late_payment"], "margins": {}}]}
 ```
 
-`"margins": {}` = every predictor, `ame`, response scale. Absent = no block, byte-identical.
+`"margins": {}` = every predictor, `ame`, response scale. Absent = no `margins` output.
 
 ## Knobs
 
@@ -68,7 +68,7 @@ OLS streams with the fit (the effect is β); a GLM adds one pass over the fitted
 | `penalty` / `selection` / `bounds` | `unpenalized` / `no_selection` / `unbounded` |
 | a predictor derived from another predictor of the same fit (feature / attribute / window inputs, transitively) | `independent_predictors` |
 
-A derived predictor (a log column, a one-hot dummy) is differentiated as given. One built from another predictor (x² beside x, an interaction beside its factors) is refused: holding the other fixed is not defined.
+A derived predictor (a log field, a one-hot dummy) is differentiated as given. One built from another predictor (x² beside x, an interaction beside its factors) is refused: holding the other fixed is not defined.
 
 ## Against R
 

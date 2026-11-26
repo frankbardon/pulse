@@ -11,30 +11,30 @@ covers: [Request, ComposedRequest, ChainRequest, FacetRequest, SampleRequest, En
 
 ## Envelope (response side)
 
-Every `--json` output and facade response uses `descriptor.Envelope`:
+Every `--json` output uses `descriptor.Envelope`:
 
 ```json
 {"format_version": "1.1", "data": {...}, "request": {...}, "errors": [], "warnings": []}
 ```
 
 - `format_version` — `"1.1"`; additive `data` fields never bump it.
-- `data` — the operation's payload.
+- `data` — the payload.
 - `request` — opt-in echo of the *normalized* request (`--echo-request`); streaming skips it.
-- `errors` / `warnings` — always arrays of `{code, message, details}`; resolve via `pulse_errors_lookup`.
+- `errors` / `warnings` — always arrays of `{code, message, details}` (`pulse_errors_lookup`).
 
 ## Request shapes (per command)
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, time_zone_field, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs, return`<!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --><!-- feature: capability:matrices -->, `vectors`, `matrices`<!-- /feature --> |
+| process, predict (`pulse api process`) | `Request` | `label, cohort, time_zone, time_zone_field, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, regressions, joins, labels, crosstab, overlays, outputs, disable_components, return`<!-- feature: capability:union -->, `union`, `union_source_field`<!-- /feature --><!-- feature: capability:weighting -->, `weight`<!-- /feature --><!-- feature: capability:params -->, `params`<!-- /feature --><!-- feature: capability:multiplicity -->, `multiplicity`<!-- /feature --><!-- feature: capability:matrices -->, `vectors`, `matrices`<!-- /feature --><!-- feature: capability:models -->, `models`, `populations`<!-- /feature --> |
 <!-- feature: capability:compose -->
-| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
+| compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each a `Request`) plus batch keys (`compose-requests`) |
 <!-- /feature -->
 <!-- feature: capability:process_chain -->
-| process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
+| process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays, params` (each stage: `{request: Request}`) |
 <!-- /feature -->
 <!-- feature: capability:facet -->
-| facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
+| facet (`pulse api facet`) | `FacetRequest` | `cohort, fields[], filterers, additive_fields, discrete_top_k, numeric_percentiles, include_histogram, histogram_bins, histogram_range, labels, overlays, time_zone, time_zone_field` |
 <!-- /feature -->
 <!-- feature: capability:sample -->
 | sample (`pulse api sample --request`) | `SampleRequest` | `cohort, n, labels` |
@@ -46,7 +46,7 @@ MCP tool per operation: manifest `mcp_tools`.
 Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See `weighting`.
 <!-- /feature -->
 
-Slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways, grouper keys in key order). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
+Slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways, grouper keys in key order). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a field, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
@@ -64,7 +64,7 @@ Slot order is pipeline order: `features → filterers → attributes → groups 
 ```
 <!-- /feature -->
 
-Every `type` is an operator constant from `pulse_manifest` `components.<category>`; runnable requests: `pulse_examples_search`.
+Every `type` is an operator from `pulse_manifest` `components.<category>`; runnable requests: `pulse_examples_search`.
 
 ## Slot-key gotchas
 
@@ -76,7 +76,7 @@ Unknown keys (any depth) → `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path`; a nu
 | `aggregators` | `aggregations` |
 | `filters` | `filterers` |
 | `tests_post` | `post_tests` |
-| `output` | `outputs` |
+| `output` (not materialize) | `outputs` |
 <!-- feature: capability:compose -->
 | `request` (Compose top-level) | `requests` |
 <!-- /feature -->
@@ -105,8 +105,7 @@ A `type` defaults only on `groups`, `aggregations`<!-- feature: capability:cross
 
 `pulse_predict` returns `data.streamable: bool` + `data.streamable_reasons: []string` (authoritative).
 
-- **Streams:** online aggregators (manifest `streamable: true`), ungrouped or under a streamable grouper; row-local attributes; whole-cohort-statistic attributes (z-scores) in two passes.
-- **Buffers:** order-statistic aggregators (median, percentile); percentile-rank attributes; groupers with `streamable: false`; windows; decimal aggregations; two-pass attributes combined with features or groups; tier-2 post tests.
+Each operator's manifest entry carries `streamable` (+ `streamable_hint`). Windows, order statistics, percentile ranks, decimal aggregations, tier-2 post tests and two-pass attributes beside features or groups buffer.
 
 ## Time zones
 

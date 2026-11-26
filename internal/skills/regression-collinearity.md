@@ -25,7 +25,7 @@ For a candidate predictor set with no model yet, use `MAT_COLLINEARITY` instead 
 ```
 <!-- /feature -->
 
-`"collinearity": {}` = every predictor its own term, basis `model`. Absent = no block, byte-identical.
+`"collinearity": {}` = every predictor its own term, basis `model`. Absent = no `collinearity` output.
 
 ## Knobs
 

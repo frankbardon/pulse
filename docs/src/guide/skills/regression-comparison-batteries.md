@@ -33,7 +33,7 @@ Judged on the specs, at predict and at run alike, when `restricted` names a vect
 
 - `full` is a vector fit too (anything else is `fit_kind`, the vector fits under `available`);
 - both batteries LIST their members: a matrix slot's or fitted attribute's `fields`, or a request `vectors` entry it names that lists `fields` (its `labels` name the members). A `pattern` or a vector field resolves its members against the cohort only at run, so nesting cannot be judged: `members_unlisted` (`field`, `value`, `slot`);
-- every restricted member — label AND column — is a full member (`not_nested`, `missing`; swapped sides say so), and the full battery adds at least one: the tested members, `terms`, in the full battery's order (`no_extra_terms`);
+- every restricted member — label AND field — is a full member (`not_nested`, `missing`; swapped sides say so), and the full battery adds at least one: the tested members, `terms`, in the full battery's order (`no_extra_terms`);
 - the requests are equal but for the member lists (the slot's `fields`, the named `vectors` entry's `fields` / `labels`), the slot's reporting knobs (a matrix slot's `name`, `encoding`, `multiplicity`; an attribute's `label`) and the request's `label`, `return`, `disable_components`, `multiplicity` (`request_mismatch`, `keys`). So one operator type, params, filters, features, weight. Two different operators over the same rows (a covariance and a correlation) are refused — keep the battery slot identical.
 
 The full battery's listwise rows are a subset of the restricted one's; unequal rows (N or Σw) fail the comparison alone, `PULSE_COMPARISON_ROWS_DIFFER`. A failed vector fit passes its own code (`details.fit`).

@@ -24,7 +24,7 @@ Present exactly where `std_errors` is: lasso / elastic net (multinomial: any pen
 
 ## Covariance
 
-Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) for the coefficient covariance and correlation. Absent: off, byte-identical.
+Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) for the coefficient covariance and correlation. Absent: off.
 
 ```json cohort=mmm_weekly
 {"cohort": {"filename": "mmm_weekly.pulse"},
@@ -53,9 +53,9 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 ## Robust standard errors
 
-`"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov`: `hc0`–`hc3`, `cluster` (CR1, OLS `df` = clusters − 1), `hac` (Newey–West over `order_by`) or, on a panel, per-entity `hac` / `driscoll_kraay` ([`regression-panel-covariance`](regression-panel-covariance.md)). Absent = `classical`, byte-identical. R: `sandwich`.
+`"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov`: `hc0`–`hc3`, `cluster` (CR1, OLS `df` = clusters − 1), `hac` (Newey–West over `order_by`) or, on a panel, per-entity `hac` / `driscoll_kraay` ([`regression-panel-covariance`](regression-panel-covariance.md)). Absent = `classical`. R: `sandwich`.
 `REG_GLM` takes it too: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`), dispersion-free, still Wald z with no `df` (cluster and gamma too); weighted, it follows w*.
-`REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`) — no longer the conjugate posterior.
+`REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`), not the conjugate posterior.
 `REG_MULTINOMIAL`: `hc0`, `hc1`, `cluster` over the scores (y − π) ⊗ x, Wald z; others refused (reason `type`).
 
 ## Refusals

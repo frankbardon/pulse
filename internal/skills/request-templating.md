@@ -1,6 +1,6 @@
 ---
 name: request-templating
-description: Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang.
+description: Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang.
 kind: design
 type: guide
 applies_to: process, compose, sample, facet, predict
@@ -36,7 +36,7 @@ A `for_each` item's axis placeholders pass through to its expansion (`item-fan-o
 A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label` only (`compose-sweeps`).
 <!-- /feature -->
 
-## Variable types (nine)
+## Variable types
 
 `string`, `number`, `integer` (`1.0` yes, `1.5` no), `boolean`, `field` (a string), `enum` (+`values`, case-sensitive), `list` (+`items`, scalar only — no nesting), `date`, `period`.
 
@@ -86,9 +86,9 @@ A **reshape recipe** is a `request` body with `output` and `{"$var":"cohort"}`: 
 
 Lookups rescan after 1s. `ReloadTemplates()` forces it; nil for one broken file.
 
-Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest`, `ReloadTemplates`. `Rendered.Target` picks the set pointer; compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` (re-marshaling drops explicit zeros).
+Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (every target), `RenderTemplateRequest`, `ReloadTemplates`. `Rendered.Target` picks the set pointer; compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` (re-marshaling drops explicit zeros).
 
-## Errors — eleven codes, by provenance
+## Errors, by provenance
 
 A bad **declared default** is an author error → `PULSE_TEMPLATE_INVALID` (checked semantically at declaration: enum membership, date parse, period XOR); a bad **caller value** → `_VAR_TYPE` / `_VAR_ENUM`. Same split on names: `$var`/`{{}}`/`$when` naming an **undeclared** variable is an author error caught at validation (`_INVALID`); a **declared but unresolved** reference is render-time `_UNRESOLVED`.
 
