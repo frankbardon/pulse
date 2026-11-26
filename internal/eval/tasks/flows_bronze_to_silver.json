@@ -1,0 +1,24 @@
+{
+  "id": "flows_bronze_to_silver",
+  "intent": "flows",
+  "question": "Members move between bronze, silver, gold and churned from one month to the next. Of the members who start a month in bronze, what share end it in silver?",
+  "cohorts": ["tier_migrations"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "tier_migrations.pulse"},
+      "crosstab": {
+        "rows": [{"type": "GROUP_CATEGORY", "field": "from_tier"}],
+        "columns": [{"type": "GROUP_CATEGORY", "field": "to_tier"}],
+        "cell": {"type": "AGG_COUNT", "field": "id"},
+        "normalize": "row"
+      }
+    }
+  },
+  "assertions": [
+    {"kind": "any", "assertions": [
+      {"kind": "value", "near": 0.1739, "tol": 0.0005},
+      {"kind": "value", "near": 17.39, "tol": 0.05}
+    ]}
+  ]
+}

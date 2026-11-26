@@ -181,8 +181,9 @@ func Run(ctx context.Context, env *Env, sub Submission) *Outcome {
 		return o
 	}
 	if written != "" {
-		if !filepath.IsAbs(written) {
-			written = filepath.Join(env.DataDir, written)
+		// The instance filesystem is rooted at the data directory.
+		if rel, err := filepath.Rel(env.DataDir, written); err == nil && filepath.IsAbs(written) {
+			written = rel
 		}
 		info, err := env.P.Inspect(ctx, written)
 		if err != nil {
@@ -241,15 +242,12 @@ func runSynth(ctx context.Context, env *Env, raw []byte) (any, string, error) {
 	if a.Spec == nil || a.Out == "" {
 		return nil, "", fmt.Errorf("synth arguments need spec and out")
 	}
-	out := a.Out
-	if !filepath.IsAbs(out) {
-		out = filepath.Join(env.DataDir, out)
-	}
-	res, err := env.P.Synth(ctx, a.Spec, out, pulse.SynthOptions{Seed: a.Seed})
+	// Relative to the data directory the instance is rooted at.
+	res, err := env.P.Synth(ctx, a.Spec, a.Out, pulse.SynthOptions{Seed: a.Seed})
 	if err != nil {
 		return nil, "", err
 	}
-	return res, out, nil
+	return res, a.Out, nil
 }
 
 // stripDataDir drops every data_dir key from the arguments, returning

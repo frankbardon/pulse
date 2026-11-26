@@ -1,0 +1,18 @@
+{
+  "id": "segment_revenue_bands",
+  "intent": "segment",
+  "question": "Split the experiment's people into four equal-sized bands by revenue, from lowest to highest spenders, and show the average session length in each band.",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "groups": [{"type": "GROUP_QUANTILE", "field": "revenue", "interval": 4}],
+      "aggregations": [{"type": "AGG_AVERAGE", "field": "session_minutes"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["GROUP_QUANTILE"]},
+    {"kind": "rows", "section": "data", "count": 4}
+  ]
+}

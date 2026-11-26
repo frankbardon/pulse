@@ -1,0 +1,23 @@
+{
+  "id": "simulate_test_scores",
+  "intent": "simulate",
+  "question": "Make me a made-up test cohort called scores.pulse with 500 rows: an id counting up from 1 and a score anywhere between 0 and 100.",
+  "cohorts": [],
+  "reference": {
+    "tool": "synth",
+    "arguments": {
+      "out": "scores.pulse",
+      "seed": 1,
+      "spec": {
+        "row_count": 500,
+        "fields": [
+          {"name": "id", "type": "u32", "distribution": "monotonic_from", "params": {"start": 1}},
+          {"name": "score", "type": "f64", "distribution": "uniform", "params": {"min": 0, "max": 100}}
+        ]
+      }
+    }
+  },
+  "assertions": [
+    {"kind": "cohort", "rows": 500, "fields": ["id", "score"]}
+  ]
+}

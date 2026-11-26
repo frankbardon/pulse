@@ -1,0 +1,18 @@
+{
+  "id": "segment_training_clusters",
+  "intent": "segment",
+  "question": "Using price and income in the training data, sort the observations into three natural clusters and tell me how many fall in each.",
+  "cohorts": ["training_data"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "training_data.pulse"},
+      "groups": [{"type": "GROUP_KMEANS", "fields": ["price", "income"], "params": {"k": 3, "seed": 1}}],
+      "aggregations": [{"type": "AGG_COUNT", "field": "id"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["GROUP_KMEANS"]},
+    {"kind": "rows", "section": "data", "count": 3}
+  ]
+}

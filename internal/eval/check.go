@@ -267,15 +267,18 @@ func metricKeys(m *Metric, args any) map[string]bool {
 	return keys
 }
 
-// operatorsIn returns every "type" string in the submission arguments.
+// operatorsIn returns every operator the submission arguments name: each
+// "type" string, plus each overlay "kind".
 func operatorsIn(args any) map[string]bool {
 	used := map[string]bool{}
 	var visit func(any)
 	visit = func(v any) {
 		switch x := v.(type) {
 		case map[string]any:
-			if t, ok := x["type"].(string); ok {
-				used[t] = true
+			for _, k := range []string{"type", "kind"} {
+				if t, ok := x[k].(string); ok {
+					used[t] = true
+				}
 			}
 			for _, e := range x {
 				visit(e)

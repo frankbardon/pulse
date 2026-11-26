@@ -76,21 +76,10 @@ func TestEvalIntentCoverage(t *testing.T) {
 		have[task.Intent]++
 	}
 	for _, id := range idesc.IntentIDs() {
-		switch {
-		case have[id] == 0 && !intentsAwaitingTask[id]:
+		if have[id] == 0 {
 			t.Errorf("intent %q has no eval task under internal/eval/tasks/", id)
-		case have[id] > 0 && intentsAwaitingTask[id]:
-			t.Errorf("intent %q has a task now: drop it from intentsAwaitingTask", id)
 		}
 	}
-}
-
-// intentsAwaitingTask lists the intents whose first task has not landed
-// yet; it only shrinks, and an entry with a task fails as stale.
-var intentsAwaitingTask = map[string]bool{
-	"composition": true, "benchmark": true, "distribution_shape": true, "segment": true,
-	"measure_construct": true, "flows": true, "data_quality": true,
-	"prepare": true, "simulate": true, "lookup": true,
 }
 
 // TestEvalTasksWellFormed holds every task to real fixtures and real

@@ -1,0 +1,29 @@
+{
+  "id": "composition_region_share",
+  "intent": "composition",
+  "question": "What share of our customers lives in each region, and which region is the biggest slice?",
+  "cohorts": ["customers"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "customers.pulse"},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+      "aggregations": [{"type": "AGG_COUNT", "field": "id", "label": "customers"}],
+      "windows": [{"type": "WIN_SHARE", "field": "customers", "label": "share"}]
+    }
+  },
+  "assertions": [
+    {"kind": "any", "assertions": [
+      {"kind": "value", "in_row": ["south"], "near": 0.28, "tol": 0.0005},
+      {"kind": "value", "in_row": ["south"], "near": 28, "tol": 0.05},
+      {"kind": "value", "near": 0.28, "tol": 0.0005},
+      {"kind": "value", "near": 28, "tol": 0.05}
+    ]},
+    {"kind": "any", "assertions": [
+      {"kind": "value", "in_row": ["west"], "near": 0.205, "tol": 0.0005},
+      {"kind": "value", "in_row": ["west"], "near": 20.5, "tol": 0.05},
+      {"kind": "value", "near": 0.205, "tol": 0.0005},
+      {"kind": "value", "near": 20.5, "tol": 0.05}
+    ]}
+  ]
+}

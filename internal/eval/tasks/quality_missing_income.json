@@ -1,0 +1,25 @@
+{
+  "id": "quality_missing_income",
+  "intent": "data_quality",
+  "question": "On the sign-up forms, how often did people leave their income blank, and is that worse for some channels than others?",
+  "cohorts": ["intake"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "intake.pulse"},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "channel"}],
+      "aggregations": [{"type": "AGG_NULL_COUNT", "field": "income"}]
+    }
+  },
+  "assertions": [
+    {"kind": "rows", "section": "data", "present": ["paper", "phone", "web"]},
+    {"kind": "any", "assertions": [
+      {"kind": "value", "section": "data", "in_row": ["paper"], "near": 42, "tol": 0.5},
+      {"kind": "value", "section": "data", "in_row": ["paper"], "near": 0.42, "tol": 0.0005}
+    ]},
+    {"kind": "any", "assertions": [
+      {"kind": "value", "section": "data", "in_row": ["web"], "near": 4, "tol": 0.5},
+      {"kind": "value", "section": "data", "in_row": ["web"], "near": 0.04, "tol": 0.0005}
+    ]}
+  ]
+}

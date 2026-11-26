@@ -36,7 +36,8 @@ func TestCheck_AssertionKinds(t *testing.T) {
 	t.Parallel()
 	const args = `{"groups":[{"type":"GROUP_CATEGORY","field":"region"}],
 		"aggregations":[{"type":"AGG_AVERAGE","field":"income","label":"avg"},{"type":"AGG_COUNT","field":"id"}],
-		"tests":[{"type":"TEST_T","field":"income","split_by":"arm"}]}`
+		"tests":[{"type":"TEST_T","field":"income","split_by":"arm"}],
+		"overlays":[{"name":"o","kind":"OVERLAY_INDEX_VS_TOTAL"}]}`
 	const result = `{"data":[
 			{"region":"north","avg":50,"AGG_COUNT_id":10},
 			{"region":"south","avg":40,"AGG_COUNT_id":30}],
@@ -50,6 +51,7 @@ func TestCheck_AssertionKinds(t *testing.T) {
 		pass bool
 	}{
 		{"operator holds", Assertion{Kind: "operator", AnyOf: []string{"TEST_WELCH", "TEST_T"}}, true},
+		{"operator overlay kind", Assertion{Kind: "operator", AnyOf: []string{"OVERLAY_INDEX_VS_TOTAL"}}, true},
 		{"operator missing", Assertion{Kind: "operator", AnyOf: []string{"TEST_WELCH"}}, false},
 		{"value near", Assertion{Kind: "value", Section: "data", InRow: []string{"north"}, Near: f(50), Tol: 0.5}, true},
 		{"value off", Assertion{Kind: "value", Section: "data", InRow: []string{"north"}, Near: f(45), Tol: 0.5}, false},
@@ -135,5 +137,37 @@ func TestParseTask_Refusals(t *testing.T) {
 		if _, err := ParseTask([]byte(bad)); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+// TestCheck_Cohort pins the cohort kind: record count, field presence
+// and field types of the cohort a write-side submission produced.
+func TestCheck_Cohort(t *testing.T) {
+	t.Parallel()
+	o := outcome(t, `{}`, `{}`)
+	if err := json.Unmarshal([]byte(`{"record_count":300,"fields":[{"name":"id","type":"u32"},{"name":"age","type":"u8"}]}`), &o.Cohort); err != nil {
+		t.Fatal(err)
+	}
+	rows := func(v int64) *int64 { return &v }
+	cases := []struct {
+		name string
+		a    Assertion
+		pass bool
+	}{
+		{"rows and fields", Assertion{Kind: "cohort", Rows: rows(300), Fields: []string{"id", "age"}}, true},
+		{"rows off", Assertion{Kind: "cohort", Rows: rows(299)}, false},
+		{"field missing", Assertion{Kind: "cohort", Fields: []string{"income"}}, false},
+		{"field type", Assertion{Kind: "cohort", FieldTypes: map[string]string{"age": "u8"}}, true},
+		{"field type off", Assertion{Kind: "cohort", FieldTypes: map[string]string{"age": "u16"}}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := check(c.a, o) == ""; got != c.pass {
+				t.Fatalf("pass = %v, want %v (%q)", got, c.pass, check(c.a, o))
+			}
+		})
+	}
+	if msg := check(Assertion{Kind: "cohort", Rows: rows(1)}, outcome(t, `{}`, `{}`)); msg == "" {
+		t.Fatal("no written cohort must fail a cohort assertion")
 	}
 }

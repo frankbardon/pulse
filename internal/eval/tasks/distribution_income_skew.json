@@ -1,0 +1,19 @@
+{
+  "id": "distribution_income_skew",
+  "intent": "distribution_shape",
+  "question": "Is customer income lopsided, with a long tail of high earners, or is it spread evenly around the middle?",
+  "cohorts": ["customers"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "customers.pulse"},
+      "aggregations": [{"type": "AGG_SKEWNESS", "field": "income"}]
+    }
+  },
+  "assertions": [
+    {"kind": "any", "assertions": [
+      {"kind": "value", "section": "data", "metric": {"types": ["AGG_SKEWNESS"], "field": "income"}, "min": 1},
+      {"kind": "value", "section": "tests", "types": ["TEST_SHAPIRO_WILK", "TEST_KS"], "key": "p_value", "max": 0.001}
+    ]}
+  ]
+}

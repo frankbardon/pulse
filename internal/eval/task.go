@@ -21,7 +21,7 @@ type Task struct {
 	ID         string      `json:"id"`
 	Intent     string      `json:"intent"`
 	Question   string      `json:"question"`
-	Cohorts    []string    `json:"cohorts"`
+	Cohorts    []string    `json:"cohorts,omitempty"`
 	Files      []string    `json:"files,omitempty"`
 	Indexes    []Index     `json:"indexes,omitempty"`
 	Reference  Submission  `json:"reference"`
@@ -147,8 +147,6 @@ func (t *Task) validate() error {
 		return fmt.Errorf("intent %q is not an intent-taxonomy ID", t.Intent)
 	case strings.TrimSpace(t.Question) == "":
 		return fmt.Errorf("missing question")
-	case len(t.Cohorts) == 0 && len(t.Files) == 0:
-		return fmt.Errorf("names no cohort or file")
 	case t.Reference.Tool == "":
 		return fmt.Errorf("reference names no tool")
 	case len(t.Assertions) == 0:
