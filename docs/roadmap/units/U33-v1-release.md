@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 768, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793]
 branch: v1-release
 ---
 
@@ -55,6 +55,13 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
 - [ ] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type
 - [ ] **#786** (11. Documentation audit) Inferred `set_*` rungs promote at import instead of dropping rows
+- [ ] **#787** (11. Documentation audit) `REG_MMM_BAYES` diagnostics in a named Compose fit name the fit and count its parameters right
+- [ ] **#788** (11. Documentation audit) Decide whether `ATTR_DATE_PART` hour / weekday keys sort numerically
+- [ ] **#789** (11. Documentation audit) A facet overlay's `ref.population.cohort` resolves through `data_dir` / `PULSE_DATA_DIR`
+- [ ] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null
+- [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
+- [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
+- [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](U33-v1-release.md)
@@ -251,7 +258,7 @@ Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there wh
 
 ## Handed on from U32b
 
-Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
+Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
 
 - [ ] **#768** — **Private vulnerability reporting is disabled**, so `SECURITY.md`'s only reporting channel fails; enable it or name a monitored contact.
 - [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
@@ -271,3 +278,10 @@ Found in docs-content (E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5); full t
 - [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.
 - [ ] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type.
 - [ ] **#786** — **Inferred set rungs drop rows instead of promoting**; extend the ladder.
+- [ ] **#787** — **Bayesian MMM diagnostics in a named fit name `""` and miscount parameters**; fall back to the fit name, match the list.
+- [ ] **#788** — **Date-part hour / weekday keys sort as strings**; decide numeric order.
+- [ ] **#789** — **Facet overlay population cohort ignores `data_dir`**; resolve it as the host cohort.
+- [ ] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse.
+- [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
+- [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
+- [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
