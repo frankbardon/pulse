@@ -16,6 +16,8 @@ Load it before changing any guidance registry or its validator (`internal/descri
 | Slice | Sections and bold leads, in file order |
 |---|---|
 | `guided-analysis/model-and-recommend.md` | Data model; Purpose limits; Follow-ups; Aliases (`Purpose.KnownAs`); Glossary limits; Intent taxonomy; Manifest projection; Recommend |
-| `guided-analysis/explain-and-skills.md` | Explain; Glossary and the jargon rule; Virtual skills; Skills for an intent; Generated skill sections; Generated reference (docgen) |
+| `guided-analysis/explain-request.md` | Explain (Input; Output; Steps; Predict; Profiles + prose) |
+| `guided-analysis/explain-results.md` | Explain results (Response mode; Result roots; Operator mode; Surfaces) |
+| `guided-analysis/skills-and-docgen.md` | Glossary and the jargon rule; Virtual skills; Skills for an intent; Generated skill sections; Generated reference (docgen) |
 | `guided-analysis/interpretation-and-gates.md` | Interpretation; Paths; Needs reading vs self-reading; Static validation; Prose lint; Runtime probes; Overlay `Inferential`; Shared p-value rules; Effect-size keys; Caveats; Gates; Two tiers over ONE validator per type, BOTH binding; Exemption ledger; Budget gate |
 | `guided-analysis/conventions-and-oracle.md` | Convention registry; Fixture contract; Statistical primitives and the R oracle; Review record; Extension hook |
