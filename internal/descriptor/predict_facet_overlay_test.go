@@ -342,8 +342,11 @@ func TestValidateOverlay_FacetPopulationRefUnknown(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope Data is not *FacetValidationResult: %T", env.Data)
 	}
-	if !hasError(env, string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)) {
-		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for unknown population-reference field, got %+v", env.Errors)
+	if !hasError(env, string(errors.PULSE_OVERLAY_FIELD_UNKNOWN)) {
+		t.Errorf("expected PULSE_OVERLAY_FIELD_UNKNOWN for unknown population-reference field, got %+v", env.Errors)
+	}
+	if hasError(env, string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)) {
+		t.Errorf("unknown field must not raise PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, got %+v", env.Errors)
 	}
 	if result.Valid {
 		t.Errorf("FacetValidationResult.Valid = true; expected false on unknown-field rejection")

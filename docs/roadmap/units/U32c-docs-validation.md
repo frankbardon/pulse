@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32b]
 soft_depends_on: []
 blocks: [U33]
-todo_items: [166, 167, 775, 800, 801]
+todo_items: [166, 167, 775, 799, 800, 801]
 branch: docs-validation
 ---
 
@@ -32,6 +32,7 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 - [ ] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
 - [x] **#775** (11. Documentation audit) Restructure `.claude/reference/guided-analysis/explain-and-skills.md` for readability (dense one-paragraph bullets), keeping every rule and the slice ceiling
+- [x] **#799** (11. Documentation audit) A facet overlay's unknown `params.field` is refused `PULSE_OVERLAY_FIELD_UNKNOWN`, as on every other host, at predict and runtime
 - [x] **#800** (11. Documentation audit) Name the referent of every "byte-identical" in `.claude/reference/` and `docs/src/library/`, or keep the idiom by decision and state the convention once
 - [x] **#801** (11. Documentation audit) Rewrite the remaining public GoDoc history prose ("today", "future work", "was") to state the current contract only
 

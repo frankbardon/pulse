@@ -1723,6 +1723,14 @@ Not yet released. `format_version` stays `"1.1"`; no `.pulse` byte-layout change
 | Refusal messages named Go field paths (`Params["window"]`, `Ref.Margin`, `Request.Overlays`, `MaxIters`, `Penalty=l2`, `SplitBy`, `OnPair.LeftField`, `set Overwrite`, …) | the same refusals name wire keys (`params.window`, `ref.margin`, request overlays, `max_iters`, `penalty=l2`, `split_by`, a join's `on` `left_field`, `pass overwrite`); codes and details unchanged; `TestRefusalMessagesUseWireKeys` holds the overlay, regression, test, filter, crosstab and join validators to it | behaviour change (message text) | match on `code` and `details`, never on message text | U32b (E8-S4) |
 | `errors.MetadataFor` / `pulse errors lookup` / `pulse_errors_lookup` Message and Fixup hints named Go field paths (`Request.Groups`, `Crosstab.Normalize`, `OverlaySpec.Params["frequency"]`, `JoinSpec.On`), retired commands (`pulse predict`, `pulse inspect`, `pulse manifest --json`) and internal functions, and some described the wrong condition (`PULSE_IMPORT_SCHEMA_AMBIGUOUS`, `PULSE_IMPORT_CATEGORICAL_UNBOUNDED`, `PULSE_OVERLAY_SLOT_NOT_CROSSTAB` "unreachable") | every Message and hint names wire keys and real leaves (`pulse api predict`, `pulse cohort inspect`, `pulse --json`), states the condition the code is raised for, and drops history prose; `PULSE_SYNTH_OUTPUT_COLLISION` and `PULSE_SYNTH_ALREADY_TAGGED` gained a fixup in place of `FixupNotApplicable`; codes, paths and details unchanged | behaviour change (fixup metadata text) | read `Code`, `Details` and `Fixups[].Action` / `Path`, never match on Message or Hint text | U32b (E8-S4) |
 
+## Changes from docs-validation (U32c)
+
+Not yet released. `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a facet population overlay (`OVERLAY_INDEX_VS_POP`, `_ZSCORE_VS_POP`, `_CHISQ_VS_POP`, `_KS_VS_POP`) whose `params.field` names none of the facet request's `fields` was refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` | refused `PULSE_OVERLAY_FIELD_UNKNOWN`, the code every other host raises for an unknown `params.field`, at predict and runtime alike; message and details `{index, kind, field, available_fields}` unchanged | behaviour change (error code) | match `PULSE_OVERLAY_FIELD_UNKNOWN` for an unknown facet field; `_REF_INCOMPATIBLE_WITH_SHAPE` still covers a wrong ref family and a field of the wrong shape for the kind | U32c (E5-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

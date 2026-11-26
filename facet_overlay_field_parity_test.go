@@ -10,7 +10,7 @@ import (
 
 // TestFacetOverlay_ParamsFieldRefusalsParity: on a facet host, a
 // params.field naming none of the request's fields is
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, and an omitted params.field
+// PULSE_OVERLAY_FIELD_UNKNOWN (as on every other host), and an omitted params.field
 // on a multi-field facet is PULSE_OVERLAY_PARAM_MISSING — predict and the
 // run agree on code, message and details.
 func TestFacetOverlay_ParamsFieldRefusalsParity(t *testing.T) {
@@ -22,7 +22,7 @@ func TestFacetOverlay_ParamsFieldRefusalsParity(t *testing.T) {
 		params string
 		want   perrors.Code
 	}{
-		{"unlisted field", `{"field":"zz"}`, perrors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE},
+		{"unlisted field", `{"field":"zz"}`, perrors.PULSE_OVERLAY_FIELD_UNKNOWN},
 		{"omitted field", ``, perrors.PULSE_OVERLAY_PARAM_MISSING},
 	} {
 		req := func() *types.FacetRequest {

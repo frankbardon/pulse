@@ -17054,7 +17054,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -17171,7 +17171,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17223,7 +17223,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17254,7 +17254,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -17279,7 +17279,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17312,7 +17312,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -17358,7 +17358,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17401,7 +17401,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17453,7 +17453,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -17478,7 +17478,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17509,7 +17509,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "scale",
@@ -17541,7 +17541,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17584,7 +17584,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17617,7 +17617,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -17640,7 +17640,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -17673,7 +17673,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -18092,7 +18092,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "scale",
@@ -18190,7 +18190,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18382,7 +18382,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18549,7 +18549,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18583,7 +18583,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "variance_target",
@@ -18645,7 +18645,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18711,7 +18711,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           }
         ]
       },
@@ -18736,7 +18736,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18777,7 +18777,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18871,7 +18871,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "partition_by",
@@ -18905,7 +18905,7 @@
             "name": "field",
             "type": "string",
             "required": false,
-            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE."
+            "description": "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN."
           },
           {
             "name": "variance_target",
@@ -22197,4 +22197,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 52db2912e5ee6fa58dc9657460c68023fc7b5baac7529fd01bca6d3f90e6d693
+// golden-hash: e6e0cbf9ddd6458ba170b2f510f0d7d8bbbc08ffce5002aae8e5a684b863282d
