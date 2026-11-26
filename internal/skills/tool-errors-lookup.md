@@ -23,7 +23,7 @@ Also to triage a known code or enumerate every code in one domain. The manifest 
 
 ## Gotchas
 
-- At least one of `code` / `domain` / `query` MUST be set; all empty is a tool error `specify at least one of code, domain, query` (plain text, no code).
+- At least one of `code` / `domain` / `query` MUST be set; all empty is the coded tool error `SERVICE_VALIDATION`.
 - Every code carries at least one fixup or `fixup_not_applicable: true`.
 - An intersection keeps the order of the first axis set, taken in the order `code`, `domain` (alphabetical), `query` (ranked).
 

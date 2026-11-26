@@ -17,7 +17,7 @@ The full record's `body` has the `_meta` annotation block already stripped — h
 
 ## Output
 
-The example record (no envelope): `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (the runnable request as a JSON object). Missing example → tool error `example "<name>" not found` (plain text, no code) — also what an example using a feature this server hides answers. Serves the same library as `pulse_examples_search` (embedder examples included).
+The example record (no envelope): `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (the runnable request as a JSON object). Missing example → coded tool error `SERVICE_VALIDATION` (`details.argument: "name"`, `details.name`) — also what an example using a feature this server hides answers. Serves the same library as `pulse_examples_search` (embedder examples included).
 
 ## Gotchas
 

@@ -17,7 +17,7 @@ Usually after `pulse_skills_list`: an operator guide, type reference, tool refer
 
 ## Output
 
-`{body: "<markdown>"}` (no envelope): the rendered skill, frontmatter block included, with feature fences resolved for this server. Missing skill → tool error `skill "<name>" not found` (plain text, no code) — also what a skill this server's feature profile prunes answers.
+`{body: "<markdown>"}` (no envelope): the rendered skill, frontmatter block included, with feature fences resolved for this server. Missing skill → coded tool error `SERVICE_VALIDATION` (`details.argument: "name"`, `details.name`) — also what a skill this server's feature profile prunes answers.
 
 ## Gotchas
 

@@ -25,12 +25,22 @@ import (
 // structured {code, message, details} envelope. The type-erased
 // ToolDescriptor.Invoke (tools.go) wraps these with strict unmarshal.
 
-// errMissingArg is the plain validation error a thin tool returns when a
-// required argument is absent. It is intentionally NOT a coded error: it
-// mirrors the legacy "missing or invalid 'x'" guard, surfaced to the LLM
-// as a tool-error result so it can self-correct.
+// errMissingArg is a thin tool's refusal of an absent required argument:
+// SERVICE_VALIDATION, the argument named in details.argument, so the
+// caller can look the code up and self-correct.
 func errMissingArg(name string) error {
-	return errors.New("missing or invalid '" + name + "'")
+	return perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+		"missing or invalid '"+name+"'", map[string]any{"argument": name})
+}
+
+// errNotFound is a lookup tool's answer for a name the instance does not
+// serve: SERVICE_VALIDATION with details.argument and details.name, the
+// message naming the tool that lists what exists. A name a feature
+// profile prunes reads exactly like one that never existed.
+func errNotFound(kind, name, listTool string) error {
+	return perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+		kind+" "+strconvQuote(name)+" not found; "+listTool+" lists the "+kind+"s this server offers",
+		map[string]any{"argument": "name", "name": name})
 }
 
 // HandleInspect runs pulse_inspect: header-only schema introspection.
@@ -54,13 +64,25 @@ func HandleInspect(ctx context.Context, p *pulse.Pulse, in InspectIn) (InspectOu
 		return InspectOut{}, err
 	}
 	if len(env.Errors) > 0 {
-		return InspectOut{}, errors.New("pulse: inspect: " + env.Errors[0].Message)
+		return InspectOut{}, envelopeEntryError("pulse: inspect", env.Errors[0])
 	}
 	res, ok := env.Data.(*descriptor.InspectResult)
 	if !ok {
-		return InspectOut{}, errors.New("pulse: inspect returned unexpected type")
+		return InspectOut{}, perr.NewCodedError(perr.SERVICE_INTERNAL, "pulse: inspect returned unexpected type")
 	}
 	return InspectOut{InspectResult: *res, Warnings: env.Warnings}, nil
+}
+
+// envelopeEntryError lifts an envelope's fatal entry into the coded error
+// a tool returns: the entry's own code (an unregistered one, which no
+// built-in emits, is SERVICE_INTERNAL), message "<prefix>: <message>",
+// the entry's details kept.
+func envelopeEntryError(prefix string, e *descriptor.EnvelopeEntry) *perr.CodedError {
+	code, ok := perr.ParseCode(e.Code)
+	if !ok {
+		code = perr.SERVICE_INTERNAL
+	}
+	return perr.NewCodedErrorWithDetails(code, prefix+": "+e.Message, e.Details)
 }
 
 // HandlePredict runs pulse_predict: no-execute validation of a bare
@@ -103,7 +125,7 @@ func HandlePredict(ctx context.Context, p *pulse.Pulse, in PredictIn) (PredictOu
 	case *pulse.ChainPredictResult:
 		out.Chain = d
 	default:
-		return PredictOut{}, errors.New("pulse: predict returned unexpected type")
+		return PredictOut{}, perr.NewCodedError(perr.SERVICE_INTERNAL, "pulse: predict returned unexpected type")
 	}
 	return out, nil
 }
@@ -262,7 +284,7 @@ func HandleSkillsGet(_ context.Context, p *pulse.Pulse, in SkillsGetIn) (SkillsG
 	}
 	body, ok := p.Skill(in.Name)
 	if !ok {
-		return SkillsGetOut{}, errors.New("skill " + strconvQuote(in.Name) + " not found")
+		return SkillsGetOut{}, errNotFound("skill", in.Name, "pulse_skills_list")
 	}
 	return SkillsGetOut{Body: body}, nil
 }
@@ -290,7 +312,7 @@ func HandleExamplesGet(_ context.Context, p *pulse.Pulse, in ExamplesGetIn) (Exa
 	}
 	ex, ok := p.ExampleGet(in.Name)
 	if !ok {
-		return ExamplesGetOut{}, errors.New("example " + strconvQuote(in.Name) + " not found")
+		return ExamplesGetOut{}, errNotFound("example", in.Name, "pulse_examples_search")
 	}
 	return *ex, nil
 }
@@ -301,7 +323,9 @@ func HandleExamplesGet(_ context.Context, p *pulse.Pulse, in ExamplesGetIn) (Exa
 // with its own scoped view.
 func HandleErrorsLookup(_ context.Context, p *pulse.Pulse, in ErrorsLookupIn) (ErrorsLookupOut, error) {
 	if in.Code == "" && in.Domain == "" && in.Query == "" {
-		return ErrorsLookupOut{}, errors.New("specify at least one of code, domain, query")
+		return ErrorsLookupOut{}, perr.NewCodedErrorWithDetails(perr.SERVICE_VALIDATION,
+			"specify at least one of code, domain, query",
+			map[string]any{"arguments": []string{"code", "domain", "query"}})
 	}
 	return ErrorsLookupOut{Results: intersectErrorLookup(p, in.Code, in.Domain, in.Query)}, nil
 }

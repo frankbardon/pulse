@@ -25,7 +25,7 @@ No envelope: `field_count`, `fields` (`name`, `type`, `nullable` (always present
 - Header + schema + sidecar metadata, never a record; group `ratio` = `record_count ÷ entry_count` (import report's; `verdict` at floor 2).
 - `suggested_weight` is NEVER applied — name it as a request `weight`; SPSS `WEIGHT BY` replicates cases (`kind: "frequency"`). Absent, stale or bad sidecar ⇒ none.
 - `record_count` is DERIVED (payload bytes / stride); a torn tail reports the FLOOR, signalled only by an `ENCODING_INVALID` warning (`record_stride`, `trailing_bytes`). Library callers use `Pulse.InspectEnvelope` — `Pulse.Inspect` drops it.
-- A missing file is `SERVICE_RESOURCE`; a bad header (magic, format version) a plain-text error naming `ENCODING_INVALID`.
+- Failures are coded tool errors: a missing file `SERVICE_RESOURCE`, a bad header (magic, format version) `ENCODING_INVALID`.
 
 ## See
 
