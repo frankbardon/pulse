@@ -44,7 +44,7 @@ Use something else:
 
 ## Reading the output
 
-- `statistic`: The smaller of the two signed-rank sums: rank the non-zero differences (Field - Field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
+- `statistic`: The smaller of the two signed-rank sums: rank the non-zero differences (field - field2) by size, add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.z`: The normal score the p-value is read from, with a continuity correction of one half.
 

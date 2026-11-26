@@ -26,7 +26,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 | Use | In plain words | Level |
 |---|---|---|
-| [`ATTR_DATE_PART`](../catalog/attribute.md#op-attr_date_part) | Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. | basic |
+| [`ATTR_DATE_PART`](../catalog/attribute.md#op-attr_date_part) | Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour. | basic |
 
 ### Filterers
 
@@ -165,12 +165,12 @@ Yes, clearly. Comparing each customer with themselves, revenue rose on average b
 
 **`statistic`**
 
-t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
+t is the average of the per-row differences (field - field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 **`p_value`**
 
@@ -178,16 +178,16 @@ Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-
 
 **`details.mean_diff`**
 
-The average of Field - Field2 over complete pairs, in the field's own units.
+The average of field - field2 over complete pairs, in the field's own units.
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 **`details.ci_low`**
 
-Lower end of the confidence interval for the average difference (Field - Field2) at the 1 - alpha level (95% by default).
+Lower end of the confidence interval for the average difference (field - field2) at the 1 - alpha level (95% by default).
 
 **Caveats:**
 
@@ -195,7 +195,7 @@ Lower end of the confidence interval for the average difference (Field - Field2)
 
 **`details.ci_high`**
 
-Upper end of the confidence interval for the average difference (Field - Field2).
+Upper end of the confidence interval for the average difference (field - field2).
 
 **`details.effect_size.cohens_d`**
 
@@ -203,12 +203,12 @@ d_z: the average difference divided by the standard deviation of the differences
 
 **Sign:**
 
-- `+`: Field is larger than Field2 on average
-- `-`: Field2 is larger than Field on average
+- `+`: field is larger than field2 on average
+- `-`: field2 is larger than field on average
 
 **Caveats:**
 
-- No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when Field and Field2 correlate above 0.5 and smaller below it.
+- No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when field and field2 correlate above 0.5 and smaller below it.
 - Do not compare d_z directly with a two-group d; report the mean difference alongside it.
 - When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
 

@@ -310,7 +310,7 @@
         "operator": "ATTR_DATE_PART",
         "category": "attribute",
         "level": "basic",
-        "why": "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour. Fill in each placeholder in the draft before you run it.",
+        "why": "Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "attributes": [
@@ -417,4 +417,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 65d83ec8e9ac53dcbca67c9b8b4523b605c410f3177776514388b0f7b4f3e16e
+// golden-hash: 8b214ee626ba460af11c5df5872cc8d7bc3afd6aabf0800075ce2859e20ad355

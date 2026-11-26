@@ -13,7 +13,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Use when
 
-Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
+Draws datetime values on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.
 
 Questions it answers:
 
@@ -23,7 +23,7 @@ Questions it answers:
 Use something else:
 
 - `uniform_date` when only the calendar day matters.
-- `constant` when every row shares one timestamp.
+- `constant` when every row shares one datetime.
 
 ## Params
 

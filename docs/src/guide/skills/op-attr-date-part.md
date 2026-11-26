@@ -11,7 +11,7 @@ examples_tags: [time-series, feature-engineering, streaming-friendly]
 
 ## Use when
 
-Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.
+Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour.
 
 Questions it answers:
 

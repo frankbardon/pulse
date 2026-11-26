@@ -4,7 +4,9 @@ import "github.com/frankbardon/pulse/descriptor"
 
 // matrixPurposes is the Purpose registry for the MAT_* operators, keyed
 // by type. builtinPurposes assembles it with the other category maps.
-// Matrix operators are descriptive: they report figures, no p-values.
+// Matrix operators are descriptive: they report figures; only
+// MAT_CORRELATION and MAT_PARTIAL_CORRELATION add p-values, under
+// params.inference.
 // MAT_CORRELATION's and MAT_PARTIAL_CORRELATION's primaries are
 // standardised figures, so each carries an Interpretation (matrixInterpretations in interpretations_matrices.go);
 // MAT_COVARIANCE's is in the members' own units and declares none.
@@ -211,6 +213,7 @@ var purposeMatPartialCorrelation = descriptor.Purpose{
 		"Only straight-line links are removed and measured; a curved link to a held-fixed field leaves a trace.",
 		"A row with any member or control missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen, which can leave the input inconsistent; that input is refused unless it is repaired.",
 		"A field that is an exact straight-line mix of the others leaves nothing to compare, so the matrix is refused.",
+		"params.inference adds each pair's two-sided p-value and confidence interval; with many pairs, some fall below alpha by chance alone.",
 	},
 	Level:    descriptor.LevelAdvanced,
 	Glossary: []string{"partial-correlation", "correlation", "listwise-deletion", "pairwise-deletion", "multicollinearity"},
@@ -237,10 +240,11 @@ var purposeMatCorrelation = descriptor.Purpose{
 		{When: "you want each pair's link with other fields held fixed", Use: "MAT_PARTIAL_CORRELATION"},
 	},
 	Assumptions: []string{
-		"A row with any member missing is dropped from every cell (listwise deletion).",
+		"A row with any member missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen.",
 		"Each r reads only a straight-line link; a curved relationship can still be strong.",
 		"A few extreme rows can move an r a lot.",
 		"r is unit-free: each pair's co-moment divided by both members' spreads, the same arithmetic as TEST_PEARSON_R.",
+		"params.inference adds each pair's two-sided p-value and confidence interval; with many pairs, some fall below alpha by chance alone.",
 		"The spearman and kendall methods rank each member first, so they read any steady rise or fall, curved or not, and resist extreme rows; each cell is the TEST_SPEARMAN_R or TEST_KENDALL_TAU figure for its pair.",
 	},
 	Level:    descriptor.LevelIntermediate,
@@ -264,7 +268,7 @@ var purposeMatCovariance = descriptor.Purpose{
 		{When: "you want the spread of one field on its own", Use: "AGG_WELFORD"},
 	},
 	Assumptions: []string{
-		"A row with any member missing is dropped from every cell (listwise deletion).",
+		"A row with any member missing is dropped from every cell (listwise deletion) unless pairwise deletion is chosen.",
 		"Sample form by default: the squared deviations are divided by n - 1 (ddof 0 divides by n).",
 		"The figures depend on each field's units: a field in larger units gets larger entries.",
 	},

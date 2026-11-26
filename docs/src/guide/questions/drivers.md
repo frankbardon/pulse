@@ -27,8 +27,8 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | Use | In plain words | Level |
 |---|---|---|
 | [`AGG_AUC`](../catalog/aggregator.md#op-agg_auc) | How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. | intermediate |
-| [`AGG_MAE`](../catalog/aggregator.md#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. | intermediate |
-| [`AGG_MAPE`](../catalog/aggregator.md#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. | intermediate |
+| [`AGG_MAE`](../catalog/aggregator.md#op-agg_mae) | Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. | intermediate |
+| [`AGG_MAPE`](../catalog/aggregator.md#op-agg_mape) | Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. | intermediate |
 | [`AGG_RMSE`](../catalog/aggregator.md#op-agg_rmse) | Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. | intermediate |
 
 ### Attributes
@@ -43,7 +43,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 |---|---|---|
 | [`REG_OLS`](../catalog/regression.md#op-reg_ols) | Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. | intermediate |
 | [`REG_BAYES_LINEAR`](../catalog/regression.md#op-reg_bayes_linear) | Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. | advanced |
-| [`REG_GLM`](../catalog/regression.md#op-reg_glm) | Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. | advanced |
+| [`REG_GLM`](../catalog/regression.md#op-reg_glm) | Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts. | advanced |
 | [`REG_MMM_BAYES`](../catalog/regression.md#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | advanced |
 | [`REG_MMM_HILL`](../catalog/regression.md#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | advanced |
 | [`REG_MULTINOMIAL`](../catalog/regression.md#op-reg_multinomial) | Fits a model of an outcome with three or more categories (which plan, brand or channel), comparing each with a reference category. | advanced |
@@ -329,12 +329,12 @@ Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-
 
 **`collinearity.vif.*`**
 
-The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.
+The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. For a group of predictors (collinearity.groups, such as a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.
 
 **Caveats:**
 
 - No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.
-- It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.
+- It depends on the predictors (and, under the default basis model on a GLM, its fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.
 - A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.
 
 **`collinearity.tolerance.*`**

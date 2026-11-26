@@ -41,7 +41,7 @@ One derived field at `label` (default `SQRT_<field>`). Formula `sqrt(x)`.
 - `value`: The square root of the value: 4 reads 2, 100 reads 10, 10,000 reads 100. Large values are pulled in more than small ones, but less sharply than a log.
   - Caveat: A negative value has no real square root and reads missing, with no error raised; 0 reads 0.
   - Caveat: Between 0 and 1 the root is LARGER than the value (0.25 reads 0.5), so a field of fractions is stretched, not squeezed.
-  - Caveat: Averages, sums and differences of the transformed column are on the new scale: transforming them back does not give the average of the original values.
+  - Caveat: Averages, sums and differences of the transformed field are on the new scale: transforming them back does not give the average of the original values.
 
 ## Contract
 

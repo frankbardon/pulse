@@ -18,7 +18,7 @@ Draws numbers from a bell curve around a chosen centre and spread, optionally cl
 Questions it answers:
 
 - How do I generate realistic test scores that cluster around 70?
-- How do I make a numeric column with a known average and spread?
+- How do I make a numeric field with a known average and spread?
 
 Use something else:
 

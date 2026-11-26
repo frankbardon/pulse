@@ -210,6 +210,7 @@ var (
 				"Tools use different interpolation rules, so on small groups another tool can return a somewhat different value for the same percentile.",
 				"A percentile near 0 or 100 on a small group rests on one or two rows and moves a lot when they change.",
 				"A group with no value reads null, never 0.",
+				"With params.ordered or params.levels the value is the chosen level's dictionary index, a code rather than a magnitude, with no interpolation.",
 			},
 		},
 	}
@@ -310,7 +311,7 @@ var (
 		},
 		{
 			Field: "components.ci_lower",
-			Means: "The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.",
+			Means: "The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0: with ci_upper, the ranking power the data are consistent with at 95% confidence.",
 			Caveats: []string{
 				"Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.",
 				"The interval assumes independent rows; repeated rows of one customer make it too narrow.",

@@ -27,7 +27,7 @@ The Gini coefficient (accuracy ratio) 2 x AUC - 1: 0 is no discrimination and 1 
 
 #### `components.ci_lower`
 
-The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.
+The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0: with ci_upper, the ranking power the data are consistent with at 95% confidence.
 
 **Caveats:**
 
@@ -106,7 +106,7 @@ How heavy the tails are next to a normal distribution. Pulse computes the popula
 
 ### `AGG_MAE`
 
-Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mae).
+Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mae).
 
 #### `value`
 
@@ -123,7 +123,7 @@ The average size of the miss between prediction and actual, ignoring sign, in th
 
 ### `AGG_MAPE`
 
-Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mape).
+Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. See its [catalog entry](../catalog/aggregator.md#op-agg_mape).
 
 #### `value`
 
@@ -151,6 +151,7 @@ The value below which the requested share of the group's values fall, in the fie
 - Tools use different interpolation rules, so on small groups another tool can return a somewhat different value for the same percentile.
 - A percentile near 0 or 100 on a small group rests on one or two rows and moves a lot when they change.
 - A group with no value reads null, never 0.
+- With params.ordered or params.levels the value is the chosen level's dictionary index, a code rather than a magnitude, with no interpolation.
 
 <a id="op-agg_ratio"></a>
 
@@ -778,7 +779,7 @@ The share of records carrying this record's category, as a fraction between 0 an
 
 - The share is out of records WITH a category: records missing the field read missing and are left out of the total, so shares across categories add up to 1 among those records only.
 - Computed over every record of the cohort before any filter runs, so a filtered result still carries figures from the records it filtered out.
-- Two different categories with the same count get the same value, so the column cannot tell them apart.
+- Two different categories with the same count get the same value, so the field cannot tell them apart.
 - It is a share, not a count: the same category reads differently on a larger or smaller cohort.
 
 <a id="op-feat_log"></a>
@@ -798,9 +799,9 @@ The natural log of 1 + the value: ln(1 + x). 0 reads 0, e - 1 (about 1.72) reads
 
 **Caveats:**
 
-- A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.
+- A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the field.
 - The + 1 shift keeps 0 usable, but equal steps are equal ratios of 1 + x, not of x, and the shape depends on the units: on values much smaller than 1 the result is close to the value itself, on values much larger than 1 it is close to ln(x), so rescaling the field (dollars vs thousands) changes the shape of the result.
-- Averages, sums and differences of the transformed column are on the new scale: transforming them back does not give the average of the original values.
+- Averages, sums and differences of the transformed field are on the new scale: transforming them back does not give the average of the original values.
 - A missing input gives a missing output.
 
 <a id="op-feat_poly"></a>
@@ -811,15 +812,15 @@ Adds fields holding the value squared, cubed and so on up to a chosen power, so 
 
 #### `value.*`
 
-One column per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.
+One field per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 field; the original field is it.
 
 **Caveats:**
 
-- A single power column means little alone: the curve shows in a model's coefficients on x and its powers together, and those change when the field is centred first.
+- A single power field means little alone: the curve shows in a model's coefficients on x and its powers together, and those change when the field is centred first.
 - Powers of a raw field move almost in step with each other and with x, which makes a model's coefficients unstable; centre or standardise the field before expanding it.
 - Values grow fast: x = 100 to the power 10 is 1e20, and very large inputs can overflow to infinity rather than read missing.
-- Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared column.
-- A missing input gives a missing value in every power column.
+- Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared field.
+- A missing input gives a missing value in every power field.
 
 <a id="op-feat_sqrt"></a>
 
@@ -835,7 +836,7 @@ The square root of the value: 4 reads 2, 100 reads 10, 10,000 reads 100. Large v
 
 - A negative value has no real square root and reads missing, with no error raised; 0 reads 0.
 - Between 0 and 1 the root is LARGER than the value (0.25 reads 0.5), so a field of fractions is stretched, not squeezed.
-- Averages, sums and differences of the transformed column are on the new scale: transforming them back does not give the average of the original values.
+- Averages, sums and differences of the transformed field are on the new scale: transforming them back does not give the average of the original values.
 - A missing input gives a missing output.
 
 <a id="op-feat_target_encode"></a>
@@ -851,6 +852,6 @@ The average of the outcome field over the training records (params.fit_on, else 
 **Caveats:**
 
 - Target leakage without params.fit_on: every average includes the record's own outcome and the outcomes of validation and test records. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, and filtering to split 0 afterwards keeps the leaked figures; set fit_on to the training records (for example split == 0) so only they feed the averages.
-- A training record's average still holds its own outcome unless folds is set, so a model trained on the column looks better than it is: with folds k each training record reads the averages of the training records outside its fold, and every other record reads the full training averages. Smooth as well, since a category seen once encodes exactly its own outcome.
+- A training record's average still holds its own outcome unless folds is set, so a model trained on the field looks better than it is: with folds k each training record reads the averages of the training records outside its fold, and every other record reads the full training averages. Smooth as well, since a category seen once encodes exactly its own outcome.
 - Computed over every record of the cohort before any filter runs, so a filtered result still carries figures from the records it filtered out.
 - Only training records with both a category and an outcome count; a category with no such record reads the overall training average, a record missing the category reads missing, and so does a training record whose fold leaves no outcome outside it.

@@ -32,7 +32,7 @@ var featureInterpretations = map[string][]descriptor.Interpretation{
 const (
 	featWholeCohortCaveat = "Computed over every record of the cohort before any filter runs, so a filtered result still carries figures " +
 		"from the records it filtered out."
-	featNewScaleCaveat = "Averages, sums and differences of the transformed column are on the new scale: transforming them back does not give " +
+	featNewScaleCaveat = "Averages, sums and differences of the transformed field are on the new scale: transforming them back does not give " +
 		"the average of the original values."
 )
 
@@ -49,7 +49,7 @@ var (
 				"-": "the original value is between -1 and 0",
 			},
 			Caveats: []string{
-				"A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.",
+				"A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the field.",
 				"The + 1 shift keeps 0 usable, but equal steps are equal ratios of 1 + x, not of x, and the shape depends on the units: " +
 					"on values much smaller than 1 the result is close to the value itself, on values much larger than 1 it is close to ln(x), " +
 					"so rescaling the field (dollars vs thousands) changes the shape of the result.",
@@ -76,16 +76,16 @@ var (
 	interpFeatPoly = []descriptor.Interpretation{
 		{
 			Field: "value.*",
-			Means: "One column per power k from 2 up to the degree, named <prefix>_<k> (prefix is the label, by default <field>_poly), " +
-				"each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.",
+			Means: "One field per power k from 2 up to the degree, named <prefix>_<k> (prefix is the label, by default <field>_poly), " +
+				"each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 field; the original field is it.",
 			Caveats: []string{
-				"A single power column means little alone: the curve shows in a model's coefficients on x and its powers together, " +
+				"A single power field means little alone: the curve shows in a model's coefficients on x and its powers together, " +
 					"and those change when the field is centred first.",
 				"Powers of a raw field move almost in step with each other and with x, which makes a model's coefficients unstable; " +
 					"centre or standardise the field before expanding it.",
 				"Values grow fast: x = 100 to the power 10 is 1e20, and very large inputs can overflow to infinity rather than read missing.",
-				"Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared column.",
-				"A missing input gives a missing value in every power column.",
+				"Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared field.",
+				"A missing input gives a missing value in every power field.",
 			},
 		},
 	}
@@ -103,7 +103,7 @@ var (
 				"The share is out of records WITH a category: records missing the field read missing and are left out of the total, " +
 					"so shares across categories add up to 1 among those records only.",
 				featWholeCohortCaveat,
-				"Two different categories with the same count get the same value, so the column cannot tell them apart.",
+				"Two different categories with the same count get the same value, so the field cannot tell them apart.",
 				"It is a share, not a count: the same category reads differently on a larger or smaller cohort.",
 			},
 		},
@@ -118,7 +118,7 @@ var (
 				"Target leakage without params.fit_on: every average includes the record's own outcome and the outcomes of validation and test " +
 					"records. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, and filtering to split 0 afterwards keeps the " +
 					"leaked figures; set fit_on to the training records (for example split == 0) so only they feed the averages.",
-				"A training record's average still holds its own outcome unless folds is set, so a model trained on the column looks better " +
+				"A training record's average still holds its own outcome unless folds is set, so a model trained on the field looks better " +
 					"than it is: with folds k each training record reads the averages of the training records outside its fold, and every other " +
 					"record reads the full training averages. Smooth as well, since a category seen once encodes exactly its own outcome.",
 				featWholeCohortCaveat,

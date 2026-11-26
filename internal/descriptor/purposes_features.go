@@ -282,8 +282,8 @@ var (
 			"Each share is the ratio times the record count, rounded; with stratify it is applied within each category.",
 			"The same seed on the same records in the same order gives the same labels; adding or reordering records reshuffles them.",
 			"In temporal mode records sharing an order value always land in the same set, and a record with no order value lands in none (its label is missing).",
-			"The split does not isolate other features: frequency encoding, target encoding and equal-count bucketing in the same request still learn from test rows, " +
-				"so build those from the train rows in a separate request.",
+			"The split does not isolate other features: frequency encoding and equal-count bucketing in the same request still learn from test rows, " +
+				"so build those from the train rows in a separate request; target encoding learns from them too unless params.fit_on picks the train rows.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"overfitting"},

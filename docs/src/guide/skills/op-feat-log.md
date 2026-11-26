@@ -36,7 +36,7 @@ One derived field at `label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 +
 
 - `value`: The natural log of 1 + the value: ln(1 + x). 0 reads 0, e - 1 (about 1.72) reads 1, 9 reads about 2.3 and 99 about 4.6; each step of about 0.69 is a doubling of 1 + x, so equal steps are equal ratios of 1 + x, not equal amounts.
   - Sign: positive means the original value is above 0; negative means the original value is between -1 and 0.
-  - Caveat: A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.
+  - Caveat: A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the field.
   - Caveat: A missing input gives a missing output.
 
 ## Contract

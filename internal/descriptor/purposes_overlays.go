@@ -83,9 +83,10 @@ const (
 	// hand.
 	overlayCorrectWith = "set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) " +
 		"to add adjusted p-values beside the raw ones."
-	overlayWelfordInputs = "Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test " +
-		"uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / " +
-		"sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own " +
+	overlayWelfordInputs = "Cells should use AGG_WELFORD, which supplies each cell's mean, variance and n; any cell aggregator whose " +
+		"components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every cell " +
+		"(params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, " +
+		"required: there is no default). Those p-values describe the values you supplied, not each cell's own " +
 		"spread, and they change with the measure's units."
 	overlayDescriptiveZ = "It describes rather than tests: there is no p-value behind it, and a value of 2 or 3 is not a " +
 		"probability statement about the data."
@@ -468,7 +469,7 @@ var (
 			"Cells must count units (AGG_COUNT); an AGG_SUM cell runs but does not count units, and any other cell aggregation is refused.",
 			"Rows are the earlier state and columns the later one, over the same set of states, and every unit is counted once: the two answers are paired.",
 			"The null hypothesis is that for every pair of states, moves one way are as common as moves back; staying put (the diagonal) does not enter the test.",
-			"The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false.",
+			"The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false. With few moves set params.exact for an exact p-value.",
 		},
 		Level:   descriptor.LevelIntermediate,
 		KnownAs: []string{"mcnemar test", "bowker test", "test of symmetry"},
@@ -809,7 +810,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
+			"Group values should come from AGG_WELFORD, which supplies each group's mean, variance and n; any measure whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
@@ -840,7 +841,7 @@ var (
 			{When: "you want the size of the change rather than a p-value", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
-			"Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
+			"Group values should come from AGG_WELFORD, which supplies each group's mean, variance and n; any measure whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.",
 			"Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.",
 			"The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.",
 			"Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, " + overlayCorrectWith,
@@ -1260,7 +1261,7 @@ var (
 			{When: "you want the smoothed series itself as a column", Use: "WIN_MOVING_AVG"},
 		},
 		Assumptions: []string{
-			"The series must be ordered and params.window set. The first W points get no value while the window fills; a missing point does not advance the window.",
+			"The series must be ordered and params.window set. A point gets no value until W earlier points are present (params.min_periods lowers that); a missing point does not enter the window.",
 			"A short window reacts fast but is jumpy; a zero rolling mean gives no value and a warning.",
 		},
 		Level:    descriptor.LevelIntermediate,
@@ -1287,7 +1288,7 @@ var (
 		Assumptions: []string{
 			overlayDescriptiveZ,
 			"The standard deviation is the sample spread of the window (dividing by n - 1); a short window gives a jumpy one, and a trend or seasonality makes many points look unusual.",
-			"The series must be ordered and params.window set; points get no value until the window holds at least 2 values.",
+			"The series must be ordered and params.window set (at least 2); a point gets no value until W earlier points are present (params.min_periods, at least 2, lowers that).",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"outlier", "rolling-mean", "standard-deviation", "z-score"},

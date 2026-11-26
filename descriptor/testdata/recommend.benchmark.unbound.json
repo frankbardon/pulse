@@ -352,7 +352,7 @@
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "aggregations": [
@@ -388,7 +388,7 @@
         "operator": "AGG_MAPE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "aggregations": [
@@ -427,4 +427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e5bb0ea6775c9afa978b9455e1b8e26803958736681398393a58746cfaec5f2e
+// golden-hash: a9ca0e693f0d42fde4b7c162e2bc9e13f16c476c80afc42e955fce4a24cb2890

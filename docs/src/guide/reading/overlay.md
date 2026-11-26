@@ -45,7 +45,7 @@ The chi-square statistic for the whole crosstab, also in summary.statistic: the 
 **Caveats:**
 
 - Chi-square grows with the counts and with the number of cells, so it does not measure how strongly the categories are associated; read the p-value for the test and the cell values (or TEST_CHISQ's Cramer's V on raw rows) for strength.
-- No continuity (Yates) correction is applied.
+- No continuity (Yates) correction is applied unless params.correct is set (a 2x2 host only).
 
 #### `summary.statistic`
 
@@ -742,7 +742,7 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 **Caveats:**
 
 - Each cell holds the two-sided Welch t-test p-value comparing the target's mean in that cell with the reference's.
-- Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
+- Without a mean and a variance in the components (AGG_WELFORD or another moment-carrying measure) the overlay needs the variance and sample-size params, and is refused without them; the p-value then describes those values, not each cell's own spread.
 - Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 - The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is.
 
@@ -787,7 +787,7 @@ Welch t-test for every group of a grouped result in a Compose request: does the 
 **Caveats:**
 
 - Despite the field name, each series entry's summary.statistic holds that group's two-sided Welch t-test p-value, not a t value; Pulse does not emit t.
-- Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
+- Without a mean and a variance in the components (AGG_WELFORD or another moment-carrying measure) the overlay needs the variance and sample-size params, and is refused without them; the p-value then describes those values, not each cell's own spread.
 - Every group is a separate test and Pulse reports the p-values raw: with many groups some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.
 - The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is.
 
@@ -888,7 +888,7 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 **Caveats:**
 
 - Each cell holds the two-sided z-test p-value comparing the target's mean in that cell with the reference's, read from the normal curve; with small cells it comes out too small.
-- Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
+- Without a mean and a variance in the components (AGG_WELFORD or another moment-carrying measure) the overlay needs the variance and sample-size params, and is refused without them; the p-value then describes those values, not each cell's own spread.
 - Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 - The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is.
 
@@ -934,7 +934,7 @@ Large-sample z-test for every group of a grouped result in a Compose request: do
 
 - Despite the field name, each series entry's summary.statistic holds that group's two-sided z-test p-value, not a z value; Pulse does not emit z.
 - It is read from the normal curve, so with small groups it comes out too small.
-- Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
+- Without a mean and a variance in the components (AGG_WELFORD or another moment-carrying measure) the overlay needs the variance and sample-size params, and is refused without them; the p-value then describes those values, not each cell's own spread.
 - Every group is a separate test and Pulse reports the p-values raw: with many groups some small ones turn up by luck, so adjust for multiple comparisons: set multiplicity on the overlay and read summary.p_adjusted.
 - The layer does not report an effect size: read the gap itself (for example OVERLAY_DELTA_VS_REF) for how big a difference is.
 

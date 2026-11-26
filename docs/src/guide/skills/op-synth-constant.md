@@ -17,7 +17,7 @@ Puts the same value on every row, for a placeholder field or a fixed flag in a t
 
 Questions it answers:
 
-- How do I fill a column with the same country code?
+- How do I fill a field with the same country code?
 - How do I add a fixed version field to test data?
 
 Use something else:

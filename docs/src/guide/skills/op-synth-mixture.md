@@ -17,7 +17,7 @@ Draws from two or more bell curves blended by weight, for data with several peak
 
 Questions it answers:
 
-- How do I simulate a column with two separate peaks?
+- How do I simulate a field with two separate peaks?
 - How do I generate order sizes where small and bulk orders form distinct groups?
 
 Use something else:

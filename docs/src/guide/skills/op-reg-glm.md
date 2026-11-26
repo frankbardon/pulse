@@ -13,7 +13,7 @@ Fits ride `regressions[i]`; no `Response.Components`.
 
 ## Use when
 
-Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts.
+Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts.
 
 Questions it answers:
 
@@ -22,7 +22,7 @@ Questions it answers:
 
 Use something else:
 
-- `TEST_PROP_Z` when you only want to know whether a yes/no rate differs between two groups.
+- `TEST_CHISQ` when the outcome and the single predictor are both categories.
 
 ## Params
 

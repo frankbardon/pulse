@@ -11,7 +11,7 @@ examples_tags: [regression, compose]
 
 ## Use when
 
-Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row.
+Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row.
 
 Questions it answers:
 

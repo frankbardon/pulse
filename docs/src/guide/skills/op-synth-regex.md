@@ -18,7 +18,7 @@ Generates text matching a pattern, such as order codes like AB-1234, for realist
 Questions it answers:
 
 - How do I generate postcodes that look real?
-- How do I fill a SKU column with codes like SKU-00042?
+- How do I fill a SKU field with codes like SKU-00042?
 
 Use something else:
 

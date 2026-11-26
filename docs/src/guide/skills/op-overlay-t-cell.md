@@ -49,7 +49,7 @@ MATRIX — `payload.matrix.cells[r][c].value` = two-sided p-value (Student t, We
 
 - `cells.value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
   - Caveat: Each cell holds the two-sided Welch t-test p-value comparing the target's mean in that cell with the reference's.
-  - Caveat: Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
+  - Caveat: Every cell is a separate test and Pulse reports the p-values raw: with many cells some small ones turn up by luck, so before flagging cells adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 
 ## Contract
 

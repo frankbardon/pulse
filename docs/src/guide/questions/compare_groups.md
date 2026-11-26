@@ -217,7 +217,7 @@ t is the gap between averages measured in standard errors: the sample mean minus
 
 **Caveats:**
 
-- The two-sample form is Welch's: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number.
+- The two-sample form is Welch's by default: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number. Under params.variance pooled it is Student's t on n_a + n_b - 2 df, with the pooled variance in details.pooled_variance.
 
 **`p_value`**
 

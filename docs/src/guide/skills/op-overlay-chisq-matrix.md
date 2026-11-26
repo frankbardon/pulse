@@ -44,7 +44,7 @@ SCALAR — `payload.shape` `"scalar"`. `payload.scalar` carries χ²; the layer 
 ## Reading the output
 
 - `scalar`: The chi-square statistic for the whole crosstab, also in summary.statistic: the sum over cells of (observed - expected)^2 / expected, where expected is the count the row and column totals predict if the two fields were independent. 0 means the table matches that pattern exactly; how far above 0 is unusual depends on summary.parameters.df, so read summary.p_value rather than the raw value.
-  - Caveat: No continuity (Yates) correction is applied.
+  - Caveat: No continuity (Yates) correction is applied unless params.correct is set (a 2x2 host only).
 - `summary.statistic`: The same chi-square statistic as scalar.
 
 ## Contract

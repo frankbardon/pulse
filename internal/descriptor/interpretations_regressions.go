@@ -209,10 +209,10 @@ var interpRegCollinearity = []descriptor.Interpretation{
 	{
 		Field: "collinearity.vif.*",
 		Means: "The variance inflation factor of this term (requested by collinearity): how many times larger its coefficient's variance is than it would be if the term were unrelated to the other predictors. 1 means no overlap. " +
-			"For a group of columns (a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.",
+			"For a group of predictors (collinearity.groups, such as a one-hot block's dummies) it is the generalized VIF, the same idea for the group's coefficients jointly.",
 		Caveats: []string{
 			"No convention bands it. Cut-offs of 5 or 10 are rules of thumb only (O'Brien 2007): a large sample can make a high value harmless, a small one a modest value matter.",
-			"It depends on the predictors (and, on basis model of a GLM, the fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.",
+			"It depends on the predictors (and, under the default basis model on a GLM, its fitted weights), not on the outcome's values: it says how unstable the coefficients are, not whether a predictor matters.",
 			"A group's generalized VIF grows with its number of columns; compare groups of different size through gvif_scaled, not vif.",
 		},
 	},

@@ -251,6 +251,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"It rests on one row, so a single bad record sets it.",
+			"A categorical field is read only as ordered levels (params.ordered or params.levels); the result is then the lowest level's dictionary index, a code.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"outlier", "percentile"},
@@ -276,6 +277,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"It rests on one row, so a single bad record sets it.",
+			"A categorical field is read only as ordered levels (params.ordered or params.levels); the result is then the highest level's dictionary index, a code.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"outlier", "percentile"},
@@ -325,6 +327,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped; a group where no row has a value reads empty (null), never 0.",
 			"With an even number of values it is the halfway point between the two middle values.",
+			"A categorical field is read only as ordered levels (params.ordered or params.levels): the result is the middle level's dictionary index, a code, with no interpolation.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"median", "mean", "outlier", "percentile", "skew"},
@@ -651,7 +654,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped.",
 			"Population moment coefficient g1 (dividing by n): at small n it runs smaller in size than the adjusted G1 most packages print.",
-			"It is 0 when n is 0 or 1 or every value is the same.",
+			"It reads empty (null), never 0, when n is 0 or 1 or every value is the same.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"skew", "outlier", "median", "normal-distribution"},
@@ -675,7 +678,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped.",
 			"Population excess kurtosis g2 (dividing by n, minus 3): a normal shape scores 0, and at small n it differs from the adjusted G2 most packages print.",
-			"It is 0 when n is 0 or 1 or every value is the same.",
+			"It reads empty (null), never 0, when n is 0 or 1 or every value is the same.",
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"kurtosis", "normal-distribution", "outlier"},
@@ -725,7 +728,7 @@ var (
 			{When: "you want the range individual rows fall in, not the mean", Use: "AGG_PERCENTILE"},
 		},
 		Assumptions: []string{
-			"Rows are independent draws, unweighted.",
+			"Rows are independent draws; under a row weight the interval rests on the weighted base (frequency weights) or the effective sample size (probability weights).",
 			"Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.",
 			"Empty (NaN) when fewer than two rows have a value.",
 		},
@@ -750,7 +753,7 @@ var (
 			{When: "you want to test whether two group means differ", Use: "TEST_WELCH"},
 		},
 		Assumptions: []string{
-			"Rows are independent draws, unweighted.",
+			"Rows are independent draws; under a row weight the interval rests on the weighted base (frequency weights) or the effective sample size (probability weights).",
 			"Normal critical value (1.96 at 95%), not Student's t, so small groups, and strongly skewed fields even well past 30 rows, get an interval that is too narrow.",
 			"Empty (NaN) when fewer than two rows have a value.",
 		},
@@ -778,6 +781,7 @@ var (
 		Assumptions: []string{
 			"Missing values are skipped.",
 			"Linear interpolation between the two nearest sorted values, so the result may be a value no row holds.",
+			"A categorical field is read only as ordered levels (params.ordered or params.levels): the result is a level's dictionary index, a code, with no interpolation.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"percentile", "median", "outlier"},
@@ -826,7 +830,7 @@ var (
 		Assumptions: []string{
 			"Rows missing the value or the weight, or with weight 0, are left out of the average; when no row is left (or the weights add up to 0) " +
 				"it reads empty (null), never 0.",
-			"Negative weights are not refused and can make the result unstable.",
+			"Rows with a negative or non-finite weight are left out with a warning.",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"weighting", "mean", "effective-sample-size"},
@@ -837,7 +841,7 @@ var (
 
 var (
 	purposeAggMAPE = descriptor.Purpose{
-		Plain:   "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row.",
+		Plain:   "Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row.",
 		KnownAs: []string{"mean absolute percentage error"},
 		Intents: []string{IntentBenchmark, IntentDrivers},
 		Questions: []string{
@@ -889,7 +893,7 @@ var (
 	}
 
 	purposeAggMAE = descriptor.Purpose{
-		Plain:   "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row.",
+		Plain:   "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row.",
 		KnownAs: []string{"mean absolute error"},
 		Intents: []string{IntentBenchmark, IntentDrivers},
 		Questions: []string{

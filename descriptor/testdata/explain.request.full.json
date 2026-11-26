@@ -108,7 +108,8 @@
     ],
     "caveats": [
       "TEST_T: Rows are independent of each other, within and across groups.",
-      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances.",
+      "TEST_T: The two-group version uses Welch's correction, so the groups need not have equal variances; params.variance pooled runs Student's equal-variance form.",
+      "TEST_T: params.covariate adjusts for a numeric pre-period field (CUPED), which narrows the interval when it tracks the outcome; the adjusted figures replace the raw ones.",
       "TEST_T: The average is roughly normally distributed: safe for large groups, risky for small skewed ones.",
       "TEST_T: The p-value is two-sided: it looks for a difference in either direction."
     ]
@@ -116,4 +117,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a728a859ef3ab73dea37910a2d3d46230111624aeedb6611de76dc903bbf69cf
+// golden-hash: 951d1bee93cb48b53aa6b1d77c077a051fad29861ee55bdab903e3af1703bb15

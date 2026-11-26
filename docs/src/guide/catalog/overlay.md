@@ -800,7 +800,7 @@ Each point of an ordered series as an index value against the rolling mean of th
 
 **Assumptions:**
 
-- The series must be ordered and params.window set. The first W points get no value while the window fills; a missing point does not advance the window.
+- The series must be ordered and params.window set. A point gets no value until W earlier points are present (params.min_periods lowers that); a missing point does not enter the window.
 - A short window reacts fast but is jumpy; a zero rolling mean gives no value and a warning.
 
 **Use something else:**
@@ -1700,7 +1700,7 @@ Test of symmetry on a before-by-after crosstab of the same units: are moves betw
 - Cells must count units (AGG_COUNT); an AGG_SUM cell runs but does not count units, and any other cell aggregation is refused.
 - Rows are the earlier state and columns the later one, over the same set of states, and every unit is counted once: the two answers are paired.
 - The null hypothesis is that for every pair of states, moves one way are as common as moves back; staying put (the diagonal) does not enter the test.
-- The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false.
+- The p-value comes from the chi-square approximation, which needs about 10 or more moves in each pair of states; a warning flags pairs with fewer, and a 2x2 table applies a continuity correction unless params.correct is false. With few moves set params.exact for an exact p-value.
 
 **Use something else:**
 
@@ -1745,7 +1745,7 @@ Welch t-test for every crosstab cell in a Compose request: does the target's mea
 
 **Assumptions:**
 
-- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
+- Cells should use AGG_WELFORD, which supplies each cell's mean, variance and n; any cell aggregator whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.
 - The null hypothesis is equal means in the cell; the p-value is two-sided.
 - Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -1833,7 +1833,7 @@ Welch t-test for every group of a grouped result in a Compose request: does the 
 
 **Assumptions:**
 
-- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
+- Group values should come from AGG_WELFORD, which supplies each group's mean, variance and n; any measure whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. Equal variances are not assumed, and each mean should be roughly normal.
 - The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.
 - Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -1983,7 +1983,7 @@ How many standard deviations each point sits from the rolling mean of the previo
 
 - It describes rather than tests: there is no p-value behind it, and a value of 2 or 3 is not a probability statement about the data.
 - The standard deviation is the sample spread of the window (dividing by n - 1); a short window gives a jumpy one, and a trend or seasonality makes many points look unusual.
-- The series must be ordered and params.window set; points get no value until the window holds at least 2 values.
+- The series must be ordered and params.window set (at least 2); a point gets no value until W earlier points are present (params.min_periods, at least 2, lowers that).
 
 **Use something else:**
 
@@ -2050,7 +2050,7 @@ Large-sample z-test for every crosstab cell in a Compose request: does the targe
 
 **Assumptions:**
 
-- Cells must use AGG_WELFORD, which supplies each cell's mean, variance and n. Without it the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
+- Cells should use AGG_WELFORD, which supplies each cell's mean, variance and n; any cell aggregator whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every cell (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default). Those p-values describe the values you supplied, not each cell's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. It reads p from the normal curve, so with small cells the p-values come out too small.
 - The null hypothesis is equal means in the cell; the p-value is two-sided.
 - Every cell is a separate test, so with many cells some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.
@@ -2137,7 +2137,7 @@ Large-sample z-test for every group of a grouped result in a Compose request: do
 
 **Assumptions:**
 
-- Group values must come from AGG_WELFORD, which supplies each group's mean, variance and n. Without it the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
+- Group values should come from AGG_WELFORD, which supplies each group's mean, variance and n; any measure whose components carry a mean and a variance serves too. Without one the test uses one variance and n per side for every group (params variance_target / variance_ref / sample_size_target / sample_size_ref, or variance / sample_size for both sides, required: there is no default); those p-values describe the values you supplied, not each group's own spread, and they change with the measure's units.
 - Target and reference are separate, independent samples. It reads p from the normal curve, so with small groups the p-values come out too small.
 - The null hypothesis is equal means in the group; the two-sided p-value is carried in summary.statistic.
 - Each group is a separate test, so with many groups some small p-values turn up by luck; to adjust for multiple comparisons, set multiplicity on the overlay (holm or bonferroni hold the family-wise error, bh or by the false discovery rate) to add adjusted p-values beside the raw ones.

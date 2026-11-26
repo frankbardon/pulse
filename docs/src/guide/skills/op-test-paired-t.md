@@ -43,9 +43,9 @@ Use something else:
 
 ## Reading the output
 
-- `statistic`: t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
+- `statistic`: t is the average of the per-row differences (field - field2) measured in standard errors of that average. Values far from 0 in either direction are unlikely if the true average difference is zero.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
-- `details.mean_diff`: The average of Field - Field2 over complete pairs, in the field's own units.
+- `details.mean_diff`: The average of field - field2 over complete pairs, in the field's own units.
 
 ## Contract
 

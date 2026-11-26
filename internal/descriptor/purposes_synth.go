@@ -58,10 +58,10 @@ const (
 
 var (
 	purposeSynthUniform = descriptor.Purpose{
-		Plain:   "Draws numbers between a low and a high bound, every value equally likely, for flat filler columns or random noise.",
+		Plain:   "Draws numbers between a low and a high bound, every value equally likely, for flat filler fields or random noise.",
 		Intents: []string{IntentSimulate},
 		Questions: []string{
-			"How do I fill a test column with random numbers between 0 and 100?",
+			"How do I fill a test field with random numbers between 0 and 100?",
 			"How do I add flat random noise to a synthetic cohort?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -90,7 +90,7 @@ var (
 		Glossary: []string{"normal-distribution", "standard-deviation"},
 		Questions: []string{
 			"How do I generate realistic test scores that cluster around 70?",
-			"How do I make a numeric column with a known average and spread?",
+			"How do I make a numeric field with a known average and spread?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainSurvey:  "Synthetic satisfaction scores averaging 7 with a standard deviation of 1.5.",
@@ -116,7 +116,7 @@ var (
 		Intents:  []string{IntentSimulate},
 		Glossary: []string{"normal-distribution"},
 		Questions: []string{
-			"How do I simulate a column with two separate peaks?",
+			"How do I simulate a field with two separate peaks?",
 			"How do I generate order sizes where small and bulk orders form distinct groups?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -361,7 +361,7 @@ var (
 		Plain:   "Puts the same value on every row, for a placeholder field or a fixed flag in a test fixture.",
 		Intents: []string{IntentSimulate},
 		Questions: []string{
-			"How do I fill a column with the same country code?",
+			"How do I fill a field with the same country code?",
 			"How do I add a fixed version field to test data?",
 		},
 		UseCases: map[descriptor.Domain]string{
@@ -410,7 +410,7 @@ var (
 		Intents: []string{IntentSimulate},
 		Questions: []string{
 			"How do I generate postcodes that look real?",
-			"How do I fill a SKU column with codes like SKU-00042?",
+			"How do I fill a SKU field with codes like SKU-00042?",
 		},
 		UseCases: map[descriptor.Domain]string{
 			descriptor.DomainHarness: "Order references shaped like the production format, for a parser test.",
@@ -431,7 +431,7 @@ var (
 	}
 
 	purposeSynthUniformDate = descriptor.Purpose{
-		Plain:   "Draws calendar dates between a start and an end date, every day equally likely, both ends included.",
+		Plain:   "Draws calendar dates between a start and an end date, both ends included, every day equally likely unless month weights are set.",
 		Intents: []string{IntentSimulate},
 		Questions: []string{
 			"How do I spread synthetic orders across 2024?",
@@ -448,6 +448,7 @@ var (
 		Assumptions: []string{
 			"start and end are written as YYYY-MM-DD; end may equal start, which puts every row on that day, but may not come before it.",
 			"Dates before 1970-01-01 are allowed.",
+			"month_weights lists one weight per calendar month the range touches, start's month first, and scales every day of that month: a trend or a seasonal swing.",
 			synthOnItsOwn,
 			synthSeeded,
 		},
@@ -455,7 +456,7 @@ var (
 	}
 
 	purposeSynthUniformDateTime = descriptor.Purpose{
-		Plain:   "Draws timestamps on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.",
+		Plain:   "Draws datetime values on a local clock, weighted by weekday and hour like opening hours, in one time zone or each row's own.",
 		Intents: []string{IntentSimulate},
 		Questions: []string{
 			"How do I generate delivery times that follow each depot's local business hours?",
@@ -467,11 +468,12 @@ var (
 		},
 		NotFor: []descriptor.Alternative{
 			{When: "only the calendar day matters", Use: synth.DistUniformDate},
-			{When: "every row shares one timestamp", Use: synth.DistConstant},
+			{When: "every row shares one datetime", Use: synth.DistConstant},
 		},
 		Assumptions: []string{
 			"start and end are local calendar days written as YYYY-MM-DD, both included.",
 			"A weekday weight scales every such day in the range, so a 0 removes that weekday and over whole weeks the shares follow the weights.",
+			"month_weights lists one weight per calendar month the range touches, start's month first, and scales every day of that month: a trend or a seasonal swing.",
 			"A local time that a daylight-saving change skips or repeats stops the run unless dst_policy is earlier or later.",
 			synthOnItsOwn,
 			synthSeeded,

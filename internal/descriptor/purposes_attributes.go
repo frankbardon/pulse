@@ -61,7 +61,7 @@ const (
 
 var (
 	purposeAttrDatePart = descriptor.Purpose{
-		Plain:   "Adds a calendar part of a date or timestamp to every row, such as the year, the month, a year-month like 202403 or the hour.",
+		Plain:   "Adds a calendar part of a date or datetime field to every row, such as the year, the month, a year-month like 202403 or the hour.",
 		Intents: []string{IntentPrepare, IntentChangeOverTime},
 		Questions: []string{
 			"Which month of the year does each order fall in, so seasons can be compared across years?",

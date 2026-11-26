@@ -152,7 +152,7 @@
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "why": "Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "aggregations": [
@@ -188,7 +188,7 @@
         "operator": "AGG_MAPE",
         "category": "aggregator",
         "level": "intermediate",
-        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. Fill in each placeholder in the draft before you run it.",
+        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual field with a prediction field row by row. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "aggregations": [
@@ -300,7 +300,7 @@
         "operator": "REG_GLM",
         "category": "regression",
         "level": "advanced",
-        "why": "Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. Fill in each placeholder in the draft before you run it.",
+        "why": "Fits a generalized linear model: logistic for yes/no outcomes, Poisson or negative binomial for counts, gamma for positive skewed amounts. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
@@ -421,4 +421,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 570bb099adbe2d4809f253e08a95cb343a4cbaf9ac709b1401a897d39df28e84
+// golden-hash: d40ce295a3d460d14542c6c8d819c9b9c1c26eaffc87bc801fe7c6b360565f83

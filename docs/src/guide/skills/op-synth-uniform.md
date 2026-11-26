@@ -13,11 +13,11 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Use when
 
-Draws numbers between a low and a high bound, every value equally likely, for flat filler columns or random noise.
+Draws numbers between a low and a high bound, every value equally likely, for flat filler fields or random noise.
 
 Questions it answers:
 
-- How do I fill a test column with random numbers between 0 and 100?
+- How do I fill a test field with random numbers between 0 and 100?
 - How do I add flat random noise to a synthetic cohort?
 
 Use something else:

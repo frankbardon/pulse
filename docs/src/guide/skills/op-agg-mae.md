@@ -11,7 +11,7 @@ examples_tags: [regression, compose]
 
 ## Use when
 
-Average size of a prediction's miss in the actual's own units, comparing an actual column with a prediction column row by row.
+Average size of a prediction's miss in the actual's own units, comparing an actual field with a prediction field row by row.
 
 Questions it answers:
 

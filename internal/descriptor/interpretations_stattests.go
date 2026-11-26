@@ -10,8 +10,8 @@ import "github.com/frankbardon/pulse/descriptor"
 // Every reading states the test as Pulse computes it — see
 // internal/processing/test_*.go. In particular: two-group tests order
 // their groups alphabetically (Details.groups), so a positive signed
-// statistic means groups[0] is higher; paired tests difference Field −
-// Field2; every p-value is two-sided; bands come only from the
+// statistic means groups[0] is higher; paired tests difference field −
+// field2; every p-value is two-sided; bands come only from the
 // convention registry (conventions.go). Each details.* path declared
 // here is proved emitted, on every registered tier, by
 // internal/processing's interpretationProbes.
@@ -82,12 +82,12 @@ var (
 	// pairedRankSign signs the Wilcoxon family, whose rank statistic is
 	// a per-pair tendency (U08 statistics review S-11).
 	pairedMeanSign = map[string]string{
-		"+": "Field is larger than Field2 on average",
-		"-": "Field2 is larger than Field on average",
+		"+": "field is larger than field2 on average",
+		"-": "field2 is larger than field on average",
 	}
 	pairedRankSign = map[string]string{
-		"+": "Field tends to be larger than Field2",
-		"-": "Field2 tends to be larger than Field",
+		"+": "field tends to be larger than field2",
+		"-": "field2 tends to be larger than field",
 	}
 	correlationSign = map[string]string{
 		"+": "the two fields tend to rise together",
@@ -153,7 +153,8 @@ var (
 				"-": "the sample mean is below the target, or the second group in details.groups has the higher mean",
 			},
 			Caveats: []string{
-				"The two-sample form is Welch's: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number.",
+				"The two-sample form is Welch's by default: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number. " +
+					"Under params.variance pooled it is Student's t on n_a + n_b - 2 df, with the pooled variance in details.pooled_variance.",
 			},
 		},
 		interpPValue,
@@ -236,24 +237,24 @@ var (
 	interpTestPairedT = []descriptor.Interpretation{
 		{
 			Field: "statistic",
-			Means: "t is the average of the per-row differences (Field - Field2) measured in standard errors of that average. " +
+			Means: "t is the average of the per-row differences (field - field2) measured in standard errors of that average. " +
 				"Values far from 0 in either direction are unlikely if the true average difference is zero.",
 			Sign: pairedMeanSign,
 		},
 		interpPValue,
 		{
 			Field: "details.mean_diff",
-			Means: "The average of Field - Field2 over complete pairs, in the field's own units.",
+			Means: "The average of field - field2 over complete pairs, in the field's own units.",
 			Sign:  pairedMeanSign,
 		},
 		{
 			Field:   "details.ci_low",
-			Means:   "Lower end of the confidence interval for the average difference (Field - Field2) at the 1 - alpha level (95% by default).",
+			Means:   "Lower end of the confidence interval for the average difference (field - field2) at the 1 - alpha level (95% by default).",
 			Caveats: []string{"An interval that excludes 0 matches a p-value below alpha."},
 		},
 		{
 			Field: "details.ci_high",
-			Means: "Upper end of the confidence interval for the average difference (Field - Field2).",
+			Means: "Upper end of the confidence interval for the average difference (field - field2).",
 		},
 		{
 			Field: "details.effect_size.cohens_d",
@@ -261,7 +262,7 @@ var (
 			Sign:  pairedMeanSign,
 			Caveats: []string{
 				"No sourced bands apply to d_z: Cohen's 0.2 / 0.5 / 0.8 were set for gaps between independent groups. " +
-					"d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when Field and Field2 correlate above 0.5 and smaller below it.",
+					"d_z = d / sqrt(2(1 - r)), so it reads larger than a between-group d when field and field2 correlate above 0.5 and smaller below it.",
 				"Do not compare d_z directly with a two-group d; report the mean difference alongside it.",
 				cohensDOmitted,
 			},
@@ -577,7 +578,7 @@ var (
 			Means: "The normal score the p-value is read from, with a continuity correction of one half.",
 			Sign:  twoGroupSign,
 			Caveats: []string{
-				"The p-value always uses this large-sample approximation, even for small groups where an exact test would be more accurate.",
+				"The p-value uses this large-sample approximation unless params.exact asks for the exact one, which is more accurate for small groups.",
 			},
 		},
 		{
@@ -594,7 +595,7 @@ var (
 	interpTestWilcoxonSR = []descriptor.Interpretation{
 		{
 			Field: "statistic",
-			Means: "The smaller of the two signed-rank sums: rank the non-zero differences (Field - Field2) by size, " +
+			Means: "The smaller of the two signed-rank sums: rank the non-zero differences (field - field2) by size, " +
 				"add the ranks of the positive ones and of the negative ones, and keep the smaller. The smaller it is, the more one direction dominates.",
 			Caveats: []string{
 				"It carries no direction; read details.z or the rank-biserial for which field tends to be larger.",
@@ -611,7 +612,7 @@ var (
 		},
 		{
 			Field: "details.zero_diffs",
-			Means: "How many pairs had Field equal to Field2; they are dropped before ranking, and details.n counts only the pairs that remain.",
+			Means: "How many pairs had field equal to field2; they are dropped before ranking, and details.n counts only the pairs that remain.",
 			Caveats: []string{
 				"Many zero differences shrink the test to the pairs that changed; report how many were set aside.",
 			},
@@ -661,7 +662,7 @@ var (
 				"With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.",
 			Caveats: []string{
 				"Chi-square grows with the number of rows, so it does not measure the strength of the association: read Cramer's V.",
-				"No continuity (Yates) correction is applied, so on a 2x2 table the p-value is smaller than R's chisq.test default.",
+				"No continuity (Yates) correction is applied unless params.correct is set, so by default the p-value on a 2x2 table is smaller than R's chisq.test default.",
 			},
 		},
 		interpPValue,
@@ -746,7 +747,7 @@ var (
 			Means: "Lower end of the confidence interval for details.diff at the 1 - alpha level (95% by default).",
 			Caveats: []string{
 				"The interval uses the unpooled (Wald) standard error while the test uses the pooled one, so near the alpha boundary the two can disagree.",
-				"The Wald interval is poor with few successes or failures, or rates near 0 or 1.",
+				"The Wald interval is poor with few successes or failures, or rates near 0 or 1; for one rate against p0, params.interval wilson gives the score interval instead.",
 			},
 		},
 		{Field: "details.ci_high", Means: "Upper end of the confidence interval for details.diff."},

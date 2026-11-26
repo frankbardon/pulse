@@ -13,7 +13,7 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Use when
 
-Draws calendar dates between a start and an end date, every day equally likely, both ends included.
+Draws calendar dates between a start and an end date, both ends included, every day equally likely unless month weights are set.
 
 Questions it answers:
 
