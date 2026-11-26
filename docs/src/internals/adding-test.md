@@ -80,7 +80,7 @@ enforce that the manifest enumerates every registered test.
 
 ## 6. Skill update
 
-Write the atomic skill `skills/op-test-<kebab>.md`
+Write the atomic skill `skills/op-test-gini-trend.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
 (`.claude/reference/skill-pack.md`; copy `skills/op-test-t.md`):
 family, inputs, outputs (statistic, p, df, effect size, …), and any
 preconditions (the error codes it can raise). For tier-2 variants, also

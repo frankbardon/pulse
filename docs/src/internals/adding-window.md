@@ -82,7 +82,7 @@ single-row, null-bearing, and order-sensitive cases.
 
 ## 6. Write the atomic skill
 
-The gated target is the **atomic** skill `skills/op-win-<kebab>.md`, not a
+The gated target is the **atomic** skill `skills/op-win-percent-rank.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`), not a
 section in `skills/window-design.md` — `TestSkillsCoverAllWindowTypes` and
 `TestOperatorHasAtomicSkill` both key off that stem. Frontmatter `name:` must
 equal the file stem; `category: WIN`; `operator:` the full constant. The

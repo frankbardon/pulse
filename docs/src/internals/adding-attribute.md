@@ -64,7 +64,7 @@ names each with an exemplar line.
 
 ## 5. Skill and example
 
-Write the atomic skill `skills/op-attr-<kebab>.md` (`.claude/reference/skill-pack.md`;
+Write the atomic skill `skills/op-attr-gini-bucket.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`) (`.claude/reference/skill-pack.md`;
 copy `skills/op-attr-formula.md`) and add an
 `internal/examples/attributes/NN_<name>.json` example whose
 `_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`). Touch

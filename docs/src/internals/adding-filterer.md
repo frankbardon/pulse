@@ -111,7 +111,7 @@ names each with an exemplar line.
 
 ## 7. Skill and example
 
-Write the atomic skill `skills/op-filter-<kebab>.md`
+Write the atomic skill `skills/op-filter-regex.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
 (`.claude/reference/skill-pack.md`; copy `skills/op-filter-range.md`)
 and an `internal/examples/filterers/NN_<name>.json` example whose
 `_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`).

@@ -76,7 +76,7 @@ If the aggregator is online, also expect
 
 ## 5. Update the skill pack
 
-Write the atomic skill `skills/op-agg-<kebab>.md` (frontmatter, required
+Write the atomic skill `skills/op-agg-gini.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`) (frontmatter, required
 sections and token budget: `.claude/reference/skill-pack.md`; copy
 `skills/op-agg-sum.md` for the shape). `TestOperatorHasAtomicSkill`,
 `TestAtomicSkillHasRequiredSections` and `TestSkillTokenBudget` enforce

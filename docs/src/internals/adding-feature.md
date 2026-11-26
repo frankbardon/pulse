@@ -78,7 +78,7 @@ feature"` names each with an exemplar line.
 
 ## 6. Skill and example
 
-Write the atomic skill `skills/op-feat-<kebab>.md`
+Write the atomic skill `skills/op-feat-box-cox.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
 (`.claude/reference/skill-pack.md`; copy `skills/op-feat-log.md`) and an
 `internal/examples/features/NN_<name>.json` example whose
 `_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`). Touch

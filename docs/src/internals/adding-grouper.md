@@ -209,7 +209,7 @@ binding (`internal/mcp/bind.go`, `internal/mcp/toolmeta/meta.go`).
 
 ## 9. Skill and example
 
-Write the atomic skill `skills/op-group-<kebab>.md`
+Write the atomic skill `skills/op-group-decile.md` (the operator name lowercased, `_` → `-`: `skills.OperatorStem`)
 (`.claude/reference/skill-pack.md`; copy `skills/op-group-category.md`),
 add the grouper to the topical `skills/grouper-design.md` (bucket
 naming, streamability, cardinality bound), and add an
