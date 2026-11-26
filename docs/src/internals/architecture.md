@@ -17,12 +17,13 @@ adapter over it.
 - **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options` and
   the methods on `*pulse.Pulse` — `Process`, `Compose`, `Import`, `Export`,
   `Convert`, `Inspect`, `InspectBytes`, `Predict`, `PredictEnvelope`,
-  `PredictBytes`, `Sample`,
-  `Facet`, `CohortArtifacts`, …) is the public API. The CLI calls the
+  `PredictBytes`, `Sample`, `Facet`, `CohortArtifacts`, …; [Library
+  Overview](../library/overview.md) lists them) is the public API. The CLI calls the
   library; it never contains business logic.
 - **A deliberate public surface.** Only the root package and a small set of
   "noun" packages (`types`, `errors`, `encoding`, `descriptor`, `io`, `synth`,
-  `mcp/gosdk`, `mcpserve`, `extend`) are importable.
+  `mcp/gosdk`, `mcpserve`, `extend`, `linalg`, `observe`, `optimize`,
+  `mcmc`) are importable.
   The engine, the adapters, the MCP core and every support package live under
   `internal/`. `TestPublicAPIGolden` freezes the exported shape; see
   [Package Layout](packages.md).
@@ -33,7 +34,7 @@ adapter over it.
 - **Skill-augmented.** `internal/skills/` embeds the markdown skill pack into
   the binary via `//go:embed`. Agents load it through the MCP skill tools and
   the `pulse-skill://` resources, and discover the rest of Pulse's
-  capabilities via `pulse manifest --json`.
+  capabilities via the manifest (`pulse --json`, `pulse_manifest`).
 - **Embedder-first, consumer-agnostic.** Pulse is a standalone engine with no
   dependency on any consumer. Library embedders are a first-class audience;
   harnesses discover Pulse through the manifest and the embedded skills.

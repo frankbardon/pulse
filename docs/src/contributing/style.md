@@ -40,8 +40,9 @@ These are enforced by non-skippable CI gates:
 | `internal/descriptor/` MUST NOT import `internal/service/` or `internal/processing/` | `TestPredictNoExecutionImports` |
 | `descriptor/` + `internal/descriptor/` MUST NOT use `fmt.Sprintf` for JSON construction | `TestDescriptorNoFmtSprintf` |
 | Golden files in `descriptor/testdata/` MUST NOT be hand-edited | `TestGoldensNotHandEdited` |
-| No predecessor-project string prefixes (legacy "Orbit" naming) in error codes or constants | `TestNoOrbitReferences`, `TestNoOrbitPrefix` |
-| `CLAUDE.md` MUST mention every `PULSE_*` env var, every non-skippable gate, the current `format_version` | `TestClaudeMd*` family |
+| No predecessor-project string prefixes in error codes or type constants | `TestNoOrbitPrefixes` (errors), `TestNoOrbitPrefix` (types) |
+| `CLAUDE.md` names the current `format_version` and stays under its size ceiling | `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdSizeBudget` |
+| Every `PULSE_*` env var has a row in [Options → Environment variables](../library/options.md#environment-variables) | `TestEnvVarsDocumented` |
 
 See the [Pull Request Process](pr-process.md) for how these surface
 during review.
@@ -60,9 +61,10 @@ during review.
 
 ## The Update Demand
 
-The single most important convention: if your code change ships without
-the corresponding `CLAUDE.md` and skill updates, CI will fail. The
-[Update Demand](../internals/update-demand.md) chapter is the
-authoritative table of triggers and the gates that enforce them. Read
+The single most important convention: a code change ships with its
+companions (skills, capability declarations, book pages, goldens) in
+the same PR, and most are gate-enforced. CLAUDE.md is not a companion.
+The [Update Demand](../internals/update-demand.md) chapter explains how
+to find them. Read
 it before opening a PR that touches a registered surface (new
 aggregator, new error code, new CLI flag, new field type, ...).

@@ -24,20 +24,14 @@ suspicious and probably wrong.
 
 ## 3. The Update Demand
 
-The single biggest source of "your PR was bounced" feedback. The full
-table lives in [The Update Demand](../internals/update-demand.md);
-the cliff-notes are:
-
-| Change category | Doc/skill update required in the same PR |
-|---|---|
-| Registered aggregator / attribute / filterer / grouper | The matching skill file + the operator capability table |
-| Registered window / feature / synth distribution / statistical test | Same — skill + capability file |
-| Error code (added / removed / renamed) | `errors/codes.go`, `errors/fixup_metadata.go` (`codeMetadata` Message + Fixups), `internal/descriptor/capabilities_errors.go` |
-| CLI leaf (added or flag added) | `make docs` (regenerates `docs/src/cli/reference.md`) + `skills/session-bootstrap.md` if user-facing |
-| `--json` envelope change | `CLAUDE.md` "Output Format Contract" |
-| `.pulse` file format change | `CLAUDE.md` "Byte-layout invariants" + `.claude/reference/byte-layout.md` + `skills/cohort-schema-design.md` |
-| New environment variable | The "Environment variables" table in `docs/src/library/options.md` + `skills/session-bootstrap.md` |
-| New structural gate | A row in [Testing → Structural gates](testing.md#structural-gates) + its `update-demand/gates*.md` slice |
+The single biggest source of "your PR was bounced" feedback. Every
+change ships with its companions (skills, capability declarations, book
+pages, regenerated goldens) in the same PR. Find them with
+`make sites`, then the trigger row: [The Update
+Demand](../internals/update-demand.md) explains both and lists the
+common companions. A new structural gate also takes a row in
+[Testing → Structural gates](testing.md#structural-gates) and prose in
+its `.claude/reference/update-demand/gates*.md` slice.
 
 If you find yourself wanting to defer the doc update to a follow-up
 PR, stop. The follow-up PR will not happen, and the next contributor
@@ -84,14 +78,16 @@ gates locally](testing.md#running-a-subset-of-gates-locally).
 
 - Use the bug-report or feature-request template as a starting point if
   applicable.
-- Fill in the PR template's "Summary" and "Test plan" sections.
+- Fill in the PR template's "Summary" and "Testing" sections.
 - Link related issues with `Closes #N`.
 - Do **not** push `--force` to `main`. Force-pushing your own feature
   branch is fine before review starts.
 
 ## 6. Review and CI
 
-CI runs the full suite (both test tiers) plus the structural gates listed in
+CI runs once, dispatched by hand on the finished branch ([When CI
+runs](local-ci.md#when-ci-runs)): the full suite (both test tiers) plus
+the structural gates listed in
 [Testing → Structural gates](testing.md#structural-gates).
 A failing gate means a structural invariant is broken, not a flaky
 test; fix the root cause rather than retrying.
@@ -104,9 +100,10 @@ commit may not exist or may have already been pushed.
 
 - Merge with a merge commit; squash merges are disabled so per-story
   commits keep their Conventional Commits subjects.
-- Once merged, the deploy workflow rebuilds and publishes this docs
-  site to <https://frankbardon.github.io/pulse/>.
+- Once merged, `.github/workflows/docs.yml` rebuilds and publishes this
+  docs site to <https://frankbardon.github.io/pulse/>.
 
-For changes that introduce a new architectural decision, also update
-the relevant section of `CLAUDE.md` and reference the PRD (if one
-exists) in the PR description.
+A change that introduces an architectural decision also updates the
+`.claude/reference/` file that owns the area (CLAUDE.md's Reference
+Docs table names it) and links the PRD, if one exists, in the PR
+description.

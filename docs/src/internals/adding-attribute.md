@@ -8,79 +8,81 @@
 operator — a per-record derived value computed from one or more cohort
 fields (z-score, formula, lookup, etc.).
 
-The recipe is the aggregator recipe with three swaps: a different type
-constant, a different registry, and a different skill file. The shape
-is otherwise identical.
+The recipe is the [aggregator recipe](adding-aggregator.md) with a
+different type constant, registry, interface and skill. `make sites
+ARGS="new-op attribute"` lists every table a new attribute lands in.
 
 ## 1. Declare the type constant
 
-Add the new constant to `types/types.go` and the slice returned by
-`types.AllAttributeTypes()`:
+Add the new constant to `types/types.go` and append it to the slice
+returned by `types.AllAttributeTypes()`:
 
 ```go
 const (
     // ... existing constants ...
     ATTR_GINI_BUCKET AttributeType = "ATTR_GINI_BUCKET"
 )
-
-func AllAttributeTypes() []AttributeType {
-    return []AttributeType{
-        // ... existing entries, alphabetised ...
-        ATTR_GINI_BUCKET,
-    }
-}
 ```
+
+Classify it in `AttributeType.Streamable()` (`types/streamability.go`)
+and add the row to `types/streamability_test.go`
+(`TestStreamability_AttributesKnown`).
 
 ## 2. Implement and register
 
-Implement the attribute in `internal/processing/`. Each attribute is a factory
-function registered in `attributeRegistry` (`internal/processing/registry.go`).
-Attribute factories return a closure with the signature
-`func(record encoding.RecordView) (any, error)`.
+Implement the attribute in `internal/processing/` (one
+`attribute_<name>.go` file) and register its `AttributeFactory` in
+`attributeRegistry` (`internal/processing/registry.go`). The factory
+returns an `AttributeComputer`, whose `Compute(records, field)` yields
+one value per record (`internal/processing/interfaces.go`). That is the
+buffered path. To stream, also implement one sibling interface:
 
-If the attribute can be evaluated row-at-a-time (the common case),
-that is all the implementation needs; the streaming Process path
-invokes the closure on every record.
+- `RowLocalAttribute` (`Row(record, field)`) when the value depends only
+  on the current row (`ATTR_FORMULA`, `ATTR_DATE_PART`);
+- `TwoPassAttribute` when it needs population statistics first
+  (`ATTR_ZSCORE`'s mean and standard deviation: a `PrePass`, then `Row`).
+
+An attribute that needs a sorted view of every value (`ATTR_PERCENTILE`)
+implements neither and runs buffered. The streamability class in step 1
+must agree.
 
 ## 3. Tests
 
-Write tests first in `internal/processing/attribute_test.go`. Run the suite,
-confirm informative failure, port the implementation until green.
+Write tests first (`internal/processing/attribute_<name>_test.go`). Run
+the suite, confirm an informative failure, then implement until green.
 
-## 4. Declare the capability metadata
+## 4. Declare the capability and the other per-operator tables
 
-Add a row to `internal/descriptor/capabilities_attributes.go` with the
-attribute's params, the field types it accepts as input, the type
-it emits, and any documentation strings.
-`TestManifestOperatorsComplete` enforces a capability row per registered
-attribute.
+Add a row to `internal/descriptor/capabilities_attributes.go` (params,
+accepted input types, emitted type); `TestManifestOperatorsComplete`
+enforces it. Every attribute also has an entry in `builtinFeatures`
+(`internal/descriptor/features.go`), `attributePurposes`
+(`internal/descriptor/purposes_attributes.go`),
+`internal/descriptor/interpretation_reading.go` and, when it takes a
+weight or refuses one, `internal/weighting/weighting.go`. `make sites`
+names each with an exemplar line.
 
-## 5. Update the attribute-composition skill
+## 5. Skill and example
 
-Add a section in `skills/attribute-composition.md` covering the new
-attribute's params, output column naming convention, and any caveats
-(NaN propagation, integer underflow, expr-runtime cost). The
-`TestSkillsCoverAllComponents` gate parses the skill body for the
-operator name.
+Write the atomic skill `skills/op-attr-<kebab>.md` (`.claude/reference/skill-pack.md`;
+copy `skills/op-attr-formula.md`) and add an
+`internal/examples/attributes/NN_<name>.json` example whose
+`_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`). Touch
+the topical `skills/attribute-composition.md` only when the attribute
+changes how attributes compose. CLAUDE.md is not a companion.
 
-## 6. Update CLAUDE.md
+## 6. Run the gates
 
-There is **no registered-attribute count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-attr-<kebab>.md`, the capability declaration in
-`internal/descriptor/capabilities_attributes.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
-names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
-
-## 7. Run the gates
+`make sites ARGS="op ATTR_GINI_BUCKET"` prints the full gate set and
+goldens. At minimum:
 
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllComponents
-go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./internal/processing/ -run TestAttribute
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestSkillsCoverAllComponents'
+go test -count=1 ./internal/descriptor/ -run 'TestManifestOperatorsComplete|TestBuiltinPurposes'
+go test -count=1 ./types/ -run TestStreamability_AttributesKnown
+go test -count=1 ./internal/processing/ -run TestAttribute
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
-The Update Demand row for attributes covers all of these in one PR;
-see [The Update Demand](update-demand.md).
+See [The Update Demand](update-demand.md).

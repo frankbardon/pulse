@@ -16,7 +16,7 @@ trying to figure out which CI gate to run locally before pushing.
 ## Running tests
 
 ```bash
-# Fast tier
+# Fast tier (make test adds the 1 s budget)
 go test ./...
 
 # Full suite: both tiers (see Running CI Gates Locally → Test tiers)
@@ -71,8 +71,8 @@ How to run the documentation checks and work their allowlists:
 | `TestUpdateDemandTableCovers`           | The Update Demand reference covers every registered component category |
 | `TestPerPackageCoverageFloors`          | The floor table `.github/coverage-floors.txt` is sound (real package dirs, 0..100, no duplicate); `make cover` / CI `coverage` measure against it |
 | `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
-| `TestSkillsCoverAll*`                   | Skill files mention every registered component, error code, distribution, CLI leaf, field type, MCP tool |
-| `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves (there is no `skills/index.json` — the `embed.FS` walk is the manifest) |
+| `TestSkillsCoverAll*`                   | Skill files mention every registered operator (components, regressions, matrix ops, overlays, windows), synth distribution, field type, CLI leaf, MCP tool and prompt; every operator declares a `Purpose`; every skill cross-reference resolves. Spread over `internal/skills`, `internal/descriptor`, `internal/integration` and `mcp/gosdk`: run `go test ./... -run TestSkillsCoverAll` |
+| `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves, or `mcp` (there is no `skills/index.json` — the `embed.FS` walk is the index) |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
@@ -81,7 +81,7 @@ How to run the documentation checks and work their allowlists:
 | `TestCanStreamRequest_RegressionMatrix` | Regression matrix on the exported `CanStreamRequest` helper |
 | `TestManifest*Complete`                 | Manifest enumerates every registered operator, test, distribution, MCP tool, error code |
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
-| `TestCodesHaveFixups`, `TestSkillsErrorCodeFixupsDocumented` | Each error code has a fixup template and the skill row to match |
+| `TestCodesHaveFixups`                   | Each error code has a `codeMetadata` Message and at least one Fixup (or `FixupNotApplicable`) |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 | `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Allowlist `internal/doccheck/allowlists/links.txt`, locked empty; `make linkcheck-external` checks http(s) links by hand |
 | `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and the generated `docs/src/cli/reference.md` carry the same leaves and, per leaf, the same flags (aliases included), plus the root's global flags, both directions; every flag the concepts page `docs/src/cli/flags.md` names is mounted somewhere; allowlist `cli-flags.txt`, locked empty |
@@ -126,12 +126,18 @@ the hash. After a legitimate change to the generator:
 
 ```bash
 go test ./descriptor/ -run 'Test.*Golden' -update
-go test ./descriptor/ -run TestGoldensNotHandEdited   # confirms the new hash sticks
+go test -count=1 ./descriptor/ -run TestGoldensNotHandEdited   # confirms the new hash sticks
 ```
+
+Other generators (public API, fingerprint, reference oracles, the
+guide) have their own commands: [Regenerating
+Goldens](../internals/regenerating-goldens.md).
 
 Never hand-edit a golden file — the gate will catch you.
 
 ## Adding a new gate
 
-If your change introduces a structural invariant, add a test for it and
-a row in the table above.
+If your change introduces a structural invariant, add a test for it, a
+row in the table above and prose in the matching
+`.claude/reference/update-demand/gates*.md` slice. A fast documentation
+check also joins `DOC_CHECKS` ([Documentation Checks](doc-checks.md)).

@@ -8,9 +8,10 @@
 operator — a per-record predicate that decides whether the row
 participates in the downstream aggregation / grouper / crosstab.
 
-The recipe mirrors the aggregator recipe; the filterer-specific moving
-parts are the predicate factory, the filter registry, and the universal
-floor for `Response.Components.Filterers`.
+The recipe mirrors the [aggregator recipe](adding-aggregator.md); the
+filterer-specific moving parts are the predicate factory, the filter
+registry, the filter precompute and the universal floor for
+`Response.Components.Filterers`.
 
 ## 1. Declare the type constant
 
@@ -23,13 +24,11 @@ const (
     FILTER_REGEX FiltererType = "FILTER_REGEX"
 )
 
-func AllFiltererTypes() []FiltererType {
-    return []FiltererType{
-        // ... existing entries, alphabetised ...
-        FILTER_REGEX,
-    }
-}
 ```
+
+Append it to `types.AllFiltererTypes()` and classify it in
+`FiltererType.Streamable()` (`types/streamability.go`, plus the
+`types/streamability_test.go` row).
 
 ## 2. Implement and register
 
@@ -40,7 +39,9 @@ that returns a `FiltererBuilder` — register it in `filtererRegistry`
 The builder produces a per-record `FilterFunc` that returns
 `(keep bool, err error)`. The streaming Process path invokes the
 filter func once per row; the buffered path invokes it once per
-materialised record.
+materialised record. A filterer whose verdict depends only on its
+field's value joins the per-entry precompute switch in
+`precomputeInputs` (`internal/processing/filter_precompute.go`).
 
 ## 3. Tests
 
@@ -63,28 +64,27 @@ Every registered filterer MUST declare a `ComponentSchema` on its
 capability row, with a `Mergeability` class
 (`Mergeable` / `Partial` / `None`).
 
-In v1 every built-in filterer is `Mergeable` with an empty
+Every built-in filterer is `Mergeable` with an empty
 operator-specific keys slice — the orchestrator fills the universal
 floor `{n_in, n_out, n_null_input}` from the filter pass's
-record-walker counters, and no per-filter extras are emitted today:
+record-walker counters, and no built-in emits per-filter extras:
 
 ```go
 {
     Name:            string(types.FILTER_REGEX),
     Category:        "filterer",
     Description:     "Keep records whose field matches the supplied regular expression.",
-    AcceptsTypes:    stringFieldTypes,
-    ComponentSchema: filterSchema(Mergeable),
+    AcceptsTypes:    tableAcceptsTypes(types.FILTER_REGEX),
+    ComponentSchema: filterSchema(descriptor.Mergeable),
 },
 ```
 
 The `filterSchema` helper prepends the universal floor automatically —
 do not list those keys in your `extra` slice. The interface
 `MetaFilterer` (`internal/processing`) exists for parity with
-`MetaAggregator` / `MetaGrouper` and leaves room for future per-filter
-specifics (`n_below` / `n_above` for FILTER_RANGE, per-value `n` for
-FILTER_INCLUDE / FILTER_EXCLUDE). When a built-in eventually
-implements it, declare the extra keys in `filterSchema(...)` and add
+`MetaAggregator` / `MetaGrouper`; no built-in implements it. A filterer
+that emits per-filter keys (say `n_below` / `n_above`) implements it:
+declare the extra keys in `filterSchema(...)` and add
 the `Components()` method on the filterer struct plus a compile-time
 sentinel:
 
@@ -99,30 +99,36 @@ skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/response-c
 extension-side parity lives in
 [Extension Points](extension-points.md).
 
-## 6. Update the aggregation-design skill
+## 6. The other per-operator tables
 
-Add a section in the filtering portion of `skills/aggregation-design.md`
-covering the new filterer's semantics, parameter shape, and the null-
-input contract.
+Every filterer also has an entry in `builtinFeatures`
+(`internal/descriptor/features.go`), `internal/descriptor/purposes_filterers.go`,
+`internal/descriptor/interpretation_reading.go`, the accepted-types
+table (`internal/fieldaccept/fieldaccept.go`) and the guide's
+`filtererShape` (`internal/guide/skeleton.go`: the value slot the
+filterer reads beside its field). `make sites ARGS="new-op filterer"`
+names each with an exemplar line.
 
-## 7. Update CLAUDE.md
+## 7. Skill and example
 
-There is **no registered-filterer count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-filter-<kebab>.md`, the capability declaration in
-`internal/descriptor/capabilities_filterers.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
-names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+Write the atomic skill `skills/op-filter-<kebab>.md`
+(`.claude/reference/skill-pack.md`; copy `skills/op-filter-range.md`)
+and an `internal/examples/filterers/NN_<name>.json` example whose
+`_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`).
+CLAUDE.md is not a companion.
 
 ## 8. Run the gates
 
+`make sites ARGS="op FILTER_REGEX"` prints the full gate set. At minimum:
+
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllComponents
-go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./internal/processing/ -run TestFilter
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestSkillsCoverAllComponents'
+go test -count=1 ./internal/descriptor/ -run TestManifestOperatorsComplete
+go test -count=1 ./internal/processing/ -run TestFilter
+go test -count=1 ./internal/service/ -run TestService_Process_FiltererComponents
+go test -count=1 ./types/ ./internal/fieldaccept/ ./internal/guide/
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
-The Update Demand row for filterers covers all of these in one PR;
-see [The Update Demand](update-demand.md).
+See [The Update Demand](update-demand.md).

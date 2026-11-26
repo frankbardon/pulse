@@ -13,11 +13,13 @@ both code paths via the `AllDistributions()` registry in `internal/synth`.
 
 ## 1. Implement in `internal/synth/`
 
-Add the distribution implementation in `internal/synth/` (the public `synth` package is an alias facade; re-declare a new `Dist*` constant there if embedders should spell it). Each distribution
-satisfies the package's distribution interface (per-field RNG +
-parameter validation + JSON marshalling). Register it in the
-`AllDistributions()` slice (`internal/synth`) so the generator surface enumerates
-it.
+Declare a `Dist*` kind constant in `internal/synth/distributions.go`,
+add it to `AllDistributions()` so the generator surface and the manifest
+enumerate it, and build its `sampler` in `buildSampler` (same file).
+Re-declare the constant in the public alias facade `synth/facade.go`
+(every built-in has one). A distribution that can feed a copula or
+profile reconstruction also needs its arms in `copula.go` /
+`profile.go`; `make sites ARGS="op <kind>"` on a neighbour shows them.
 
 ## 2. Capability declaration
 
@@ -56,22 +58,22 @@ Add the kind's name to the "Distribution registry" list in
 or model participation — the focused `skills/synth-*.md` skill that owns that
 topic (`synth-marginals`, `synth-correlations`, `synth-models`).
 
-## 4. Update CLAUDE.md
+## 4. Guidance
 
-There is **no registered-synth-distribution count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-synth-<kebab>.md`, the capability declaration in
-`internal/descriptor/capabilities_distributions.go`. Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+Add the kind's `Purpose` in `internal/descriptor/purposes_synth.go` and
+its reading entry in `internal/descriptor/interpretation_reading.go`
+(`.claude/reference/guided-analysis.md`). Load
+`.claude/reference/synthetic-data.md` before any `internal/synth` change.
+CLAUDE.md is not a companion.
 
 ## 5. Run the gates
 
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllSynthDistributions
-go test ./internal/descriptor/ -run 'TestManifestDistributionsComplete|TestDistributionParamsMatchManifest'
-go test ./internal/synth/...
+go test -count=1 ./internal/skills/ -run TestSkillsCoverAllSynthDistributions
+go test -count=1 ./internal/descriptor/ -run 'TestManifestDistributionsComplete|TestDistributionParamsMatchManifest|TestSkillParamsMatchManifest|TestSkillsCoverAllPurposes'
+go test -count=1 ./internal/synth/... ./synth/
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
 The Update Demand row for synth distributions covers all of these in

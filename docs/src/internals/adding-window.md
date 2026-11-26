@@ -24,19 +24,16 @@ const (
     WIN_PERCENT_RANK WindowType = "WIN_PERCENT_RANK"
 )
 
-func AllWindowTypes() []WindowType {
-    return []WindowType{
-        // ... existing entries, alphabetised ...
-        WIN_PERCENT_RANK,
-    }
-}
 ```
+
+Append it to `types.AllWindowTypes()`.
 
 ## 2. Implement and register
 
 Window operators live under `internal/processing/window/`. Each file is one
 operator; register the factory in the package's `init()` via the
-`register(types.WIN_X, newX)` call shape used by sibling files.
+`register(types.WIN_PERCENT_RANK, newPercentRank)` call shape used by
+sibling files (`lag.go`).
 
 The frame semantics — anchored vs sliding, lookahead vs lookback —
 are part of the operator's contract and ride in the operator's struct
@@ -56,7 +53,7 @@ fails for a window type without one.
 
 ## 3. Streamability — nothing to do
 
-No window operator streams today. `WindowType.Streamable()` in
+No window operator streams. `WindowType.Streamable()` in
 `types/streamability.go` is an unconditional `return false`, because every
 `WIN_*` operator needs a sort over the row set:
 
@@ -69,8 +66,7 @@ func (t WindowType) Streamable() bool {
 There is **no per-type case to add and no table row to write**.
 `TestStreamability_WindowsKnown` iterates `types.AllWindowTypes()` and asserts
 every constant answers `false`, so a new operator is covered the moment step 1
-lands. If a future window operator genuinely streams, that is when the method
-grows a `switch` and the test grows a table — not before.
+lands.
 
 ## 4. Capability declaration
 
@@ -91,8 +87,9 @@ section in `skills/window-design.md` — `TestSkillsCoverAllWindowTypes` and
 `TestOperatorHasAtomicSkill` both key off that stem. Frontmatter `name:` must
 equal the file stem; `category: WIN`; `operator:` the full constant. The
 required `##` sections are `## Params`, `## Inputs`, `## Output`,
-`## Gotchas`, `## See`, and the body budget is a hard 1,800 characters
-(the `op-*` tier; `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`).
+`## Gotchas`, `## See`, and the body has a hard budget (the `op-*` tier in
+`.claude/reference/skill-pack.md`; `TestAtomicSkillHasRequiredSections`,
+`TestSkillTokenBudget`).
 `## Params` is the one `| Name | Type | Default | Description |` table, one
 row per declared param (`partition_by` / `order_by` / `frame` may sit beside
 them), Default `(required)` / `—` / the declared value
@@ -102,23 +99,28 @@ Add the operator to `skills/window-design.md` only where the topical prose
 would otherwise be wrong (the frame-forbidden list, a family gotcha) — per-op
 detail belongs in the atomic file.
 
-## 7. Update CLAUDE.md
+## 7. The other per-operator tables
 
-There is **no registered-window count to bump** — CLAUDE.md forbids hardcoded
-component counts because the manifest is the source of truth. CLAUDE.md's
-Update Demand row for windows is generic over `internal/descriptor/capabilities_*.go`,
-so a new window operator normally needs no CLAUDE.md edit at all. Edit it only
-if the operator introduces a contract CLAUDE.md states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+Every window also has an entry in `builtinFeatures`
+(`internal/descriptor/features.go`), `internal/descriptor/purposes_window.go`
+and `internal/descriptor/interpretation_reading.go`, and an example in
+`internal/examples/windows/` (`NN_<name>.json`, plus its README row) whose
+`_meta.operators` names it (`TestEveryOperatorHasAnExampleTag`). `make sites
+ARGS="new-op window"` names each with an exemplar line. CLAUDE.md is not a
+companion.
 
 ## 8. Run the gates
 
+`make sites ARGS="op WIN_PERCENT_RANK"` prints the full gate set. At minimum:
+
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllWindowTypes
-go test ./internal/descriptor/ -run TestManifestOperatorsComplete
-go test ./internal/processing/window/...
-go test ./types/ -run TestStreamability_WindowsKnown
+go test -count=1 ./internal/skills/ -run 'TestSkillsCoverAllWindowTypes|TestOperatorHasAtomicSkill'
+go test -count=1 ./internal/descriptor/ -run 'TestManifestOperatorsComplete|TestSkillParamsMatchManifest'
+go test -count=1 ./internal/processing/window/... ./internal/windowparams/
+go test -count=1 ./internal/integration/ -run TestWindowRefusals_PredictMatchesRuntime
+go test -count=1 ./types/ -run TestStreamability_WindowsKnown
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/
+make docs
 ```
 
-The Update Demand row for windows covers all of these in one PR; see
-[The Update Demand](update-demand.md).
+See [The Update Demand](update-demand.md).

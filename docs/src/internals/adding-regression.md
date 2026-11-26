@@ -208,7 +208,7 @@ without a standard error gets a `null` interval. The complete slot table is in
 [Extension Points](extension-points.md#regression-model-regressions).
 
 **Refuse at predict with `Validate`.** A check your factory makes on the
-spec alone belongs in `Validate` instead, so `pulse predict` reports it:
+spec alone belongs in `Validate` instead, so predict reports it:
 
 ```go
 Validate: func(spec *types.RegressionSpec) error {

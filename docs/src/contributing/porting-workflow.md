@@ -47,17 +47,17 @@ refuses to come green, lean on the test rather than the
 implementation — porting often surfaces edge cases the source
 project handled implicitly.
 
-## 6. Update target skill and CLAUDE.md
+## 6. Update the companions
 
-Update the target skill file(s) per [The Update
-Demand](../internals/update-demand.md). Run the skill-coverage gates
-locally (see [Running CI Gates Locally](local-ci.md)). Update
-CLAUDE.md if the change touches a contract, env var, format version,
-or registered surface.
+Update the target skill file(s) and every other companion per [The
+Update Demand](../internals/update-demand.md). Run the skill-coverage
+gates locally (see [Running CI Gates Locally](local-ci.md)). CLAUDE.md
+is not a companion: contract detail goes in the `.claude/reference/`
+file that owns the area.
 
 ## 7. Predecessor-reference scrub
 
-Run the hygiene gate before opening the PR and confirm zero matches:
+Run the hygiene gate before opening the PR and confirm it passes:
 
 ```bash
 go test ./types/ ./errors/ -run TestNoOrbit

@@ -7,14 +7,14 @@ stage.
 `ProcessChain` (`pulse.ProcessChain`, `pulse_process_chain`,
 `pulse api process-chain`) executes a linear pipeline whose stages all
 pass one shared gate, `internal/mergegate.ChainRefusal`. The gate enforces that each stage
-emits a shape the next stage can consume; v1 admits mergeable operators
+emits a shape the next stage can consume; it admits mergeable operators
 only, and every mergeable built-in aggregator emits one `float64` per row.
 
 ## 1. Edit the shared gate
 
 Edit `internal/mergegate/gate.go`. `ChainRefusal` runs `MergeRefusal`
 (the merge rule `processing.CanMergeRequestWithExtensions` also
-delegates to) and, today, nothing else — no mergeable built-in emits a
+delegates to) and nothing else — no mergeable built-in emits a
 shape the next stage cannot read. Add a chain-specific branch after
 `MergeRefusal` when an operator is mergeable but its emit shape would
 break the synthesised `f64` / `categorical_u32` schema the next stage
@@ -74,9 +74,7 @@ between stages). Per-stage overlays continue to ride the universal
   call site sets `Index = &zero`, not `Index` unset. The downstream
   validator enforces "exactly one of Index / Name".
 - `OverlayRef.Stage` (in `types/overlay.go`) is the same `*StageRef`
-  — there is exactly one `StageRef` declaration in the codebase. The
-  legacy `OverlayStageRef` identifier is a type alias to `StageRef`
-  and is deprecated.
+  — there is exactly one `StageRef` declaration in the codebase.
 - `ChainResponse.Overlays []*OverlayLayer` reuses the universal
   `OverlayLayer` wrapper from `types/overlay.go` (one entry per
   `ChainRequest.Overlays` spec in matching index order).
@@ -93,8 +91,7 @@ Predict-time validation lives in `internal/descriptor/chain_overlay.go` —
 gate and emits:
 
 - `PULSE_OVERLAY_KIND_UNKNOWN` — anything outside
-  `OVERLAY_INDEX_VS_STAGE` / `OVERLAY_DELTA_VS_STAGE` is rejected
-  today.
+  `OVERLAY_INDEX_VS_STAGE` / `OVERLAY_DELTA_VS_STAGE` is rejected.
 - `PULSE_OVERLAY_REFERENCE_UNKNOWN` /
   `PULSE_OVERLAY_TARGET_UNKNOWN` — StageRef resolution failures.
   Same Index / Name / XOR / latest-stage-default contract the runtime
@@ -113,9 +110,9 @@ budget reshapes without re-parsing envelope details.
 ## 7. Run the gates
 
 ```bash
-go test ./internal/service/ -run TestChain
-go test ./internal/descriptor/ -run 'TestValidateChain|TestProcessChain'
-go test ./descriptor/ -run TestGoldensNotHandEdited
+go test -count=1 ./internal/mergegate/ ./internal/integration/ ./internal/service/ ./types/ -run 'TestChain'
+go test -count=1 ./internal/descriptor/ -run 'TestValidateChain|TestProcessChain'
+go test -count=1 ./descriptor/ -run TestGoldensNotHandEdited
 ```
 
 The Update Demand row for `ProcessChain` capability changes covers

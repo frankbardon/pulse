@@ -108,8 +108,8 @@ source (the skill, or `internal/docgen`). Then run `make docs`.
 
 `docs/book.toml` keeps the generated Analysis Guide and the coverage
 page out of the search index (`[output.html.search.chapter]`), and
-indexes by h2 section (`heading-split-level = 2`). The index measured
-9.2 MB this way, against 23.0 MB with every page indexed. mdBook warns
+indexes by h2 section (`heading-split-level = 2`); with every page
+indexed it would be more than twice the limit. mdBook warns
 when the index passes 10 MB, and that warning fails the `docs` job. If
 the index grows past the limit, exclude more generated pages or cut
 text. Do not remove the warning check.

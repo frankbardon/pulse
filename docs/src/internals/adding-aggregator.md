@@ -7,12 +7,11 @@
 **Audience:** Pulse internals contributors adding a new `AGG_*`
 operator.
 
-This page is a step-by-step recipe. The binding list of companions
-is CLAUDE.md's Update Demand table (aggregator row) and its long form,
-`.claude/reference/update-demand.md`; this is the human-readable
+This page is a step-by-step recipe. The binding list of companions is
+the operator row of the Update Demand
+(`.claude/reference/update-demand/operators-and-guidance.md`) plus
+`make sites ARGS="new-op aggregator"`; this is the human-readable
 walkthrough.
-
-> **From CLAUDE.md, The Update Demand (registered aggregator row) and `.claude/reference/update-demand.md`.**
 
 ## 1. Declare the type constant
 
@@ -27,7 +26,7 @@ const (
 
 func AllAggregationTypes() []AggregationType {
     return []AggregationType{
-        // ... existing entries, alphabetised ...
+        // ... existing entries; append ...
         AGG_GINI,
     }
 }
@@ -77,14 +76,13 @@ If the aggregator is online, also expect
 
 ## 5. Update the skill pack
 
-Add a section for the new aggregator in
-`skills/aggregation-design.md`. Cover when to use it, what its inputs
-and outputs look like, and any caveats (sort cost, memory, supported
-field types).
-
-The CI gate `TestSkillsCoverAllComponents` parses the skill body for
-the operator name; the section can live anywhere in the file as long
-as the name appears.
+Write the atomic skill `skills/op-agg-<kebab>.md` (frontmatter, required
+sections and token budget: `.claude/reference/skill-pack.md`; copy
+`skills/op-agg-sum.md` for the shape). `TestOperatorHasAtomicSkill`,
+`TestAtomicSkillHasRequiredSections` and `TestSkillTokenBudget` enforce
+it; `TestSkillsCoverAllComponents` requires the name in the pack. Add a
+line to the topical `skills/aggregation-design.md` when the operator
+changes which aggregator an agent should pick.
 
 ## 6. Declare the capability metadata
 
@@ -94,8 +92,8 @@ streamable hint. `TestManifestOperatorsComplete` enforces that every
 registered aggregator has a capability row.
 
 The capability row also carries the operator's `ComponentSchema` and
-`Mergeability` — both required for every registered aggregator since
-v0.20.0. The next section walks through both.
+its mergeability class, both required for every registered aggregator.
+The next section walks through both.
 
 ## 6a. Declare the `ComponentSchema` (Response.Components contract)
 
@@ -120,11 +118,11 @@ keys in your `extra` slice, the helper adds them:
     Name:          string(types.AGG_GINI),
     Category:      "aggregator",
     Description:   "Gini coefficient of the field across the input set.",
-    AcceptsTypes:  numericFieldTypesAnalyticsNoDecimal,
+    AcceptsTypes:  tableAcceptsTypes(types.AGG_GINI),
     EmitsTypeNote: "scalar float64 in [0, 1]",
     Streamable:    false,
-    ComponentSchema: aggSchema(None,
-        ComponentKey{Name: "sorted_n", Type: "int", Description: "Number of non-null values seen before the final sort."},
+    ComponentSchema: aggSchema(descriptor.None,
+        descriptor.ComponentKey{Name: "sorted_n", Type: "int", Description: "Number of non-null values seen before the final sort."},
     ),
 },
 ```
@@ -195,7 +193,7 @@ each prefix of shards completes; the decode arm via
 `mergeShardPartials`), then `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
-down the serial `scanIter` / `shardIter` path; both parallel paths gate on
+down the serial scan / `shardIter` path; both parallel paths gate on
 `internal/processing`'s `CanMergeRequestWithExtensions` (the built-in-only
 `CanMergeRequest` is its nil-registry case) and fall through cleanly when
 an entry is not flagged.
@@ -254,33 +252,44 @@ A bit-exact merge keys its partials by the row's GLOBAL record ordinal
 `MergeTree` shape, so a shard archive answers its single-file twin's
 bits (`aggregator_vector.go`, `block_merge.go`).
 
-## 7. CLAUDE.md and registered-component lists
+## 7. The other per-operator tables
 
-There is **no registered-aggregator count or list in CLAUDE.md to update** —
-CLAUDE.md never hardcodes registered counts; the manifest is the source of
-truth. The Update Demand operator row (`.claude/reference/update-demand/operators-and-guidance.md`)
-requires instead the atomic skill `skills/op-agg-<kebab>.md`, the capability declaration in
-`internal/descriptor/capabilities_aggregators.go` — and an `internal/examples/<dir>/*.json` example whose `_meta.operators`
-names the operator (`TestEveryOperatorHasAnExampleTag`). Edit CLAUDE.md only if the
-operator introduces a contract it states directly, and mind
-`TestClaudeMdSizeBudget` — long-form prose belongs in `.claude/reference/`.
+Every registered aggregator also has an entry in each of these tables;
+`make sites ARGS="new-op aggregator"` lists them with an exemplar line
+to copy, and each table's category gate fails until the entry exists:
 
-If the operator reads its field's value as a number, give it a row in
-the accepted-types table (`internal/fieldaccept`): predict and the
-runtime then refuse a categorical (its dictionary index) or a set
-column with `PULSE_FIELD_TYPE_UNSUPPORTED`, and its manifest
-`accepts_types` is `tableAcceptsTypes(...)`.
+| Table | File | Read first |
+|---|---|---|
+| `aggregatorClasses` (weight class) | `internal/weighting/weighting.go` | `.claude/reference/weighting.md` |
+| `builtinFeatures` (`op(...)` row, `Since`, dependency edges) | `internal/descriptor/features.go` | `.claude/reference/feature-profiles.md` |
+| `aggregatorPurposes`, and an Interpretation when the value needs reading | `internal/descriptor/purposes_aggregators.go`, `interpretation_reading.go` | `.claude/reference/guided-analysis.md` |
+| `aggregatorBytesTable` (memory estimate) | `internal/limits/aggregator_bytes.go` | — |
+| accepted-types row | `internal/fieldaccept/fieldaccept.go` | — |
+
+The accepted-types row matters when the operator reads its field's value
+as a number: predict and the runtime then refuse a categorical (its
+dictionary index) or a set field with `PULSE_FIELD_TYPE_UNSUPPORTED`,
+and the manifest's `accepts_types` comes from
+`tableAcceptsTypes(...)`.
+
+Add an `internal/examples/<dir>/*.json` example whose `_meta.operators`
+names the operator (`TestEveryOperatorHasAnExampleTag`). CLAUDE.md is
+not a companion and never carries a count; the manifest does.
 
 ## 8. Run the gates
 
+`make sites ARGS="op AGG_GINI"` prints the exact gate set (table-driven
+tests to extend, category gates, structural gates) and the goldens to
+regenerate. At minimum:
+
 ```bash
-go test ./internal/skills/ -run TestSkillsCoverAllComponents
-go test ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
-go test ./internal/processing/ -run TestRegistryStreamability
-go test ./...
+go test -count=1 ./internal/skills/ -run 'TestOperatorHasAtomicSkill|TestSkillsCoverAllComponents|TestSkillTokenBudget'
+go test -count=1 ./descriptor/ ./internal/descriptor/ -run 'TestManifest|TestPredict'
+go test -count=1 ./internal/processing/ -run 'TestRegistryStreamability|TestAggregatorRegistryComplete'
+go test -count=1 ./types/ ./internal/weighting/ ./internal/limits/ ./internal/examples/
+go test -count=1 ./descriptor/ -update && go test -count=1 ./descriptor/   # manifest + payload goldens
+make docs                                                     # the generated guide
 ```
 
-The full Update Demand row for aggregators says: atomic skill +
-capability declaration + an example tag + the existing test
-coverage. All of them ride in the same PR. See
+All companions ride in the same PR. See
 [The Update Demand](update-demand.md).
