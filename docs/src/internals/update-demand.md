@@ -10,7 +10,7 @@ next session reads stale docs and writes wrong code.
 
 1. **Run `sites`.** `make sites ARGS="op <TYPE>"` (an existing operator),
    `make sites ARGS="new-op <category>"` (a new one),
-   `make sites ARGS="slot <request|response> <name>"` or
+   `make sites ARGS="slot <request|compose|response> <name>"` or
    `make sites ARGS="fixture <stem>"` (an example fixture cohort) prints every file and
    declaration the change lands in, the gates to rerun and the goldens to
    regenerate. See [Finding Change Sites](finding-change-sites.md).
@@ -27,18 +27,22 @@ are regenerated with `make docs` or `-update`, never hand-edited.
 ## Common companions
 
 - **A registered operator** of any category: its atomic skill
-  `skills/op-<category>-<kebab>.md`, its capability declaration in
-  `internal/descriptor/capabilities_*.go`, an example tagged with it under
+  `skills/op-<kebab>.md` (the type in kebab case: `AGG_SET_UNION` →
+  `op-agg-set-union`, synth `normal` → `op-synth-normal`), its capability declaration in
+  `internal/descriptor/capabilities_*.go`, a `builtinFeatures` row in
+  `internal/descriptor/features.go`, an example tagged with it under
   `internal/examples/`, and `make docs`.
 - **An error code:** a `codeMetadata` entry in `errors/fixup_metadata.go` and an
   owner in `internal/descriptor/error_owners.go`.
 - **A CLI leaf:** `make docs`, which regenerates its section in `docs/src/cli/reference.md`.
-- **An MCP tool:** `skills/tool-<kebab>.md` and `internal/mcp/toolmeta/meta.go`.
+- **An MCP tool:** `skills/tool-<kebab>.md` (name minus `pulse_`),
+  `internal/mcp/toolmeta/meta.go` and a `builtinFeatures` row.
 - **An environment variable:** the table in
   [Options → Environment variables](../library/options.md#environment-variables).
 - **A field type or format change:** `skills/type-<kebab>.md`,
   `skills/cohort-schema-design.md` and `.claude/reference/byte-layout.md`.
-- **A `--json` envelope change:** `format_version` bumps only for a
-  backward-incompatible shape change; regenerate the payload-schema golden.
+- **A `--json` envelope change:** `format_version` is additive-only — a new
+  `data` field does not bump it, a rename or removal does; regenerate the
+  payload-schema golden.
 
 CLAUDE.md is not a companion: it carries only the rules every session needs.

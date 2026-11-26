@@ -120,7 +120,9 @@ of site is found by its shape:
 
 `slot request <name>` falls back to `types.ComposedRequest` when the
 name is not a `types.Request` field (`sweep`, `base`, `fits`, `banner`,
-`optimize`, `post_fit`); `slot compose <name>` asks for it directly.
+`compare`, `optimize`, `post_fit`, …); `slot compose <name>` asks for
+it directly, and is the only way to reach a name both roots declare
+(`overlays`, `multiplicity`, `return`, `params`).
 A name declared on neither root but on structs reachable from it (an
 item-level key such as `for_each`) reports every declaring field. A
 Compose-level slot also prints **Compose sites**, each found by shape:
@@ -251,7 +253,7 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   function — shows up only through the **Enumerators** section (callers
   of the registry function) or the category gates. Read the
   update-demand slice for the contract.
-- Whole-repo runners and call-site floors are found by shape (below):
+- Whole-repo runners and call-site floors are found by shape (above):
   an every-example runner that enumerates the library some other way
   (say through the facade's search), or a floor test that matches its
   callee by something other than a string literal, is missed.

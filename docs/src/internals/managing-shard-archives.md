@@ -5,11 +5,9 @@ multi-shard `.pulse` archive — a Zip64 store-only cohort that fans
 out across N standalone `.pulse` shards under union semantics.
 
 A shard archive is byte-distinct from a single-file `.pulse` cohort:
-the magic-byte dispatch at `pulse.Open` looks at the first four bytes
-and chooses single-file vs archive based on `PULSE` vs `PK\x03\x04`.
-Read-side commands (`pulse api process`, `pulse api compose`,
-`pulse api sample`, `pulse api facet`, `pulse inspect`, `pulse predict`)
-accept either transparently.
+`Pulse.Open` reads the first four bytes and chooses single-file
+(`PULS`) or archive (`PK\x03\x04`). Every read-side command
+(`pulse api *`, `pulse cohort inspect`, `pulse export`) accepts either.
 
 For the union semantics, per-shard cohesion, and the memory multiplier
 of read paths see the [Cohort schema design
@@ -90,7 +88,7 @@ one rule (`ValidateStructuralCohesion`).
 ### Default zone field
 
 A cohort's default per-row zone field (the `0x02` ZONE schema section,
-`import --zone-field`) is archive-wide: every shard is decoded under the
+`pulse import <format> --zone-field`) is archive-wide: every shard is decoded under the
 canonical schema, so every shard must declare the SAME default, or none.
 A shard that disagrees is refused by that same rule with
 `PULSE_SHARD_SCHEMA_MISMATCH` (`details.dimension: zone_field`) on
@@ -134,20 +132,17 @@ only payload rewritten. `SetWidening.From != To` is the test for "the
 archive moved"; the warning's `details.archive_widened` says the same.
 
 Only the rung dimension relaxes, and it relaxes by **order**, not by
-loosening a validator: `encoding.PlanSetWidening` now runs *before*
+loosening a validator: `encoding.PlanSetWidening` runs *before*
 `encoding.ValidateStructuralCohesion`, reconciles the rungs, and
-cohesion then runs over the reconciled schemas as strictly as ever. That
-matters because `pulse shard verify` calls the same validator, and an
-archive whose shards genuinely carry different strides is a corruption
-signature that must stay fatal there.
+cohesion then runs strictly over the reconciled schemas. `pulse shard
+verify` calls the same validator without the plan, so an archive whose
+shards genuinely carry different strides (a corruption signature) stays
+fatal there.
 
-**`pulse shard create` widens on the same conditions.** Refusing at seed
-while widening at add was an asymmetry with no defence: the same two
-files produced an archive when fed one after the other and an error when
-fed together. `Pulse.CreateShardArchive` therefore returns a
-`*CreateShardArchiveResult`, not a bare `error`, for the same reason
-`AddShard` returns a result — so the mandatory warning has nowhere to be
-dropped.
+**`pulse shard create` widens on the same conditions**, so the same
+files produce the same archive whether fed together or one at a time.
+`Pulse.CreateShardArchive` returns a `*CreateShardArchiveResult` (as
+`AddShard` returns a result) to carry the mandatory warning.
 
 The rewrite is atomic ([The rewrite contract](#the-rewrite-contract)),
 so a failure or crash mid-rewrite leaves the original archive
@@ -162,15 +157,15 @@ Added 20190122.pulse to q1_2019.pulse (now 4 shard(s))
 ```
 
 A union above `set_u256` has nowhere left to widen to and still fails
-with `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Categorical widths are
-untouched — a categorical's width is fixed at folder creation.
+with `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. Categorical widths never
+widen: a categorical's width is fixed by the canonical schema.
 
 `pulse shard verify` reports per-set-field width headroom so a widen is
 foreseeable before you pay for it.
 
 ### Grouped (`0x02`) shards
 
-Shards may be deduped cohorts (`pulse import --group`, `pulse dedup`).
+Shards may be deduped cohorts (`pulse import <format> --group`, `pulse dedup`).
 Every shard is decoded with the canonical schema, so an archive has ONE
 parent-group layout, and `create` / `add` share one merge rule
 (`internal/service/shard_groups.go`, `mergeShard`):
@@ -298,7 +293,7 @@ number of distinct values per shard for each `u32`, `u64`, `date`,
 `MaxEstimatedMemory`, predict and the run's pre-flight read them to bound
 a grouper's keys without touching a record (the sum of the shards'
 counts; see [Tuning Limits](../library/tuning-limits.md#the-memory-estimate)).
-Older readers ignore the trailer, and single-file cohorts carry nothing.
+Readers that predate the trailer ignore it; single-file cohorts carry nothing.
 
 - **Fresh vs carried.** Create counts every include (each is read twice:
   once to count, once to copy). Add counts the arriving shard and carries
@@ -409,7 +404,14 @@ keeps them in step through `add` and `remove`
   was and lists every per-shard sidecar in `invalidated_sidecars`.
 - `compact` copies shards raw, so the sidecars stay valid.
 
-## 6. Anchor syntax
+## 6. Remove and extract
+
+`pulse shard remove ARCHIVE BASENAME` rewrites the archive without one
+shard (see [The rewrite contract](#the-rewrite-contract)); `pulse shard
+extract ARCHIVE BASENAME` writes one shard's standalone `.pulse` bytes
+to stdout without changing the archive.
+
+## 7. Anchor syntax
 
 Anchor syntax `archive.pulse#shard.pulse` opens a single shard inside
 an archive as a one-shard cohort — useful for diagnostics, debugging,
@@ -456,7 +458,7 @@ as `PULSE_SHARD_DICT_WIDTH_OVERFLOW`; the stricter prefix-only
 validator (`PULSE_SHARD_DICT_DIVERGENCE`) is retained for the
 `pulse shard verify` strict path. The set-width auto-widen planner is
 `encoding.PlanSetWidening` and its executor is `internal/service/shard_widen.go`
-over E4-S1's `internal/encoding/widen.go` engine; `encoding.SetWidthHeadroomFor`
+over the `internal/encoding/widen.go` engine; `encoding.SetWidthHeadroomFor`
 feeds `verify`'s headroom report.
 
 ## Run the gates

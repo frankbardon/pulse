@@ -360,7 +360,7 @@ func (m *Matrix) Render() []byte {
 	b.WriteString("- **Slot rule.** In the mdBook and the Skill pack, a Request or Response slot counts only as a whole code span (`` `group_by` ``) or the qualified Go spelling (`Request.GroupBy`, `Response.Data`), never as a bare word in prose.\n")
 	b.WriteString("- **GoDoc** is present when the declaration carries a non-empty doc comment. A declaration inside a grouped `const` / `var` / `type` block also counts the group's doc comment and its own trailing line comment; a method on an alias resolves to the aliased type, a promoted method to the embedded type that declares it.\n")
 	b.WriteString("- **CLI help** is present for a leaf or a flag when it carries usage text (a flag on every command that mounts it); for an environment variable, when it appears verbatim in the help text.\n")
-	b.WriteString("- Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on a gap the shrink-only allowlist `internal/doccheck/allowlists/coverage.txt` does not name, and on an entry whose gap is closed.\n\n")
+	b.WriteString("- Each row kind declares its required columns. A required cell that is empty is a **gap**; `TestDocsCoverageNoGaps` fails on any gap: its allowlist `internal/doccheck/allowlists/coverage.txt` is locked empty (`TestDocsBaselinesEmpty`), so a gap closes only by documenting the identifier.\n\n")
 	b.WriteString("Legend: `yes` documented; **gap** required and missing; blank optional and missing; `—` not applicable.\n\n")
 	b.WriteString("| Row kind | Source of truth | Spelled as | mdBook | Skill pack | GoDoc | CLI help |\n|---|---|---|---|---|---|---|\n")
 	for _, k := range Kinds() {

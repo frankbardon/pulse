@@ -24,7 +24,7 @@ interfaces (`extend.Aggregator`, `extend.Grouper`, …), the read-only
 `extend.Record` / `extend.Rows` views and the per-category factory
 types. The operator engine itself (`internal/processing/...`) is not
 importable by embedders; `extend` imports only `encoding`, `types` and
-`errors` (`TestExtendImportBoundary`,
+`linalg` from the module, `errors` also allowed (`TestExtendImportBoundary`,
 `TestExtendImportBoundary_NoTransitiveEngine`), and no public root
 signature names an engine type (`TestRootSurfaceNamesNoProcessing`).
 Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`
@@ -89,7 +89,7 @@ operator reads the row weight the engine resolved for its slot — slot
   included), and an integer under `kind: frequency`. A row whose weight
   is invalid never reaches a WeightAware aggregator or tier-1 row test —
   it is excluded and counted (`n_weight_invalid`, one
-  `PULSE_WEIGHT_INVALID_ROWS` warning per weight column). A WeightAware
+  `PULSE_WEIGHT_INVALID_ROWS` warning per weight field). A WeightAware
   attribute owes every row a value, so it still receives such a row,
   with `Weight()` reporting false.
 - The factory sees the resolved weight on its spec (`spec.Weight.Spec()`
@@ -172,10 +172,14 @@ ext := pulse.Extensions{
     Features:    []pulse.FeatureRegistration{...},
     Tests:       []pulse.TestRegistration{...},
     MatrixOps:   []pulse.MatrixOpRegistration{...},
+    Regressions: []pulse.RegressionRegistration{...},
+    Overlays:    []pulse.OverlayRegistration{...},
     PostFits:    []pulse.PostFitRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
+    LabelTables:      map[string]pulse.LabelTable{...},
+    RangeTables:      map[string]pulse.RangeTable{...},
     ReferenceVectors: map[string]types.ReferenceVectorTable{...},
     Populations:      map[string]pulse.Population{...},
 
@@ -198,9 +202,8 @@ together; the first failure short-circuits `pulse.New` with a typed
 `pulse synth` / `Pulse.Synth` draw only from the built-in kinds the
 manifest lists under `synth_distributions`; there is no registration
 slot, no `SYNTH_*` extension prefix and no `extensions.synth_distributions`
-manifest key. (An earlier alpha carried an `Extensions.SynthDistributions`
-slot that reserved a name but could never sample; it was removed in U34.
-An authoring contract may arrive additively in a v1.x release.)
+manifest key. An authoring contract may arrive additively in a v1.x
+release.
 
 ## Naming policy
 
@@ -250,8 +253,8 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The nine operator categories plus expression functions and lookup
-tables cover everything `pulse.Options.Extensions` accepts. Field-input
+One subsection per `Extensions` field (label and range tables:
+[Label, Range and Lookup Tables](../library/tables.md)). Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
 sections below.
@@ -289,7 +292,8 @@ Declare every key the factory reads.
 
 **Declared values are typed and required-checked.** For a registration
 that declares params, every declared value is also checked against its
-`ParamMeta`, in all nine categories and before any operator code runs:
+`ParamMeta`, in every category (overlay kinds and post-fit operators
+included) and before any operator code runs:
 a value whose JSON type is not the declared `JSONType` (a JSON `null`
 included), or a `Required` param the slot omits (an absent `params`
 object included), is refused `PULSE_REQUEST_PARAM_INVALID` —
@@ -305,7 +309,7 @@ first, then a wrong type, then a missing `Required` param, then an
 `Default` is never filled in: the factory still applies it, exactly as
 on a request that omits the param. A JSON
 `number` covers integers and decimals alike; a factory that needs an
-integer still checks that itself. Because a request can now only reach
+integer still checks that itself. Because a request can only reach
 the factory with every `Required` param present and exactly one member
 of each `ExactlyOneOf` group, the `pulse.New` probe
 hands the factory a params object that satisfies the same declaration
@@ -351,7 +355,8 @@ Params: []pulse.ParamMeta{
 ```
 
 Pulse resolves it in the same pre-resolution pass as the built-in
-window params, in every one of the nine categories (a facet's
+window params, in each category from aggregator to regression (not
+overlay kinds or post-fit operators; a facet's
 filterers and a `MAT_DISTANCE` `params.between` grouper included), so
 your factory's own decode only ever receives a plain number: an
 integral value as a plain integer (it decodes into an `int` field),
@@ -465,8 +470,7 @@ margin class — the embedder-side sibling of
 (derivable from per-cell value + count) or `types.MarginIndependent`
 (set-valued state whose margin is neither a sum nor a re-scan). Any of
 the three admits the cell; omitted or `types.MarginRecompute` keeps the
-crosstab on the buffered arm, which is what every undeclared extension
-cell did before. The class gates ADMISSION only: the fused walk gives
+crosstab on the buffered arm. The class gates ADMISSION only: the fused walk gives
 every row, column, grand and cross-axis margin its own instance fed
 record by record through `UpdateRow`, exactly as it does for a built-in,
 so the class never changes a margin figure — an honest class is still
@@ -515,7 +519,7 @@ a null under the label, exactly like a built-in score of a null input
 — the row reads `null` in `Data`, a downstream aggregation skips it
 and counts it in `n_null`, a grouper buckets it nowhere. Without the
 interface, or when it reports false, a `NaN` stays an ordinary value
-(the aggregation folds it), byte-identically to before. Follow the
+(the aggregation folds it). Follow the
 built-ins' null-in, null-out rule: a null source cell scores null, not
 `0`. An attribute MAY declare a
 `ComponentSchema` + `ComponentsFunc` (`pulse.AttributeComponentsFunc`,
@@ -645,7 +649,7 @@ admitted as single-key.
 
 A registered grouper is also a `MAT_DISTANCE` `params.between`, judged
 like a built-in (its `vector` / `fields` by the member rules and handed
-to the factory as literal `Fields`; a `field` must name a schema column;
+to the factory as literal `Fields`; a `field` must name a schema field;
 no own `weight` or `tz`). No extra hook is needed: the engine buckets
 the rows with your buffered `Group` in one whole-set pass at finalize,
 so the spec is buffered and serial whatever `Streamable` declares, its
@@ -677,13 +681,11 @@ engine-only field-bound `KeyFor` from your `KeyForRow`, so your method
 always receives the real field name. The fused gate reads the
 DECLARATION: a crosstab axis grouper fuses iff its registration
 declares `Streamable=true` or `FansOut=true` (both probe-validated, so
-the keying sibling is guaranteed). This is a deliberate change — the
-gate used to probe the constructed value's interface, so a
-`Streamable=false` grouper implementing `KeyForRow` fused; it now runs
-the buffered crosstab arm, with identical output and only peak heap
-differing, because `pulse predict` (`PredictResult.CrosstabFusable`)
-can read only the declaration and both sides run one rule. Declare
-`Streamable=true` to keep such a grouper on the fused arm.
+the keying sibling is guaranteed). A `Streamable=false` grouper that
+implements `KeyForRow` anyway runs the buffered crosstab arm (identical
+output, higher peak heap), because predict
+(`PredictResult.CrosstabFusable`) can read only the declaration and both
+sides run one rule. Declare `Streamable=true` to put it on the fused arm.
 `Streamable=true` routes the grouped `Process` request onto the
 streaming path, driving `KeyForRow` / `KeysForRow` per row; the probe
 refuses a `Streamable=true` registration whose value implements
@@ -871,7 +873,7 @@ finalizer:
 
 - **Resolution.** A spec naming it resolves like a built-in one (shape,
   encoding, result name, members by the vector rules) with the
-  registration's `Accepts` narrowing the member column types
+  registration's `Accepts` narrowing the member field types
   (`PULSE_VECTOR_MEMBER_TYPE`; empty = the built-in member types, an
   element of a native vector reading as `f32` / `f64`). The engine
   decodes `params.missing`, `params.max_drop_share` and `params.fit`
@@ -1609,7 +1611,7 @@ shadow. The manifest lists each under `extensions.populations` (name,
 operator, basis, labels, n), predict binds the same names and labels,
 and a feature profile hiding `capability:models` registers none.
 
-## Component schemas (v0.20.0)
+## Component schemas
 
 `Response.Components` is the operator-keyed sibling payload that runs
 alongside `Response.Data`. Every aggregator, grouper, and filterer in
@@ -1906,7 +1908,7 @@ components-contract failures are listed in the table above.
 
 ## Manifest visibility and the extensions snapshot
 
-`pulse manifest --json` and `pulse_manifest` include a top-level
+`pulse --json` and `pulse_manifest` include a top-level
 `extensions` block whenever the host registered anything:
 
 ```json
@@ -2061,11 +2063,11 @@ omitting it hides it from all of them, and a spec naming it is refused
 
 ## Purpose and Interpretation (guidance metadata)
 
-Every registration — all nine operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
+Every operator registration (post-fit and overlay included) accepts an optional `Purpose *descriptor.Purpose`: the
 same plain-language guidance built-ins declare (what the operator is
 for, the intents it answers, when to reach for something else, its
-assumptions). A `TestRegistration` and a `RegressionRegistration`
-additionally accept `Interpretation []descriptor.Interpretation`,
+assumptions). A `TestRegistration`, `RegressionRegistration` and
+`OverlayRegistration` additionally accept `Interpretation []descriptor.Interpretation`,
 saying how to read each output field.
 
 ```go
@@ -2273,8 +2275,8 @@ only at run time. A registration may instead carry an opt-in, spec-only
 type SpecValidator[S any] func(spec *S) error
 ```
 
-`S` is the category's spec type. Today every one of the nine
-categories carries it, and so does an overlay kind — the same field and
+`S` is the category's spec type. Every category from aggregator to
+regression carries it, and so does an overlay kind — the same field and
 shape on each registration:
 
 | Registration | `S` | `details.slot` | `details.name` |
@@ -2332,8 +2334,8 @@ probe (a test not declaring `WeightAware`) included. A nil `Validate`
 accepts every spec, byte-identically to a registration without the
 field. One rule, `internal/extspec.Refusal`, formats the verdict for
 both sides; the parity gates are
-`TestExtensions_SpecValidatePredictMatchesRuntime` (all nine
-categories) and `TestExtensions_RegressionValidatePredictMatchesRuntime`.
+`TestExtensions_SpecValidatePredictMatchesRuntime` (aggregator
+through regression) and `TestExtensions_RegressionValidatePredictMatchesRuntime`.
 
 Predict and the runtime hand the hook the SAME spec — the one the
 factory receives, after the engine's rewrites (predict replays them on
@@ -2378,12 +2380,12 @@ resolves a vector itself.
 **Native vector members.** On a native `vec_f32` / `vec_f64` field the
 literal members are element names `emb[1]` .. `emb[dim]` (1-based),
 and the operator reads them through `Record.NumericValue` / `IsNull`
-like any column: `NumericValue("emb[k]")` resolves element `k` in place
+like any field: `NumericValue("emb[k]")` resolves element `k` in place
 (zero allocations per row), a `NaN` element and a null vector are a
 null member (`false`; `IsNull` true) — the rule every built-in vector
 consumer applies — so a native vector answers exactly as its
-scalar-column twin read through a virtual vector. The plain name is
-looked up first: a real column spelled `x[2]`, a name whose base is not
+scalar-field twin read through a virtual vector. The plain name is
+looked up first: a real field spelled `x[2]`, a name whose base is not
 a native vector, and an out-of-range or non-canonical `k` keep the
 ordinary lookup. `VectorValue("emb")` still returns the whole vector.
 
@@ -2397,7 +2399,7 @@ An **aggregator** reads a vector only when its registration declares
 `VectorInput: true` — otherwise a `vector` / `fields` on its slot is
 refused (`vector_not_accepted`), as for a built-in scalar aggregator.
 A vector-input aggregator follows the `AGG_VEC_MEAN` slot rules exactly:
-one of `vector` / `fields`, never `field`, numeric source columns only;
+one of `vector` / `fields`, never `field`, numeric source fields only;
 its factory receives the literal members in `spec.Fields` and the
 display label per member in `params.labels` (a named vector's labels,
 else the slot's `params.labels`, else the member names), with every
@@ -2655,7 +2657,7 @@ To let a built-in read one more type (or to refuse one it reads wrongly):
 2. Make the operator READ it correctly, and prove it: a test showing
    the figure over the new type equals the figure over a column holding
    the number it means (`TestQuantityReaders_TypeVerdicts` is the model).
-3. Update the operator's atomic skill (`skills/op-<category>-<kebab>.md`)
+3. Update the operator's atomic skill (`skills/op-<kebab>.md`)
    and regenerate the manifest golden; `make docs`.
 4. Run `TestFieldTypeAcceptance_PredictMatchesRuntime` (every operator ×
    every field type: predict == runtime == table, same code, once at
@@ -2757,14 +2759,13 @@ a v1.x release.
   `Lookup`-func table); it re-runs and atomically replaces it. Register a
   `Rows` table where reuse matters.
 
-## Migration recipe — pre-processing → registration
+## Registration instead of request rewriting
 
-Before extensions, the canonical pattern was for an embedder to
-rewrite the request before submitting it:
+Without an extension, an embedder rewrites each request before
+submitting it:
 
 ```go
-// Old: rewrite "adjustment" attribute into a formula with the
-// multiplier inlined.
+// Rewriting: inline the multiplier into a formula per request.
 req.Attributes = append(req.Attributes, &types.Attribute{
     Type:       types.ATTR_FORMULA,
     Field:      "score",
@@ -2772,11 +2773,11 @@ req.Attributes = append(req.Attributes, &types.Attribute{
 })
 ```
 
-With the extension API the request stays domain-named and the engine
+With a registration the request stays domain-named and the engine
 resolves the value at runtime:
 
 ```go
-// New: register the lookup once at startup.
+// Registration: register the lookup once at startup.
 pulse.New(pulse.Options{
     Extensions: pulse.Extensions{
         LookupTables: map[string]pulse.LookupTable{
@@ -2822,13 +2823,14 @@ ext := pulse.Extensions{
 
 | Stem | Frontmatter | Documents |
 |---|---|---|
-| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, `FILTER`, `GROUP`, `WIN`, `FEAT`, `TEST`, `MAT`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
+| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, … `OVERLAY`, `POSTFIT`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
 | `ext-<kebab>.md` | `kind: design`, no `operator:` / `category:`, optional `requires:` | a topic — how your operators fit a workflow |
 
 The frontmatter keys and the required `##` sections are the built-in
 pack's (`.claude/reference/skill-pack.md` in the repo): an atomic skill
 carries `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`
-(`## Components` is optional; the `<!-- generated: contract -->` marker
+(an `op-overlay-*` skill `## Host shape` instead of `## Inputs`;
+`## Components` is optional; the `<!-- generated: contract -->` marker
 renders the component keys from your registration). Only an `ext-*`
 skill may carry `requires:` — an atomic skill already follows its
 operator.
@@ -2848,7 +2850,7 @@ The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
 | `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
 | `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
 | `sections` | the family's required `##` headings |
-| `budget` | body (frontmatter, fence markers and generated-section markers stripped) within the built-in pack's tier for its stem prefix — `op-test-*` ≤ 2200, `op-reg-*` ≤ 3000, every other `op-*` ≤ 1800 bytes — and ≤ 6000 for `ext-*`; hard, exactly as for the shipped skills (one table, `skills.BodyBudget`); details carry `bytes` and `budget` |
+| `budget` | body (frontmatter, fence markers and generated-section markers stripped) within the built-in pack's byte budget for its stem prefix (`op-test-*`, `op-overlay-*`, `op-reg-*` and other `op-*` each have a tier; `ext-*` the topical budget); hard, exactly as for the shipped skills (one table, `skills.BodyBudget`); details carry `bytes` and `budget` |
 | `fence` | every `<!-- feature: … -->` fence closes and names a feature or registered operator |
 | `fence_coverage` | every operator, `<kind>:<name>` feature or feature-owned `pulse_*` tool the body names — your own other operators included — sits in a fence naming it, unless the skill goes whenever it is hidden (its own operator and that operator's `DependsOn`, transitively; a topical skill's `requires:`). The description may name none |
 | `see` | every backticked stem in `## See` is a skill the instance carries (built-in, virtual or yours) |
@@ -3007,7 +3009,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_DUPLICATE` | same name registered twice, or a label table / range table / population declared both programmatically and in its directory |
 | `PULSE_EXTENSION_STREAMABLE_MISMATCH` | declared streaming tier does not match factory interface |
 | `PULSE_EXTENSION_FANOUT_MISMATCH` | grouper `FansOut` disagrees with `extend.MultiKeyStreamingGrouper`, either direction |
-| `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test `Interpretation` is structurally invalid |
+| `PULSE_EXTENSION_PURPOSE_INVALID` | a `Purpose` breaks a guidance validity rule, or a test, regression or overlay `Interpretation` is invalid |
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
@@ -3035,8 +3037,8 @@ Fetch the Message + Fixup template for any of these via
 Naming-policy violations and probe failures are also enforced by the
 gates listed in [The Update Demand](update-demand.md) — any change to
 an extension registration's `ComponentSchema` (adding a registration,
-renaming a key, changing mergeability) MUST update this page and the
-CLAUDE.md Update Demand table in the same PR.
+renaming a key, changing mergeability) updates this page and the
+matching `.claude/reference/update-demand/` slice in the same PR.
 
 ## Related pages
 

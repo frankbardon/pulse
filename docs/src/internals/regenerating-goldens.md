@@ -1,12 +1,15 @@
 # Regenerating Goldens
 
 **Audience:** Pulse internals contributors after a legitimate change
-to a descriptor / manifest generator.
+to anything a golden pins: a descriptor / manifest generator, the
+generated book pages, a format fixture or an external-oracle grid.
 
-Golden files live in `descriptor/testdata/`. Each file ends with a
+The descriptor goldens live in `descriptor/testdata/` (manifest, payload
+schema, predict, inspect, explain, recommend). Each file ends with a
 `// golden-hash: <sha256>` line; `TestGoldensNotHandEdited` verifies
 the hash against the file's body. Hand-editing a golden file flips
-the hash and fails the gate.
+the hash and fails the gate. The sections below cover the goldens kept
+elsewhere and how each is regenerated.
 
 ## When regeneration is justified
 
@@ -92,22 +95,26 @@ Regenerate after any edit to those sources:
 make docs
 ```
 
-`make docs` runs `make docs-generate` — `go run ./cmd/pulse docs export
---out docs/src/guide` with `PULSE_LABEL_TABLES_DIR`,
-`PULSE_RANGE_TABLES_DIR`, `PULSE_LOOKUP_TABLES_DIR`, `PULSE_POPULATIONS_DIR`,
-`PULSE_TEMPLATES_DIR` and
-`PULSE_FEATURE_PROFILE` cleared (so a local `.env` cannot change the
-output), then `go run ./internal/tools/docsummary`, which splices the
-export's `SUMMARY.md` into the book's (title line dropped, paths
-prefixed `guide/`), then `go test ./internal/cli -run
-TestCLIReferenceCurrent -args -update-cli-reference`, which rewrites the
-[command and flag reference](../cli/reference.md) from the command tree,
-then `go test ./internal/cli -run
-TestDocsCoverageCurrent -args -update-coverage`, which rewrites the
-[documentation coverage matrix](../contract/coverage.md)
-(`docs/src/contract/coverage.md`; the same test holds it current) — and then `mdbook build docs`. On a current tree it
-changes nothing. `go test . -run TestDocsGeneratedCurrent -update`
-rewrites the same files without building the book.
+`make docs` runs `make docs-generate`, then `mdbook build docs`.
+`docs-generate` runs, with `PULSE_LABEL_TABLES_DIR`,
+`PULSE_RANGE_TABLES_DIR`, `PULSE_LOOKUP_TABLES_DIR`,
+`PULSE_POPULATIONS_DIR`, `PULSE_TEMPLATES_DIR` and `PULSE_FEATURE_PROFILE`
+cleared (so a local `.env` cannot change the output):
+
+1. `go run ./cmd/pulse docs export --out docs/src/guide`;
+2. `go run ./internal/tools/docsummary`, which splices the export's
+   `SUMMARY.md` into the book's (title line dropped, paths prefixed
+   `guide/`);
+3. `TestCLIReferenceCurrent -args -update-cli-reference` (`internal/cli`),
+   which rewrites the [command and flag reference](../cli/reference.md)
+   from the command tree;
+4. `TestDocsCoverageCurrent -args -update-coverage` (`internal/cli`),
+   which rewrites the [documentation coverage matrix](../contract/coverage.md).
+
+On a current tree it changes nothing. Each of the three pages has its own
+currency test; `go test . -run TestDocsGeneratedCurrent -update` rewrites
+only `docs/src/guide/` and the `SUMMARY.md` span, without building the
+book.
 
 Commit everything the export wrote, the `.pulse-docs-export` marker
 included: it lists the files the export owns, so the next export
@@ -141,10 +148,9 @@ the bytes an earlier binary wrote stay under test.
 (`go run ./testdata/sharding/build_fixtures.go` writes them) and
 `TestShardFixtures_MatchGenerator` fails when the committed bytes and the
 generator disagree. Unlike the `0x01` golden these are snapshots of the
-CURRENT writer: they once went stale across the nullable-flag
-schema-block change (a declared clean break) and stopped opening, with
-nothing noticing. Regenerate with the command above or
-`go test ./internal/shardfixtures/ -update`, then `git add -f` them
+CURRENT writer, so a deliberate writer change moves them. Regenerate
+with `go test ./internal/shardfixtures/ -update` (or the
+`build_fixtures.go` command), then `git add -f` them
 (`*.pulse` is gitignored). The two JSON envelopes beside them are pinned
 to live CLI output by `TestShardingSnapshots_MatchCLIOutput`
 (`go test ./internal/cli/ -run TestShardingSnapshots -update`).
@@ -266,28 +272,49 @@ TestFingerprint_Golden -update` on the arm64 dev host, never by hand).
 
 `testdata/strd/` vendors the 31 NIST Statistical Reference Datasets verbatim, pinned by `SHA256SUMS` (`TestStRD_FixturesIntact`). `strd_reference_test.go` runs each one through the public API and records the digits achieved (log relative error) in `testdata/strd/lre.json`. `TestStRD_DigitsMatchRecord` fails on any change, better or worse. After an intended accuracy change, run `go test -run TestStRD_DigitsMatchRecord -update`. That rewrites the record and its byte-identical copy `internal/descriptor/strd_lre.json`, which the book's NIST table is rendered from and Explain's operator mode (`pulse explain OP`) returns per operator. Then run `make docs` and review the digits in the diff. `TestStRD_AccuracyFloors` holds lower- and average-difficulty sets at 7 digits or more.
 
-### Multivariate goldens and their fixtures
+### The oracle scripts
 
-The same `make reference` run also sources
-`scripts/reference/gen_multivariate.R`, which writes the matrix-operator
-oracle as `mv_*.json` beside the primitives: rank correlation
-(Spearman, Kendall τ-b), partial correlation (`ppcor::pcor`,
-`corpcor::cor2pcor`), reliability (`psych::alpha`, ω from
-`psych::fa(nfactors = 1, fm = "minres")`), the one-factor minres solve,
-PCA (`eigen` / `prcomp`) with `psych::KMO` and `psych::cortest.bartlett`,
-collinearity (`car::vif`, `perturb::colldiag` uncentered-with-intercept
-and centered), `vcov(lm)` / `vcov(glm)` (binomial, poisson) and
-`Matrix::nearPD(corr = TRUE)`. Each case is unweighted and, where the
-method admits it, frequency- and probability-weighted under Pulse's one
-weighting rule (`stats::cov.wt`, frequency asserted equal to the
-`rep()`-expanded rows). Eigenvectors carry the `linalg` sign convention.
+`gen_reference.R` writes the primitives, then `source()`s one script per
+oracle family — `grep -n 'source(' scripts/reference/gen_reference.R`
+lists them in run order. Each script writes its `<name>.json` through
+the shared `write_golden()` and is runnable on its own:
 
-Extra packages, PINNED — the script refuses any other version, so a CRAN
-update cannot move a golden silently: `psych`, `car`, `ppcor`,
-`perturb`, `corpcor` and `Matrix` (exact versions and the install line
-are in the script header).
+```bash
+R_LIBS_USER=<lib> Rscript scripts/reference/gen_<name>.R internal/processing/testdata/reference
+```
 
-Fixtures live in `internal/processing/testdata/reference/fixtures/` as a
+then append the `// golden-hash:` footer as the Makefile's `reference`
+target does. Regenerate the one golden your change moves this way rather
+than rerunning all of `make reference`.
+
+**The script header is the contract.** Each header names the operator
+and R functions it pins, the pinned package versions (the script
+refuses any other) and how the figures are self-checked; read it before
+editing a case. The Go test that holds the operator to the golden, and
+its tolerance, are on the [How Pulse is validated](../guide/validation.md)
+page (or `grep -rln '<name>.json' --include='*_test.go' .`). The rules
+every script follows:
+
+- **The golden is the exact answer, not the stock function's stop.**
+  Where an R fitter stops early (IRLS deviance tests, BFGS, `uniroot`,
+  `theta.ml`), the script polishes to the fixed point (Newton on the
+  analytic gradient, a refit from the optimum) and keeps the stock
+  function's figure beside it as `r_*`, cross-checked at a looser
+  tolerance.
+- **Every figure is re-derived.** A script re-computes each figure from
+  its closed form (or a second route, such as `lm.fit` on an augmented
+  design or the KKT conditions) and stops on a mismatch.
+- **Frequency weights equal the expansion.** A frequency-weighted case
+  is asserted equal to its `rep()`-expanded fit.
+- **New cases never move old ones.** A block added later draws under its
+  own seed after every existing case and adds keys only, so a rerun
+  leaves existing rows unchanged (or moves their last digits, well
+  inside every tolerance).
+- **A failure means the operator is wrong.** Fix the Go side; regenerate
+  only to change the cases.
+
+The matrix-operator scripts' fixtures live in
+`internal/processing/testdata/reference/fixtures/` as a
 CSV (citation header, `%.17g` cells, empty = null) plus a `.pulse` twin
 that `make reference` writes with `go run ./internal/tools/refcohorts`:
 the vendored `attitude` (Chatterjee & Price 1977) and `mtcars`
@@ -301,677 +328,10 @@ GPL-package data. `mv_fixtures.json` records each fixture's source,
 citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
 when a CSV drifts from that record or a `.pulse` drifts from its CSV.
 
-### Assembled test outputs
-
-`make reference` also sources `scripts/reference/gen_test_outputs.R`,
-which pins whole `TEST_*` outputs rather than primitives:
-`test_anova_rm.json` (`aov` with an `Error(subj / cond)` stratum),
-`test_tukey_hsd.json` (`TukeyHSD`, with `p_adj` and `q_critical`
-refined on the studentized-range quadrature and R's own values kept as
-`r_*`), `test_trend.json` (Mann-Kendall from `cor.test` /
-`cor(method = "kendall")`, `Kendall::MannKendall` beside it),
-`test_ks.json` (`ks.test`'s own p in each regime — exact, exact
-with ties, asymptotic, both sides of the n₁·n₂ = 10000 switch; at full
-separation, where `ks.test`'s D rounds one ulp above 1 and it reports
-0, `psmirnov` at D = 1 with R's value kept as `r_p_value`),
-`test_kendall_tau.json` (ties),
-`test_pearson_r.json` (the Fisher-z interval),
-`test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5),
-`test_brown_forsythe.json` (`anova(lm(|x − median| ~ g))`; at zero
-within-group spread, where `lm`'s residuals are rounding noise, the
-exact closed form as `statistic_class` / `p_value_class` = `inf` /
-`nan`, `anova`'s own values kept as `r_*`) and
-`test_fisher_exact.json` (`fisher.test`'s p and conditional MLE odds
-ratio; `fisher.test` stops `uniroot()` at ~1.2e-4, so the estimate is
-re-solved in log(ψ) at `tol = 1e-15` with its own value kept as
-`r_estimate`; `estimate_class` `inf` at the top of the support, and
-empty-margin tables pin the helper only). Each case carries its
-inputs, so the `TestReferenceOracle_*` tests in
-`internal/processing/test_output_oracle_test.go`,
-`test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
-operator at relative `1e-10`.
-
-`scripts/reference/gen_test_anova_rm_mixed.R` (sourced last by
-`gen_reference.R`, its own seed, and runnable on its own) writes
-`test_anova_rm_mixed.json` for `TEST_ANOVA_RM` `incomplete: "mixed"`:
-the REML fit of `y ~ cond + (1 | subj)` and the Satterthwaite F / df /
-p computed in closed form on the dense matrices (the REML root bisected
-by `uniroot` at `tol = 1e-15`, the observed Hessian, lmerTest's
-`contestMD` ddf rule), with `lmerTest::anova`'s own figures — which
-carry its optimiser's and `numDeriv`'s error — kept as `r_lmertest_*`
-(the script stops beyond `1e-4`). The balanced case also records the
-classic `aov` F. `TestReferenceOracle_AnovaRMMixed` holds the operator
-to the golden at `1e-8` and to lmerTest at `1e-4`.
-
-`scripts/reference/gen_post_tests.R` (sourced after it, reusing its
-helpers) writes `test_post_nulls.json`: one case per post-test family
-whose rows hold nulls (`null` where R reads `NA`), the R figures at R's
-default NA handling (listwise), and an `expect` map from a result path
-(`statistic`, `details.comparisons.0.p_adj`, …) to R's value.
-`TestReferenceOracle_PostTestNulls` replays every family through its
-post-test, and `TestPostTwins_MatchRowVariant` holds each post twin
-equal to its row variant on the same data, both at relative `1e-10`
-(`internal/processing/test_post_oracle_test.go`).
-
-`scripts/reference/gen_unweighted_tests.R` (U64 E2-S1; base R +
-`jsonlite`, runnable on its own like `gen_vif.R`) writes the unweighted
-two-group and contingency goldens: `test_t.json` (`t.test` one-sample on
-`mu`, and two-sample with `var.equal = FALSE`, which every two-sample
-case runs as both `TEST_T` and `TEST_WELCH`; the `offset_*` cases sit
-at a common offset of 1e6 to 1e12 on a 2^-6 grid, so R runs on the exact
-deviations a − c, b − c rather than on levels whose means round to the
-offset's ulp), `test_z_two_sample.json`
-(`pnorm` / `qnorm` on the Welch standard error; R has no stock
-function; the same inputs), `test_chisq.json` (`chisq.test(correct = FALSE)`, since Pulse
-applies no Yates correction by default, with the corrected 2 × 2 figure
-kept as `r_yates_*`; plus the goodness-of-fit form `chisq.test(p =
-expected)`),
-`test_mann_whitney_u.json` (`wilcox.test(exact = FALSE, correct =
-TRUE)`, Pulse's default; on small untied samples R's default exact p
-is kept as `r_p_exact`, and `exact_p_value` is `wilcox.test(exact =
-TRUE)`, ties included), `test_kruskal_wallis.json` (`kruskal.test`,
-with H evaluated in deviation form Σ (S_g − n_g(N + 1)/2)² / n_g, which
-is exact on mid-ranks; `kruskal.test`'s own form cancels as H → 0, so
-its figures ride beside as `r_statistic` / `r_p_value`) and
-`test_prop_z.json` (`prop.test(correct = FALSE)`, z = sign(diff)·√X²;
-the one-proportion interval is Pulse's Wald interval on p − p0, with
-`prop.test`'s Wilson bounds kept as `r_wilson_*`, and `yates_*` /
-`r_yates_wilson_*` from `prop.test(correct = TRUE)`).
-`internal/processing/test_unweighted_oracle_test.go` replays each case
-through the operator's registered row test at relative `1e-10`, and
-`test_options_oracle_test.go` replays the opt-in options (U64 #644:
-`TEST_T` `variance: pooled` against `t.test(var.equal = TRUE)`, stored
-as `pooled_*`; `exact`, `correct` and `interval: wilson` against the
-figures above; `OVERLAY_CHISQ_MATRIX` `correct` on the same 2 × 2
-tables) at the same tolerance.
-
-### Regression outputs
-
-`scripts/reference/gen_ols_lm.R` writes `ols_lm.json`: unpenalised
-`REG_OLS` against `lm()` (coefficients, SE, t, p, `confint()`, R²,
-adjusted R², σ̂, df), plain and frequency-weighted (`lm()` on the
-`rep()` expansion), each case self-checked against the centered normal
-equations. One case puts the predictor on a 1e6 offset; stock `lm()`'s
-QR on the raw column misses `1e-10` there (adjusted R² off 1.1e-9), so
-that case is fitted on the exact shift `x − 1e6` and mapped back, with
-`lm()`'s raw figures kept as `r_*`. `gen_glm_irls.R` reads its SEs
-(dispersion 1 for binomial / poisson, the estimated dispersion for
-gamma) off a refit warm-started at the converged coefficients (glm's own
-SEs lag one IRLS update, ~5e-9); `gen_glm_gamma.R` writes
-`glm_gamma.json` the same way — gamma under `summary.glm`'s estimated
-dispersion (Pearson χ² / df.residual), t p-values, t intervals at 0.95
-and 0.90 and `vcov(glm)`, the dispersion self-checked against the
-Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`);
-`gen_glm_gamma_selection.R` writes `glm_gamma_selection.json` — R's
-`AIC(glm)` / `BIC(glm)` on every subset of three predictors (plain, the
-`rep()` expansion, `glm(weights = w*)` with BIC on log n_eff) and
-`step()`'s forward / backward / both final models on a fixture where the
-fixed-dispersion score diverges, self-checked against an exact-AIC
-greedy search (`TestReferenceOracle_GLMGammaAICMatchesR`,
-`TestReferenceOracle_GLMGammaSelectionMatchesStep`); and
-`gen_glm_penalty.R` / `gen_ols_penalty.R` run glmnet at `thresh` 1e-20 /
-1e-24, so `TestReferenceOracle_RegOLSMatchesLM`,
-`TestRegGLM_IRLSMatchesR`, `TestRegGLM_PenaltyMatchesGlmnet` and
-`TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
-hold every figure at relative `1e-10`.
-
-`scripts/reference/gen_glm_links.R` writes `glm_links.json`: the
-non-canonical `REG_GLM` links (binomial probit / cloglog, poisson
-identity / sqrt, gamma log / identity), unweighted plus a
-frequency-weighted case per family pinned to its `rep()`-expanded fit.
-Off the canonical link IRLS is Fisher scoring and converges only
-linearly, while glm's deviance test stops early (its coefficients sit
-~1e-9 off the MLE), so the script refits from `start = coef(m)` until
-the coefficients reach their fixed point (relative 1e-14). It pins
-coefficients, SEs, `vcov`, deviance, null deviance, `AIC`, dispersion,
-df and per row the fitted mean, working residual, `hatvalues` and
-`dffits`, plus `sandwich::vcovHC` HC0 / HC1 / HC3 SEs, each re-derived
-from its closed form (it stops on a mismatch). It needs `sandwich`
-3.1-3 and refuses any other R than 4.6.1.
-`TestReferenceOracle_GLMLinksMatchR` (`internal/processing/regression`)
-and `TestGLMLinks_BoundFitMatchesR` (root) hold it at relative `1e-9`.
-
-`scripts/reference/gen_glm_nb.R` writes `glm_nb.json`: the `REG_GLM`
-negative binomial family (NB2) with θ estimated on the log, sqrt and
-identity links, θ fixed (`glm(family = negative.binomial(1.7))`), a
-frequency-weighted case pinned to its `rep()`-expanded fit and an
-influence case. `glm.nb`'s own convergence is loose (`theta.ml` stops at
-a Newton step of eps^0.25 ≈ 1.2e-4 absolute, the alternation at a
-log-likelihood change of 1e-8), so the script runs `glm.nb`, then pushes
-the same alternation to its fixed point with MASS's own pieces
-(`glm.fit` under `negative.binomial(theta)` refitted from its optimum,
-`theta.ml` at eps 1e-12·θ) until β and θ move under 1e-13 relative,
-keeping the `glm.nb` fit as a 1e-5 cross-check. It pins coefficients,
-SEs and `vcov` at dispersion 1 (`summary.negbin`), θ, SE(θ), 2·loglik,
-AIC (θ counted when estimated), deviance, null deviance, df, per row the
-fitted mean, Pearson / deviance / working residuals and `hatvalues`,
-`sandwich::vcovHC` HC0 / HC1 / HC3, and on the influence case
-`rstandard` (both types), `cooks.distance` and `rstudent` / `dffits`
-with `family$dispersion <- 1` (`stats:::estDisp` is TRUE for a family
-whose dispersion slot is NULL, so on a bare negbin fit those two read
-the leave-one-out σ instead of `summary.negbin`'s φ = 1), each
-re-derived from its closed form. Three fixed-θ cases set the dispersion
-estimated (Pulse `dispersion: estimated`; log and sqrt links, one
-frequency-weighted against the `rep()` expansion, whose df is Σf − p′):
-`summary.glm`'s φ̂ = Pearson χ²/df, `vcov` and SEs scaled by it, t
-p-values, Wald-t intervals, and the influence measures on the bare
-`glm(negative.binomial(θ))` fit — `rstandard` / `cooks.distance` at φ̂,
-`rstudent` / `dffits` on the leave-one-out σ. It needs MASS 7.3-66 and
-`sandwich` 3.1-3 and refuses any other R than 4.6.1.
-`TestReferenceOracle_GLMNegBinMatchesR` (`internal/processing/regression`)
-and `TestGLMNegBin_BoundFitMatchesR` (root) hold it at relative `1e-9`.
-
-`scripts/reference/gen_glm_nb_penalty.R` writes `glm_nb_penalty.json`:
-the penalized negative binomial (U69 #638) as `mpath::glmregNB` fits it
-— l2 / l1 / elasticnet, `unpenalized` predictors, frequency weights, θ
-re-estimated by `theta.ml` around the penalized fit or fixed. Scaling:
-with `standardize = FALSE` mpath minimizes −Σw·loglik + λ·P (not divided
-by Σw) and rescales `penalty.factor` to sum to nvars as glmnet does, so
-Pulse's `alpha` is mpath's `lambda = alpha·N*·Σpf/nvars` and `l1_ratio`
-its `alpha`. `thresh` 1e-14, `maxit` 1e6 and `maxit.theta` 1000 push both
-loops past mpath's defaults; its alternation then stops on |Δℓ|/d1 +
-|Δθ| < 1e-8. Each case is self-checked against the KKT conditions of
-glmnet's objective (written out in the script) at relative 1e-9 and,
-with θ estimated, against `theta.ml` at mpath's means. It pins
-coefficients, θ, the l2 penalized-Fisher sandwich SEs and SE(θ), the
-NB deviance and, unweighted, the penalized hat. Run it alone under a
-library holding mpath (the pin table below); mpath compiles Fortran, so
-install it with the `FLIBS` workaround.
-`TestRegGLM_NegBinPenaltyMatchesMpath` and
-`TestRegGLM_NegBinPenaltyLeverage` (`internal/processing/regression`)
-hold it at relative `1e-8` (mpath's stopping error: worst 1.1e-9, on θ).
-
-`scripts/reference/gen_glm_nb_refit.R` writes `glm_nb_refit.json`: the
-negative binomial under `selection` and `resample` (U69 #638), θ
-re-estimated inside every candidate and replicate at the joint MLE (the
-`gen_glm_nb.R` fixed-point push) or fixed. Selection runs are MASS
-`stepAIC` on `glm.nb` (its `addterm.negbin` / `dropterm.negbin` refit
-each move exactly), self-checked against an exact greedy on Pulse's
-score −2ℓ + k·(rank + 1); a fixed θ is pinned to that exact greedy
-alone, because `step` and `stepAIC` on a `glm` rank moves by a one-step
-approximation (on this fixture `step` accepts a move that raises the
-exact AIC). Resample cases are base-R replicate loops recording
-coefficients, θ̂ and the ame / mem effects; a bootstrap draws until 40
-index sets refit cleanly and records them. MASS 7.3-66 + jsonlite, R
-4.6.1 only. `TestReferenceOracle_GLMNegBinSelectionMatchesStepAIC` and
-`TestReferenceOracle_GLMNegBinResampleMatchesR`
-(`internal/processing/regression`) hold it at relative `1e-7` (`1e-6` on
-the SEs).
-
-`scripts/reference/gen_robust_vcov_panel.R` writes
-`robust_vcov_panel.json`: the panel series covariance (U69 #401) —
-per-entity Newey–West (`covariance` hac + `entity`) and Driscoll–Kraay
-(`driscoll_kraay`) on `REG_OLS`, binomial-logit / poisson-log `REG_GLM`
-and `REG_BAYES_LINEAR`, unweighted, frequency- and probability-weighted,
-at a fixed lag 3 and `"auto"`, over a six-geo × fourteen-week panel with
-six cells dropped (unbalanced, interior gaps: a lag counts periods). The
-closed form is self-checked against `sandwich::vcovPL(aggregate = FALSE
-/ TRUE)` and, on unweighted OLS, `plm::vcovNW` / `vcovSCC(type = "HC1")`
-on the pooling fit; weighted fits against vcovPL on the w*-weighted fit
-(`adjust = FALSE`, × N*/(N* − k)); Bayes at prior precision 0 against
-vcovPL on `lm`. Run it alone under a library holding plm (the pin table
-below; `R_LIBS=<lib> Rscript scripts/reference/gen_robust_vcov_panel.R
-internal/processing/testdata/reference`, then the hash footer).
-`TestRegressionCovariancePanel_MatchesROracle` (`internal/service`)
-holds it at relative `1e-10`. Its `cluster2_cases` (U69 E4-S2) are
-two-way clustering on the same rows (no new draws; a `month` column,
-(week − 1) %/% 4 + 1, joins them): cluster geo + cluster2 week or month,
-self-checked against `sandwich::vcovCL(cluster = ~geo + b, type =
-"HC1")` (data-frame and formula forms, `lmtest::coeftest` p on
-min(G₁, G₂) − 1 df), weighted fits against vcovCL HC0 on the w*-weighted
-fit × (N* − 1)/(N* − k), frequency OLS against the `rep()` expansion,
-Bayes at prior precision 0 against vcovCL on `lm`. A negative two-way
-variance (few clusters) is written with `null` standard errors, p-values
-and intervals (`negative_variances` counts them);
-`TestRegressionCovariancePanel_TwoWayMatchesROracle` holds them at
-`1e-10`.
-
-`scripts/reference/gen_loglik.R` writes `loglik.json`: the maximised
-log-likelihood and AIC every plain `REG_OLS` / `REG_GLM` fit reports
-(`two_log_lik`, `aic`) — R's `logLik()` / `AIC()` on `lm` (with and
-without an intercept) and the binomial-logit, poisson-log and
-gamma-inverse `glm`, each re-derived from its closed form (`logLik.lm`;
-the family's `aic`, gamma's at dispersion deviance / n with φ counted),
-with `logLik`'s df recorded, plus a frequency-weighted case per model
-asserted against its `rep()`-expanded fit (`glm(weights = f)` agrees;
-`lm(weights = f)` does not, so the lm golden is the expansion's). Base
-R + jsonlite, R 4.6.1 only. `TestReferenceOracle_LogLikMatchesR`
-(`internal/processing/regression`) holds it at relative `1e-10`; the
-non-canonical links' and the negative binomial's AIC are held against
-`glm_links.json` and `glm_nb.json`.
-
-`scripts/reference/gen_margins.R` writes `margins.json`: the regression
-marginal effects (`margins`) — `ame` / `mem`, response and link scale —
-on `lm` and the binomial logit / probit / cloglog, poisson log, gamma
-inverse / log and negative binomial `glm`, under the classical vcov,
-`sandwich::vcovHC` HC3 and `vcovCL` (HC1 over a cluster), plus a
-frequency-weighted `ame` / `mem` pair asserted equal to its
-`rep()`-expanded fit, and a derived-predictor case (`logit_ame_derived`:
-a pre-computed `log1p(z)` column and a 0/1 dummy, with the raw `z` / `g`
-recorded so the root test builds them through `FEAT_LOG` /
-`FEAT_ONE_HOT`, under `binary: "contrast"` so the dummy reports its 1 − 0
-contrast, as `marginaleffects` does). Every case carries `binary` /
-`contrasts` under `binary: "contrast"` (U69 #641): a 0/1 term's
-μ(1) − μ(0) with its gradient checked against a central difference, and
-a block of `_contrast` cases drawn last under `set.seed(20261123)` — lm,
-logit (ame / mem / link / HC3), probit, poisson (+ cluster), gamma log,
-negative binomial, a frequency-weighted pair, and the ordinal and
-multinomial blocks' contrast cases — each cross-checked against
-`marginaleffects`' own 1 − 0 contrast of the 0/1 column. The primary figures are analytic closed forms in
-base R at the fit's fixed point (glm refitted from its optimum; the
-negative binomial pushed to its joint fixed point as `gen_glm_nb.R`
-does): AME = Σw·β·μ′(η)/Σw, MEM at the weighted means, the delta-method
-Jacobian written out (μ″ checked against a central difference of
-`mu.eta`), statistic, p-value and interval on the coefficient table's
-t or normal. The external cross-check is `marginaleffects` 1.0.0
-(`avg_slopes`, `slopes` at the means, the same vcov, `wts` for the
-weighted `ame`), whose numerical derivatives agree to about 1e-8; the
-script passes the data frame explicitly (`insight::get_data` would
-re-evaluate the formula's data name). It needs MASS 7.3-66, `sandwich`
-3.1-3 and `marginaleffects` 1.0.0 (skipped with a message when absent,
-which the Go loader then refuses) and refuses any other R than 4.6.1.
-`TestReferenceOracle_MarginsMatchR` holds the analytic figures at
-relative `1e-9`, `TestReferenceOracle_MarginsMatchMarginaleffects` the
-`marginaleffects` ones at `1e-7` (both `internal/processing/regression`).
-Its `ordinal_cases` block (U68 E4-S1, drawn last under its own seed so
-no GLM case moves) pins `REG_ORDINAL`'s per-level effects: the closed
-forms at the polr MLE (polished by Newton, as `gen_ordinal.R` does) —
-logit / probit / cloglog, `ame` / `mem`, response and link scale, the
-analytic, hc1 and cluster covariances, a frequency-weighted pair against
-the `rep()` expansion — and `marginaleffects` on polr set to that MLE,
-its Jacobian Richardson-extrapolated (`marginaleffects_numDeriv`, d =
-0.03, r = 4; the default forward difference agrees to only ~1e-3 on
-polr). `TestOrdinalMarginsOracle_ClosedForms` /
-`TestRegOrdinal_MarginsMatchREndToEnd` hold them at `1e-9`,
-`TestOrdinalMarginsOracle_Marginaleffects` at `1e-7`
-(`internal/regordinal`). Its `multinomial_cases` block (U68 E4-S2, drawn
-last under its own seed, `set.seed(20261118)`, so no earlier case moves;
-needs `nnet` 7.3-21) pins `REG_MULTINOMIAL`'s per-category effects: the
-closed forms π_k(β_kj − Σ_m π_m β_mj) at the multinom MLE polished by
-Newton, the delta-method gradient asserted against a central difference
-— `ame` / `mem`, response and link scale (the coefficient), the
-classical, hc1 and cluster covariances, a named reference over four
-categories, a frequency-weighted pair against the `rep()` expansion, a
-probability-weighted `ame` — and `marginaleffects` `avg_slopes` /
-`slopes(type = "probs")` on multinom with its `wts` set to that MLE (the
-same Richardson-extrapolated Jacobian; measured within 1.1e-8).
-`TestMultinomialMarginsOracle_ClosedForms` holds them at `1e-9`
-(measured 1.3e-15), `TestMultinomialMarginsOracle_Marginaleffects` at
-`1e-7` (`internal/processing/regression`). Regenerate `margins.json` alone, under its own
-`R_LIBS` (the `Matrix` row below): `R_LIBS=<lib with Matrix 1.7-6,
-insight 1.7.0, marginaleffects 1.0.0> Rscript
-scripts/reference/gen_margins.R internal/processing/testdata/reference`,
-then append the hash footer as the Makefile's `reference` target does.
-A rerun moves the existing cases by a few ulps (well inside every
-tolerance). On a Homebrew R whose `Makeconf` `FLIBS` names a stale gcc
-target directory (`aarch64-apple-darwin<N>` that no longer exists), the
-`Matrix` 1.7-6 source build fails to link (`library 'emutls_w' not
-found`); point `R_MAKEVARS_USER` at a file overriding `FLIBS` with the
-installed gcc's directory (`ls /opt/homebrew/opt/gcc/lib/gcc/current/gcc/`)
-for that one install rather than editing `Makeconf`.
-
-`scripts/reference/gen_margins_resample.R` writes `margins_resample.json`:
-marginal effects under `resample` (U69 #639) as manual base-R replicate
-loops — each replicate refits `lm` / `glm` on its rows and recomputes
-the effect itself (ame, mem, the 0/1 contrast) — on `lm` and the logit,
-probit and poisson `glm`: the leave-one-out, delete-a-cluster and
-frequency-weighted jackknife (√((g − 1)/g·Σ(θ₍ₖ₎ − θ̄)²), Wald z p) and a
-bootstrap whose index sets are R's own (`sample.int` under
-`set.seed(20261124)`, recorded as `samples`; sample SD, percentile p
-floored at 1/B), the interval Wald normal; a replicate that warns stops
-the script. Base R + jsonlite only, so it regenerates without the
-`marginaleffects` library: `Rscript scripts/reference/gen_margins_resample.R
-internal/processing/testdata/reference`, then append the hash footer.
-Sourced last by `gen_reference.R`. `TestReferenceOracle_MarginsResampleMatchesR`
-(`internal/processing/regression`) holds it at `1e-7` relative (the
-bootstrap through Pulse's replicate hook over the recorded index sets).
-
-`scripts/reference/gen_compare_resample.R` writes `compare_resample.json`:
-the Compose Wald comparison over a resampled fit (U69 #642) as manual
-base-R replicate loops of the FULL model — each replicate refits `lm` /
-`glm` on its rows — on `lm` and the logit, poisson and gamma log `glm`:
-the leave-one-out and delete-a-cluster jackknife (V = (g − 1)/g·Σ(b₍ₖ₎ −
-b̄)(b₍ₖ₎ − b̄)ᵀ) and a bootstrap whose index sets are R's own
-(`sample.int` under `set.seed(20261125)`, recorded as `samples`; V the
-B − 1 sample covariance); the statistic and p-value are
-`car::linearHypothesis(m1, vcov. = V, test = "Chisq")` on the tested
-terms, checked in the script against b_Sᵀ V_SS⁻¹ b_S. Needs `car` 3.1-5
-(the pin above) + jsonlite: `Rscript scripts/reference/gen_compare_resample.R
-internal/processing/testdata/reference`, then append the hash footer.
-Sourced last by `gen_reference.R`. `TestReferenceOracle_CompareResampleMatchesR`
-(`internal/processing/regression`) holds the covariance, statistic and
-p-value at `1e-9` relative (`1e-6` on the gamma log link, whose IRLS
-converges linearly; the bootstrap through Pulse's replicate hook and
-figures relay over the recorded index sets).
-
-`scripts/reference/gen_compare_sweep.R` writes `compare_sweep.json`: the
-Compose nested-model comparison over sweep-bound fits (U69 #643). Each
-case is a sweep over the row window `id <= hi` whose body holds the
-restricted and full models; R fits the full model on every candidate
-window, ranks the windows by the same figure (the residual standard
-error, or a coefficient; the script stops unless the winner leads the
-runner-up clearly) and compares the winning pair: `anova(m0, m1)` on
-`lm`, `anova(m0, m1, test = "LRT")` on a poisson `glm`,
-`lmtest::waldtest(m0, m1, test = "Chisq")` on a logit — each statistic
-checked in the script against its closed form. Needs `lmtest` 0.9-40
-(the `gen_nested.R` pin) + jsonlite: `Rscript
-scripts/reference/gen_compare_sweep.R internal/processing/testdata/reference`,
-then append the hash footer. Sourced last by `gen_reference.R`.
-`TestReferenceOracle_CompareSweepMatchesR` (`internal/service`) holds the
-winner slot, statistic, df, p-value, deviances and residual dfs at
-`1e-10` relative.
-
-`scripts/reference/gen_compare_vector.R` writes `compare_vector.json`:
-the Compose nested-model comparison of two vector fits (U69 #643,
-member-wise). Each case names a restricted and a full battery over the
-same rows; per restricted member j R fits `lm(j ~ restricted others)`
-and `lm(j ~ full others)` and compares them with `anova(m0, m1)` (f),
-`anova(m0, m1, test = "Chisq")` (lrt) or `lmtest::waldtest(m0, m1)`
-(wald) — each statistic checked in the script against its closed form;
-the frequency-weighted case expands each row `w` times. Needs `lmtest`
-0.9-40 (the `gen_nested.R` pin) + jsonlite, nothing new: `Rscript
-scripts/reference/gen_compare_vector.R internal/processing/testdata/reference`,
-then append the hash footer. Sourced near the end of `gen_reference.R`.
-`TestReferenceOracle_CompareVectorMatchesR` (`internal/service`) holds
-every member row's statistic, p-value, deviances and dispersion and the
-df / residual dfs at `1e-10` relative.
-
-`scripts/reference/gen_sem_compare.R` writes `sem_compare.json`: the
-Compose nested-model comparison of two SEM fits (U69 #643) on the
-brand survey (`internal/sem/testdata/brand_data.csv`, read relative to
-the repository root, so run the script from there) — a dropped
-structural path and the metric / scalar invariance steps across the
-waves under ML, a fixed factor covariance under DWLS and WLSMV, and
-WLSMV threshold + loading invariance against the configural fit.
-`lavaan::lavTestLRT(m0, m1)` is the plain chi-square difference (ML,
-DWLS); under WLSMV each fit carries `test = c("scaled.shifted",
-"satorra.bentler")` and `lavTestLRT(m0, m1, method =
-"satorra.bentler.2001", test = "satorra.bentler")` is the scaled
-difference over the fits' `trace.UGamma` / df scaling factors. The
-script re-derives each statistic from the two fits' test slots and
-stops unless `lavTestLRT` agrees at 1e-9. Needs lavaan 0.7.3 +
-jsonlite; no random draw. Sourced last by `gen_reference.R`.
-`TestReferenceOracle_CompareSEMMatchesR` (`internal/integration`) holds
-each fit's χ² and df, the statistic, scaling factor and p-value at
-`1e-8` relative under ML and `1e-6` under the ordinal estimators (the
-two-step fit's optimizer stop).
-
-`scripts/reference/gen_vif.R` writes `vif.json`: the variance
-inflation factors a regression reports (`collinearity`) — `car::vif`'s
-GVIF, Df and GVIF^(1/(2·Df)) — on `lm` and the binomial logit, poisson
-log, fixed-θ negative binomial and gamma log `glm` (refitted to their
-fixed point), ungrouped (`y ~ x1 + x2 + x3`) and with a three-level
-factor's treatment dummies as one term (`y ~ x1 + g + x2`, the rows
-carrying the dummies `gb`, `gc`), on basis `model` (car on the fit)
-and basis `predictors` (car on `lm` over the same predictors and prior
-weights), unweighted, frequency-weighted (asserted equal to the
-`rep()`-expanded fit) and probability-weighted. Each figure is
-re-derived in the script from the centered weighted cross-product
-(`m$weights` on a glm), which pins what basis `model` means. It needs
-MASS 7.3-66 and `car` 3.1-5 (with `carData` 3.0-6, from the Posit
-noble binary repo; the golden records the versions) and refuses any
-other R than 4.6.1. `TestReferenceOracle_VIFMatchesCar`
-(`internal/processing/regression`) holds every figure at relative
-`1e-10`; `TestCollinearity_OneHotMatchesCar` (root) runs the grouped
-logit case end to end through `FEAT_ONE_HOT`.
-
-`scripts/reference/gen_nested.R` writes `nested.json`: the Compose
-nested-model comparison (`compare`) of two fits on the same rows — R's
-`anova(m0, m1)` F and `test = "Chisq"` on `lm`, `anova(m0, m1, test =
-"LRT" | "F")` on the binomial logit / probit, poisson, gamma inverse /
-log and fixed-θ negative binomial `glm` (refitted to their fixed
-point; the full fit's Pearson dispersion), MASS's `anova.negbin` (θ
-estimated, `glm.nb` pushed to its joint fixed point; cross-checked
-against `lmtest::lrtest` on the loose fits) and `lmtest::waldtest(m0,
-m1, vcov = vcov | sandwich::vcovHC(type = "HC3"), test = "F" |
-"Chisq")`, with a restricted fit through the origin and
-frequency-weighted cases fitted on the `rep()` expansion. Each
-statistic is re-derived in the script from the two fits' deviances,
-dispersion and covariance. It needs MASS 7.3-66, `sandwich` 3.1-3 and
-`lmtest` 0.9-40 (with `zoo` 1.9-1, from the Posit noble binary repo; the
-golden records the versions) and refuses any other R than 4.6.1.
-`TestReferenceOracle_NestedMatchesR` (`internal/service`) runs every
-case through Compose and holds every figure at relative `1e-10`. Its
-`ordinal_cases` block (U68 E5-S1, drawn after every other case under
-its own seed, so no earlier row moves) compares two `REG_ORDINAL` fits:
-each `polr` (logistic) is Newton-polished to its MLE on the analytic
-gradient and information (the script stops unless `polr` agrees to
-1e-6 against max(|θ|, 1)); `lrt` is `anova.polr` (statistic, df and p
-cross-checked to 1e-6 / 1e-5), `wald` the Wald on the polished
-information or hc1 sandwich, cross-checked against the same Wald on
-`vcov(polr)` / `sandwich(polr, adjust = TRUE)` at 1e-4; the frequency
-case is `polr(weights = w)` against its `rep()` expansion.
-`TestReferenceOracle_NestedOrdinalMatchesR` holds them at `1e-10`.
-Its `multinomial_cases` block (U68 E5-S2, drawn after the ordinal
-block under its own seed) compares two `REG_MULTINOMIAL` fits: each
-`multinom` is Newton-polished to its MLE (the script stops unless
-`multinom` agrees to 1e-6); `lrt` is `anova.multinom` (LR stat. to
-1e-5, Df and `Resid. df` = (K − 1)·N* − edf exactly — on the `rep()`
-expansion for the frequency case), `wald` the Wald over every
-`"<level>:<term>"` key of the added predictors on the polished
-information or hc1 sandwich, the classical one cross-checked against
-`vcov(multinom)` at 1e-4; one case names a reference.
-`TestReferenceOracle_NestedMultinomialMatchesR` holds them at `1e-10`;
-it needs `nnet` 7.3-21.
-Regenerate this golden alone (`Rscript scripts/reference/gen_nested.R
-internal/processing/testdata/reference`, then the hash footer): a
-rerun moves the existing cases' last digits (~1e-14 relative) — no
-row moves.
-
-`scripts/reference/gen_multinomial.R` writes `multinomial.json`:
-`REG_MULTINOMIAL` against `nnet::multinom(Hess = TRUE, maxit = 1000,
-reltol = 1e-16)`, then Newton-polished on the analytic gradient and
-information until the step is below 1e-15 relative (multinom's BFGS
-stops some 1e-8 off the MLE; the script asserts the polished fit within
-1e-6 of multinom's coefficients and `solve(H)` within 1e-4 of its
-finite-difference `vcov`) — coefficients, standard errors, Wald p-values
-and intervals, `vcov`, deviance, null deviance, `two_log_lik`, `aic` and
-every row's fitted probabilities, for three levels (at 0.95 and 0.90),
-four levels in a non-alphabetical dictionary order with a named
-reference, frequency weights (asserted equal to the `rep()` expansion's
-fit), probability weights on w* = w·n_eff/Σw (no likelihood) and a
-dictionary level no row carries (dropped). It needs `nnet` 7.3-21 (a
-recommended package; install it into the user library where the R
-build omits it) and refuses any other R than 4.6.1 or nnet version.
-Per case it also scores (U68 E1-S2) every training row — the fitted
-probabilities, asserted within 1e-6 of `fitted(multinom)` — and a fixed
-grid of new rows (`score_rows`: `score_probabilities`, asserted within
-1e-6 of `predict(multinom, type = "probs")`, and `score_log_odds`
-against the reference); the grid draws no random number, so the fitted
-cases' data are unchanged. The same grid, labelled (cycling the fitted
-levels) and weighted on the weighted cases, is each case's
-`holdout_rows` (U68 E1-S3), with `holdout` the weighted `log_loss`,
-`brier` and `accuracy` `mn_scores` folds from those probabilities
-(`empty_level` adds a row at its dropped level, which no figure
-counts). Each case's `robust` block (U68 E3-S1) is the closed-form
-score sandwich at the polished MLE (`sandwich` has no `multinom`
-method): B = `solve(H)`, the unit score (y − π) ⊗ x over the
-non-reference blocks, the meat on the case's weights — `hc0`, `hc1`
-(N*/(N* − d)) and `cluster` (CR1 over `clusters`, a fixed function of
-the row index, so no random number is drawn) — each with its `vcov`,
-standard errors, Wald p-values and intervals
-(`TestReferenceOracle_MultinomialRobustMatchesR`). An `exponentiated`
-block (U68 E3-S2) per case — and one inside each robust type, on that
-type's SE — carries exp(β) (asserted equal to `exp(coef(multinom))` at
-1e-6), the delta-method exp(β)·SE and exp(β ∓ z·SE)
-(`TestReferenceOracle_MultinomialExponentiatedMatchesR`); it adds keys
-only, so no other figure moves. A `term_tests` block (U68 E4-S2) per
-case carries each predictor's joint Wald χ² on the classical covariance
-(asserted equal to `car::linearHypothesis` at 1e-10) and — but under
-probability weights — the LR χ² against the Newton-polished refit
-without it (asserted equal to `car::Anova(multinom)`'s type II LR at
-1e-6; car refits with multinom's BFGS, the random stream restored
-around it), with upper-tail p-values; each robust type adds its own
-`term_tests_wald` (`TestReferenceOracle_MultinomialTermTestsMatchR`,
-1e-10). It needs `car` 3.1-5 and adds keys only.
-`TestReferenceOracle_MultinomialMatchesR`
-(`internal/processing/regression`) holds every figure — the row scores
-read through the bound fit's production scorer — at relative `1e-10`.
-A `modifiers` block (U68 E2-S2), drawn after every case under its own
-seed so no case's rows move, adds the resample / selection oracles: the
-manual-deletion jackknife on `multinom` (every leave-one-out and
-delete-a-cluster refit Newton-polished from the full fit and checked
-against `multinom` on the same deletion to 1e-6) and `MASS::stepAIC` on
-`multinom` (forward / backward / both, k = 2 and log(n)), re-run as a
-greedy search over the polished deviances that must pick the same terms
-with every step's winner more than 1e-3 ahead; it needs MASS 7.3-66 and
-refuses another. `TestMultinomial_JackknifeMatchesR` /
-`TestMultinomial_SelectionMatchesStepAIC` hold them at `1e-8`.
-
-`scripts/reference/gen_multinomial_penalty.R` (U68 E2-S3) writes
-`multinomial_penalty.json`: penalised `REG_MULTINOMIAL` against
-`glmnet(family = "multinomial", type.multinomial = "ungrouped",
-standardize = FALSE, control = list(thresh = 1e-20, maxit = 1e7))` —
-Pulse's `alpha` as glmnet's `lambda`, `l1_ratio` as its `alpha`,
-`unpenalized` as `penalty.factor` 0 with `lambda · sum(pf) / nvars`
-undoing glmnet's rescaling. glmnet's solution is Newton-polished on the
-active set (signs fixed, each unpenalised term's flat direction removed
-by a rank-one gauge term) until the step is below 1e-15 relative, the
-unpenalised terms centred over the categories; the script asserts the
-polish within 1e-6 of glmnet and the KKT conditions of the stated
-objective at relative 1e-10, and the grid probabilities within 1e-6 of
-`predict(glmnet, type = "response")`. Cases: ridge / lasso / elastic
-net on three categories, `unpenalized` on each kind, a
-frequency-weighted elastic net, ridge and elastic net on four (lasso
-stays on an odd category count, where glmnet's median centring is
-unique). It needs glmnet 5.1 and refuses any other R than 4.6.1.
-`TestReferenceOracle_MultinomialPenaltyMatchesGlmnet`
-(`internal/processing/regression`) holds the coefficients (exact zeros
-exactly), deviances and the grid's probabilities and per-category
-linear predictors at relative `1e-10`.
-
-`scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
-`REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
-out as R matrix algebra (no stock package fits its scalar-precision
-prior) — the posterior mean, the marginal t scale, the credible interval
-and the CI at their levels on t(2aₙ), the df, √(bₙ/aₙ), R², adjusted R²
-and the posterior covariance bₙ/(aₙ − 1)·Λₙ⁻¹ — under default and
-informative priors, plain and frequency-weighted (the `rep()`
-expansion). Every case is self-checked against a second route,
-`lm.fit` (QR) on the augmented design [X; √ε·I], [y; √ε·μ₀], whose
-residual sum of squares is 2(bₙ − b₀).
-`TestReferenceOracle_RegBayesLinearMatchesR` holds every figure at
-relative `1e-10`.
-`scripts/reference/gen_bayes_precision.R` writes `bayes_precision.json`:
-the same posterior under a per-coefficient `prior_precision`, Λ₀ =
-diag(v) — flat (0) entries, an experiment-centred strong entry, a
-pinning one at 1e5 and at 1e10 (a vector prior's bₙ is the residual form
-b₀ + ½(RSS + ΔᵀΛ₀Δ); the quadratic form cancels μ₀ᵀΛ₀μ₀ against
-μₙᵀΛₙμₙ, ~1e-7 off at 1e10; at 1e10 the augmented Householder QR is the
-reference, since `solve()` loses digits there), plain and
-frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
-(`TestReferenceOracle_RegBayesPrecisionVectorMatchesR`, `1e-10`). The
-`*_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
-`penalty.factor` 0 on the `unpenalized` predictors and λ′·Σpf / p
-(undoing glmnet's rescaling of the factors to sum to p) — the ridge
-ones cross-checked against the closed form G + N*·α·diag(pf)
-(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`), the
-lasso / elastic-net ones (U69 E1-S1) KKT-checked with the factors
-(`TestReferenceOracle_LassoUnpenalizedMatchesGlmnet`, `1e-10`). The
-`*_unpenalized*` cases of `glm_penalty.json` do the same for `REG_GLM`
-on every penalty kind, binomial and poisson, with λ = alpha·Σpf / p and
-the l2 sandwich over H = A + N*·α·(1 − l1_ratio)·diag(0, pf)
-(`TestRegGLM_PenaltyMatchesGlmnet`, `1e-10`).
-`scripts/reference/gen_ols_nnls.R` writes `ols_nnls.json`: `REG_OLS`
-`bounds.nonnegative` — least squares with the named slopes ≥ 0 — by
-`nnls::nnls` on the centred, √w-scaled design (the intercept profiled
-out; a free slope as two columns x / −x), every case self-checked
-against the KKT conditions and against `lm.fit` on the final passive
-set, and a no-binding case against `lm()`. Cases: no binding, one and
-two binding, a free negative slope, near-collinear (corr ≈ 0.999) and
-frequency-weighted (`TestReferenceOracle_OLSNonnegative`, `1e-10`).
-
-`scripts/reference/gen_overlays.R` (sourced last) writes the
-`overlay_*.json` goldens: every figure an overlay test expects, computed
-by R from the overlay's inputs rather than by the helper the overlay
-calls — `chisq.test(..., rescale.p = TRUE)` for `OVERLAY_CHISQ_VS_POP` /
-`_VS_REF`, `fisher.test` per cell, the probit t's design formula, the
-Welch / two-means z / `prop.test` kernels, the weighted-host unit
-fixtures and an `AGG_WELFORD` series cohort for `OVERLAY_T_VS_REF` /
-`_Z_VS_REF`. `OVERLAY_KS_VS_POP`'s p is `ks.test`'s: on the bucketised
-samples (histogram path) or `psmirnov(D, c(m, n), exact = FALSE)`
-(percentile path); where `ks.test`'s own D rounds past 1 the pin is
-`psmirnov` at D = 1 and `ks.test`'s value stays beside as
-`r_ks_test_p`. The pre-U36 Stephens figure is kept as `r_stephens_p`,
-history only.
-`scripts/reference/gen_overlay_chisq.R` (U64 E2-S2; base R + `jsonlite`,
-runnable on its own) writes `overlay_chisq_axes.json`: count hosts
-with `OVERLAY_CHISQ_MATRIX` as `chisq.test(table, correct = FALSE)`
-(the corrected 2 × 2 figure kept as `r_yates_*`) and each row's
-(`OVERLAY_CHISQ_ROW`) or column's (`_COL`) `chisq.test(x, p = margin /
-N)`, the goodness of fit to the other margin's distribution.
-`TestReferenceOracle_Overlay*` (`internal/processing`) and
-`TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
-figure at relative `1e-10`.
-`scripts/reference/gen_mmm_hill.R` (U64 E4-S1; `minpack.lm` 1.2-4 +
-`jsonlite`, runnable on its own) writes `mmm_hill.json`: the
-`REG_MMM_HILL` objective fitted by `nlsLM` from the operator's own start
-inside its bounds, cross-checked against `nls.lm` on the analytic
-Jacobian and Gauss-Newton polished to the stationary point (a channel
-held at β = 0 is the reduced problem, its KKT sign checked over the
-channel's whole (k, s) box). `TestReferenceOracle_MMMHill`
-(`internal/regmmm`) fits each case through `Process` at relative `1e-6`,
-the optimize oracles' tolerance: the engine's Levenberg–Marquardt stop
-rule leaves it ~1e-7 from the exact optimum.
-Its in-model adstock (`params.adstock`) has its own standalone script,
-NOT sourced by `gen_reference.R`, so regenerating it moves no other
-golden: `scripts/reference/gen_mmm_hill_adstock.R` (U71 E2-S3; same
-pins) writes `internal/regmmm/testdata/mmm_hill_adstock.json`, one case
-per kernel (geometric, delayed, weibull_cdf, weibull_pdf), the joint
-Hill + adstock objective fitted from the operator's five-decay start
-scan inside its boxes, the weights written independently (closed forms,
-`stats::pweibull` / `dweibull`), `nlsLM` on a finite-difference
-Jacobian cross-checked against `nls.lm` on the analytic one and
-Gauss-Newton polished. `make reference-mmm-hill-adstock` runs it (under
-a second) and appends the footer; `TestReferenceOracle_MMMHillAdstock`
-(`internal/regmmm`) fits each case through `Process` at relative `1e-6`
-(measured worst 3.7e-8) and the start at `1e-10`.
-`scripts/reference/gen_ordinal.R` (U65 E4-S1; MASS 7.3-66 + `sandwich`
-3.1-3 + `brant` 0.3.0 + `jsonlite`, runnable on its own) writes
-`ordinal.json`: `REG_ORDINAL` against `polr` (logit / probit / cloglog)
-polished by Newton to its MLE on the analytic gradient and information
-— polr's BFGS stops ~1e-6 off it and differentiates its Hessian
-numerically, so the script stops unless polr (reltol 1e-14) agrees to
-1e-6 and its vcov to 1e-4 — the hc0 / hc1 / cluster sandwich
-(cross-checked against `sandwich` / `vcovCL` at 1e-4), the mean fitted
-probabilities, and the Brant test re-run with the binary logits at their
-fixed point (the package's own figure reproduced exactly with its
-untransposed cross block and glm's default stop; the golden keeps the
-symmetric covariance). The nominal test (U68 E6-S1, `ordinal`
-2026.7-26) polishes each partial proportional-odds fit by Newton on its
-analytic derivatives from the polished MLE and stops unless `clm`'s
-logLik agrees to 1e-8 and `nominal_test`'s LRT (the omnibus: `clm`
-with every predictor nominal) to 1e-6; a non-converging or crossing
-partial fit is recorded `null` (`nominal_test.failed`, R's own figure
-as `r_reported`); the `nominal_noconverge` case pins one, `logit_freq`'s
-x1 a crossing; frequency-weighted cases cover every link (a probability
-weight leaves the output absent, so no case carries one there). Frequency weights are asserted equal to the
-`rep()` expansion. `TestOrdinalOracle_Design` and
-`TestRegOrdinal_MatchesPolrEndToEnd` (`internal/regordinal`) hold every
-figure at relative `1e-10` (measured within 2e-12). Every case carries
-an `exponentiated` block (U68 E3-S2) on its own covariance: the
-predictors' exp(β) (asserted equal to `exp(coef(polr))` at 1e-6), exp(β)·SE
-and exp(β ∓ qnorm(0.975)·SE) — a classical unweighted case also matches
-`exp(confint.default(polr))` at 1e-4 —, held by
-`TestRegOrdinal_ExponentiatedMatchesR` at `1e-10`. Each classical case
-also carries its per-row scores at the MLE (U68): `row_eta` (xᵀβ,
-`polr`'s `$lp` agreeing to 1e-6) and `row_probabilities` (P(Y = k | x),
-`predict(polr, type = "probs")` agreeing to 1e-6), which
-`TestOrdinalOracle_RowScores` and `TestRegOrdinal_ScoresMatchPolrEndToEnd`
-hold the `ATTR_REG_PREDICT` columns to at `1e-10`. Those cases without
-`params.levels` also carry eight fixed grid rows (`holdout_rows`, no
-random draw) and their weighted proper scores (`holdout`: `log_loss`,
-`brier`, `accuracy`, `rps` — `ord_scores` over `predict(polr, type =
-"probs")`), which `TestRegOrdinal_HoldoutMatchesR` holds a `holdout`
-fit to at `1e-10` (U68 E1-S3). A `modifiers` block, drawn after every
-case under its own seed (so no case moves), holds the resample and
-selection oracles (U68 E2-S1): the manual-deletion jackknife on `polr`
-(leave-one-out and by cluster, each refit polished and checked against
-`polr` on the same deletion) and `MASS::stepAIC` on `polr` (forward /
-backward / both at k = 2 and log(n), re-run over polished deviances
-with every step's winner clear of the runner-up by 1e-3), which
-`TestRegOrdinal_JackknifeMatchesR` and
-`TestRegOrdinal_SelectionMatchesStepAIC` hold at `1e-8`.
+The statsmodels oracles (`scripts/reference/statsmodels/`, PEP 723 pins)
+write `testdata/statsmodels/*.json` for the GLM residual kinds and OLS
+influence measures; `make reference-statsmodels` runs them under
+`uv run`.
 
 ### The R toolchain
 
@@ -1079,8 +439,7 @@ stored rows through the operator and holds every coefficient's
 posterior mean and each channel's ROI within its case's stated
 tolerance (`stanCellZ`, keyed by case name; 4.5 combined Monte Carlo
 standard errors in every case) of Stan's. The program's lift block is
-inert with no test (`T = 0`), so adding the lift cases left the twelve
-cell cases bit-identical. The script refuses any version but R 4.6.1,
+inert with no test (`T = 0`). The script refuses any version but R 4.6.1,
 cmdstanr 0.9.0, CmdStan 2.40.0, posterior 1.7.1 and jsonlite 2.0.0, and
 stops unless the Stan run mixed (R-hat < 1.01, bulk ESS > 2000, at most
 0.5% divergent transitions). Install:
