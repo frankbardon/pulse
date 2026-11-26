@@ -23,8 +23,10 @@ res, err := p.Materialize(ctx, &pulse.Request{
 // res.Records, res.DerivedColumns ("LOG_spend", "WIN_LAG_spend")
 ```
 
-- **Accepted slots.** Features, filterers, attributes, windows, `sort`,
-  weight, `time_zone` and `output` (below). Any other slot is refused with
+- **Accepted slots.** `cohort` (or a `union`, whose source field is
+  written as an ordinary field), `label`, features, filterers,
+  attributes, windows, `sort`, weight, `time_zone`,
+  `disable_components` and `output` (below). Any other slot is refused with
   `PULSE_MATERIALIZE_SLOT_UNSUPPORTED` (`details.slot`); a request with
   no feature, attribute or window — and no `output` — with
   `PULSE_MATERIALIZE_NO_DERIVED`;
@@ -287,8 +289,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   out or dropped, and a low ratio, fatal. A grouped output decodes
   exactly as its ungrouped twin; without an `output` block nothing is
   inherited and the output stays ungrouped, byte for byte.
-- **Absent `output`** writes exactly what Materialize always wrote, byte
-  for byte. A feature profile without `capability:materialize_output`
+- **Absent `output`** writes the default layout above: every source
+  field, then the derived columns. A feature profile without `capability:materialize_output`
   refuses a set `output` as an unknown field everywhere.
 
 ## Predict first: `PredictMaterialize`
@@ -404,10 +406,10 @@ an error. The leaf is a thin adapter over `Pulse.Materialize` /
 ## MCP
 
 `pulse_materialize` takes `{request, out, overwrite, predict}` — the
-request NESTED under `request`, `out` relative to the data dir — and
+request NESTED under `request`, `out` relative to the data directory — and
 returns the same result object. `predict: true` needs no `out`, writes
 nothing and answers `{predict: {valid, schema_info, columns,
-derived_columns, risks, errors, warnings}}`; a refused request is that
+derived_columns, risks, container, errors, warnings}}`; a refused request is that
 verdict, not a tool error. A request slot spread beside `out` (or a
 misspelled argument) is `PULSE_REQUEST_UNKNOWN_FIELD` with a
 suggestion; an unknown key inside `request` is refused as

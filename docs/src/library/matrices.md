@@ -2,14 +2,13 @@
 
 A **vector** names a battery of numeric fields once; a **matrix** slot
 turns a vector into a result in which every member is compared with
-every member. Nine operators ship: `MAT_COVARIANCE`,
+every member. The built-in operators are `MAT_COVARIANCE`,
 `MAT_CORRELATION` (Pearson by default; Spearman or Kendall tau-b under
 `params.method`), `MAT_PARTIAL_CORRELATION`, `MAT_RELIABILITY`,
 `MAT_PCA`, `MAT_FACTOR`, `MAT_COLLINEARITY`, `MAT_DISTANCE` (which
 compares bucket centroids instead of members) and `MAT_SEM` (a
-structural equation model in lavaan / semopy syntax). All are additive: a request without
-`vectors` / `matrices` is byte-identical to before, and `format_version`
-stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
+structural equation model in lavaan / semopy syntax). The slots are
+gated by the `capability:matrices` feature.
 
 ```json cohort=training_data
 {
@@ -174,8 +173,7 @@ pairwise `auxiliary.n` beside `p` and, under a multiplicity block, the
 adjusted twins — and drops the auxiliary of a spec that did not; a
 `return` that drops them (`minimal`, or an exclude) skips the
 computation. Without a multiplicity block nothing corrects for the many
-pairs. Off (the default) the response is
-byte-identical to a request without the key.
+pairs.
 
 ## Partial correlation
 
@@ -290,7 +288,7 @@ for, each signed so its loadings sum positive, keys still `PC1` …
 loadings. Eigenvalues, the explained and cumulative shares, the
 communalities (unchanged by an orthogonal rotation), the eigenvectors,
 KMO and Bartlett are never rotated. A single kept component is left as
-is. Without the knob the output is byte-identical to before.
+is.
 
 ## Centroid distances
 
@@ -314,7 +312,7 @@ buffered `Group`, so the spec runs buffered and serial.
 ```
 
 `params.metric` is a name from the shared `linalg/metric` registry
-(listed under `capabilities.matrix.metrics`): `euclidean` (default,
+(listed under the manifest's `matrix.metrics`): `euclidean` (default,
 `stats::dist`), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos,
 null against a zero-length centroid), `hellinger` and `aitchison` (for
 compositions: they read non-negative centroids, are refused beside
@@ -830,26 +828,38 @@ folds the members, merges the 4096-row blocks, cuts the group buckets
 and applies weights and `params.missing`, then hands `Finalize` the
 merged, read-only `*linalg.CoMoment`.
 
-```go
-// MAT_ACME_SCATTER: each pair's raw weighted co-moment.
+```go compile
+package scatter
+
+import (
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/types"
+)
+
+// scatter serves MAT_ACME_SCATTER: each pair's raw weighted co-moment.
 type scatter struct{}
 
 func (scatter) Finalize(in *extend.MatrixInput) (extend.MatrixOutput, error) {
-    return extend.MatrixOutput{Primary: in.Square(in.CoMoment.PairM2)}, nil
+	return extend.MatrixOutput{Primary: in.Square(in.CoMoment.PairM2)}, nil
 }
 
-p, err := pulse.New(pulse.Options{Extensions: pulse.Extensions{
-    MatrixOps: []pulse.MatrixOpRegistration{{
-        Name:        "MAT_ACME_SCATTER",
-        Description: "Scatter matrix: each pair's raw weighted co-moment.",
-        Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
-            return scatter{}, nil
-        },
-        Streamable:  true, // finalize from the co-moment; mergeable across workers
-        WeightAware: true,
-        OutputKeys:  descriptor.MatrixOutputKeys{Primary: "scatter"},
-    }},
-}})
+func New(dataDir string) (*pulse.Pulse, error) {
+	return pulse.New(pulse.Options{DataDir: dataDir, Extensions: pulse.Extensions{
+		MatrixOps: []pulse.MatrixOpRegistration{{
+			Name:        "MAT_ACME_SCATTER",
+			Description: "Scatter matrix: each pair's raw weighted co-moment.",
+			Factory: func(*types.MatrixSpec, *encoding.Schema) (extend.MatrixOperator, error) {
+				return scatter{}, nil
+			},
+			Streamable:  true, // finalize from the co-moment; mergeable across workers
+			WeightAware: true,
+			OutputKeys:  descriptor.MatrixOutputKeys{Primary: "scatter"},
+		}},
+	}})
+}
 ```
 
 A request names it like a built-in, and the engine-owned params work

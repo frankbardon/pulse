@@ -204,8 +204,7 @@ When `OutputName` is empty, the basename is computed as:
   name, path and the SHA-256 of the model file's content join the
   payload, so rewriting a model file (same name and path, a different
   fit) lands on a new output instead of silently reusing the one built
-  from the old fit. A request without `Models` hashes exactly as it
-  always has. A predicate calling `to_day()` reads the request
+  from the old fit. A predicate calling `to_day()` reads the request
   `TimeZone`, else the instance's `Options.DefaultTimeZone`, else UTC;
   a non-UTC zone joins the payload too, so two runs in different zones
   never share an output, while the same resolved zone named by either
@@ -215,10 +214,10 @@ When `OutputName` is empty, the basename is computed as:
   default), or its per-row `tz_field` — joins the payload with its
   slot, so a request differing only in resolved zone never reuses
   another's output. A predicate that reads no zone, or reads UTC, or
-  reads a `date` field (no zone applies), hashes as it always has.
+  reads a `date` field (no zone applies), adds no zone to the payload.
 - With `Params` set, the block joins the payload (each value as the
   JSON text it marshals to), so a run with other values never reuses
-  an output; a request without `Params` hashes as it always has.
+  an output.
 - Every registered table the predicate references joins the payload
   as a content digest — see below.
 
@@ -237,8 +236,7 @@ encoding of its rows (sorted keys, exact float bits — map order never
 moves it). Two instances with a same-named table of different content
 land on different outputs; identical content still reuses. Only
 referenced tables join, so registering another table never moves the
-hash, and a predicate that references no table hashes as it always
-has. A `lookup()` / `ref()` whose table argument is not a string
+hash. A `lookup()` / `ref()` whose table argument is not a string
 literal may read any table of its kind, so every registered one of
 that kind joins.
 
@@ -362,8 +360,8 @@ with the same groups.
 The dictionary is **carried, not pruned**. After a selective filter
 it still holds entries no surviving row references, so `pulse
 inspect` reports a group ratio of surviving rows ÷ carried entries.
-A low ratio there is expected and is not a defect. Pruning would cost
-a second pass and renumber indices, so v1 defers it. To prune,
+A low ratio there is expected and is not a defect. Pulse does not prune:
+it would cost a second pass and renumber indices. To prune,
 re-dedup the output with the same groups (`pulse dedup OUT --group
 ...`). It regroups from scratch.
 
@@ -377,11 +375,9 @@ evaluated once per dictionary entry, not once per row.
 
 `filter_to_file` appears in `Manifest.Operations` with annotations
 `{streamable: false, deterministic: true, expensive: true}`. The
-`expensive: true` hint is the signal to embedders that this is the
-operation worth caching aggressively — which the function itself
-already does via pre-existence dedup, so the typical consumer pattern
-is to simply call `FilterToFileWithRequest` repeatedly and trust the
-result.
+`expensive: true` hint marks it as worth caching; the pre-existence
+dedup already does that, so call `FilterToFileWithRequest` repeatedly
+and trust the result.
 
 ## See also
 

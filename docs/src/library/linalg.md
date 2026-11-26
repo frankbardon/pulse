@@ -1,6 +1,6 @@
 # Linear Algebra (`linalg`)
 
-`github.com/frankbardon/pulse/linalg` is Pulse's linear-algebra core. Pulse's own synthetic-data generator and regression engine use it, and embedders can import it directly. It is a leaf package: it imports only the standard library, gonum and Pulse's `errors`. It exposes no gonum type, so a gonum upgrade can never break your code.
+`github.com/frankbardon/pulse/linalg` is Pulse's linear-algebra core. Pulse's own synthetic-data generator and regression engine use it, and embedders can import it directly. It is a leaf package: it imports only the standard library, gonum, Pulse's `errors` and an internal port of gonum's operation order. It exposes no gonum type, so a gonum upgrade can never break your code.
 
 ```go
 import "github.com/frankbardon/pulse/linalg"
@@ -26,7 +26,7 @@ Accessors: `At`, `Set`, `Rows` / `Cols` / `N` / `Len`, `ToRows`, `RowMajor`, `Sl
 | Factor once, then solve many right-hand sides, with a condition check | `FactorSPD` → `SPDFactor.Solve` / `Inverse` / `ConditionNumber`; `Mul` | **yes**: pure Go, FMA-free, in gonum's amd64 operation order (equal to gonum bit for bit on amd64) |
 | Eigen, singular value, QR, rank, condition number | `SymEigen`, `SVD`, `QR`, `Rank`, `ConditionNumber` | values may differ in the last ulps; order, sign and rank decisions are fixed |
 
-The reference routines and the SPD path write every product that feeds an addition as an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. That is why arm64 and amd64 agree bit for bit. The SPD path keeps the operation order of the gonum calls it replaced (LAPACK `Dpotrf` / `Dpocon` / `Dpotrs` / `Dpotri` and gonum's amd64 assembly kernels), so its factor, solve, inverse, condition estimate and refusals are exactly what gonum gave on amd64; the reference `Cholesky` is a different algorithm order and gives different last bits. Use them when "same input, same seed, same bytes" matters to you.
+The reference routines and the SPD path write every product that feeds an addition as an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. That is why arm64 and amd64 agree bit for bit. The SPD path follows the operation order of the gonum calls it ports (LAPACK `Dpotrf` / `Dpocon` / `Dpotrs` / `Dpotri` and gonum's amd64 assembly kernels), so its factor, solve, inverse, condition estimate and refusals are exactly what gonum gave on amd64; the reference `Cholesky` is a different algorithm order and gives different last bits. Use them when "same input, same seed, same bytes" matters to you.
 
 ## Cholesky with a ridge
 
@@ -112,7 +112,7 @@ Pulse's engine uses exactly this scheme internally, so its parallel and serial r
 
 ## Distance and similarity metrics (`linalg/metric`)
 
-`github.com/frankbardon/pulse/linalg/metric` is the one registry of distance and similarity metrics. Every metric Pulse computes between two vectors is defined there once, and every surface that takes a metric name resolves it through the registry. `pulse manifest --json` lists it under `matrix.metrics`.
+`github.com/frankbardon/pulse/linalg/metric` is the one registry of distance and similarity metrics. Every metric Pulse computes between two vectors is defined there once, and every surface that takes a metric name resolves it through the registry. The manifest (`pulse --json`) lists it under `matrix.metrics`.
 
 ```go
 import "github.com/frankbardon/pulse/linalg/metric"
@@ -121,7 +121,7 @@ m, err := metric.Resolve("cosine", metric.Similarity) // or metric.Distance: 1 -
 s, err := m.Eval(metric.Similarity, a, b, nil)
 ```
 
-- **The 15 metrics.** Plain: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`, `correlation`, `hellinger`, `aitchison`. Set / binary (0 / 1 values, or `SetCounts` through `EvalSets`): `jaccard`, `dice`, `hamming`, `overlap`. Fitted: `std_euclidean`, `mahalanobis`, `chi_square`. A fitted metric never estimates anything: you pass the SD vector, the inverse covariance (`*linalg.Sym`) or the column masses in `metric.Stats`.
+- **Metrics.** Plain: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`, `correlation`, `hellinger`, `aitchison`. Set / binary (0 / 1 values, or `SetCounts` through `EvalSets`): `jaccard`, `dice`, `hamming`, `overlap`. Fitted: `std_euclidean`, `mahalanobis`, `chi_square`. A fitted metric never estimates anything: you pass the SD vector, the inverse covariance (`*linalg.Sym`) or the column masses in `metric.Stats`.
 - **Direction.** Each metric declares its native direction and the forms it can answer in. Asking for a form it lacks (for example `euclidean` as a similarity) is refused with `PULSE_VECTOR_METRIC_UNKNOWN`; nothing is converted silently. `cosine` is the one metric with both forms. An empty name is `PULSE_VECTOR_METRIC_REQUIRED`.
 - **Missing values.** `NaN` marks a missing element and is dropped pairwise. The element-sum distances (`euclidean`, `sq_euclidean`, `manhattan`, `std_euclidean`, `hamming`) are rescaled by `p / p_observed`, as R's `stats::dist()` does. No complete pair gives `NaN`. `mahalanobis` needs every element. Vectors of unequal length are a `*metric.LengthMismatchError`.
 - **Domains.** `hellinger`, `aitchison` and `chi_square` read non-negative values; an `aitchison` zero part is undefined. A violation returns `NaN` with a `*metric.DomainError`, so you can null the row and count it.
@@ -145,7 +145,7 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
 
 ### What is covered across architectures
 
-"Covered" means a figure has the same float64 bits on arm64 and amd64 for the same input. Pulse gets there by computing every transcendental with `detmath` and writing every product that feeds an addition as `float64(a*b)`. Where a gonum routine sat on a result path, Pulse replaced it with a port that has no fused multiply-adds.
+"Covered" means a figure has the same float64 bits on arm64 and amd64 for the same input. Pulse gets there by computing every transcendental with `detmath` and writing every product that feeds an addition as `float64(a*b)`. On result paths Pulse uses ports of the gonum routines with no fused multiply-adds.
 
 **Covered:**
 
@@ -154,7 +154,7 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
 - **Every `TEST_*` operator**, parametric and nonparametric, including the Fisher-exact, Tukey and Shapiro–Wilk tails.
 - **Aggregators, windows, features, attributes and overlays**, including the Welford family, weighted inference and the `OVERLAY_FISHER_EXACT_CELL` cell test.
 - **Matrix operators' own arithmetic:** co-moments, `MAT_CORRELATION` and its inference, the `MAT_CORRELATION` determinant, partial correlation, distance metrics (`aitchison` included), and the ridge schedule. The factor-analysis ML and rotation steps are FMA-free too, but they start from a gonum eigen decomposition, so `MAT_FACTOR` figures are listed under Not covered.
-- **The `linalg` SPD path:** `FactorSPD` / `SPDFactor` / `Mul`. This is a port of gonum v0.17.0's amd64 operation order with no fused multiply-adds. On amd64 it gives exactly the bits gonum gave; arm64 now gives the same bits.
+- **The `linalg` SPD path:** `FactorSPD` / `SPDFactor` / `Mul`. This is a port of gonum v0.17.0's amd64 operation order with no fused multiply-adds. On amd64 it gives exactly gonum's bits, and arm64 gives the same bits.
 - **Regression:** OLS, GLM, ridge, lasso / elastic net, Bayes-linear, HC and cluster standard errors, and Newey–West (HAC). The automatic HAC lag is an exact integer.
 - **`MAT_SEM` fits and `ATTR_SEM_SCORE`,** whether a fit converges or stops early (SLSQP's `ftol`, Fisher scoring's objective-decrease test, `information: rank2`, mean structure, multi-group, DWLS / WLSMV, bootstrap). The model's matrix products, inverses and Cholesky factor, inverse and log-determinant run the same gonum-order port as the SPD path. The rest of the arithmetic is FMA-free on `detmath`: the distribution replacements, the `:=` defined-parameter derivatives, the polychoric and WLSMV weight blocks, and the SLSQP solver.
 - **The shared MMM fixture** (`internal/mmmfixture`).
@@ -172,7 +172,7 @@ Each function is a line-for-line port of the Go 1.26 pure-Go source with every p
 
 - **gonum's eigen, SVD and QR internals.** gonum's amd64 assembly and its arm64 pure Go add in a different order, and no barrier changes that. Ordering, sign and rank decisions are fixed (see Eigen, SVD, QR and rank above), but the values can differ in their last ulps. The same applies to every figure computed from those values: `MAT_PCA`, `MAT_FACTOR`, `TEST_MANOVA`, `MAT_COLLINEARITY`, `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` and `OVERLAY_CORRESPONDENCE`. They are pinned at 1e-12 relative, not bit for bit. The scan cannot see fused multiply-adds inside gonum code.
 - **`MAT_SEM`'s two fallbacks.** A sample covariance that is not positive definite is replaced through `cov_nearest`'s eigenvalue clip, and an information matrix that does not factor is inverted through an SVD pseudo-inverse. Both run gonum's eigen or SVD, so a fit that takes either fallback keeps that residual.
-- **The stdlib `math.Exp` on amd64 depends on the CPU.** It picks an FMA or a non-FMA code path at run time. Pulse's GLM links use `ExpAMD64FMA`, a portable port that pins the FMA-hardware bits. Any remaining stdlib `Exp` would follow the CI runner's CPU.
+- **The stdlib `math.Exp` on amd64 depends on the CPU.** It picks an FMA or a non-FMA code path at run time. Pulse's GLM links use a portable port that pins the FMA-hardware bits. Any remaining stdlib `Exp` would follow the CI runner's CPU.
 - **Allowlisted sites.** The test helper `invariance.Within`, whose tolerance bound is never a result figure. The example-CSV generator (`internal/examples/fixtures/gen.go`) is not on the list: it is a compiled package on PCG streams and `detmath`, both scans cover it, and `TestFixtures_RegenerateByteIdentical` pins every committed CSV to it on each architecture.
 
 ## Errors

@@ -8,16 +8,13 @@ and a glossary of the statistical terms involved. The metadata is
 **pulled on demand**. It never appears in a default `Response`,
 `PredictResult` or manifest, apart from short intent IDs.
 
-> **Status (v1.0.0 alphas).** Every operator carries a `Purpose`, and
-> every statistical test, overlay and regression an `Interpretation`.
-> Pulse renders them for you: the book's [Analysis Guide](../guide/index.md)
-> (question guides, operator catalog, "Reading your results", glossary), the `## Use when`
-> and `## Reading the output` sections of every operator skill, and
-> `p.ExportReference` / `pulse docs export` for your own instance. The
-> prose is still pulled, never pushed: it appears in none of the default
-> `Response`, `PredictResult` or manifest. `Recommend`, `Explain` and
-> predict advisories (below) turn that metadata into answers; the MCP
-> guidance tools beyond them come in a later unit.
+Every operator carries a `Purpose`, and every statistical test, overlay
+and regression an `Interpretation`. Pulse renders them in the book's
+[Analysis Guide](../guide/index.md), in the `## Use when` and
+`## Reading the output` sections of every operator skill, and through
+`p.ExportReference` / `pulse docs export` for your own instance.
+`Recommend`, `Explain` and predict advisories (below) turn that metadata
+into answers.
 
 ## Intents: what kind of question
 
@@ -33,8 +30,8 @@ for _, in := range pulse.Intents() {
 }
 ```
 
-Twelve intents are analytic, meaning operators answer them. Three
-(`prepare`, `simulate`, `lookup`) are not: they point at tooling.
+An intent with `Analytic` set is answered by operators; the others
+(`prepare`, `simulate`, `lookup`) point at tooling.
 `Intent.Shapes` describes the data each intent needs as named roles,
 for example one `outcome` field plus one categorical `group` field for
 "compare groups".
@@ -196,6 +193,14 @@ suggested fix. They never change execution, `valid` or `--strict`.
 | `PULSE_ADVISORY_FORMULA_NULLABLE_OPERAND` | an `ATTR_FORMULA` feeds a nullable field, or an earlier attribute's nullable output, unguarded to arithmetic, an ordering comparison, unary minus, an index or a function that rejects nil, so the run fails on the first null row |
 | `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | an ordered series overlay over two or more groupers, with no `partition_by`, runs its series down a last grouper that is not a date |
 | `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an extension operator whose registration declares no params, yet carries a `params` object its keys pass through unchecked |
+| `PULSE_ADVISORY_JACKKNIFE_COST` | a `REG_OLS` / `REG_GLM` leave-one-out jackknife over a large cohort refits once per row |
+| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | a penalised fit without `resample` reports null standard errors, p-values and intervals (also carried on the fit) |
+| `PULSE_ADVISORY_OPTIMIZE_GRADIENT_FALLBACK` | Compose only: an `optimize` block calls a function with no derivative rule, so the solver uses finite differences |
+
+A fit can also carry result-only advisories in
+`RegressionResult.Advisories` (`PULSE_ADVISORY_CONSTRAINT_ACTIVE`,
+`PULSE_ADVISORY_MMM_ADSTOCK_ILL_CONDITIONED`): whether they fire depends
+on the data, so predict cannot raise them.
 
 Silence a code for the whole instance with `Options.SuppressAdvisories`;
 an unknown code is refused at `pulse.New` with

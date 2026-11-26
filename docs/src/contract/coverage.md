@@ -94,7 +94,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Cohort.RecordCount` |  |  | yes |
 | `pulse.Cohort.Schema` |  |  | yes |
 | `pulse.Cohort.Shards` |  |  | yes |
-| `pulse.CohortBuildResult` |  |  | yes |
+| `pulse.CohortBuildResult` | yes |  | yes |
 | `pulse.CohortBuilder` |  |  | yes |
 | `pulse.CohortBuilder.Abort` |  |  | yes |
 | `pulse.CohortBuilder.Append` |  |  | yes |

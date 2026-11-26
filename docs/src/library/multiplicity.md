@@ -4,7 +4,7 @@ Run many tests and some will come out significant by luck. A
 `multiplicity` block adds corrected p-values beside the raw ones, so a
 reader can tell a real hit from one the number of tests made likely.
 Raw `p_value` / `reject_null` never change, and a request with no block
-(the default) is byte-identical to before; `format_version` stays `"1.1"`.
+(the default) gets no corrected figures.
 
 ```json cohort=experiment
 {
@@ -82,7 +82,7 @@ family. Families never cross layers.
 
 ## Outputs
 
-All additive, present only when a correction ran:
+Present only when a correction ran:
 
 - **Tests**: `p_adjusted`, `significant_adjusted` and
   `multiplicity {method, family, alpha, m}` beside `p_value`.
@@ -141,7 +141,7 @@ All additive, present only when a correction ran:
 
 ## Predict
 
-`pulse predict` applies the same rules to a request without running it
+Predict (`Pulse.Predict`, `pulse api predict`, `pulse_predict`) applies the same rules to a request without running it
 and reports `p_values {total, uncorrected, basis, threshold}`: how many
 inferential p-values the request emits (a `REG_OLS` / `REG_GLM`
 regression counts one per non-intercept predictor, none on an `l1` /

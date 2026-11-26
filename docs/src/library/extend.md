@@ -12,8 +12,8 @@ wrap it in the matching registration on `pulse.Options.Extensions`, and
 Pulse adapts it at `pulse.New`. From then on predict, the manifest, MCP
 and the runtime treat it exactly like a built-in.
 
-`extend` imports only the public `encoding`, `types`, `errors` and
-`linalg` packages, never the engine, so an operator package stays small.
+`extend` imports only the public `encoding`, `types` and `linalg`
+packages, never the engine, so an operator package stays small.
 
 ## One aggregator
 
@@ -71,9 +71,10 @@ A request then names `"type": "AGG_ACME_SPREAD"` like any aggregator.
 - `NumericValue` is false for null, for set fields and for vectors; a
   categorical's `NumericValue` is its dictionary index. `date` is epoch
   days, `datetime` epoch seconds.
-- Optional sibling interfaces (`OnlineAggregator`, `MergeableAggregator`,
-  …) opt an operator into streaming and shard merging; without them it
-  runs buffered.
+- Streaming and shard merging are opt-in: set the registration's
+  `Streamable` (and `Mergeable`) flag and implement the matching sibling
+  interface (`OnlineAggregator`, `MergeableAggregator`, …). Without
+  them the operator runs buffered.
 
 ## Where the detail lives
 
