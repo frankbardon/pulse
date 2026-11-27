@@ -49,6 +49,7 @@ var leafDocLinks = map[string][]docgen.CLILink{
 	"pulse convert predict":        {{Text: "export spss", Target: "export-spss.md"}},
 	"pulse dedup":                  {{Text: "parent groups", Target: "../format/parent-groups.md"}},
 	"pulse docs export":            {{Text: "exporting the reference", Target: "../library/guided-analysis.md#exporting-the-reference"}},
+	"pulse examples data":          {{Text: "get the data", Target: "../examples/library.md#get-the-data"}},
 	"pulse examples search":        {{Text: "example library", Target: "../examples/library.md"}},
 	"pulse examples show":          {{Text: "example library", Target: "../examples/library.md"}},
 	"pulse explain":                {{Text: "explain", Target: "../library/guided-analysis.md#explain-from-a-request-or-a-result-to-plain-language"}},

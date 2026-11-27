@@ -52,6 +52,13 @@ twin `customers_twin.pulse`. `compose/06_population_score.json` loads the
 population `compose/05_vector_fit_save.json` saves, so run 05 first. Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
+Without the repo, the binary writes the same files from CSVs and schemas
+embedded in it: `pulse examples data --out DIR` (library:
+`Pulse.WriteExampleData`). Every file is byte-identical to `build.sh`'s
+except the index, which fingerprints its cohort's mtime
+(`TestExamplesData_MatchesBuildScript`); the cohort list is the embedded
+schemas, held to `build.sh`'s loop by `TestFixtureCohorts_MatchBuildScript`.
+
 ## Available cohorts
 
 | File | Fields |

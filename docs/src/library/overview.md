@@ -89,6 +89,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows), or the columns a request `output` block lays out, as a single file or a shard archive — see [Materializing Derived Columns](materialize.md) |
 | `Rake(ctx, req) (*RakeResult, error)` | Compute rim / cell survey weights to population margins and write them, beside every source column, into a new cohort — see [Computing Survey Weights](rake.md) |
 | `Profile(ctx, path, opts) (*Profile, error)` | Statistical summary suitable for `from-profile` synthesis |
+| `WriteExampleData(ctx, dir, opts) (*ExampleDataReport, error)` | Write the fixture cohorts the built-in examples read into `dir`, from data embedded in the binary; an existing fixture file is refused unless `opts.Overwrite` — see [Get the data](../examples/library.md#get-the-data) |
 | `Manifest(ctx) *Manifest` | Deterministic root self-description |
 | `Fs() afero.Fs` | The underlying filesystem (used by `pulse mcp` and other embedders) |
 

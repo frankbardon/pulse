@@ -35,11 +35,11 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2863 | 0 |
+| [Go API symbols](#go-api-symbols) | 2867 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
-| [CLI leaves](#cli-leaves) | 78 | 0 |
+| [CLI leaves](#cli-leaves) | 79 | 0 |
 | [CLI flags](#cli-flags) | 137 | 0 |
 | [MCP tools](#mcp-tools) | 28 | 0 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
@@ -140,6 +140,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.ErrorFixup` |  |  | yes |
 | `pulse.ErrorMetadata` |  |  | yes |
 | `pulse.Example` |  |  | yes |
+| `pulse.ExampleDataCohort` |  |  | yes |
+| `pulse.ExampleDataOptions` | yes |  | yes |
+| `pulse.ExampleDataReport` |  |  | yes |
 | `pulse.ExampleFeatureProfile` | yes |  | yes |
 | `pulse.ExampleFeatureProfiles` | yes |  | yes |
 | `pulse.ExampleSummary` |  |  | yes |
@@ -337,6 +340,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Pulse.WatchDirWithOptions` |  |  | yes |
 | `pulse.Pulse.WatchWithOptions` |  |  | yes |
 | `pulse.Pulse.WidenSetField` |  |  | yes |
+| `pulse.Pulse.WriteExampleData` |  |  | yes |
 | `pulse.RakeCategoryReport` |  |  | yes |
 | `pulse.RakeCategoryReport.MarshalJSON` |  |  | yes |
 | `pulse.RakeCell` |  |  | yes |
@@ -3128,6 +3132,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse docs export` | yes |  | yes |
 | `pulse errors list` | yes |  | yes |
 | `pulse errors lookup` | yes | yes | yes |
+| `pulse examples data` | yes | yes | yes |
 | `pulse examples search` | yes | yes | yes |
 | `pulse examples show` | yes |  | yes |
 | `pulse explain` | yes | yes | yes |
@@ -3197,7 +3202,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--constraints` | yes | yes | yes |
 | `--correlation-top-k` | yes | yes | yes |
 | `--count` | yes |  | yes |
-| `--data-dir` | yes |  | yes |
+| `--data-dir` | yes | yes | yes |
 | `--decode-workers` | yes |  | yes |
 | `--dedup-ratio-floor` | yes | yes | yes |
 | `--detail` | yes |  | yes |

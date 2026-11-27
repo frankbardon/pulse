@@ -1215,7 +1215,7 @@ const (
 	CoreManifest        = "manifest"         // Manifest, pulse_manifest
 	CorePayloadSchema   = "payload_schema"   // payload JSON Schema, pulse://schema
 	CoreSkills          = "skills"           // skills list/get
-	CoreExamples        = "examples"         // examples search/get
+	CoreExamples        = "examples"         // examples search/get, examples data
 	CoreErrorsLookup    = "errors_lookup"    // errors lookup
 	CoreCohortArtifacts = "cohort_artifacts" // CohortArtifacts
 )
@@ -1323,6 +1323,9 @@ var commandBindings = []CommandBinding{
 	{Command: "rake", Feature: featRake},
 	{Command: "recommend", Feature: featRecommend},
 	{Command: "explain", Feature: featExplain},
+	// The example cohorts follow the example library they serve (a
+	// core surface): embedded in the binary, never hidden.
+	{Command: "examples data", Core: CoreExamples},
 	// The feature-profile tooling describes the binary, not an instance.
 	{Command: "features init", Ungated: true},
 	{Command: "features check", Ungated: true},

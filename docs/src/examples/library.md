@@ -11,6 +11,33 @@ and surfaced through three peer access paths:
 | `pulse examples search` / `pulse examples show` (CLI) | Developers exploring at a shell |
 | `pulse.ExamplesSearch` / `pulse.ExampleGet` (Go API) | Embedders building higher-level UIs |
 
+`pulse examples data` / `Pulse.WriteExampleData` write the cohorts the examples read ([Get the data](#get-the-data)).
+
+## Get the data
+
+The examples (and the Analysis Guide's worked examples) read a set of
+fixture cohorts — `experiment.pulse`, `transactions.pulse` and the rest.
+The binary carries their CSVs and schemas and writes them for you:
+
+```sh
+pulse examples data --out pulse-data      # writes every fixture cohort
+cd pulse-data                             # CLI cohort paths resolve against the working directory
+pulse examples show t_test_two_sample > req.json
+pulse api process -r req.json
+pulse mcp --data-dir pulse-data           # or serve it (from the parent directory)
+```
+
+It writes each fixture CSV imported under its schema, the point-lookup
+index on `experiment.pulse` (`id`), the shard archive
+`transactions_sharded.pulse` and the synthetic twin `customers_twin.pulse`
+(with `customers.profile.json`). An existing fixture file is refused
+(`SERVICE_VALIDATION`, `details.reason: "target_exists"`) unless you pass
+`--overwrite`; other files in the directory are left alone. `--json` lists
+the cohorts written. The population `compose/06_population_score` loads is
+not written: run `compose/05_vector_fit_save` first, which saves it. From
+Go, `p.WriteExampleData(ctx, dir, pulse.ExampleDataOptions{})` does the
+same through the instance filesystem.
+
 ## What the library contains
 
 Every example is a complete `types.Request` JSON body — the same shape you

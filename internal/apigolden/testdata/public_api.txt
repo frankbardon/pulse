@@ -318,6 +318,18 @@ pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
 pulse: type Example field Question string "json:\"question,omitempty\""
 pulse: type Example field Tags []string "json:\"tags\""
+pulse: type ExampleDataCohort struct
+pulse: type ExampleDataCohort field File string "json:\"file\""
+pulse: type ExampleDataCohort field From string "json:\"from\""
+pulse: type ExampleDataCohort field Path string "json:\"path\""
+pulse: type ExampleDataCohort field Records int "json:\"records\""
+pulse: type ExampleDataOptions struct
+pulse: type ExampleDataOptions field Overwrite bool
+pulse: type ExampleDataReport struct
+pulse: type ExampleDataReport field Cohorts []pulse.ExampleDataCohort "json:\"cohorts\""
+pulse: type ExampleDataReport field Dir string "json:\"dir\""
+pulse: type ExampleDataReport field Files []string "json:\"files\""
+pulse: type ExampleDataReport field Warnings []*pulse/errors.CodedError "json:\"-\""
 pulse: func ExampleFeatureProfile(name string) (*pulse.FeatureProfile, error)
 pulse: func ExampleFeatureProfiles() []string
 pulse: type ExampleSummary = pulse/internal/examples.ExampleSummary
@@ -1013,6 +1025,7 @@ pulse: type Pulse method (*Pulse) WatchDir(ctx context.Context, dir string, recu
 pulse: type Pulse method (*Pulse) WatchDirWithOptions(ctx context.Context, dir string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WatchWithOptions(ctx context.Context, target string, opts pulse.WatchOptions) <-chan pulse.ChangeEvent
 pulse: type Pulse method (*Pulse) WidenSetField(ctx context.Context, path string, field string, targetType string) (*pulse.WidenReport, error)
+pulse: type Pulse method (*Pulse) WriteExampleData(ctx context.Context, dir string, opts pulse.ExampleDataOptions) (*pulse.ExampleDataReport, error)
 pulse: type RakeCategoryReport = pulse/internal/rake.CategoryReport
 pulse: type RakeCategoryReport underlying struct
 pulse: type RakeCategoryReport field Achieved float64 "json:\"achieved\""
@@ -7239,4 +7252,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7c1bcd01e304298285e86ba1ddf72266ce7ce4e23fabdbe6f9854cb4efe27764
+// golden-hash: e519ed4a1c1445f7d426eff786d4aec6496b9112b9131c0b5a65be763e0521c2

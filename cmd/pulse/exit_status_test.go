@@ -145,6 +145,11 @@ func newExitFixture(t *testing.T) exitFixture {
 		t.Fatal(err)
 	}
 	writeExitFile(t, f.p("docs_taken/notes.md"), "mine\n")
+	// examples data refuses a directory already holding a fixture cohort.
+	if err := os.MkdirAll(f.p("exdata_taken"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExitFile(t, f.p("exdata_taken/experiment.pulse"), "mine\n")
 	return f
 }
 
@@ -250,6 +255,7 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "errors lookup", fatal: []string{"NOPE"}, ok: []string{"PULSE_REQUEST_UNKNOWN_FIELD"}},
 		{leaf: "examples search", fatal: []string{"--intent", "nope"}, ok: []string{"--query", "count"}},
 		{leaf: "examples show", fatal: []string{"nope"}, ok: []string{"categorical_mode_count"}},
+		{leaf: "examples data", fatal: []string{"--out", f.p("exdata_taken")}, ok: []string{"--out", f.p("exdata")}},
 		{leaf: "skills list", noFatal: "lists the embedded pack", ok: []string{}},
 		{leaf: "skills show", fatal: []string{"nope"}, ok: []string{"session-bootstrap"}},
 		{leaf: "schema", noFatal: "prints the embedded payload schema", ok: []string{}},

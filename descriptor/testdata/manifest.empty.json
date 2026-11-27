@@ -62,6 +62,15 @@
         }
       },
       {
+        "name": "examples data",
+        "description": "Write the cohorts the built-in examples and the Analysis Guide read into a directory, from CSVs and schemas embedded in the binary (refuses existing fixture files unless --overwrite)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "features init",
         "description": "Print a feature profile listing every feature this build offers, or seeded from an example feature profile",
         "annotations": {
@@ -949,4 +958,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 471eae926025ef0b5a926b95e45e670d763f36b4d07a0e4af42736949ac53d10
+// golden-hash: fcbf20f8076874055f2efbadf0f7775623466657192525cbbab51ac3f7b66921
