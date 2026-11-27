@@ -67,7 +67,7 @@ func TestWriteExampleData_WritesEveryFixtureCohort(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("cohorts written:\n got %v\nwant %v", got, want)
 	}
-	if !slices.Contains(rep.Files, "/data/customers.profile.json") || len(rep.Files) < 3 {
+	if !slices.Contains(rep.Files, filepath.FromSlash("/data/customers.profile.json")) || len(rep.Files) < 3 {
 		t.Errorf("files = %v; want the index, its manifest and the profile", rep.Files)
 	}
 	for _, f := range rep.Files {
@@ -136,7 +136,7 @@ func TestWriteExampleData_RefusesExistingUnlessOverwrite(t *testing.T) {
 	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "target_exists" {
 		t.Fatalf("err = %v; want SERVICE_VALIDATION target_exists", err)
 	}
-	if paths, _ := ce.Details["paths"].([]string); !slices.Equal(paths, []string{"/data/experiment.pulse"}) {
+	if paths, _ := ce.Details["paths"].([]string); !slices.Equal(paths, []string{filepath.FromSlash("/data/experiment.pulse")}) {
 		t.Errorf("details.paths = %v", ce.Details["paths"])
 	}
 	if b, _ := afero.ReadFile(mem, "/data/experiment.pulse"); string(b) != "keep" {
