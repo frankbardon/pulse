@@ -29,8 +29,8 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
-  - Agent half done 2026-11-27: run `internal/eval/runs/2026-11-27-r3` passes 20/20 (`go run ./internal/tools/evalscore internal/eval/runs/2026-11-27-r3`). Runs r1 (15/20), r2 (19/20) and r4 (a broken harness run) are kept as records. The fresh-reader half is still open.
+- [x] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
+  - Agent half done 2026-11-27: run `internal/eval/runs/2026-11-27-r3` passes 20/20 (`go run ./internal/tools/evalscore internal/eval/runs/2026-11-27-r3`). Runs r1 (15/20), r2 (19/20) and r4 (a broken harness run) are kept as records. Fresh-reader half done 2026-11-27 (proxy reader, a Sonnet subagent given only the built docs and the binary): run 1 logged 17 rows (3 stuck), all fixed; run 2 completed Getting Started, Compare groups and Change over time with no stuck point. Its 2 minor rows were fixed.
 - [ ] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
 - [x] **#768** (12. Release v1.0.0) `SECURITY.md` sends reporters to GitHub private vulnerability reporting: the owner enabled it on 2026-11-26 (`enabled: true`), and the release gates in [U33](U33-v1-release.md) verify `enabled: true` before every tag
 - [x] **#775** (11. Documentation audit) Restructure `.claude/reference/guided-analysis/explain-and-skills.md` for readability (dense one-paragraph bullets), keeping every rule and the slice ceiling
@@ -64,7 +64,7 @@ Each epic is a vertical slice. Commit with `feat|fix|docs|test(docs-validation/E
 
 ## Acceptance criteria
 
-- [ ] The fresh reader completes Getting Started and two question guides without outside help
+- [x] The fresh reader completes Getting Started and two question guides without outside help (proxy reader run 2, 2026-11-27)
 - [x] The agent task evaluation passes every task and the task set is committed (run 2026-11-27-r3, 20/20)
 - [ ] Every finding is fixed or deferred with a reason and an issue link; maintainer sign-off recorded
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
