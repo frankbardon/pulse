@@ -3321,7 +3321,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `-o` | yes | yes | yes |
 | `-p` | yes |  | yes |
 | `-r` | yes | yes | yes |
-| `-s` | yes |  | yes |
+| `-s` | yes | yes | yes |
 | `-v` | yes |  | yes |
 
 ## MCP tools

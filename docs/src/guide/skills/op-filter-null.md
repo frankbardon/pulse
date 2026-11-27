@@ -24,6 +24,8 @@ Use something else:
 
 ## Params
 
+Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | array | (required) | One entry: One entry: `"is_null"` keeps null-valued rows; `"is_not_null"` keeps non-null rows. Any other value → `PROCESSING_CONFIG`. |

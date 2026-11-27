@@ -13,6 +13,8 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
+Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | array | — | Dictionary labels. Resolved at build time to a single query mask; per-row check is a single bitwise AND. |

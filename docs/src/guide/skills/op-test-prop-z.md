@@ -26,17 +26,19 @@ Use something else:
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
 | `success` | string | (required) | The `field` dictionary value counted a success; on `packed_bool` `"1"` or `"0"`. |
 | `p0` | float | — | In `(0, 1)`, `split_by` absent: the one-proportion test (`variant` `one_proportion`). |
 | `reference` | string | — | Baseline `split_by` level: `diff` = other − reference (default: 2nd alphabetically). |
-| `covariate` | string | — | A numeric pre-period field (CUPED) adjusting the success indicator; not with `p0`. |
+| `covariate` | string | — | Numeric pre-period field (CUPED); not with `p0`. |
 | `interval` | enum | `wald` | `wald`, or `wilson` with `p0`. |
-| `correct` | bool | `false` | `prop.test`'s continuity correction. |
+| `correct` | bool | `false` | Continuity correction. |
 
-Option rules, codes: [`test-variant-options`](test-variant-options.md).
+Rules, codes: [`test-variant-options`](test-variant-options.md).
 
 - `weight` — p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `details` add `sum_weights` (+ `n_eff`) shaped like `n`.
 

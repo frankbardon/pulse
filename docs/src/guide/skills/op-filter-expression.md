@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `expression` | string | (required) | `expr-lang/expr` `bool` predicate. |
+| `expression` | string | (required) | Top-level slot key, not `params`: `expr-lang` `bool` predicate. |
 
 ## Inputs
 
@@ -50,9 +50,9 @@ Row-level predicate. No emitted column.
 
 - Compiled once; bad syntax / names / types → `PULSE_FORMULA_COMPILE_ERROR` at predict and build (reason: `details.compile_error`).
 - Null binds `nil`: `==` false, `!=` true, `x ?? 0` fills; `>` / `+` / `len` on nil → predicate UNKNOWN, row dropped.
-- A result typed non-bool (`x + 1`) → `PULSE_FORMULA_COMPILE_ERROR` at predict and build; an untyped (`any`) result non-bool on a non-null row, or an eval error → `PROCESSING_RUNTIME`.
-- `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
-- Reads source fields, feature labels and previous-state labels (`ATTR_PREVIOUS_STATE`), which run before filters; a later label is unknown, its message naming the window, attribute or aggregation.
+- A non-bool typed result (`x + 1`) → `PULSE_FORMULA_COMPILE_ERROR` (predict, build); an untyped non-bool result on a non-null row, or an eval error → `PROCESSING_RUNTIME`.
+- `%` on a field: float `math.Mod` (`age % 2 == 0`); `% 0` → NaN, `/ 0` → ±Inf.
+- Reads source fields, feature labels and previous-state labels (`ATTR_PREVIOUS_STATE`), which run before filters; a later label is unknown (the message names its window, attribute or aggregation).
 - Pass values as `params`: `panel == params.from_wave` with `"params": {"from_wave": "a"}`, never spliced text ([`request-params`](request-params.md)).
 - `coef()` of a compose fit that failed on its data ([`compose-fits`](compose-fits.md)) refuses the request at build with the fit's own code + `details.fit`: a filter verdict cannot be null.
 

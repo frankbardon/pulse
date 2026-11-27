@@ -15,6 +15,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
+Wire: `alpha` is a top-level test key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | In `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`); also sets the interval's coverage, `1 − alpha`. |

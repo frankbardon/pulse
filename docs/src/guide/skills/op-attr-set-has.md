@@ -24,6 +24,8 @@ Use something else:
 
 ## Params
 
+Wire: `label` is a top-level attribute key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `label` | string | (required) | Dictionary label whose bit position is checked per row. Resolved against the set field's inline dictionary at schema time. |

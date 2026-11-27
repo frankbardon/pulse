@@ -37,7 +37,13 @@ server serves.
 2. Register `bin/pulse mcp` as a stdio MCP server in the agent client,
    with `PULSE_DATA_DIR` set to that directory.
 3. Run one fresh agent session per task. Give the agent only the pulse
-   MCP tools (`pulse_*`): no shell, no file access, no web.
+   MCP tools (`pulse_*`): no shell, no file access, no web. Run the
+   import task (`prepare_import_intake`) last and alone, after every
+   other task has finished. It writes `imports/intake.pulse` into the
+   shared data directory; a task run beside it can see that cohort in
+   the import list and use it, and the scorer's fresh environment has
+   no managed imports, so the answer fails. Rebuild the data directory
+   (step 1) before the next full run.
 4. Send the task's `question` in this prompt, with nothing else:
 
    ```text
@@ -52,9 +58,11 @@ server serves.
 
 5. Save the run under `internal/eval/runs/<date>/`, two files per task:
    - `<task-id>.json`: the final submission, `{"tool", "arguments"}`.
-     The simulate task has no MCP tool. Its answer is a synth spec,
-     saved as `{"tool": "synth", "arguments": {"spec": …, "out": …,
-     "seed": …}}`.
+     The simulate task has no MCP tool, so the agent cannot run its
+     answer. The orchestrator records the synth spec the agent wrote
+     as `{"tool": "synth", "arguments": {"spec": …, "out": …,
+     "seed": …}}` (the synth pseudo-tool) and notes in the summary that
+     the answer was not runnable by the agent.
    - `<task-id>.md`: a short transcript summary. Record the tool calls in
      order with a count, any retries, and where the agent went wrong.
 6. Score the run from the repository root:

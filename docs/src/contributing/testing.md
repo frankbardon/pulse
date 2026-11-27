@@ -73,6 +73,7 @@ How to run the documentation checks and work their allowlists:
 | `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered operator (components, regressions, matrix ops, overlays, windows), synth distribution, field type, CLI leaf, MCP tool and prompt; every operator declares a `Purpose`; every skill cross-reference resolves. Spread over `internal/skills`, `internal/descriptor`, `internal/integration` and `mcp/gosdk`: run `go test ./... -run TestSkillsCoverAll` |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves, or `mcp` (there is no `skills/index.json` — the `embed.FS` walk is the index) |
+| `TestParamsTableSaysWhereKeyGoes`      | An op skill whose Params table lists a key that is a top-level slot field (a filterer's `values`, a test's `alpha`) says it is not under `params` |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |

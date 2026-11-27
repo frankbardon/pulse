@@ -9,7 +9,7 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, time-series]
 ```
 
-Synth distributions emit per-row values; no `Response.Components`.
+Synth distributions emit per-row values; no `Response.Components`. CLI-only ([`synthetic-data`](synthetic-data.md)).
 
 ## Use when
 

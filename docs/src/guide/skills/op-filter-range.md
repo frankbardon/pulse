@@ -25,6 +25,8 @@ Use something else:
 
 ## Params
 
+Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | array | (required) | `[low, high]`, number strings. Any other count → `PROCESSING_CONFIG` at run time; predict passes it. |
@@ -46,7 +48,7 @@ Row-level predicate. Pass when `low ≤ value ≤ high`; drop otherwise. No emit
 
 ## Gotchas
 
-- Inclusive bounds on both ends. Open intervals require `FILTER_EXPRESSION`.
+- Inclusive bounds on both ends; there is no open bound, so never use a sentinel like `255`. One-sided ("at least 40"): `{"type": "FILTER_EXPRESSION", "expression": "age >= 40"}`.
 - Null rows fail the predicate (dropped).
 - `date` interpreted as the numeric day-since-epoch — pass numeric strings, not formatted dates.
 

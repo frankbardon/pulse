@@ -27,6 +27,8 @@ Use something else:
 
 ## Params
 
+Wire: `alpha` is a top-level test key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
