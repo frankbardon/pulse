@@ -7,7 +7,7 @@ It sounds like:
 - "Do the four regions convert at different rates?"
 - "Is this segment's satisfaction score different from everyone else's?"
 
-Start with the group figures themselves (an average or a share per group), then add a test that says how surprising the gap would be if the groups were alike. Two groups take a two-sample test; three or more take an analysis of variance or its rank-based cousin, followed by pairwise comparisons only if you need to know which pair differs.
+Start with the group figures themselves (an average or a share per group), then add a test that says how surprising the gap would be if the groups were alike. Two groups take a two-sample test: for a numeric outcome start with `TEST_T`, Welch's t-test (it compares two averages without assuming the groups spread equally), as the worked example does; for a yes/no outcome start with `TEST_PROP_Z`. Three or more groups take an analysis of variance (ANOVA: one test of whether any group's average differs) or its rank-based cousin (Kruskal-Wallis, which compares the order of the values rather than the values, so outliers weigh less), followed by pairwise comparisons only if you need to know which pair differs. Beside the test, read an effect size: Cohen's d is the gap between two averages in standard deviations, and its bands (small, medium, large) are under How to read the result.
 
 <!-- section pitfalls -->
 - **A small p-value is not a big difference.** With many rows, a gap too small to matter still clears the bar; read the size of the gap and the effect size (Cohen's d, Cramér's V) beside the p-value.

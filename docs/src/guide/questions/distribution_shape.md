@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `measure`: 1 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_KURTOSIS`, `AGG_SKEWNESS` and `AGG_STDDEV`.
 
 ### Aggregators
 
@@ -72,6 +72,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`OVERLAY_KS_VS_POP`](../catalog/overlay.md#op-overlay_ks_vs_pop) | Kolmogorov-Smirnov test on a numeric facet: checks whether a subset's distribution departs from a comparison population's. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show shape_moments > req.json
+pulse api process --request req.json --json
+```
 
 **Is customer income skewed, or does it follow a bell curve?**
 
@@ -222,4 +231,4 @@ More on reading it: [AGG_STDDEV](../reading/descriptive.md#op-agg_stddev).
 - `pulse recommend --intent distribution_shape --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

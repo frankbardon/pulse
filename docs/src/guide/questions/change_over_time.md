@@ -11,7 +11,7 @@ It sounds like:
 - "How does this month compare to last month, and to the same month last year?"
 - "Did customers spend more after the launch than before it?"
 
-There are three common shapes. Bucket the rows by period (day, week, month) and read the series, adding period-over-period changes or indexes. Test the whole series for a steady upward or downward trend. Or, when the same rows are measured twice, compare each row with itself before and after.
+There are three common shapes. Bucket the rows by period (day, week, month) and read the series, adding period-over-period changes or indexes. Test the whole series for a steady upward or downward trend. Or, when the same rows are measured twice, compare each row with itself before and after. The worked example below is that third shape, with no date field; for the period and trend shapes, `pulse examples search time-series` lists runnable examples, such as `post_trend_on_dates` (a trend test on weekly figures).
 <!-- docgen:preserve end guide-change_over_time-question -->
 
 ## Pick your analysis
@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `time`: one date field; `measure`: 1 or more numeric, categorical or bool fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE` and `TEST_PAIRED_T`.
 
 ### Attributes
 
@@ -86,12 +86,28 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show paired_t_before_after > req.json
+pulse api process --request req.json --json
+```
+
 **Did customers spend more during the test period than they did before it?**
 
 The request (example `paired_t_before_after`; `pulse examples show paired_t_before_after` prints it):
 
 ```json cohort=experiment
 {
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue_before",
+      "label": "avg_revenue_before"
+    }
+  ],
   "cohort": {
     "filename": "experiment.pulse"
   },
@@ -114,6 +130,11 @@ The result:
 
 ```json
 {
+  "data": [
+    {
+      "avg_revenue_before": 120.6
+    }
+  ],
   "metadata": {
     "total_rows": 400,
     "filtered_rows": 400,
@@ -142,6 +163,16 @@ The result:
     }
   ],
   "components": {
+    "aggregations": [
+      {
+        "label": "avg_revenue_before",
+        "n": 400,
+        "n_null": 0,
+        "operator": {
+          "sum": 4.824e+04
+        }
+      }
+    ],
     "run": {
       "total_records": 400,
       "filtered_records": 400,
@@ -156,7 +187,7 @@ The result:
 }
 ```
 
-Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level; the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.
+Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level (the test's mean_diff against avg_revenue_before, the average spend before, in the data row); the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.
 
 ## How to read the result
 
@@ -233,11 +264,11 @@ More on reading it: [TEST_PAIRED_T](../reading/test.md#op-test_paired_t).
 - [Describe a measure](describe.md)
 - [Benchmark against a reference](benchmark.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`window-design`](../skills/window-design.md), [`windows-first`](../skills/windows-first.md), [`op-test-paired-t`](../skills/op-test-paired-t.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`window-design`](../skills/window-design.md), [`windows-first`](../skills/windows-first.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-test-paired-t`](../skills/op-test-paired-t.md)
 
 **From the command line:**
 
 - `pulse recommend --intent change_over_time --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

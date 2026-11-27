@@ -1,4 +1,9 @@
 {
+  "data": [
+    {
+      "avg_revenue_before": 120.6
+    }
+  ],
   "metadata": {
     "total_rows": 400,
     "filtered_rows": 400,
@@ -27,6 +32,16 @@
     }
   ],
   "components": {
+    "aggregations": [
+      {
+        "label": "avg_revenue_before",
+        "n": 400,
+        "n_null": 0,
+        "operator": {
+          "sum": 4.824e+04
+        }
+      }
+    ],
     "run": {
       "total_records": 400,
       "filtered_records": 400,

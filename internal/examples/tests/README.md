@@ -17,7 +17,7 @@ its cohort from the shared `.data` directory and assumes
 | `09_post_trend_on_dates.json` | 2 | `TEST_TREND` | Mann-Kendall over the weekly revenue-to-baseline ratio (`AGG_RATIO`) — picks up the planted upward drift |
 | `10_post_trend_on_window.json` | 2 | `TEST_TREND` | trend test on a 7-day moving average; smoothing makes the points dependent, so its p-value is too small (test the raw series, as 09 does) |
 | `11_pearson_correlation.json` | 1 | `TEST_PEARSON_R` | linear correlation between revenue and revenue_before (paired by construction) |
-| `12_paired_t_before_after.json` | 1 | `TEST_PAIRED_T` | paired-sample t on per-unit revenue lift |
+| `12_paired_t_before_after.json` | 1 | `TEST_PAIRED_T` | paired-sample t on per-unit revenue lift, beside the baseline mean (`AGG_AVERAGE` of revenue_before) |
 | `13_two_proportion_z.json` | 1 | `TEST_PROP_Z` | conversion-rate lift between control and variant |
 | `14_parametric_battery.json` | 1 | four tests | Welch t + paired t + two-proportion z + Pearson r in one Process call |
 | `15_mann_whitney_revenue.json` | 1 | `TEST_MANN_WHITNEY_U` | nonparametric two-sample on revenue split by treatment |

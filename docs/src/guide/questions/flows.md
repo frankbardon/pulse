@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `from`: one categorical or bool field; `to`: one categorical or bool field
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_COUNT` and `GROUP_CATEGORY`.
 
 ### Attributes
 
@@ -37,6 +37,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`OVERLAY_MARKOV`](../catalog/overlay.md#op-overlay_markov) | Markov chain of a from-state by to-state crosstab: transition probabilities, n-step projections, steady state and time to absorption. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show crosstab-retention > req.json
+pulse api process --request req.json --json
+```
 
 **Which tiers hold on to their members, and where do the leavers go?**
 
@@ -358,4 +367,4 @@ The figures these operators return read as their names say; for the ones that ne
 - `pulse recommend --intent flows --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

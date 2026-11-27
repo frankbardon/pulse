@@ -19,7 +19,7 @@ This question fits data shaped like:
 - `measure`: 1 or more numeric fields
 - `measure`: 1 or more categorical, bool or set fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_CI_LOWER` and `AGG_CI_UPPER`.
 
 ### Aggregators
 
@@ -85,6 +85,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`OVERLAY_FORMULA`](../catalog/overlay.md#op-overlay_formula) | Computes a custom figure for every cell, group or total from an expression over the value and its margins, totals or prior point. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show confidence_interval_normal > req.json
+pulse api process --request req.json --json
+```
 
 **What is a typical customer's income, and how precisely does this cohort pin it down?**
 
@@ -254,4 +263,4 @@ More on reading it: [AGG_CI_UPPER](../reading/descriptive.md#op-agg_ci_upper).
 - `pulse recommend --intent describe --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `items`: 2 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `MAT_RELIABILITY`.
 
 ### Attributes
 
@@ -47,6 +47,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`MAT_SEM`](../catalog/matrix.md#op-mat_sem) | Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show scale_reliability > req.json
+pulse api process --request req.json --json
+```
 
 **Do these six engagement questions measure one thing well enough to add up into a single score?**
 
@@ -329,4 +338,4 @@ More on reading it: [MAT_RELIABILITY](../reading/matrix.md#op-mat_reliability).
 - `pulse recommend --intent measure_construct --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

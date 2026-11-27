@@ -7,7 +7,7 @@ It sounds like:
 - "How does this month compare to last month, and to the same month last year?"
 - "Did customers spend more after the launch than before it?"
 
-There are three common shapes. Bucket the rows by period (day, week, month) and read the series, adding period-over-period changes or indexes. Test the whole series for a steady upward or downward trend. Or, when the same rows are measured twice, compare each row with itself before and after.
+There are three common shapes. Bucket the rows by period (day, week, month) and read the series, adding period-over-period changes or indexes. Test the whole series for a steady upward or downward trend. Or, when the same rows are measured twice, compare each row with itself before and after. The worked example below is that third shape, with no date field; for the period and trend shapes, `pulse examples search time-series` lists runnable examples, such as `post_trend_on_dates` (a trend test on weekly figures).
 
 <!-- section pitfalls -->
 - **Before and after is not cause and effect.** Anything else that changed in the same window — season, prices, a gradual drift — lands in the difference too; a comparison group that did not get the change is what isolates it.

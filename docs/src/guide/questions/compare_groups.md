@@ -11,7 +11,7 @@ It sounds like:
 - "Do the four regions convert at different rates?"
 - "Is this segment's satisfaction score different from everyone else's?"
 
-Start with the group figures themselves (an average or a share per group), then add a test that says how surprising the gap would be if the groups were alike. Two groups take a two-sample test; three or more take an analysis of variance or its rank-based cousin, followed by pairwise comparisons only if you need to know which pair differs.
+Start with the group figures themselves (an average or a share per group), then add a test that says how surprising the gap would be if the groups were alike. Two groups take a two-sample test: for a numeric outcome start with `TEST_T`, Welch's t-test (it compares two averages without assuming the groups spread equally), as the worked example does; for a yes/no outcome start with `TEST_PROP_Z`. Three or more groups take an analysis of variance (ANOVA: one test of whether any group's average differs) or its rank-based cousin (Kruskal-Wallis, which compares the order of the values rather than the values, so outliers weigh less), followed by pairwise comparisons only if you need to know which pair differs. Beside the test, read an effect size: Cohen's d is the gap between two averages in standard deviations, and its bands (small, medium, large) are under How to read the result.
 <!-- docgen:preserve end guide-compare_groups-question -->
 
 ## Pick your analysis
@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `outcome`: one numeric, categorical or bool field; `group`: one categorical or bool field
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE` and `TEST_T`.
 
 ### Aggregators
 
@@ -92,6 +92,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`OVERLAY_Z_VS_REF`](../catalog/overlay.md#op-overlay_z_vs_ref) | Large-sample z-test for every group of a grouped result in a Compose request: does the target's mean differ from the reference's? | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show t_test_two_sample > req.json
+pulse api process --request req.json --json
+```
 
 **Do customers in the variant arm spend more than customers in the control arm?**
 
@@ -199,7 +208,7 @@ The result:
 }
 ```
 
-Yes. The variant arm's average revenue is higher than the control arm's by close to a fifth, and the test says a gap this wide would rarely appear if the arms truly spent the same: the p-value sits well below alpha (the false-alarm rate the request accepts) and the interval for the difference stays on one side of zero. The difference reads as the first group minus the second (control minus variant), which is why it is negative. Cohen's d puts the effect at the small end, so the two arms overlap heavily and plenty of control customers still out-spend variant customers. The average in the data row is the whole cohort; the per-arm means sit in the test's details.
+Yes. The variant arm's average revenue is higher than the control arm's by close to a fifth, and the test says a gap this wide would rarely appear if the arms truly spent the same: the p-value sits well below alpha (the false-alarm rate the request accepts) and the interval for the difference stays on one side of zero. The difference reads as the first group minus the second (control minus variant), which is why it is negative. Cohen's d, the gap measured in standard deviations, falls in the small band of Cohen's convention (from two tenths to half a standard deviation), so the two arms overlap heavily and plenty of control customers still out-spend variant customers. The average in the data row is the whole cohort; the per-arm means sit in the test's details.
 
 ## How to read the result
 
@@ -336,4 +345,4 @@ More on reading it: [TEST_T](../reading/test.md#op-test_t).
 - `pulse recommend --intent compare_groups --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

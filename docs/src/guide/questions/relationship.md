@@ -21,7 +21,7 @@ This question fits data shaped like:
 - `measures`: 2 or more numeric fields
 - `categories`: 2 categorical or bool fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_COUNT` and `TEST_PEARSON_R`.
 
 ### Attributes
 
@@ -75,6 +75,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`OVERLAY_STD_RESIDUAL`](../catalog/overlay.md#op-overlay_std_residual) | Adjusted residual for every crosstab cell: how far its count sits above or below what its row and column totals predict. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show pearson_correlation > req.json
+pulse api process --request req.json --json
+```
 
 **Do customers who spent more before the test also spend more during it?**
 
@@ -241,4 +250,4 @@ More on reading it: [TEST_PEARSON_R](../reading/test.md#op-test_pearson_r).
 - `pulse recommend --intent relationship --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

@@ -225,3 +225,60 @@ func TestRender_QuestionPagesLint(t *testing.T) {
 		t.Fatal("no question pages linted: vacuous")
 	}
 }
+
+// TestRender_StoryGetTheData: a guide with a worked example opens the
+// section with the steps that make it run as shown (write the example
+// cohorts, work from their directory, save and process the first
+// story's request), and the pick-analysis line names the operators the
+// example uses. Without the process capability nothing runs, so the
+// steps are left out.
+func TestRender_StoryGetTheData(t *testing.T) {
+	t.Parallel()
+
+	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	checked := 0
+	for _, in := range descx.Intents() {
+		page, ok := files["questions/"+in.ID+".md"]
+		if !ok {
+			continue
+		}
+		var first *examples.Example
+		for _, name := range examples.Stories() {
+			if ex, _ := examples.Get(name); ex != nil && len(ex.Intents) > 0 && ex.Intents[0] == in.ID {
+				first = ex
+				break
+			}
+		}
+		if first == nil {
+			continue
+		}
+		section := page[strings.Index(page, "## A worked example\n\n")+len("## A worked example\n\n"):]
+		want := "```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show " + first.Name + " > req.json\npulse api process --request req.json --json\n```\n"
+		if !strings.HasPrefix(section, "To run the example below yourself") || !strings.Contains(section[:strings.Index(section, "**")], want) {
+			t.Errorf("%s: worked example does not open with the get-the-data steps for %s", in.ID, first.Name)
+		}
+		pick := page[strings.Index(page, "## Pick your analysis"):strings.Index(page, "## A worked example")]
+		for _, op := range first.Operators {
+			if !strings.Contains(pick, "the worked example below uses") || !strings.Contains(pick, "`"+op+"`") {
+				t.Errorf("%s: pick-analysis line does not name the example's %s", in.ID, op)
+			}
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no guide with a story checked: vacuous")
+	}
+
+	var enabled []string
+	for _, n := range descx.FeatureNames() {
+		if n != descx.FeatureName(descx.FeatureKindCapability, "process") {
+			enabled = append(enabled, n)
+		}
+	}
+	noProcess := tree(docgen.Render(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: enabled}), docgen.Options{}))
+	for p, body := range noProcess {
+		if strings.HasPrefix(p, "questions/") && strings.Contains(body, "pulse examples data --out") {
+			t.Errorf("%s: get-the-data steps rendered without the process capability", p)
+		}
+	}
+}

@@ -1,15 +1,16 @@
 {
   "_meta": {
-    "interpretation": "Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level; the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.",
+    "interpretation": "Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level (the test's mean_diff against avg_revenue_before, the average spend before, in the data row); the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.",
     "question": "Did customers spend more during the test period than they did before it?",
     "category": "tests",
-    "description": "Paired t-test of revenue against revenue_before, row by row: the average before-to-after change per customer, which mixes the treatment lift with the time drift.",
+    "description": "Paired t-test of revenue against revenue_before, row by row: the average before-to-after change per customer, which mixes the treatment lift with the time drift. AGG_AVERAGE of revenue_before gives the baseline the change is read against.",
     "intents": [
       "change_over_time",
       "compare_groups"
     ],
     "name": "paired_t_before_after",
     "operators": [
+      "AGG_AVERAGE",
       "TEST_PAIRED_T"
     ],
     "tags": [
@@ -23,6 +24,13 @@
       "streaming-friendly"
     ]
   },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue_before",
+      "label": "avg_revenue_before"
+    }
+  ],
   "cohort": {
     "filename": "experiment.pulse",
     "data_dir": ".data"

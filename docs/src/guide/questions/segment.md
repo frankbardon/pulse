@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `measures`: 1 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_COUNT`, `GROUP_KMEANS`, `ATTR_PC_SCORE`, `GROUP_CATEGORY`, `MAT_DISTANCE` and `MAT_PCA`.
 
 ### Groupers
 
@@ -45,6 +45,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`MAT_DISTANCE`](../catalog/matrix.md#op-mat_distance) | How far apart segments are across several numbers at once: the gap between each pair of segment centres. | advanced |
 
 ## A worked example
+
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show group_kmeans > req.json
+pulse api process --request req.json --json
+```
 
 **Do customers fall into natural groups by age and income?**
 
@@ -840,4 +849,4 @@ More on reading it: [MAT_PCA](../reading/matrix.md#op-mat_pca).
 - `pulse recommend --intent segment --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.
