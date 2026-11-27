@@ -66,7 +66,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
 - [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
 - [ ] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision
-- [ ] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision
+- [x] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
@@ -303,5 +303,5 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 
 Found in docs-validation (E1-S2, E2-S2); full text in [`TODO.md`](../TODO.md); tick there when delivered. The synth units (U52, U76) and the example-search units (U23, U31) are done, so this open unit carries them. The consolidated record of the documentation work, with every U32a, U32b and U32c finding and its disposition, is [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md); its owner sign-off line is filled by the owner there.
 
-- [ ] **#802** — **No MCP tool runs synth**, so an MCP-only agent can author a spec but not run it; add a synth tool or keep simulate CLI / library-only by decision.
+- [x] **#802** — **No MCP tool runs synth**, so an MCP-only agent can author a spec but not run it; add a synth tool or keep simulate CLI / library-only by decision. **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** — **Example search has no plain-word synonym tier** ("null" does not find "missing"); add a small word-synonym table to the synonym tier.

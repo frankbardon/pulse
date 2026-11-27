@@ -165,7 +165,7 @@ There are 64 rows: 54 fixed, 8 no-change and 2 filed (#802, #803). The table rec
 
 | # | Surface | Finding | Disposition |
 |---|---|---|---|
-| C-01 | MCP surface | No MCP tool runs synth, so an MCP-only agent can author a spec but not run it; the eval scores it through a `synth` pseudo-tool | **filed #802** (U33, owner decision). Reason: whether a synth tool joins the MCP surface is a contract call; the skills already say synth is CLI-only |
+| C-01 | MCP surface | No MCP tool runs synth, so an MCP-only agent can author a spec but not run it; the eval scores it through a `synth` pseudo-tool | **filed #802**, resolved 2026-11-27 by owner decision: no MCP synth tool. Reason: whether a synth tool joins the MCP surface is a contract call; the skills already say synth is CLI-only |
 | C-02 | `internal/eval/check.go` | Exists-semantics assertions can pass by coincidence on a loose scope | no-change: tasks pin `key` / `metric` / `in_row`; documented in the package |
 | C-03 | `internal/eval/eval_test.go` | Answer-key leak guard admits `internal/tools/` (evalscore) | no-change: the one intended importer |
 | C-04 | brief | `buildExampleFixtures` is test-only, so the eval has its own builder (`eval.NewEnv`) on the same CSVs and schemas | no-change |
@@ -285,7 +285,7 @@ These items are filed under [U33](../units/U33-v1-release.md):
 - #756, #767, #769, #770, #772–#774, #776–#798: from U32a and U32b;
 - #802 and #803: from U32c.
 
-The items that need an owner decision are #772, #783, #788 and #802.
+The items that need an owner decision are #772, #783 and #788. #802 was resolved on 2026-11-27: no MCP synth tool.
 
 ## Maintainer sign-off (#167)
 
