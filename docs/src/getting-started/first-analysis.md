@@ -20,6 +20,10 @@ region and counts orders and sums revenue in each group. Save it as
 }
 ```
 
+(The `cohort=experiment` after `json` in this page's source is a tag for
+the docs' own test, which runs the block on the `experiment` example
+cohort; it has the same three fields. Save only the JSON.)
+
 To find an operator for a question, see
 [Choosing an Operator](../library/operators.md) or
 `pulse examples search <words>`.
@@ -33,7 +37,8 @@ pulse api predict --request request.json
 Predict checks the request against the schema without reading records:
 `Valid: true`, then any warnings. The import above wrote placeholder
 field descriptions, so it warns `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
-for each field; a schema file with real descriptions clears them.
+for each field. Importing with a filled-in schema template
+([Your First Cohort, step 2](first-cohort.md#2-import-it)) clears them.
 
 ## 3. Run it
 
@@ -41,10 +46,17 @@ for each field; a schema file with real descriptions clears them.
 pulse api process --request request.json --json
 ```
 
-`data.data` holds one row per region (`orders`, `total_revenue`), and
-`data.metadata` the row counts. Every `--json` output uses the same
-envelope: `format_version`, `data`, `request`, `errors`, `warnings`
-([`--json` envelope](../cli/flags.md#--json-envelope)). For a large result,
+`data.data` holds one row per region (`orders`, `total_revenue`),
+`data.metadata` the row counts, and `data.components` the counts behind
+each figure (rows used, nulls skipped). Every `--json` output uses the same
+envelope: `format_version`, `data`, `errors`, `warnings`, plus `request`
+(the normalized request) only when you pass `--echo-request` to an `api` leaf
+([`--json` envelope](../cli/flags.md#--json-envelope)).
+
+A sum can print as `63.989999999999995`: that is the exact binary
+float. Add `"return": {"precision": 4}` to the request to round every
+figure to 4 significant digits on output
+([Response shaping](../library/response-shaping.md)). For a large result,
 `--stream` writes NDJSON rows instead
 ([Streaming](../library/streaming.md)).
 
@@ -54,8 +66,9 @@ envelope: `format_version`, `data`, `request`, `errors`, `warnings`
 pulse export csv --input sales.pulse --output sales.out.csv
 ```
 
-`pulse convert source.csv target.parquet` converts between formats in
-one step.
+Numbers come out in their shortest exact form (`12.5`, `44`), not
+padded to the CSV's original decimals. `pulse convert source.csv
+target.parquet` converts between formats in one step.
 
 ## Next
 

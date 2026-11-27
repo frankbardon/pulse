@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "intake.pulse"}, "groups": [{"type": "GROUP_CATEGORY", "field": "channel"}], "aggregations": [{"type": "AGG_COUNT", "field": "id", "label": "n"}, {"type": "AGG_NULL_COUNT", "field": "income", "label": "income_blank"}]}}

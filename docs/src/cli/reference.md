@@ -275,6 +275,18 @@ In depth: [default zone field](flags.md#--zone-field-cohort-default-zone)
 | `--field`, `-f` | string |  | The categorical zone field to declare (or pass as the last positional argument) |
 | `--json` |  |  | Output the result as a JSON envelope |
 
+### `pulse cohorts`
+
+List every .pulse cohort under the data directory (or under DIR, relative to it): path, record count, fields, shard-archive and managed-import flags; header and schema only
+
+Usage: `pulse cohorts [options] [DIR]`
+
+In depth: [listing the cohorts](cohort-inspect.md#listing-the-cohorts-pulse-cohorts)
+
+| Flag | Value | Default | Description |
+|---|---|---|---|
+| `--json` |  |  | Output the result as a JSON envelope |
+
 ### `pulse completion bash`
 
 Output bash completion script
@@ -413,6 +425,20 @@ Usage: `pulse errors lookup [options] CODE`
 
 | Flag | Value | Default | Description |
 |---|---|---|---|
+| `--json` |  |  | Output the result as a JSON envelope |
+
+### `pulse examples data`
+
+Write the example fixture cohorts (from CSVs embedded in the binary) into a directory, so every served example and Analysis Guide request runs against it (from it as the working directory, or with it as the pulse mcp data directory)
+
+Usage: `pulse examples data [options]`
+
+In depth: [get the data](../examples/library.md#get-the-data)
+
+| Flag | Value | Default | Description |
+|---|---|---|---|
+| `--out`, `-o` | string |  | **Required.** Directory to write the example cohorts into (created when missing) |
+| `--overwrite` |  |  | Replace example cohort files already in --out (other files are left alone) |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse examples search`
@@ -1374,7 +1400,7 @@ Each flag a command mounts, with the commands that mount it. The global flags ar
 | `--include`, `-i` | [`shard create`](#pulse-shard-create) |
 | `--input`, `-i` | [`api facet`](#pulse-api-facet), [`api lookup`](#pulse-api-lookup), [`api sample`](#pulse-api-sample), [`cohort filter`](#pulse-cohort-filter), [`cohort inspect`](#pulse-cohort-inspect), [`cohort zone clear`](#pulse-cohort-zone-clear), [`cohort zone set`](#pulse-cohort-zone-set), [`dedup`](#pulse-dedup), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export predict`](#pulse-export-predict), [`export spss`](#pulse-export-spss), [`export transfer`](#pulse-export-transfer), [`export tsv`](#pulse-export-tsv), [`import arrow`](#pulse-import-arrow), [`import csv`](#pulse-import-csv), [`import excel`](#pulse-import-excel), [`import jsonarray`](#pulse-import-jsonarray), [`import ndjson`](#pulse-import-ndjson), [`import parquet`](#pulse-import-parquet), [`import predict`](#pulse-import-predict), [`import spss`](#pulse-import-spss), [`import transfer`](#pulse-import-transfer), [`import tsv`](#pulse-import-tsv), [`index build`](#pulse-index-build), [`index drop`](#pulse-index-drop), [`index list`](#pulse-index-list), [`index verify`](#pulse-index-verify), [`profile create`](#pulse-profile-create), [`rake`](#pulse-rake), [`widen`](#pulse-widen) |
 | `--intent` | [`examples search`](#pulse-examples-search), [`recommend`](#pulse-recommend) |
-| `--json` | [`api compose`](#pulse-api-compose), [`api facet`](#pulse-api-facet), [`api lookup`](#pulse-api-lookup), [`api materialize`](#pulse-api-materialize), [`api predict`](#pulse-api-predict), [`api predict-chain`](#pulse-api-predict-chain), [`api predict-compose`](#pulse-api-predict-compose), [`api predict-facet`](#pulse-api-predict-facet), [`api process`](#pulse-api-process), [`api process-chain`](#pulse-api-process-chain), [`api sample`](#pulse-api-sample), [`cohort filter`](#pulse-cohort-filter), [`cohort inspect`](#pulse-cohort-inspect), [`cohort zone clear`](#pulse-cohort-zone-clear), [`cohort zone set`](#pulse-cohort-zone-set), [`convert`](#pulse-convert), [`convert predict`](#pulse-convert-predict), [`dedup`](#pulse-dedup), [`docs export`](#pulse-docs-export), [`errors list`](#pulse-errors-list), [`errors lookup`](#pulse-errors-lookup), [`examples search`](#pulse-examples-search), [`examples show`](#pulse-examples-show), [`explain`](#pulse-explain), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export predict`](#pulse-export-predict), [`export spss`](#pulse-export-spss), [`export transfer`](#pulse-export-transfer), [`export tsv`](#pulse-export-tsv), [`features check`](#pulse-features-check), [`features diff`](#pulse-features-diff), [`features init`](#pulse-features-init), [`features show`](#pulse-features-show), [`import arrow`](#pulse-import-arrow), [`import auto`](#pulse-import-auto), [`import csv`](#pulse-import-csv), [`import drop`](#pulse-import-drop), [`import excel`](#pulse-import-excel), [`import jsonarray`](#pulse-import-jsonarray), [`import list`](#pulse-import-list), [`import ndjson`](#pulse-import-ndjson), [`import parquet`](#pulse-import-parquet), [`import predict`](#pulse-import-predict), [`import spss`](#pulse-import-spss), [`import transfer`](#pulse-import-transfer), [`import tsv`](#pulse-import-tsv), [`index build`](#pulse-index-build), [`index drop`](#pulse-index-drop), [`index list`](#pulse-index-list), [`index verify`](#pulse-index-verify), [`profile create`](#pulse-profile-create), [`rake`](#pulse-rake), [`recommend`](#pulse-recommend), [`shard add`](#pulse-shard-add), [`shard compact`](#pulse-shard-compact), [`shard create`](#pulse-shard-create), [`shard list`](#pulse-shard-list), [`shard remove`](#pulse-shard-remove), [`shard verify`](#pulse-shard-verify), [`skills list`](#pulse-skills-list), [`synth from-profile`](#pulse-synth-from-profile), [`synth from-schema`](#pulse-synth-from-schema), [`version`](#pulse-version), [`widen`](#pulse-widen) |
+| `--json` | [`api compose`](#pulse-api-compose), [`api facet`](#pulse-api-facet), [`api lookup`](#pulse-api-lookup), [`api materialize`](#pulse-api-materialize), [`api predict`](#pulse-api-predict), [`api predict-chain`](#pulse-api-predict-chain), [`api predict-compose`](#pulse-api-predict-compose), [`api predict-facet`](#pulse-api-predict-facet), [`api process`](#pulse-api-process), [`api process-chain`](#pulse-api-process-chain), [`api sample`](#pulse-api-sample), [`cohort filter`](#pulse-cohort-filter), [`cohort inspect`](#pulse-cohort-inspect), [`cohort zone clear`](#pulse-cohort-zone-clear), [`cohort zone set`](#pulse-cohort-zone-set), [`cohorts`](#pulse-cohorts), [`convert`](#pulse-convert), [`convert predict`](#pulse-convert-predict), [`dedup`](#pulse-dedup), [`docs export`](#pulse-docs-export), [`errors list`](#pulse-errors-list), [`errors lookup`](#pulse-errors-lookup), [`examples data`](#pulse-examples-data), [`examples search`](#pulse-examples-search), [`examples show`](#pulse-examples-show), [`explain`](#pulse-explain), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export predict`](#pulse-export-predict), [`export spss`](#pulse-export-spss), [`export transfer`](#pulse-export-transfer), [`export tsv`](#pulse-export-tsv), [`features check`](#pulse-features-check), [`features diff`](#pulse-features-diff), [`features init`](#pulse-features-init), [`features show`](#pulse-features-show), [`import arrow`](#pulse-import-arrow), [`import auto`](#pulse-import-auto), [`import csv`](#pulse-import-csv), [`import drop`](#pulse-import-drop), [`import excel`](#pulse-import-excel), [`import jsonarray`](#pulse-import-jsonarray), [`import list`](#pulse-import-list), [`import ndjson`](#pulse-import-ndjson), [`import parquet`](#pulse-import-parquet), [`import predict`](#pulse-import-predict), [`import spss`](#pulse-import-spss), [`import transfer`](#pulse-import-transfer), [`import tsv`](#pulse-import-tsv), [`index build`](#pulse-index-build), [`index drop`](#pulse-index-drop), [`index list`](#pulse-index-list), [`index verify`](#pulse-index-verify), [`profile create`](#pulse-profile-create), [`rake`](#pulse-rake), [`recommend`](#pulse-recommend), [`shard add`](#pulse-shard-add), [`shard compact`](#pulse-shard-compact), [`shard create`](#pulse-shard-create), [`shard list`](#pulse-shard-list), [`shard remove`](#pulse-shard-remove), [`shard verify`](#pulse-shard-verify), [`skills list`](#pulse-skills-list), [`synth from-profile`](#pulse-synth-from-profile), [`synth from-schema`](#pulse-synth-from-schema), [`version`](#pulse-version), [`widen`](#pulse-widen) |
 | `--keep-pulse` | [`convert`](#pulse-convert) |
 | `--key`, `-k` | [`api lookup`](#pulse-api-lookup), [`index build`](#pulse-index-build), [`index drop`](#pulse-index-drop), [`index verify`](#pulse-index-verify) |
 | `--labels` | [`api facet`](#pulse-api-facet), [`api sample`](#pulse-api-sample), [`convert`](#pulse-convert), [`convert predict`](#pulse-convert-predict), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export predict`](#pulse-export-predict), [`export spss`](#pulse-export-spss), [`export tsv`](#pulse-export-tsv) |
@@ -1395,9 +1421,9 @@ Each flag a command mounts, with the commands that mount it. The global flags ar
 | `--no-project` | [`api process`](#pulse-api-process) |
 | `--no-skills` | [`docs export`](#pulse-docs-export) |
 | `--out` | [`docs export`](#pulse-docs-export) |
-| `--out`, `-o` | [`api materialize`](#pulse-api-materialize), [`dedup`](#pulse-dedup), [`rake`](#pulse-rake) |
+| `--out`, `-o` | [`api materialize`](#pulse-api-materialize), [`dedup`](#pulse-dedup), [`examples data`](#pulse-examples-data), [`rake`](#pulse-rake) |
 | `--output`, `-o` | [`cohort filter`](#pulse-cohort-filter), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export spss`](#pulse-export-spss), [`export transfer`](#pulse-export-transfer), [`export tsv`](#pulse-export-tsv), [`import arrow`](#pulse-import-arrow), [`import csv`](#pulse-import-csv), [`import excel`](#pulse-import-excel), [`import jsonarray`](#pulse-import-jsonarray), [`import ndjson`](#pulse-import-ndjson), [`import parquet`](#pulse-import-parquet), [`import spss`](#pulse-import-spss), [`import transfer`](#pulse-import-transfer), [`import tsv`](#pulse-import-tsv), [`profile create`](#pulse-profile-create), [`synth from-profile`](#pulse-synth-from-profile), [`synth from-schema`](#pulse-synth-from-schema) |
-| `--overwrite` | [`api materialize`](#pulse-api-materialize), [`import auto`](#pulse-import-auto), [`import transfer`](#pulse-import-transfer), [`rake`](#pulse-rake) |
+| `--overwrite` | [`api materialize`](#pulse-api-materialize), [`examples data`](#pulse-examples-data), [`import auto`](#pulse-import-auto), [`import transfer`](#pulse-import-transfer), [`rake`](#pulse-rake) |
 | `--parallel` | [`api compose`](#pulse-api-compose) |
 | `--percentile` | [`api facet`](#pulse-api-facet) |
 | `--predict` | [`api materialize`](#pulse-api-materialize) |

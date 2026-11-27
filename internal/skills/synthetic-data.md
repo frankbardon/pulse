@@ -10,11 +10,13 @@ requires: [capability:synth]
 
 # Synthetic data
 
-Pulse synthesizes deterministic `.pulse` cohorts via the CLI leaves `pulse synth from-schema` / `pulse synth from-profile` (library `Pulse.Synth`; no MCP tool).
+Pulse synthesizes deterministic `.pulse` cohorts. **No MCP tool runs synth**: an MCP-only agent can author the spec but not run it; hand it to the CLI or `Pulse.Synth`:
 
-This is the CONTRACT surface — rules not inferable from the code you are editing, whose violation is SILENT. Measurements behind each rule and every closed design question: `docs/src/cli/synth-calibration.md`.
+```
+pulse synth from-schema -s spec.json -o out.pulse --seed 42 [--rows N] [--json]
+```
 
-Synth writes a `.pulse` file, never `Response.Components`.
+This is the CONTRACT surface: rules whose violation is SILENT (measurements: `docs/src/cli/synth-calibration.md`). Synth writes a `.pulse` file, never `Response.Components`.
 
 ## Which skill answers what
 

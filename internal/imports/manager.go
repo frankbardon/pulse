@@ -334,10 +334,11 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		// when callers never hit a convertible-format import path.
 		_, _ = m.sweep(ctx, false)
 		return &Result{
-			Handle:  deriveHandle(spec.Handle, spec.SourcePath),
-			Path:    spec.SourcePath,
-			Format:  format,
-			Managed: false,
+			Handle:       deriveHandle(spec.Handle, spec.SourcePath),
+			Path:         spec.SourcePath,
+			Format:       format,
+			SourceFormat: format,
+			Managed:      false,
 		}, nil
 	}
 
@@ -425,6 +426,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		Handle:          handle,
 		Path:            target,
 		Format:          string(pio.FormatPulse),
+		SourceFormat:    format,
 		Managed:         true,
 		RowsImported:    report.RowsImported,
 		ImportedAt:      now,
@@ -821,12 +823,13 @@ func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result
 	_, _ = m.sweep(ctx, false)
 
 	res := &Result{
-		Handle:     handle,
-		Path:       target,
-		Format:     string(pio.FormatPulse),
-		Managed:    true,
-		ImportedAt: now,
-		TTLSeconds: sidecar.TTLSeconds,
+		Handle:       handle,
+		Path:         target,
+		Format:       string(pio.FormatPulse),
+		SourceFormat: string(pio.FormatPulse),
+		Managed:      true,
+		ImportedAt:   now,
+		TTLSeconds:   sidecar.TTLSeconds,
 	}
 	if !sidecar.ExpiresAt.IsZero() {
 		exp := sidecar.ExpiresAt

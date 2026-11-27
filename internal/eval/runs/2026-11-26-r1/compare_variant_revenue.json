@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "experiment.pulse"}, "tests": [{"type": "TEST_WELCH", "field": "revenue", "split_by": "treatment", "alpha": 0.05, "label": "revenue_variant_vs_control", "params": {"reference": "control"}}], "return": {"precision": 4}}}

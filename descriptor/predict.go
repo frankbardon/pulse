@@ -64,7 +64,7 @@ type PredictResult struct {
 	// ComputedBeforeFilters lists, in declared order, the output column
 	// of every attribute slot computed over the whole UNFILTERED cohort
 	// before the filter pass rather than over the filter-passing records
-	// (today only ATTR_PREVIOUS_STATE): a filter then keeps each
+	// (only ATTR_PREVIOUS_STATE): a filter then keeps each
 	// subject's first in-window record with its true previous state, and
 	// an expression filter may read the column. The runtime's buffered
 	// pipeline reads the same rule. Omitted when no slot is.
@@ -96,7 +96,7 @@ type PredictResult struct {
 	// orchestrator emits the Components block only on the terminal
 	// buffered flush. The flag is a hint to streaming consumers; it
 	// does NOT flip the overall Streamable axis (the data slice still
-	// streams). Today the canonical None-mergeability operators are
+	// streams). The canonical None-mergeability operators are
 	// AGG_MEDIAN and AGG_PERCENTILE.
 	//
 	// Empty when req.Aggregations is empty; never nil in JSON output.
@@ -113,8 +113,8 @@ type PredictResult struct {
 	// map cannot be reconstructed from per-chunk partials and the
 	// orchestrator emits the Components block only on the terminal
 	// buffered flush. The flag is a hint to streaming consumers; it
-	// does NOT flip the overall Streamable axis. Of the seven
-	// registered groupers today, GROUP_QUANTILE is the canonical
+	// does NOT flip the overall Streamable axis. Among the
+	// registered groupers, GROUP_QUANTILE is the canonical
 	// None — quantile cutoffs need the sorted full input.
 	//
 	// Empty when req.Groups is empty; never nil in JSON output.
@@ -703,7 +703,7 @@ type AggregationPredict struct {
 	// block will arrive only on the terminal buffered flush in a
 	// streaming run; it does NOT flip the overall Streamable axis (the
 	// data slice still streams). AGG_MEDIAN and AGG_PERCENTILE are the
-	// canonical Nones today.
+	// canonical Nones.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
 
 	// Columns names the Response.Data columns the slot writes when they
@@ -753,7 +753,7 @@ type GroupPredict struct {
 	// block will arrive only on the terminal buffered flush in a
 	// streaming run; it does NOT flip the overall Streamable axis (the
 	// data slice still streams). GROUP_QUANTILE is the canonical
-	// None today.
+	// None.
 	BufferedComponents bool `json:"buffered_components,omitempty"`
 
 	// RowBufferBytes estimates the point store a buffered vector grouper
@@ -829,7 +829,7 @@ type FiltererPredict struct {
 //
 // Streamable echoes types.OverlayStreamable(kind). Note that a kind
 // can be streamable in isolation but force buffered when its host
-// (today: crosstab) is itself buffered — predict reports the kind's
+// (crosstab) is itself buffered — predict reports the kind's
 // own streamability, not the composed host-overlay decision. Callers
 // that need the composed decision should consult
 // PredictResult.Streamable + StreamableReasons.

@@ -19,7 +19,7 @@ This question fits data shaped like:
 - `measure`: 1 or more numeric fields
 - `measure`: 1 or more categorical, bool or set fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_CI_LOWER` and `AGG_CI_UPPER`.
 
 ### Aggregators
 
@@ -86,6 +86,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show confidence_interval_normal > req.json
+pulse api process --request req.json --json
+```
+
 **What is a typical customer's income, and how precisely does this cohort pin it down?**
 
 The request (example `confidence_interval_normal`; `pulse examples show confidence_interval_normal` prints it):
@@ -118,8 +127,7 @@ The request (example `confidence_interval_normal`; `pulse examples show confiden
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "return": {
     "precision": 4
@@ -192,6 +200,8 @@ The result:
 }
 ```
 
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
+
 The mean income sits in the middle of a fairly tight interval: each bound lies within about a tenth of the mean, so the cohort pins the typical income down well. The interval describes the mean, not individual customers, whose incomes spread far more widely.
 
 ## How to read the result
@@ -255,4 +265,4 @@ More on reading it: [AGG_CI_UPPER](../reading/descriptive.md#op-agg_ci_upper).
 - `pulse recommend --intent describe --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

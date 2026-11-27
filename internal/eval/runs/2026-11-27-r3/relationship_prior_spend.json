@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"aggregations": [{"type": "AGG_COUNT", "field": "revenue", "label": "n"}], "cohort": {"filename": "experiment.pulse"}, "return": {"precision": 4}, "tests": [{"type": "TEST_PEARSON_R", "field": "revenue", "field2": "revenue_before", "alpha": 0.05, "label": "revenue_pre_post_pearson"}]}}

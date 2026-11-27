@@ -26,6 +26,8 @@ Use something else:
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 
 | Name | Type | Default | Description |
 |---|---|---|---|

@@ -1,0 +1,1 @@
+{"tool": "pulse_materialize", "arguments": {"out": "customers_scored.pulse", "request": {"cohort": {"filename": "customers.pulse"}, "filterers": [{"type": "FILTER_RANGE", "field": "age", "values": ["40", "255"]}], "attributes": [{"type": "ATTR_ZSCORE", "field": "income", "label": "income_z"}]}}}

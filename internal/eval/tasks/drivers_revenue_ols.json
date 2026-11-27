@@ -1,0 +1,18 @@
+{
+  "id": "drivers_revenue_ols",
+  "intent": "drivers",
+  "question": "What predicts how much revenue a person brings in during the experiment: what they spent beforehand, how long their sessions were, or both?",
+  "cohorts": ["experiment"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "experiment.pulse"},
+      "regressions": [{"type": "REG_OLS", "target": "revenue", "predictors": ["revenue_before", "session_minutes"]}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["REG_OLS", "REG_GLM", "REG_BAYES_LINEAR"]},
+    {"kind": "sign", "section": "regressions", "key": "coefficients.revenue_before", "sign": "positive"},
+    {"kind": "value", "section": "regressions", "key": "p_values.revenue_before", "max": 0.001}
+  ]
+}

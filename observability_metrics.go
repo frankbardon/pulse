@@ -50,7 +50,7 @@ type metricEnums struct {
 	phases []observe.Phase
 	phIdx  map[observe.Phase]int
 	// codes is ok, uncoded, then every registered error code. A code
-	// outside the list (none today) is counted as uncoded.
+	// outside the list is counted as uncoded.
 	codes   []string
 	codeIdx map[string]int
 	limits  []string

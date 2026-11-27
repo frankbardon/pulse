@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "customers.pulse"}, "tests": [{"type": "TEST_T", "field": "income", "params": {"mu": 35000}}]}}

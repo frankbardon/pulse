@@ -15,6 +15,8 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | In `(0, 1)`. Always two-sided; there is no one-sided form. |

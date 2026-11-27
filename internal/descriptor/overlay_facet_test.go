@@ -365,7 +365,8 @@ func TestValidateFacetOverlays_SingleFieldDefaultsToHost(t *testing.T) {
 
 // TestValidateFacetOverlays_UnknownFieldRejected asserts that a
 // Params["field"] that does not reference any FacetRequest.Fields entry
-// fires PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.
+// fires PULSE_OVERLAY_FIELD_UNKNOWN (the code every other host raises
+// for an unknown params.field), carrying {field, available_fields}.
 func TestValidateFacetOverlays_UnknownFieldRejected(t *testing.T) {
 	t.Parallel()
 
@@ -384,8 +385,18 @@ func TestValidateFacetOverlays_UnknownFieldRejected(t *testing.T) {
 		},
 	}
 	ValidateFacetOverlays(env, req, schema)
-	if !hasError(env, string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)) {
-		t.Errorf("expected PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE for unknown field, got %+v", env.Errors)
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_FIELD_UNKNOWN) {
+		t.Fatalf("expected one PULSE_OVERLAY_FIELD_UNKNOWN for unknown field, got %+v", env.Errors)
+	}
+	if hasError(env, string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE)) {
+		t.Errorf("unknown field must not raise PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, got %+v", env.Errors)
+	}
+	d := env.Errors[0].Details
+	if d["field"] != "nope" {
+		t.Errorf("details.field = %v, want nope", d["field"])
+	}
+	if got, _ := d["available_fields"].([]string); len(got) != 1 || got[0] != "category" {
+		t.Errorf("details.available_fields = %v, want [category]", d["available_fields"])
 	}
 }
 

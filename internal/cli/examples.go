@@ -10,20 +10,23 @@ import (
 	cli "github.com/urfave/cli/v3"
 )
 
-// ExamplesCommand returns the examples command group. Two leaves:
+// ExamplesCommand returns the examples command group. Three leaves:
 //   - `pulse examples search [--query Q | WORDS...] [--intent ID] [--tag T] [--category C] [--json]`
 //   - `pulse examples show NAME [--json]`
+//   - `pulse examples data --out DIR [--overwrite] [--json]`
 //
-// Both wrap the embedded request-example library; search routes through
-// the facade's Pulse.ExamplesSearchWith, so its matching tiers and the
-// intent check are the library's, never the CLI's.
+// search and show wrap the embedded request-example library; search
+// routes through the facade's Pulse.ExamplesSearchWith, so its matching
+// tiers and the intent check are the library's, never the CLI's. data
+// writes the fixture cohorts those examples read (Pulse.WriteExampleData).
 func ExamplesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "examples",
-		Usage: "Search and fetch the built-in runnable request examples (embedder examples: pulse_examples_* / Pulse.ExampleGet)",
+		Usage: "Search and fetch the built-in runnable request examples (embedder examples: pulse_examples_* / Pulse.ExampleGet), and write the cohorts they read",
 		Commands: []*cli.Command{
 			examplesSearchCmd(),
 			examplesShowCmd(),
+			examplesDataCmd(),
 		},
 	}
 }
@@ -105,10 +108,45 @@ func examplesShowCmd() *cli.Command {
 				// other leaf's, so stdout always parses (exit 1).
 				return cliError(cmd, cmd.Bool("json"), "CLI_INPUT", fmt.Sprintf("example %q not found", name))
 			}
+			// The served body: cohort paths resolve against the data
+			// directory, as pulse_examples_get serves them.
+			ex.Body = examples.Served(ex.Body)
 			if cmd.Bool("json") {
 				return writeEnvelope(cmd.Writer, ex)
 			}
 			writeText(cmd.Writer, "%s\n", string(ex.Body))
+			return nil
+		},
+	}
+}
+
+func examplesDataCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "data",
+		Usage: "Write the example fixture cohorts (from CSVs embedded in the binary) into a directory, so every served example and Analysis Guide request runs against it (from it as the working directory, or with it as the pulse mcp data directory)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "out", Aliases: []string{"o"}, Usage: "Directory to write the example cohorts into (created when missing)", Required: true},
+			&cli.BoolFlag{Name: "overwrite", Usage: "Replace example cohort files already in --out (other files are left alone)"},
+			&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			jsonOut := cmd.Bool("json")
+			p, err := newPulse(ctx)
+			if err != nil {
+				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
+			}
+			rep, err := p.WriteExampleData(ctx, cmd.String("out"), pulse.ExampleDataOptions{Overwrite: cmd.Bool("overwrite")})
+			if err != nil {
+				// An existing target keeps its SERVICE_VALIDATION code.
+				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
+			}
+			if jsonOut {
+				return writeEnvelopeWithWarnings(cmd.Writer, rep, rep.Warnings)
+			}
+			for _, c := range rep.Cohorts {
+				writeText(cmd.Writer, "%-28s  %6d records  (%s)\n", c.File, c.Records, c.From)
+			}
+			writeText(cmd.Writer, "Wrote %d cohorts to %s: run examples from it (pulse api process resolves cohort filenames against the working directory) or serve it (pulse mcp --data-dir %s)\n", len(rep.Cohorts), rep.Dir, rep.Dir)
 			return nil
 		},
 	}

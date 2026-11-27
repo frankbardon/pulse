@@ -11,6 +11,10 @@ to shell out to the binary from Go, stop and use the library directly
 > Go embedding directly. Agents speak MCP; this page is for the
 > programs that host them.
 
+## Conventions
+
+"Byte-identical" on the pages of this section means the serialized output compared with the output of the same request without the feature (the convention [the payload schema page](../contract/payload-schema.md) states): the same bytes, so a request that omits the feature gains no field and changes no hash. Where a page compares against something else, it names it.
+
 ## Module path
 
 ```go
@@ -72,6 +76,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Inspect(ctx, path) (*InspectResult, error)` | Read header + schema only (no record data) |
 | `InspectEnvelope(ctx, path, opts) (*Envelope, error)` | Same read, envelope returned whole — carries the warnings `Inspect` drops (e.g. a truncated payload tail) and takes `descriptor.InspectOptions` |
 | `InspectBytes(ctx, data, opts) (*Envelope, error)` | Inspect an in-memory cohort (single file or shard archive); envelope returned whole, warnings included |
+| `ListCohorts(ctx, opts) ([]CohortListEntry, error)` | Every `.pulse` cohort under the data root (or `opts.Dir`), recursively, sorted by root-relative path: record count, fields (name, type, nullable), shard-archive and managed-import flags. Header and schema only; sidecars, hidden entries and an archive's own shards are skipped, an unreadable `.pulse` file is listed with its coded `Error`, and a managed import's expiry is not slid |
 | `Predict(ctx, req) (*PredictResult, error)` | Validate a request without executing |
 | `PredictEnvelope(ctx, req) (*Envelope, error)` | Same header-only read as `Predict` (an archive's central directory and shard headers, an anchor's one entry, through the instance filesystem), envelope returned whole — `Options.Strict` / `Options.EchoRequest` come from the instance, as for `PredictBytes`; what `pulse api predict` calls |
 | `PredictBytes(ctx, data, req) (*Envelope, error)` | Validate a request against an in-memory cohort; the extension snapshot, `Options.Strict` and `Options.EchoRequest` come from the instance |
@@ -84,6 +89,7 @@ From [`pulse.go`](https://github.com/frankbardon/pulse/blob/main/pulse.go):
 | `Materialize(ctx, req, out, opts) (*MaterializeResult, error)` | Write a new cohort: the filtered source records plus one nullable `f64` column per derived output (features, attributes, windows), or the columns a request `output` block lays out, as a single file or a shard archive — see [Materializing Derived Columns](materialize.md) |
 | `Rake(ctx, req) (*RakeResult, error)` | Compute rim / cell survey weights to population margins and write them, beside every source column, into a new cohort — see [Computing Survey Weights](rake.md) |
 | `Profile(ctx, path, opts) (*Profile, error)` | Statistical summary suitable for `from-profile` synthesis |
+| `WriteExampleData(ctx, dir, opts) (*ExampleDataReport, error)` | Write the fixture cohorts the built-in examples read into `dir`, from data embedded in the binary; an existing fixture file is refused unless `opts.Overwrite` — see [Get the data](../examples/library.md#get-the-data) |
 | `Manifest(ctx) *Manifest` | Deterministic root self-description |
 | `Fs() afero.Fs` | The underlying filesystem (used by `pulse mcp` and other embedders) |
 

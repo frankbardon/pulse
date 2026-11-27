@@ -1,0 +1,14 @@
+{
+  "id": "lookup_experiment_unit",
+  "intent": "lookup",
+  "question": "Pull up the full record for experiment unit 42: which arm, region and segment were they in, and what did they spend?",
+  "cohorts": ["experiment"],
+  "indexes": [{"cohort": "experiment", "fields": ["id"]}],
+  "reference": {
+    "tool": "pulse_lookup",
+    "arguments": {"cohort": {"filename": "experiment.pulse"}, "field": "id", "value": "42"}
+  },
+  "assertions": [
+    {"kind": "row", "section": "rows", "match": {"id": 42, "treatment": "control", "region": "south", "segment": "segment_a", "revenue": 86.32}, "tol": 0.005}
+  ]
+}

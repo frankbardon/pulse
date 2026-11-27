@@ -144,12 +144,14 @@ func (g *gen) renderGuide(qg questionGuide, guides []questionGuide, readingHome,
 		}
 	}
 
-	g.writePickAnalysis(&b, qg)
-
 	stories := g.guideStories(in.ID)
 	ok := len(stories) > 0
+	storyOps := storyOperators(stories)
+	g.writePickAnalysis(&b, qg, storyOps)
+
 	b.WriteString("\n## A worked example\n\n")
 	if ok {
+		g.writeGetTheData(&b, stories[0])
 		for i, story := range stories {
 			if i > 0 {
 				b.WriteString("\nAnother worked example:\n\n")
@@ -165,7 +167,6 @@ func (g *gen) renderGuide(qg questionGuide, guides []questionGuide, readingHome,
 	}
 
 	b.WriteString("\n## How to read the result\n")
-	storyOps := storyOperators(stories)
 	g.writeHowToRead(&b, storyOps, page, readingHome, homes)
 
 	b.WriteString("\n## Pitfalls\n\n")
@@ -228,7 +229,11 @@ func orList(items []string) string {
 // writePickAnalysis renders part 2: the data shapes the question fits,
 // then every operator serving the intent, grouped by catalog category,
 // each with its plain-words Purpose and Level.
-func (g *gen) writePickAnalysis(b *strings.Builder, qg questionGuide) {
+//
+// storyOps are the worked examples' operators: the line above the
+// tables names them, so a reader knows where the example starts even
+// when it is not a basic one.
+func (g *gen) writePickAnalysis(b *strings.Builder, qg questionGuide, storyOps []string) {
 	b.WriteString("\n## Pick your analysis\n\n")
 	b.WriteString("This question fits data shaped like:\n\n")
 	for _, s := range qg.intent.Shapes {
@@ -236,7 +241,16 @@ func (g *gen) writePickAnalysis(b *strings.Builder, qg questionGuide) {
 		b.WriteString(shapeLine(s))
 		b.WriteString("\n")
 	}
-	b.WriteString("\nThe operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.\n")
+	b.WriteString("\nThe operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup")
+	if len(storyOps) > 0 {
+		quoted := make([]string, len(storyOps))
+		for i, op := range storyOps {
+			quoted[i] = "`" + op + "`"
+		}
+		b.WriteString("; the worked example below uses ")
+		b.WriteString(andList(quoted))
+	}
+	b.WriteString(".\n")
 	serving := map[string]bool{}
 	for _, op := range qg.ops {
 		serving[op] = true
@@ -349,6 +363,63 @@ func storyOperators(stories []guideStoryOf) []string {
 	return out
 }
 
+// exampleDataURL is the book section on writing the example cohorts. An
+// absolute URL, as conceptsBase, so an exported guide still links to a
+// page that exists.
+const exampleDataURL = "https://frankbardon.github.io/pulse/examples/library.html#get-the-data"
+
+// writeGetTheData renders the steps that make a worked example runnable
+// as shown: write the example fixture cohorts, work from their directory
+// (CLI cohort paths resolve against the working directory), save the
+// request and run it. The examples surface is core; without the process
+// capability there is nothing to run, so it writes nothing.
+func (g *gen) writeGetTheData(b *strings.Builder, s guideStoryOf) {
+	if !g.inst.Enabled(descx.FeatureName(descx.FeatureKindCapability, "process")) {
+		return
+	}
+	b.WriteString("To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](")
+	b.WriteString(exampleDataURL)
+	b.WriteString(")). ")
+	b.WriteString(scratchDirLine)
+	b.WriteString("\n\n```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show ")
+	b.WriteString(s.ex.Name)
+	b.WriteString(" > req.json\npulse api process --request req.json --json\n```\n\n")
+}
+
+// scratchDirLine tells the reader where to run the get-the-data steps:
+// written inside PULSE_DATA_DIR, the cohorts would nest in the
+// directory `pulse mcp` serves.
+const scratchDirLine = "Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:"
+
+// reformatNote follows a result block that prints a float in exponent
+// notation. The block is the wire's own output (return.precision writes
+// strconv 'g', as `pulse api process --json` prints it); a JSON tool
+// such as jq reprints the same number in its own notation, which a
+// reader comparing the two would otherwise take for a difference.
+const reformatNote = "Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.\n\n"
+
+// hasExponent reports whether a result block holds a JSON number in
+// exponent notation.
+func hasExponent(block []byte) bool {
+	for i := 1; i+1 < len(block); i++ {
+		if (block[i] == 'e' || block[i] == 'E') && block[i-1] >= '0' && block[i-1] <= '9' && (block[i+1] == '+' || block[i+1] == '-') {
+			return true
+		}
+	}
+	return false
+}
+
+// andList joins items as "a", "a and b" or "a, b and c".
+func andList(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+}
+
 // writeStory renders part 3: the story's question, its request, the
 // committed golden response verbatim and its interpretation.
 func (g *gen) writeStory(b *strings.Builder, s guideStoryOf) {
@@ -370,6 +441,9 @@ func (g *gen) writeStory(b *strings.Builder, s guideStoryOf) {
 	b.WriteString("\n```\n\nThe result:\n\n```json\n")
 	b.WriteString(strings.TrimRight(string(s.golden), "\n"))
 	b.WriteString("\n```\n\n")
+	if hasExponent(s.golden) {
+		b.WriteString(reformatNote)
+	}
 	b.WriteString(g.text(s.ex.Interpretation))
 	b.WriteString("\n")
 }
@@ -515,7 +589,7 @@ func (g *gen) writeNextSteps(b *strings.Builder, qg questionGuide, guides []ques
 		cli = append(cli, "`pulse api process` runs it.")
 	}
 	if g.inst.Enabled(descx.FeatureName(descx.FeatureKindCapability, "explain")) {
-		cli = append(cli, "`pulse explain --response FILE` reads a result back in plain words.")
+		cli = append(cli, "`pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.")
 	}
 	writeList(b, "From the command line", cli)
 }

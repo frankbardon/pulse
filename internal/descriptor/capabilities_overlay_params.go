@@ -27,7 +27,7 @@ var overlayFieldParam = descriptor.Param{
 	Name:        "field",
 	Type:        "string",
 	Required:    false,
-	Description: "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. A name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING); one it does not list is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE.",
+	Description: "On a SERIES host (or each Compose slot a Compose series kind reads), the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column \"<label>[<element label>]\"; absent, the first aggregation. On the facet host, the facet fields entry to score: required with two or more fields (else PULSE_OVERLAY_PARAM_MISSING). On either host a name matching nothing is PULSE_OVERLAY_FIELD_UNKNOWN.",
 }
 
 // overlayPartitionByParam is params.partition_by: the leading group key

@@ -52,8 +52,8 @@ type Components struct {
 //
 // ShardedCapable reports whether the type participates in a shard
 // archive without restriction. Every built-in field type is sharded-
-// capable today; the flag exists for forward compatibility with future
-// types that might not work across the union of shards (e.g. types
+// capable; the flag exists so a type that does not work across the
+// union of shards (e.g. a type
 // whose semantics depend on per-shard locality). Embedders should treat
 // the flag as advisory.
 type CohortFieldType struct {
@@ -143,7 +143,7 @@ type Manifest struct {
 	Commands     []Command `json:"commands"`
 
 	// Operations enumerates library-only entry points that do not back a
-	// CLI leaf (today: filter_to_file, watch, process_stream). Each entry
+	// CLI leaf (filter_to_file, watch, process_stream). Each entry
 	// carries the same CommandAnnotations as a CLI leaf so consumers can
 	// reason uniformly about caching / streaming. The slice is sorted by
 	// Name for determinism.
@@ -181,13 +181,12 @@ type Manifest struct {
 	Extensions ExtensionsManifest `json:"extensions"`
 
 	// Facet is the rich-facet endpoint capability descriptor. One
-	// entry today (facet_schema); future variants land under a slice
-	// when added.
+	// entry: facet_schema.
 	// Omitted (nil) when the instance does not offer capability:facet.
 	Facet *FacetCapability `json:"facet,omitempty"`
 
 	// ProcessChain is the source-rooted linear chain endpoint
-	// capability descriptor (one entry today: process_chain).
+	// capability descriptor (one entry: process_chain).
 	// Carries the mergeable-operator allowlist and rejection rules
 	// so LLM clients can route between chain and per-stage fallback.
 	// Omitted (nil) when the instance does not offer capability:process_chain.

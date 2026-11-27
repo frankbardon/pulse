@@ -33,7 +33,7 @@ Per-topic slice of the byte-layout reference. Index: `.claude/reference/byte-lay
 - **Vectors:** on the synthesised path a vector expands to one numeric variable per element (`<field>_<label>` / `<field>_1..N`, element label as variable label; NaN and null write system-missing). The SIDECAR path refuses a vector field with `PULSE_SPSS_SIDECAR_INVALID` — no SPSS import produces one, so a sidecar beside it does not describe the cohort, and binding a same-named variable would encode the vector as a scalar zero.
 - Skills: `skills/spss-export.md`, `skills/session-format-flags.md`.
 
-**SPSS convert carries the source through.** `pulse convert survey.sav out.sav` rebuilds a cohort in memory from rendered text, which loses exactly what a `.sav` is encoded from. The optional `io.SourceAwareWriter` / `io.ConvertSource` pair (other adapters: a no-op, byte-identical) carries two things together:
+**SPSS convert carries the source through.** `pulse convert survey.sav out.sav` rebuilds a cohort in memory from rendered text, which loses exactly what a `.sav` is encoded from. The optional `io.SourceAwareWriter` / `io.ConvertSource` pair (other adapters: a no-op, output byte-identical to the same adapter without the pair) carries two things together:
 
 - **the DECLARED schema replaces inference** — inference over a rendered set cell sees only TICKED options, so a wide battery re-infers at a narrow rung and silently loses entries, and a value-labelled numeric re-derives as a string of bare numerals;
 - **the source's sidecar is re-emitted against the rebuilt cohort** (re-fingerprinted), restoring the `derived` registry — without it every multiple-dichotomy convert collided on names.

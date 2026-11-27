@@ -2,6 +2,7 @@ package docgen_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -204,6 +205,53 @@ func TestRender_StoryEmbedEqualsGolden(t *testing.T) {
 	}
 }
 
+// TestRender_StoryExponentNote: a story result block holding a number
+// in exponent notation is followed by the note that it prints as the
+// CLI's --json does and that a JSON reformatter such as jq may print it
+// otherwise; a block without one carries no note. Both kinds exist, so
+// neither half is vacuous.
+func TestRender_StoryExponentNote(t *testing.T) {
+	t.Parallel()
+
+	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	const lead = "The result:\n\n```json\n"
+	const note = "Exponents print here as `pulse api process --json` prints them"
+	with, without := 0, 0
+	for _, name := range examples.Stories() {
+		ex, _ := examples.Get(name)
+		golden, _ := examples.StoryGolden(name)
+		page := files["questions/"+ex.Intents[0]+".md"]
+		i := strings.Index(page, "`pulse examples show "+name+"`")
+		if i < 0 {
+			continue
+		}
+		rest := page[i:]
+		j := strings.Index(rest, lead)
+		if j < 0 {
+			t.Fatalf("%s: no result block", name)
+		}
+		body := rest[j+len(lead):]
+		k := strings.Index(body, "\n```\n")
+		after := body[k+len("\n```\n"):]
+		after = after[:strings.Index(after, ex.Interpretation)]
+		exp := regexpExponent.Match(golden)
+		got := strings.Contains(after, note)
+		if exp {
+			with++
+		} else {
+			without++
+		}
+		if got != exp {
+			t.Errorf("%s: exponent in result %v, note rendered %v", name, exp, got)
+		}
+	}
+	if with == 0 || without == 0 {
+		t.Fatalf("stories with an exponent %d, without %d: one half vacuous", with, without)
+	}
+}
+
+var regexpExponent = regexp.MustCompile(`[0-9][eE][+-][0-9]`)
+
 // TestRender_QuestionPagesLint: every question page of every instance
 // shape passes the guidance lint's text rules.
 func TestRender_QuestionPagesLint(t *testing.T) {
@@ -223,5 +271,63 @@ func TestRender_QuestionPagesLint(t *testing.T) {
 	}
 	if seen == 0 {
 		t.Fatal("no question pages linted: vacuous")
+	}
+}
+
+// TestRender_StoryGetTheData: a guide with a worked example opens the
+// section with the steps that make it run as shown (write the example
+// cohorts, work from their directory, save and process the first
+// story's request) and says to run them outside PULSE_DATA_DIR, so the
+// cohorts never nest in the directory `pulse mcp` serves; the pick-analysis line names the operators the
+// example uses. Without the process capability nothing runs, so the
+// steps are left out.
+func TestRender_StoryGetTheData(t *testing.T) {
+	t.Parallel()
+
+	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	checked := 0
+	for _, in := range descx.Intents() {
+		page, ok := files["questions/"+in.ID+".md"]
+		if !ok {
+			continue
+		}
+		var first *examples.Example
+		for _, name := range examples.Stories() {
+			if ex, _ := examples.Get(name); ex != nil && len(ex.Intents) > 0 && ex.Intents[0] == in.ID {
+				first = ex
+				break
+			}
+		}
+		if first == nil {
+			continue
+		}
+		section := page[strings.Index(page, "## A worked example\n\n")+len("## A worked example\n\n"):]
+		want := "Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:\n\n```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show " + first.Name + " > req.json\npulse api process --request req.json --json\n```\n"
+		if !strings.HasPrefix(section, "To run the example below yourself") || !strings.Contains(section[:strings.Index(section, "**")], want) {
+			t.Errorf("%s: worked example does not open with the get-the-data steps for %s", in.ID, first.Name)
+		}
+		pick := page[strings.Index(page, "## Pick your analysis"):strings.Index(page, "## A worked example")]
+		for _, op := range first.Operators {
+			if !strings.Contains(pick, "the worked example below uses") || !strings.Contains(pick, "`"+op+"`") {
+				t.Errorf("%s: pick-analysis line does not name the example's %s", in.ID, op)
+			}
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no guide with a story checked: vacuous")
+	}
+
+	var enabled []string
+	for _, n := range descx.FeatureNames() {
+		if n != descx.FeatureName(descx.FeatureKindCapability, "process") {
+			enabled = append(enabled, n)
+		}
+	}
+	noProcess := tree(docgen.Render(descx.NewInstanceSnapshot(nil, descx.FeatureSet{Enabled: enabled}), docgen.Options{}))
+	for p, body := range noProcess {
+		if strings.HasPrefix(p, "questions/") && strings.Contains(body, "pulse examples data --out") {
+			t.Errorf("%s: get-the-data steps rendered without the process capability", p)
+		}
 	}
 }

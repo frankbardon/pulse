@@ -35,13 +35,13 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2859 | 0 |
+| [Go API symbols](#go-api-symbols) | 2867 | 0 |
 | [Options fields](#options-fields) | 37 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
-| [CLI leaves](#cli-leaves) | 77 | 0 |
+| [CLI leaves](#cli-leaves) | 79 | 0 |
 | [CLI flags](#cli-flags) | 137 | 0 |
-| [MCP tools](#mcp-tools) | 27 | 0 |
+| [MCP tools](#mcp-tools) | 28 | 0 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
@@ -101,6 +101,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.CohortBuilder.Close` |  |  | yes |
 | `pulse.CohortBuilderOptions` | yes |  | yes |
 | `pulse.CohortFingerprint` | yes |  | yes |
+| `pulse.CohortListEntry` |  |  | yes |
+| `pulse.CohortListField` |  |  | yes |
 | `pulse.CohortReader` |  |  | yes |
 | `pulse.CohortReader.Close` |  |  | yes |
 | `pulse.CohortReader.Len` |  |  | yes |
@@ -138,6 +140,9 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.ErrorFixup` |  |  | yes |
 | `pulse.ErrorMetadata` |  |  | yes |
 | `pulse.Example` |  |  | yes |
+| `pulse.ExampleDataCohort` |  |  | yes |
+| `pulse.ExampleDataOptions` | yes |  | yes |
+| `pulse.ExampleDataReport` |  |  | yes |
 | `pulse.ExampleFeatureProfile` | yes |  | yes |
 | `pulse.ExampleFeatureProfiles` | yes |  | yes |
 | `pulse.ExampleSummary` |  |  | yes |
@@ -200,6 +205,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.LabelTableInfo` |  |  | yes |
 | `pulse.LimitNames` |  |  | yes |
 | `pulse.Limits` | yes |  | yes |
+| `pulse.ListCohortsOptions` |  |  | yes |
 | `pulse.LoadMemberSetFromReader` |  |  | yes |
 | `pulse.LoadMemberSetResult` |  |  | yes |
 | `pulse.LookupAxis` | yes |  | yes |
@@ -279,6 +285,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Pulse.InvalidatedSidecars` |  |  | yes |
 | `pulse.Pulse.LabelTables` |  |  | yes |
 | `pulse.Pulse.Limits` |  |  | yes |
+| `pulse.Pulse.ListCohorts` |  |  | yes |
 | `pulse.Pulse.ListIndexes` |  |  | yes |
 | `pulse.Pulse.ListShards` |  |  | yes |
 | `pulse.Pulse.ListTemplates` |  |  | yes |
@@ -333,6 +340,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.Pulse.WatchDirWithOptions` |  |  | yes |
 | `pulse.Pulse.WatchWithOptions` |  |  | yes |
 | `pulse.Pulse.WidenSetField` |  |  | yes |
+| `pulse.Pulse.WriteExampleData` |  |  | yes |
 | `pulse.RakeCategoryReport` |  |  | yes |
 | `pulse.RakeCategoryReport.MarshalJSON` |  |  | yes |
 | `pulse.RakeCell` |  |  | yes |
@@ -3114,6 +3122,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse cohort inspect` | yes | yes | yes |
 | `pulse cohort zone clear` | yes | yes | yes |
 | `pulse cohort zone set` | yes | yes | yes |
+| `pulse cohorts` | yes |  | yes |
 | `pulse completion bash` | yes |  | yes |
 | `pulse completion fish` | yes |  | yes |
 | `pulse completion zsh` | yes |  | yes |
@@ -3123,6 +3132,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse docs export` | yes |  | yes |
 | `pulse errors list` | yes |  | yes |
 | `pulse errors lookup` | yes | yes | yes |
+| `pulse examples data` | yes | yes | yes |
 | `pulse examples search` | yes | yes | yes |
 | `pulse examples show` | yes |  | yes |
 | `pulse explain` | yes | yes | yes |
@@ -3192,7 +3202,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--constraints` | yes | yes | yes |
 | `--correlation-top-k` | yes | yes | yes |
 | `--count` | yes |  | yes |
-| `--data-dir` | yes |  | yes |
+| `--data-dir` | yes | yes | yes |
 | `--decode-workers` | yes |  | yes |
 | `--dedup-ratio-floor` | yes | yes | yes |
 | `--detail` | yes |  | yes |
@@ -3316,13 +3326,14 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `-o` | yes | yes | yes |
 | `-p` | yes |  | yes |
 | `-r` | yes | yes | yes |
-| `-s` | yes |  | yes |
+| `-s` | yes | yes | yes |
 | `-v` | yes |  | yes |
 
 ## MCP tools
 
 | Identifier | mdBook | Skill pack |
 |---|---|---|
+| `pulse_cohorts_list` | yes | yes |
 | `pulse_compose` | yes | yes |
 | `pulse_dedup` | yes | yes |
 | `pulse_drop` | yes | yes |

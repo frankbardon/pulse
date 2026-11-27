@@ -26,6 +26,8 @@ Use something else:
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | In `(0, 1)`. Always two-sided; there is no one-sided form. |

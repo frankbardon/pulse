@@ -35,6 +35,15 @@
         }
       },
       {
+        "name": "cohorts",
+        "description": "List every .pulse cohort under the data directory with its record count and fields (header and schema only)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "predict",
         "description": "Validate a request without executing",
         "annotations": {
@@ -76,6 +85,15 @@
         "annotations": {
           "streamable": true,
           "deterministic": false,
+          "expensive": false
+        }
+      },
+      {
+        "name": "examples data",
+        "description": "Write the cohorts the built-in examples and the Analysis Guide read into a directory, from CSVs and schemas embedded in the binary (refuses existing fixture files unless --overwrite)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
           "expensive": false
         }
       },
@@ -736,7 +754,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -784,7 +802,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -1029,12 +1047,16 @@
     ],
     "mcp_tools": [
       {
+        "name": "pulse_cohorts_list",
+        "description": "CALL FIRST WHEN YOU DO NOT KNOW WHICH COHORT HOLDS THE DATA. List every .pulse cohort under this server's data directory, in every subdirectory, sorted by path. Each entry: `path` (relative to the data directory: pass it as is as the request's cohort `filename`, or pulse_inspect `path`, with no `data_dir`), `record_count`, `fields` [{name, type, nullable}], `shard_archive` and `shard_count`, and `managed` plus `handle` for a managed import. Reads each file's header and schema only, never a record; sidecars, hidden files and the shards inside an archive are not listed, and listing does not extend a managed import's expiry. A .pulse file that cannot be read is still listed, with its coded `error` and no fields. Optional `dir` lists one subdirectory (relative to the data directory) only. Next, pulse_inspect one cohort for its dictionaries and field descriptions."
+      },
+      {
         "name": "pulse_errors_lookup",
         "description": "CALL WHEN A TOOL RETURNS AN ERROR CODE YOU NEED EXPLAINED. Look up Pulse error code metadata. Pass code=PULSE_XXX for full detail on one code. Pass domain=PULSE/ENCODING/PROCESSING/SERVICE/DATA/CLI to enumerate that domain. Pass query=\"text\" for keyword search across descriptions and fixups. The manifest carries only the code-name list — fetch detail here on demand to keep session context lean."
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped and every cohort named by its filename relative to this server's data directory (no `data_dir`); swap in the cohort (pulse_cohorts_list) and fields your question needs. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -1054,7 +1076,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: unscoped, the manifest is very large (hundreds of KB) and can overflow a client's tool-output limit, so scope it by `intent` first, cache it per intent and reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Every ID, with its label and example questions, is in the `intents` skill (pulse_skills_get name `intents`); an unknown ID is PULSE_RECOMMEND_INTENT_UNKNOWN, whose details.valid lists them all. Pick the intent whose example questions match yours: a scoped manifest lists only that intent's operators, so when the operator you need is absent, check the `intents` skill for a closer intent before concluding this deployment lacks it.\n\nMCP always returns the slim payload (no prose descriptions): a param's meaning, scale and units are not in it. Before setting a param you have not used, fetch the operator's skill (`op-` plus the kebab-case operator name) via pulse_skills_get; per-error prose comes from pulse_errors_lookup."
       },
       {
         "name": "pulse_predict",
@@ -1070,7 +1092,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Unscoped, the list is very large (over 100 KB: an entry per operator, tool and field type), so pass `intent` (an intent-taxonomy ID; the `intents` skill lists every ID with its example questions) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN, whose details.valid lists every ID. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -1665,6 +1687,10 @@
       {
         "name": "time-zones",
         "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
+      },
+      {
+        "name": "tool-cohorts-list",
+        "description": "List every .pulse cohort under the data directory with its record count and fields."
       },
       {
         "name": "tool-errors-lookup",
@@ -2488,4 +2514,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c0539e0628187b6a1961012cdbf8a93a6662399161dc07147cf119b14f899a8
+// golden-hash: 3b42e6de264eda9753b2371e428e27838dad1d03a74ef17d49fcdb12d579706a

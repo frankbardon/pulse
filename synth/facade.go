@@ -160,7 +160,7 @@ type CategoricalNumericCategoryStat = isynth.CategoricalNumericCategoryStat
 // A numeric target reached by a linear model has NO entry here, ever.
 // The pick-one sampler this section scores does not run for such a
 // field — the model owns its value — so an entry would be a delta for a
-// mechanism that never executed, which is the v0.32.2 bug class. Two
+// mechanism that never executed. Two
 // independent guards make it impossible rather than merely unlikely:
 // SpecFromProfile leaves a modelled target's captured pair off the Spec
 // entirely (per TARGET, not per document — an unmodelled numeric in the
@@ -395,8 +395,7 @@ type FieldSpec = isynth.FieldSpec
 // has NO entry here (rather than an entry with empty values), and
 // neither does a captured model that lost its target to an earlier claim
 // or whose marginal generation refused: reporting a computed-looking
-// delta for a relationship that was never applied is the v0.32.2 bug
-// class, and it is worse than reporting nothing because the number looks
+// delta for a relationship that was never applied is wrong, and it is worse than reporting nothing because the number looks
 // like evidence.
 type ModelFidelity = isynth.ModelFidelity
 
@@ -409,7 +408,7 @@ type ModelFidelity = isynth.ModelFidelity
 // and it is an internal, length-prefixed encoding (see
 // dummyCategoricalName) invented purely so two different fields cannot
 // collide on a level spelling. Writing it into the document would
-// freeze that encoding into the profile file format: every future
+// freeze that encoding into the profile file format: every
 // reader would have to parse it, and changing it — to widen the field
 // namespace, say — would silently invalidate every document already on
 // disk. (Field, Level) is the durable identity a consumer actually
@@ -589,8 +588,8 @@ type Result = isynth.Result
 //
 // # What it is NOT allowed to become
 //
-// A slot generation reads. If a future detector needs to influence
-// generation it declares an ordinary executable slot and validates it;
+// A slot generation reads. A detector that needs to influence
+// generation declares an ordinary executable slot and validates it;
 // widening this one would make a document's meaning depend on a block
 // authors are told they may delete freely.
 //

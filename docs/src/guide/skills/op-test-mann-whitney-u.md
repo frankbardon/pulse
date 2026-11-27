@@ -27,10 +27,12 @@ Use something else:
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
-| `reference` | string | — | The `split_by` level read second (`groups[1]`), so `u_a`/`r_a`, `z` and `rank_biserial` belong to the other group (default: alphabetical). Not a level, or no `split_by` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). |
+| `reference` | string | — | The baseline `split_by` level, by value (`groups[1]`): `u_a`/`r_a`, `z` and `rank_biserial` belong to the other group (default: the alphabetically second level). Refusals: [`test-variant-options`](test-variant-options.md). |
 | `exact` | bool | `false` | Exact permutation p, ties included (`variant` `exact`): [`test-variant-options`](test-variant-options.md). |
 
 - `weight` — frequency only: a row of weight w ranks as w identical rows — equals the test on the expanded rows. `details` add `sum_weights` shaped like `n` (raw rows).

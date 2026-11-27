@@ -273,13 +273,11 @@ func (p *Pulse) runFidelityModel(ctx context.Context, req *types.Request, cohort
 // run whose rules retired half the captured relationships was
 // indistinguishable in it from one where they retired none.
 //
-// The alternative considered was re-running resolveConflicts at the CLI
-// leaf after the `--rules` merge and passing THOSE warnings down. It was
-// rejected on two counts: it fixes the conflict lines only, leaving
-// every other generation-time channel still unrecorded — including the
-// firing counts, which do not exist until the run is over — and it puts
-// a second copy of generation's arbitration in a second place, which is
-// the drift this package has been bitten by before.
+// The report records generation-time warnings from every channel,
+// including the firing counts, which do not exist until the run is over;
+// it does not re-run resolveConflicts at the CLI leaf, because that would
+// cover the conflict lines only and keep a second copy of generation's
+// arbitration in a second place.
 //
 // Deduping is needed because the two channels genuinely overlap: the
 // translation-time conflict warnings and generate()'s own both come from

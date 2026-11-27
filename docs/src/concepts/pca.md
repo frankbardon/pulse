@@ -16,7 +16,7 @@ If you believe a hidden trait causes the answers and want to model that, look at
 
 ## How to read it in Pulse
 
-List the fields on a `MAT_PCA` matrix (inline as `fields`, or once as a named vector in the request's `vectors` block) (`pulse examples show principal_components` prints a runnable request). Check these in order:
+List the fields on a `MAT_PCA` matrix (inline as `fields`, or once as a named vector in the request's `vectors` block) (`pulse examples show principal_components` prints a runnable request; its cohorts: [Get the data](../examples/library.md#get-the-data)). Check these in order:
 
 1. **Is it worth doing?** The result reports a KMO figure (the Kaiser-Meyer-Olkin measure of how well the fields share variation, from 0 to 1; higher is better) and Bartlett's sphericity test (are the fields related at all). If they fail, the fields have too little in common to summarise.
 2. **How many components?** `eigenvalues`, `explained_variance` and `cumulative` list every component with its share of the total variation. An eigenvalue is the amount of variation a component carries, counted in fields: on the default correlation basis each field brings 1, so an eigenvalue above 1 carries more than a single field does. A big first share and then a sharp drop means one dominant dimension. By default Pulse keeps components with an eigenvalue above 1; set `params.components` to choose a number or a variance share.

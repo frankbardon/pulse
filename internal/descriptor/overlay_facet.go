@@ -45,10 +45,10 @@ import (
 //     selected. When omitted AND the FacetRequest declares multiple
 //     Fields the spec fires PULSE_OVERLAY_PARAM_MISSING so the renderer
 //     receives an unambiguous host-field assignment. Unknown field
-//     names fire PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE carrying the
-//     {field, available_fields} detail map (mirrors the runtime
-//     PULSE_OVERLAY_REF_UNKNOWN shape the resolver emits when a
-//     population FacetResult is missing the same field).
+//     names fire PULSE_OVERLAY_FIELD_UNKNOWN (the code every other
+//     host raises for an unknown params.field) carrying the
+//     {index, kind, field, available_fields} detail map, at predict
+//     and at runtime alike.
 //
 // Structural invariants (mirrors internal/descriptor/overlay.go):
 //
@@ -143,8 +143,8 @@ func validateFacetOverlaySpec(env *descriptor.Envelope, req *types.FacetRequest,
 // single field is selected. When omitted AND req.Fields carries
 // multiple entries the helper fires PULSE_OVERLAY_PARAM_MISSING so the
 // caller's spec is unambiguous. Unknown field names fire
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE carrying the
-// {field, available_fields} detail map.
+// PULSE_OVERLAY_FIELD_UNKNOWN carrying the
+// {index, kind, field, available_fields} detail map.
 //
 // Returns (fieldName, true) on success; ("", false) when an error was
 // emitted. The returned field name is guaranteed to appear in
@@ -174,7 +174,7 @@ func resolveFacetOverlayHostField(env *descriptor.Envelope, req *types.FacetRequ
 			return requested, true
 		}
 	}
-	env.AddError(string(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE),
+	env.AddError(string(errors.PULSE_OVERLAY_FIELD_UNKNOWN),
 		"overlay "+string(spec.Kind)+" params.field names none of the facet request's fields: "+requested,
 		map[string]any{
 			"index":            index,

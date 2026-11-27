@@ -15,11 +15,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
 | `mu` | float | `0` | Hypothesized mean, one-sample only; ignored when `split_by` is set. |
-| `reference` | string | — | The `split_by` level read second: `diff` reads other − reference (default: alphabetical). Codes: `test-variant-options`. |
+| `reference` | string | — | The baseline `split_by` level, by value: `diff` = other − reference (default: the alphabetically second level, so `diff` = first − second). Codes: `test-variant-options`. |
 | `covariate` | string | — | A numeric pre-period field (CUPED): the test runs on `y − θ(x − x̄)`; needs `split_by`. Detail: `test-variant-options`. |
 | `variance` | enum | `unequal` | `unequal` (Welch) or `pooled` (Student, `var.equal = TRUE`); needs `split_by`. Detail: `test-variant-options`. |
 

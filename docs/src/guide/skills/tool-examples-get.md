@@ -23,7 +23,7 @@ The example record (no envelope): `name`, `category`, `tags`, `operators`, `desc
 
 - `body` is the request of the tool that runs it, told apart by its root keys, not by `category`: `requests` → `pulse_compose`, `stages` → `pulse_process_chain` (chain examples sit under `overlays` too), `fields` → `pulse_facet_schema`, `output` → `pulse_materialize`, otherwise a plain request. To predict a non-plain body, pass it under `pulse_predict`'s `composed` / `chain` / `facet` root.
 - Field names in the body match the example's seed cohort. Rename them for your target cohort before calling `pulse_predict` / `pulse_process`.
-- The body's `cohort` names the example's fixture cohort (`data_dir` included); point it at your own cohort.
+- The body's `cohort` names the example's fixture cohort by its filename relative to this server's data directory (no `data_dir`); point it at your cohort (`pulse_cohorts_list`). To run it unchanged, the server's data directory must hold the fixture cohorts: `pulse examples data --out DIR` (or `Pulse.WriteExampleData`) writes every one from data embedded in the binary; serve it with `pulse mcp --data-dir DIR`.
 
 ## See
 

@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST.
-Domain guidance for a less common operator, or session bootstrap. Knowing the kind of question, pass `intent`. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
+Domain guidance for a less common operator, or session bootstrap. Unscoped the list is over 100 KB: pass `intent`. Pair with `pulse_skills_get` to fetch a specific skill's markdown body.
 
 ## Input
 

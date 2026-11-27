@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `items`: 2 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `MAT_RELIABILITY`.
 
 ### Attributes
 
@@ -48,6 +48,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show scale_reliability > req.json
+pulse api process --request req.json --json
+```
+
 **Do these six engagement questions measure one thing well enough to add up into a single score?**
 
 The request (example `scale_reliability`; `pulse examples show scale_reliability` prints it):
@@ -55,8 +64,7 @@ The request (example `scale_reliability`; `pulse examples show scale_reliability
 ```json cohort=battery
 {
   "cohort": {
-    "filename": "battery.pulse",
-    "data_dir": ".data"
+    "filename": "battery.pulse"
   },
   "matrices": [
     {
@@ -330,4 +338,4 @@ More on reading it: [MAT_RELIABILITY](../reading/matrix.md#op-mat_reliability).
 - `pulse recommend --intent measure_construct --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

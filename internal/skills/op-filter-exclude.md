@@ -13,6 +13,8 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
+Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | array | (required) | Block-list of strings: labels on a categorical field, numbers otherwise. |

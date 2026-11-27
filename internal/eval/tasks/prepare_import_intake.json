@@ -1,0 +1,13 @@
+{
+  "id": "prepare_import_intake",
+  "intent": "prepare",
+  "question": "I've dropped a file called intake.csv into the data folder. Bring it into Pulse so I can start asking questions about it.",
+  "files": ["intake.csv"],
+  "reference": {
+    "tool": "pulse_import",
+    "arguments": {"source": "intake.csv"}
+  },
+  "assertions": [
+    {"kind": "cohort", "rows": 300, "fields": ["id", "channel", "age", "income"]}
+  ]
+}

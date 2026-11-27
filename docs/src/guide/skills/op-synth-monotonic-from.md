@@ -9,7 +9,7 @@ applies_to: inspect, predict, manifest
 examples_tags: [synth, cohort-analysis]
 ```
 
-Synth distributions emit per-row values; no `Response.Components`.
+Synth distributions emit per-row values; no `Response.Components`. No MCP tool runs synth: the CLI (`pulse synth from-schema`) or `Pulse.Synth` does ([`synthetic-data`](synthetic-data.md)).
 
 ## Use when
 

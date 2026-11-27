@@ -1,0 +1,1 @@
+{"tool": "synth", "arguments": {"spec": {"row_count": 500, "fields": [{"name": "id", "type": "u64", "distribution": "monotonic_from", "params": {"start": 1}}, {"name": "score", "type": "f64", "distribution": "uniform", "params": {"min": 0, "max": 100}}]}, "out": "scores.pulse", "seed": 42}}

@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "customers.pulse"}, "crosstab": {"rows": [{"type": "GROUP_CATEGORY", "field": "region"}], "cell": {"type": "AGG_COUNT", "field": "id"}, "normalize": "total"}}}

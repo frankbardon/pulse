@@ -213,10 +213,17 @@ type Spec struct {
 // indicates pulse-passthrough (no sidecar, no TTL); the handle's Path
 // is the source path verbatim. Otherwise Path points inside the
 // managed area and ExpiresAt / Sidecar are populated.
+//
+// Format is the format of the cohort at Path: always "pulse" (a managed
+// handle is a .pulse file; a passthrough already was one). SourceFormat
+// is the format the source was read as — detected from its extension,
+// or Spec.Format — the value Sidecar.SourceFormat records ("pulse" for a
+// passthrough).
 type Result struct {
 	Handle       string           `json:"handle"`
 	Path         string           `json:"path"`
 	Format       string           `json:"format"`
+	SourceFormat string           `json:"source_format,omitempty"`
 	Managed      bool             `json:"managed"`
 	RowsImported int              `json:"rows_imported,omitempty"`
 	ImportedAt   time.Time        `json:"imported_at,omitzero"`

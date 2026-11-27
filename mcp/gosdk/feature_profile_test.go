@@ -18,6 +18,7 @@ import (
 // coreTools are the MCP tools bound to a core surface: every instance,
 // whatever its feature profile, mounts them.
 var coreTools = []string{
+	"pulse_cohorts_list",
 	"pulse_errors_lookup",
 	"pulse_examples_get",
 	"pulse_examples_search",

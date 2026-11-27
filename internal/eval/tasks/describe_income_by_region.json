@@ -1,0 +1,20 @@
+{
+  "id": "describe_income_by_region",
+  "intent": "describe",
+  "question": "In the customers data, what is the average yearly income in each region, and which region earns the most?",
+  "cohorts": ["customers"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "customers.pulse"},
+      "groups": [{"type": "GROUP_CATEGORY", "field": "region"}],
+      "aggregations": [{"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["AGG_AVERAGE", "AGG_WELFORD"]},
+    {"kind": "rows", "section": "data", "present": ["north", "south", "east", "west"], "count": 4},
+    {"kind": "value", "section": "data", "in_row": ["north"], "near": 46281.2, "tol": 5},
+    {"kind": "top", "section": "data", "metric": {"types": ["AGG_AVERAGE", "AGG_WELFORD"], "field": "income"}, "value": "north"}
+  ]
+}

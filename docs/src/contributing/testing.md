@@ -73,6 +73,7 @@ How to run the documentation checks and work their allowlists:
 | `TestNoOrbitPrefix`, `TestNoOrbitPrefixes` | No predecessor-project string prefixes leak in |
 | `TestSkillsCoverAll*`                   | Skill files mention every registered operator (components, regressions, matrix ops, overlays, windows), synth distribution, field type, CLI leaf, MCP tool and prompt; every operator declares a `Purpose`; every skill cross-reference resolves. Spread over `internal/skills`, `internal/descriptor`, `internal/integration` and `mcp/gosdk`: run `go test ./... -run TestSkillsCoverAll` |
 | `TestSkillsManifestConsistent`          | Every skill's `applies_to` frontmatter names only real CLI leaves, or `mcp` (there is no `skills/index.json` — the `embed.FS` walk is the index) |
+| `TestParamsTableSaysWhereKeyGoes`      | An op skill whose Params table lists a key that is a top-level slot field (a filterer's `values`, a test's `alpha`) says it is not under `params` |
 | `TestSkillsFrontmatter_RequiredFields`  | Every skill has `name`, `description`, `type`, `applies_to` |
 | `TestSkillExampleTagPointersResolve`    | Every `pulse_examples_search tags=[…]` pointer anywhere in a skill body matches at least one shipped example |
 | `TestRegistryStreamabilityMatchesTypes` | Aggregator `OnlineAggregator` capability matches `AggregationType.Streamable()` |
@@ -103,6 +104,8 @@ How to run the documentation checks and work their allowlists:
 | `TestProfileServedTextNoHiddenFeature` | Heavy. Under every single-feature-hidden feature profile, no served text (manifest, MCP tools / prompts / resources, skills, examples, `docs export` tree) names a hidden operator, hidden feature's MCP tool or hidden slot token, and no core tool description loses a sentence to the prose scrub (its clause is feature-fenced). Allowlist `internal/doccheck/allowlists/served-text.txt`, locked empty |
 | `docs` CI job (not a Go test)          | `mdbook build docs` prints no `WARN` / `ERROR` line (this catches a broken page and a search index past mdBook's 10 MB warning), then `make doc-checks` runs the fast doc checks |
 | `TestFacadeExamplesPresent`             | The pinned runnable GoDoc task examples (`facadeExamples` in `facade_examples_test.go`: root `example_*_test.go`, `observe`, `mcpserve`) all exist and carry a checked `// Output:` (compile-only ones are named); an unpinned example in those packages fails too, so the set only grows |
+| `TestEvalReferences`, `TestEvalIntentCoverage` | Every agent-eval task's reference submission (`internal/eval/tasks/`) passes its own assertions on freshly built fixture cohorts, and every intent in the taxonomy has at least one task (read from `IntentIDs()`, never a count); running an agent against them: [Agent Evaluation](agent-eval.md) |
+| `TestEvalNoAnswerKeyLeak` | The eval answer key stays unserved: no task question appears in an example or skill, no question names an operator, no reference request equals an example body, and no package outside `internal/eval` imports it |
 
 ## Running a subset of gates locally
 

@@ -185,8 +185,8 @@ func (s *Service) applyFacetOverlays(ctx context.Context, req *types.FacetReques
 // descriptor.resolveFacetOverlayHostField helper. Reads spec.Params
 // ["field"] first; when absent falls back to req.Fields[0] when
 // FacetRequest.Fields declares exactly one entry. Returns an error
-// (coded PULSE_OVERLAY_PARAM_MISSING or
-// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) when neither slot
+// (coded PULSE_OVERLAY_PARAM_MISSING, or PULSE_OVERLAY_FIELD_UNKNOWN
+// for a params.field naming none of req.Fields) when neither slot
 // resolves to a valid host-field name.
 //
 // Defense in depth: the descriptor validator (ValidateFacetOverlays)
@@ -202,7 +202,7 @@ func resolveFacetOverlayHostFieldRuntime(req *types.FacetRequest, spec *types.Ov
 				return requested, nil
 			}
 		}
-		return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
+		return "", errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FIELD_UNKNOWN,
 			"overlay "+string(spec.Kind)+" params.field names none of the facet request's fields: "+requested,
 			map[string]any{
 				"index":            index,

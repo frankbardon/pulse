@@ -32,12 +32,12 @@ type ProcessChainCapability struct {
 	RowLocalAttributes []string `json:"row_local_attributes"`
 
 	// RejectionRules names the operator categories the chain gate
-	// rejects today. Intended for LLM-side reasoning and fallback
+	// rejects. Intended for LLM-side reasoning and fallback
 	// routing; not a strict schema.
 	RejectionRules []string `json:"rejection_rules"`
 
 	// OverlayKinds lists the whole-chain overlay catalog entries
-	// accepted on ChainRequest.Overlays today. Alphabetically sorted.
+	// accepted on ChainRequest.Overlays. Alphabetically sorted.
 	// Minimal additive surface kept for backward compatibility; the
 	// richer per-kind sub-block at Overlays carries the full surface
 	// (shapes / scopes / ref kinds / buffered / description).
@@ -60,7 +60,7 @@ type ProcessChainCapability struct {
 	//   - RefKinds    — the OverlayRef union pointer-field names the kind
 	//                   consumes; the chain family consumes Stage.
 	//   - Buffered    — !types.OverlayStreamable(kind); whole-chain kinds
-	//                   stay buffered today (the streamability flag is
+	//                   stay buffered (the streamability flag is
 	//                   the inverse of the table in
 	//                   types/overlay_streamability.go).
 	//   - Description — short human-readable summary; mirrors the prose
@@ -275,7 +275,7 @@ type ExportCapability struct {
 //     ORDER come from the file rather than from its
 //     cell text.
 //
-// Export reports whether the SAME format can also be written today. It
+// Export reports whether the SAME format can also be written. It
 // is deliberately not inferable from this block's presence: a format
 // being readable says nothing about whether a writer exists. Every
 // format Pulse reads it can also write as of E5-S6, which mounted the
@@ -301,7 +301,7 @@ type ImportFormatCapability struct {
 	// decides the types. See ImportFormatCapability godoc.
 	SchemaSource string `json:"schema_source"`
 
-	// Export reports whether Pulse can also WRITE this format today.
+	// Export reports whether Pulse can also WRITE this format.
 	// False for import-only formats; cross-reference
 	// ExportCapability.Formats for the writable set's overlay shapes.
 	Export bool `json:"export"`
@@ -379,17 +379,16 @@ type JoinCapability struct {
 	Name string `json:"name"`
 
 	// MaxJoinsPerRequest is the upper bound on Request.Joins length.
-	// 1 today; lifts when multi-join chains land.
+	// Always 1: a request carries at most one join.
 	MaxJoinsPerRequest int `json:"max_joins_per_request"`
 
-	// Kinds lists supported JoinSpec.Kind values. "inner" today;
-	// "left", "outer", "anti" land once the null-bitmap correctness
-	// path is fully wired.
+	// Kinds lists supported JoinSpec.Kind values; any other kind is
+	// refused.
 	Kinds []string `json:"kinds"`
 
 	// SpillBytes reports the in-memory threshold beyond which the
-	// build side would spill. Zero today (no spill — the build side
-	// is always materialised in RAM); set when the spill path lands.
+	// build side would spill. Always zero: the build side is always
+	// materialised in RAM and never spills.
 	SpillBytes int64 `json:"spill_bytes"`
 
 	// SpillEnv names the environment variable that overrides the

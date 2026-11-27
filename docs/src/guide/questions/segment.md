@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `measures`: 1 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_COUNT`, `GROUP_KMEANS`, `ATTR_PC_SCORE`, `GROUP_CATEGORY`, `MAT_DISTANCE` and `MAT_PCA`.
 
 ### Groupers
 
@@ -46,6 +46,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show group_kmeans > req.json
+pulse api process --request req.json --json
+```
+
 **Do customers fall into natural groups by age and income?**
 
 The request (example `group_kmeans`; `pulse examples show group_kmeans` prints it):
@@ -70,8 +79,7 @@ The request (example `group_kmeans`; `pulse examples show group_kmeans` prints i
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "groups": [
     {
@@ -130,6 +138,8 @@ The result:
 }
 ```
 
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
+
 K-means splits them into the three groups it was asked for: a large younger group, an older group on a similar typical income, and a small group whose average income is roughly three times the others'. Read that as a convenient split rather than a discovery. The younger and older groups look like two halves of one continuous age range cut near the middle, and the high-income group is the long upper tail of incomes rather than a separate population. The algorithm always returns as many groups as you ask for, whether or not the data has them; check the share of the spread the groups explain (`between_ss_ratio` in the grouper's components, which the full preset shows), try a different number of groups, and ask what each group means for a decision before naming segments. Age and income are standardised first, so both count equally despite their different units. Each row's cluster label sits in a column named after the grouper and its first field.
 
 Another worked example:
@@ -173,8 +183,7 @@ The request (example `perceptual_map`; `pulse examples show perceptual_map` prin
     }
   ],
   "cohort": {
-    "filename": "brand_ratings.pulse",
-    "data_dir": ".data"
+    "filename": "brand_ratings.pulse"
   },
   "matrices": [
     {
@@ -745,6 +754,8 @@ The result:
 }
 ```
 
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
+
 Two axes carry most of the picture. The first is premium versus budget: quality and premium load one way, value the other. The second is modern versus traditional: modern and innovative against heritage. The four outer brands sit one to a quadrant with the fifth near the middle. The closest pairs share a side of the price axis, the two premium brands and the two budget ones, so price separates customers' views more than style does; brands on opposite corners are the furthest apart. The distance grid over the six ratings themselves ranks those corner pairs the same way, so the flat picture does not mislead here. The middle brand is about equally close to all four and owns no position of its own. Distances between centres carry no p-value, so treat a small gap as no gap until a test says otherwise.
 
 ## How to read the result
@@ -842,4 +853,4 @@ More on reading it: [MAT_PCA](../reading/matrix.md#op-mat_pca).
 - `pulse recommend --intent segment --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

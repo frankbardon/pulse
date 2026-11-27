@@ -40,7 +40,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 ## References
 
 - `docs/src/internals/regenerating-goldens.md` (R toolchain, weighted reference, multivariate goldens)
-- `internal/descriptor/validation_registry.go` (the registry, since E1-S2) + `internal/docgen/validation.go` (the book's rendering) + `validation_intro.md`; `.claude/reference/guided-analysis/explain-and-skills.md` (Operator mode, Validation page)
+- `internal/descriptor/validation_registry.go` (the registry, since E1-S2) + `internal/docgen/validation.go` (the book's rendering) + `validation_intro.md`; `.claude/reference/guided-analysis/explain-results.md` (Operator mode) and `.claude/reference/guided-analysis/skills-and-docgen.md` (Validation page)
 - [U08 statistics review](../reviews/U08-statistics-review.md) (the R-oracle layer); [U61](U61-cross-arch-determinism.md) (identical bits across architectures)
 - NIST Statistical Reference Datasets: <https://www.itl.nist.gov/div898/strd/>
 
@@ -250,7 +250,7 @@ An operator exposes a parameter wherever there is a real methodological choice, 
 
 ## Update Demand companions
 
-- `docs/src/internals/regenerating-goldens.md` (StRD fixture, the new R scripts), `.claude/reference/guided-analysis/explain-and-skills.md` (Validation page; the engine surface after D1)
+- `docs/src/internals/regenerating-goldens.md` (StRD fixture, the new R scripts), `.claude/reference/guided-analysis/skills-and-docgen.md` (Validation page; the engine surface after D1)
 - If D1 picks (b): the payload-schema and manifest goldens, `TestManifestGuidanceBudget`, and the guided-analysis Update Demand row
 - `make docs` after every registry change. Never hand-edit `docs/src/guide`.
 - Studio: README "Running and results" / inspector docs; `make bump PULSE_REF=<tag>` then `make catalog-fixture`

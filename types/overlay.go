@@ -5,8 +5,7 @@ import "encoding/json"
 // Overlay system — universal foundational types.
 //
 // The overlay layer is an additive, request-driven family of derived
-// computations that decorate a primary result (today: crosstab matrices;
-// future: regressions, time series, group results) with one or more
+// computations that decorate a primary result (crosstab matrices, series and facet results) with one or more
 // secondary projections — index-vs-margin scores, sibling comparisons,
 // baseline lifts, population deltas, etc. Every overlay shares one
 // declarative surface (OverlaySpec) and one structured response surface
@@ -18,8 +17,8 @@ import "encoding/json"
 //     union.
 //   - Request-side OverlaySpec and response-side OverlayLayer wrapper.
 //   - OverlayPayload scalar/series/matrix union + minimal SeriesPayload
-//     placeholder (SeriesPayload may grow as future families surface
-//     time-series overlays).
+//     placeholder (the minimal SeriesPayload carries time-series
+//     overlays).
 //
 // Descriptor validation, processing dispatch, MCP schema bindings,
 // canonical-hash extension, and the per-kind catalog live in sibling
@@ -541,9 +540,8 @@ const (
 	// row is `false` — resolving a single positional baseline requires
 	// the materialised host series (`host.ValueAt(Position)` reads after
 	// finalize). The handler runs at the buffered post-host-finalize exit
-	// via `ApplyOverlaysSeries`. Forward-compat: future work may lift
-	// the baseline resolver into a streaming-aware shape; when that lands
-	// the streamability flag flips to true.
+	// via `ApplyOverlaysSeries`. The streamability flag is
+	// false.
 	OverlayKindDeltaVsBaseline OverlayKind = "OVERLAY_DELTA_VS_BASELINE"
 
 	// OverlayKindDeltaVsPrior emits a per-point windowed additive delta
@@ -706,11 +704,8 @@ const (
 	// row is `false` — resolving a single positional baseline requires
 	// the materialised host series (`host.ValueAt(Position)` reads after
 	// finalize). The handler runs at the buffered post-host-finalize exit
-	// via `ApplyOverlaysSeries`. Forward-compat: future work may lift
-	// the baseline resolver into a streaming-aware shape (carrying the
-	// resolved baseline inline as a kind-specific accumulator advanced
-	// during the streaming pass once the orchestrator hits the baseline
-	// ordinal); when that lands the streamability flag flips to true.
+	// via `ApplyOverlaysSeries`. The streamability flag is
+	// false.
 	OverlayKindIndexVsBaseline OverlayKind = "OVERLAY_INDEX_VS_BASELINE"
 
 	// OverlayKindIndexVsMargin produces an index score per cell (or per
@@ -868,7 +863,7 @@ const (
 	//
 	// Ref handling: the windowed `Ref.Prior` arm is the implicit default
 	// for this kind. The validator accepts both a populated
-	// `Ref.Prior` (with `Lag` zero or unset for v1) AND an entirely empty
+	// `Ref.Prior` (with `Lag` zero or unset) AND an entirely empty
 	// `Ref` (the omitempty-friendly authoring shape) — both spell "lag-
 	// 1 prior". Any other ref-family pointer (`Margin` / `Sibling` /
 	// `BaselineIndex` / `Population` / `Stage` / `Slot`) fires
@@ -972,14 +967,10 @@ const (
 	// Buffered. Per `types/overlay_streamability.go`, the streamability row
 	// is `false` — the ring buffer carries the full window of present values
 	// per group, which the streaming Process pass cannot maintain inline
-	// with the per-record fold today (the carrier widens beyond a single
+	// with the per-record fold (the carrier widens beyond a single
 	// f64 — `OVERLAY_INDEX_VS_PRIOR`'s streamable lag carrier is one f64;
 	// rolling-mean's ring is `W` f64s and grows the streaming-fold state
-	// past v1's single-state lag accumulator). Forward-compat: a future
-	// story may lift the rolling-mean ring into a streaming-aware shape
-	// (the streaming orchestrator's per-group accumulator carries the ring
-	// inline alongside the per-group online aggregator); when that lands
-	// the streamability flag flips to true.
+	// past a single-state lag accumulator).
 	OverlayKindIndexVsRollingMean OverlayKind = "OVERLAY_INDEX_VS_ROLLING_MEAN"
 
 	// OverlayKindIndexVsStage is the whole-chain ratio overlay against
@@ -1190,7 +1181,7 @@ const (
 	// streaming-Process orchestrator wires the inner per-record hook;
 	// this kind ships with a SERIES-host post-finalize entry
 	// (ApplyOverlaysSeries route) so the streaming-vs-buffered byte-
-	// identity test holds at the entry-point level today.
+	// identity test holds at the entry-point level.
 	OverlayKindIndexVsTotal OverlayKind = "OVERLAY_INDEX_VS_TOTAL"
 
 	// OverlayKindKSVsPop emits a single scalar Kolmogorov-Smirnov distance
@@ -1268,13 +1259,9 @@ const (
 	//	     NumericPercentiles=["p10","p25","p50","p75","p90"] on both
 	//	     arms.
 	//
-	// FORWARD-COMPAT PRECISION UPLIFT: future work may extend the
-	// resolver to retain raw sorted population values when the host
-	// FacetRequest names a KS overlay — the handler would then call
-	// ksTwoSampleD directly on the raw arms (path 0) and the histogram /
-	// percentile fallback would become an opt-out branch. The current
-	// implementation is path-agnostic at the dispatch level so adding the
-	// raw-value path is a strictly additive change.
+	// Precision: the resolver does not retain raw sorted population
+	// values for a KS overlay; the handler reads the histogram /
+	// percentile arms and is path-agnostic at the dispatch level.
 	//
 	// Inherently buffered, like every inferential overlay. KS is not
 	// streamable because the empirical-CDF construction requires sorted values on
@@ -1369,7 +1356,7 @@ const (
 	//     internal/processing/overlay_series.go) carried alongside the per-group
 	//     accumulators in the streaming Process fold (the streaming
 	//     orchestrator wires it inline; this kind ships the
-	//     post-finalize entry today). `Ref` MUST be empty
+	//     post-finalize entry). `Ref` MUST be empty
 	//     (implicit-grand-total); any Ref-family pointer fires
 	//     `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` at predict time.
 	//     Zero `grand_total` emits one `PULSE_OVERLAY_REF_ZERO` warning
@@ -1648,11 +1635,8 @@ const (
 	// Buffered. Per `types/overlay_streamability.go`, the streamability
 	// row is `false` — the ring buffer carries the full window of present
 	// values plus the Welford trio per group, which the streaming Process
-	// pass cannot maintain inline with the per-record fold today (matches
+	// pass cannot maintain inline with the per-record fold (matches
 	// the `OVERLAY_INDEX_VS_ROLLING_MEAN` buffered rationale verbatim).
-	// Forward-compat: future work may lift the rolling carrier into a
-	// streaming-aware shape; when that lands the streamability flag flips
-	// to true.
 	//
 	// Chan-Welford merge: the Welford triple combines under the
 	// standard `delta = mean_B - mean_A; mean = mean_A + delta * n_B/n;
@@ -1806,8 +1790,8 @@ const (
 	// fires `PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY` with
 	// `{frequency, supported}` Details.
 	//
-	// Calendar-week / day-of-week realignment is an explicit non-goal in
-	// v1: weekly frequency uses calendar-week-aligned `i - 52` arithmetic
+	// Calendar-week / day-of-week realignment is an explicit non-goal:
+	// weekly frequency uses calendar-week-aligned `i - 52` arithmetic
 	// (no day-of-week realignment); daily frequency uses exact-key lookup
 	// against the host key index after subtracting one year via
 	// `time.Time.AddDate(-1, 0, 0)` (Feb 29 in a non-leap prior year
@@ -1850,10 +1834,8 @@ const (
 	// host series (daily / hourly arms walk an exact-key index over the
 	// full host key list; coarser frequencies index into an arbitrary
 	// prior ordinal). The handler runs at the buffered post-host-
-	// finalize exit via `ApplyOverlaysSeries`. Forward-compat: a future
-	// story may lift the per-frequency lookup into a streaming-aware
-	// shape when the streaming-Process orchestrator carries an exact-key
-	// host index inline.
+	// finalize exit via `ApplyOverlaysSeries`. The per-frequency
+	// lookup needs the whole host series, so the kind is buffered.
 	//
 	// Renderers centre diverging colour ramps on `baseline = 100`
 	// (mirrors `OVERLAY_INDEX_VS_MARGIN` / `OVERLAY_INDEX_VS_TOTAL` /
@@ -1931,8 +1913,8 @@ const (
 	// at host finalize. The streaming-Process orchestrator wires the
 	// inner per-record hook; this kind ships with a SERIES-host
 	// post-finalize entry (ApplyOverlaysSeries route) so the streaming-
-	// vs-buffered byte-identity test holds at the entry-point level
-	// today. Gotcha: the streaming pass
+	// vs-buffered byte-identity test holds at the entry-point level.
+	// Gotcha: the streaming pass
 	// folds Welford over GROUPS, not raw records — variance is across
 	// N groups, not N records, distinct from `ATTR_ZSCORE`'s record-
 	// level semantics.
@@ -2109,11 +2091,8 @@ const (
 	// defaults to `16` when `ComposeOverlaySpec.Options` is nil OR
 	// `Options.MaxPanelTargets == 0`. `len(spec.Targets) >
 	// MaxPanelTargets` fires `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP` at
-	// handler entry with `{observed, cap}` Details. Per the interview
-	// risk paragraph "Multi-reference combinatorics", bumping the
-	// default 16 requires explicit interview update — `Options` is the
-	// per-request override surface for callers who need a larger panel
-	// today.
+	// handler entry with `{observed, cap}` Details. `Options` is the
+	// per-request override surface for callers who need a larger panel.
 	//
 	// Degenerate inputs: missing row margins fall back to the cell value
 	// as the sample size (mirrors `OVERLAY_PROP_Z_CELL`); pairwise
@@ -2750,7 +2729,7 @@ const (
 	// (e.g. a column-normalized re-projection of the cell values).
 	OverlayScopeMatrix OverlayScope = "matrix"
 
-	// OverlayScopeGroup decorates one grouper level. Reserved for future
+	// OverlayScopeGroup decorates one grouper level. Reserved for
 	// nested-axis families; Pulse emits OVERLAY_NOT_IMPLEMENTED if used
 	// against OVERLAY_INDEX_VS_MARGIN.
 	OverlayScopeGroup OverlayScope = "group"
@@ -2789,8 +2768,7 @@ type OverlayMarginRef struct {
 
 // OverlaySiblingRef is reserved for sibling-cell comparison overlays
 // (e.g. compare each cell against the cell at the same row but a
-// different column key). Included as a placeholder slot so future
-// kinds can drop in without re-opening this file.
+// different column key). Included as a placeholder slot.
 type OverlaySiblingRef struct {
 	// Field names the axis dimension whose sibling is referenced
 	// (typically a grouper Field name on the row or column axis).
@@ -2805,9 +2783,9 @@ type OverlaySiblingRef struct {
 //
 //   - MATRIX-host crosstab-cell coordinate (Row + Column). Each slot
 //     names a baseline coordinate as a sorted, axis-ordered list of
-//     dictionary keys. Empty lists mean "use the grand total". Not
-//     populated by any shipping kind today and consumed only by the
-//     future "vs designated cell" Crosstab overlay family.
+//     dictionary keys. Empty lists mean "use the grand total". Reserved
+//     for the "vs designated cell" Crosstab overlay family; no
+//     registered kind reads it.
 //
 //   - SERIES-host ordered-axis positional baseline (Position, the
 //     windowed-Process arm). Position pins a 0-based ordinal
@@ -2829,14 +2807,14 @@ type OverlaySiblingRef struct {
 // per spec — the union is host-shape-disambiguated rather than
 // pointer-discriminated. The two arms never collide in practice (Row
 // + Column resolve on a MATRIX host; Position resolves on a SERIES
-// host) so a single struct cleanly carries both reservations until
-// the future MATRIX baseline-cell family ships.
+// host) so a single struct cleanly carries both reservations for
+// the MATRIX baseline-cell family.
 type OverlayBaselineIndexRef struct {
 	// Row names the baseline row-axis tuple as a sorted, axis-ordered
 	// list of dictionary keys for the MATRIX-host arm. Empty list
-	// means "use the grand total". Reserved for the future "vs
-	// designated cell" Crosstab overlay family — not consumed by any
-	// shipping handler today.
+	// means "use the grand total". Reserved for the "vs
+	// designated cell" Crosstab overlay family — no registered
+	// handler consumes it.
 	Row []string `json:"row,omitempty"`
 
 	// Column names the baseline column-axis tuple for the MATRIX-host
@@ -2865,7 +2843,7 @@ type OverlayBaselineIndexRef struct {
 // result).
 //
 // `OVERLAY_INDEX_VS_PRIOR` is the first kind to consume this
-// arm and ships with lag-1 only. The `Lag` slot is reserved for future
+// arm and ships with lag-1 only. The `Lag` slot is reserved for
 // window-N priors (lag-3 for "compare against three points ago", etc.);
 // no kind accepts a non-zero `Lag`. A caller can leave
 // `Ref` entirely empty (the implicit default for the kind) OR populate
@@ -2896,8 +2874,8 @@ type OverlayPriorRef struct {
 // ordinals, daily ⇒ -365-day exact-key lookup, hourly ⇒ -365×24-hour
 // exact-key lookup).
 //
-// Calendar-week / day-of-week realignment is an explicit non-goal in
-// v1: weekly frequency uses calendar-week-aligned `i - 52` arithmetic
+// Calendar-week / day-of-week realignment is an explicit non-goal:
+// weekly frequency uses calendar-week-aligned `i - 52` arithmetic
 // (no day-of-week realignment); daily frequency uses exact-key lookup
 // against the host key index — Feb 29 in a non-leap prior year emits
 // NaN because no exact-key match exists, not an off-by-one realignment
@@ -2906,10 +2884,8 @@ type OverlayPriorRef struct {
 // The empty struct tags the ref family so the validator's "exactly one
 // ref arm populated per kind" contract stays uniform with the rest of
 // the catalog (every kind picks exactly one ref family, even when its
-// parameters live on `Params`). Forward-compat: future stories may
-// extend the struct with non-frequency knobs (e.g. fiscal-year
-// alignment, leap-year fill policies) without re-opening the parent
-// `OverlayRef`.
+// parameters live on `Params`). The struct carries no knobs; the
+// frequency lives on `Params`.
 type OverlayYoYRef struct{}
 
 // OverlayRollingMeanRef is the ref-arm that tags a spec as a windowed
@@ -2926,10 +2902,7 @@ type OverlayYoYRef struct{}
 // picks exactly one ref family, even when its parameters live on
 // `Params`).
 //
-// Forward-compat: future stories may extend the struct with non-Window
-// knobs (e.g. weighting modes for exponentially-weighted means, edge-
-// fill policies for the warmup window) without re-opening the parent
-// `OverlayRef`. The `OVERLAY_ZSCORE_VS_ROLLING` handler REUSES
+// The `OVERLAY_ZSCORE_VS_ROLLING` handler REUSES
 // this same ref-arm (sibling windowed-rolling family — both kinds
 // carry the window width on `Params["window"]`) so a single ref family
 // tag suffices for the rolling-window catalog.
@@ -2968,8 +2941,8 @@ type OverlayMatrixRef struct {
 // validator (internal/descriptor.ValidateOverlays) rejects an OverlaySpec that
 // populates the wrong pointer for its Kind.
 //
-// Placeholder pointers cover overlay families that have not yet
-// landed runtime handlers — they exist so adding a new family does
+// Placeholder pointers cover overlay families without
+// runtime handlers — they exist so adding a new family does
 // not migrate embedder-side JSON.
 type OverlayRef struct {
 	// Margin selects an axis-margin slot of the base result.
@@ -3150,13 +3123,11 @@ type OverlayOptions struct {
 	// (OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF, OVERLAY_T_VS_REF,
 	// OVERLAY_Z_VS_REF, OVERLAY_T_CELL, OVERLAY_Z_CELL,
 	// OVERLAY_PROP_Z_CELL, OVERLAY_CHISQ_VS_REF, OVERLAY_RANK: one
-	// layer per target). Default 16 when the slot is zero — per the
-	// interview risk paragraph "Multi-reference combinatorics" the
-	// default 16 is the explicit upper bound on per-cell pairwise
-	// p-value computation; bumping the default requires an interview
-	// update. Setting a non-zero value here is the per-request override
-	// surface for callers who need a larger panel (or a stricter cap)
-	// today. `len(spec.Targets) > MaxPanelTargets` fires
+	// layer per target). Default 16 when the slot is zero: the
+	// default is the upper bound on per-cell pairwise p-value
+	// computation. Setting a non-zero value here is the per-request override
+	// surface for callers who need a larger panel (or a stricter cap).
+	// `len(spec.Targets) > MaxPanelTargets` fires
 	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry (and the
 	// equivalent predict-time check in internal/descriptor.ValidateCompose
 	// via internal/descriptor.ValidateCompose). Other kinds ignore
@@ -3170,7 +3141,7 @@ type OverlayOptions struct {
 // OverlaySummary carrying the per-entry statistic / p-value / parameter
 // map. The shape generalises across host families: for a Crosstab host
 // the entry order matches MatrixPayload.RowKeys (CHISQ_ROW) or
-// ColumnKeys (CHISQ_COL); for a future process-grouped host the entry
+// ColumnKeys (CHISQ_COL); for a process-grouped host the entry
 // order matches the host's grouper-key vector.
 //
 // Per-entry key contract (OVERLAY_CHISQ_ROW): the
@@ -3189,7 +3160,7 @@ type OverlayOptions struct {
 // surface — CHISQ_ROW's per-row {Statistic, PValue, Parameters{"df"}}
 // reuses CHISQ_MATRIX's summary shape verbatim, and the per-row
 // renderer reads each entry exactly the way it reads a SCALAR layer.
-// Future descriptive series families (per-row deviation strips) populate
+// Descriptive series families (per-row deviation strips) populate
 // only Summary.Min / Max / Count and leave Statistic / PValue unset.
 //
 // AxisKey is []any so numeric / categorical / date axis values keep
@@ -3292,7 +3263,7 @@ type OverlayPayload struct {
 // cells for sparsity hints, an optional baseline reference value.
 // Every field is omitempty so a producer can populate just the
 // summary slots that make sense for the kind in question (e.g.
-// INDEX_VS_MARGIN reports min/max but not baseline; a future Z-score
+// INDEX_VS_MARGIN reports min/max but not baseline; a Z-score
 // overlay reports baseline=0 and the populated standard deviation).
 type OverlaySummary struct {
 	// Min is the minimum derived value across the layer's payload.
@@ -3338,8 +3309,8 @@ type OverlaySummary struct {
 	//   OVERLAY_KS_*          → {"d": 0.18}
 	// Keys are SCREAMING_SNAKE-free lowercase strings; values are
 	// float64. Empty / nil when the kind has no extra parameters to
-	// surface. The map shape is forward-compatible — new keys land
-	// additively without breaking existing renderer code.
+	// surface. The map shape is additive: a renderer ignores keys it does not
+	// know.
 	Parameters map[string]float64 `json:"parameters,omitempty"`
 
 	// PAdjusted is this summary's p-value corrected for multiple
@@ -3403,7 +3374,7 @@ type OverlayLayer struct {
 // OverlayWarning is the in-process diagnostic emitted by an overlay
 // handler when it could not produce a meaningful value for some
 // subset of cells (zero denominator, missing margin slot). Carries the
-// canonical error code (today: errors.PULSE_OVERLAY_REF_ZERO), a
+// canonical error code (errors.PULSE_OVERLAY_REF_ZERO), a
 // renderer-friendly message, and structured details so the
 // orchestrator can promote each entry into a types.ResponseWarning on
 // the envelope.
@@ -3417,7 +3388,7 @@ type OverlayLayer struct {
 // On the wire each entry is {code, message, details} — the coded-entry
 // shape of every other warning list (`details` omitted when nil).
 type OverlayWarning struct {
-	// Code is the canonical overlay error code (today: errors.PULSE_OVERLAY_REF_ZERO).
+	// Code is the canonical overlay error code (errors.PULSE_OVERLAY_REF_ZERO).
 	Code string `json:"code"`
 	// Message is the human-readable summary.
 	Message string `json:"message"`

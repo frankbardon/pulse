@@ -1,0 +1,21 @@
+{
+  "id": "prepare_income_zscore",
+  "intent": "prepare",
+  "question": "Save a new cohort called customers_scored.pulse that keeps only customers aged 40 or older and adds a column saying how far each one's income sits above or below the average, in standard deviations.",
+  "cohorts": ["customers"],
+  "reference": {
+    "tool": "pulse_materialize",
+    "arguments": {
+      "out": "customers_scored.pulse",
+      "request": {
+        "cohort": {"filename": "customers.pulse"},
+        "filterers": [{"type": "FILTER_RANGE", "field": "age", "values": ["40", "200"]}],
+        "attributes": [{"type": "ATTR_ZSCORE", "field": "income", "label": "income_z"}]
+      }
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["ATTR_ZSCORE", "ATTR_FORMULA"]},
+    {"kind": "cohort", "rows": 133, "fields": ["id", "age", "income", "region"]}
+  ]
+}

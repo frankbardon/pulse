@@ -58,9 +58,8 @@ type Fixup struct {
 }
 
 // Metadata bundles per-code documentation that lives alongside the flat
-// Code constant. Today it carries the canonical human Message and a
-// Fixups template list. Future fields (severity, retryable, etc.) attach
-// here.
+// Code constant. It carries the canonical human Message and a
+// Fixups template list.
 type Metadata struct {
 	// Message is the canonical human-readable description used when no
 	// caller-supplied message is provided. Mirrors the curated text in
@@ -88,7 +87,7 @@ func MetadataFor(c Code) (Metadata, bool) {
 }
 
 // Fixup returns the materialised fixup templates for this code. The
-// req argument is reserved for future path-resolution work; today the
+// req argument is reserved; the
 // templates are returned as-is so callers see the abstract paths from
 // the metadata table. Returns nil when the code is tagged
 // FixupNotApplicable.

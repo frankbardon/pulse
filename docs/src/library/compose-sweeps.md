@@ -188,7 +188,7 @@ order. `best` and `best_so_far` are `null` — never 0 — while nothing has
 ranked, and `best_label` is then absent. The trace reads the full ranking
 before `top`, sits outside the Compose `return` like `ranking` (full
 precision), and rides the trailing `--stream` ranking line. Non-adaptive
-sweeps are byte-identical. A profiled instance shows `round` and
+sweeps are byte-identical to their output without the adaptive rounds. A profiled instance shows `round` and
 `sweep_trace` in its payload schema only with
 `capability:compose_sweep_adaptive`.
 

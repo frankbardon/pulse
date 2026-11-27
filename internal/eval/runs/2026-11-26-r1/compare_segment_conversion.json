@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "experiment.pulse"}, "tests": [{"type": "TEST_CHISQ", "rows": "segment", "cols": "converted", "alpha": 0.05, "label": "segment_chisq"}]}}

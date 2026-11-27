@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `outcome`: one numeric, categorical or bool field; `predictors`: 1 or more numeric, categorical or bool fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `REG_OLS`.
 
 ### Aggregators
 
@@ -58,6 +58,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show clustered_covariance > req.json
+pulse api process --request req.json --json
+```
+
 **What explains a customer's revenue: what they spent before, or how long their sessions run?**
 
 The request (example `clustered_covariance`; `pulse examples show clustered_covariance` prints it):
@@ -65,8 +74,7 @@ The request (example `clustered_covariance`; `pulse examples show clustered_cova
 ```json cohort=experiment
 {
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "regressions": [
     {
@@ -374,4 +382,4 @@ More on reading it: [REG_OLS](../reading/regression.md#op-reg_ols).
 - `pulse recommend --intent drivers --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

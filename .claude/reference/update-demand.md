@@ -6,6 +6,8 @@
 
 This index plus its per-area slices is the complete Update Demand: every Pulse contract that has its own trigger row. The rule: a change in column 1 updates everything in column 2 in the same PR — a doc or skill update deferred to "a follow-up PR" does not happen. Column 3 names the gates that catch a miss; where it says "reviewer enforcement", nothing does.
 
+**"Byte-identical" in contributor prose.** Means the serialized output compared with the same request without the feature, field for field and byte for byte (the convention `docs/src/contract/payload-schema.md` states); a use with another referent names it ("identical to the pre-edit file"). The library-docs statement is `docs/src/library/overview.md` (Conventions).
+
 ## Area index
 
 | If your change touches... | Load |

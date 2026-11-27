@@ -226,8 +226,9 @@ resources/list                               # lists cohorts only WITH the scan
 ```
 
 Nothing else changes: the static `pulse://schema` resource, the
-`pulse-skill://` resources, every tool, and `pulse_inspect` (the tool
-route to the same header+schema JSON) are unaffected.
+`pulse-skill://` resources, every tool, `pulse_inspect` (the tool
+route to the same header+schema JSON) and `pulse_cohorts_list` (which
+walks the data directory on every call, scan or not) are unaffected.
 
 Embedders reach the same knob as `gosdk.Config{DisableCohortScan: true}`
 or `mcpserve.Options{DisableCohortScan: true}`; both default to scanning.

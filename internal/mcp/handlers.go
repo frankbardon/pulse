@@ -560,6 +560,16 @@ func HandleImportsList(ctx context.Context, p *pulse.Pulse, _ ImportsListIn) (Im
 	return ImportsListOut{Imports: entries}, nil
 }
 
+// HandleCohortsList runs pulse_cohorts_list: every cohort under the data
+// directory, header and schema only (Pulse.ListCohorts).
+func HandleCohortsList(ctx context.Context, p *pulse.Pulse, in CohortsListIn) (CohortsListOut, error) {
+	entries, err := p.ListCohorts(ctx, pulse.ListCohortsOptions{Dir: in.Dir})
+	if err != nil {
+		return CohortsListOut{}, err
+	}
+	return CohortsListOut{Cohorts: entries}, nil
+}
+
 // HandleLabelTables runs pulse_label_tables: the INPUT-direction discovery
 // companion to pulse_label_resolve.
 func HandleLabelTables(_ context.Context, p *pulse.Pulse, _ LabelTablesIn) (LabelTablesOut, error) {

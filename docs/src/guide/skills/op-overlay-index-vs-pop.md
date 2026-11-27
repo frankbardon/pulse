@@ -28,7 +28,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `field` | string | — | The facet `fields` entry to score; required with two or more (else `PULSE_OVERLAY_PARAM_MISSING`); an unlisted one → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. |
+| `field` | string | — | The facet `fields` entry to score; required with two or more (else `PULSE_OVERLAY_PARAM_MISSING`); an unlisted one → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
 
 `scope` must be `group`. `ref.population.cohort` (string, required) — comparison-population cohort name. `level`/`within` must be `0`. Other `ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 

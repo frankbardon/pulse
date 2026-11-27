@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `category`: one categorical, bool or set field; `by`: optionally one categorical or bool field
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_COUNT` and `GROUP_CATEGORY`.
 
 ### Aggregators
 
@@ -67,6 +67,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show crosstab_row_normalize_conversion_rate > req.json
+pulse api process --request req.json --json
+```
+
 **What share of customers in each region converted?**
 
 The request (example `crosstab_row_normalize_conversion_rate`; `pulse examples show crosstab_row_normalize_conversion_rate` prints it):
@@ -74,8 +83,7 @@ The request (example `crosstab_row_normalize_conversion_rate`; `pulse examples s
 ```json cohort=experiment
 {
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "crosstab": {
     "rows": [
@@ -386,4 +394,4 @@ The figures these operators return read as their names say; for the ones that ne
 - `pulse recommend --intent composition --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

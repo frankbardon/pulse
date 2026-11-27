@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "customers.pulse"}, "groups": [{"type": "GROUP_CATEGORY", "field": "region"}], "aggregations": [{"type": "AGG_COUNT", "field": "id"}]}}

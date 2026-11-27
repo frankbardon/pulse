@@ -1,0 +1,17 @@
+{
+  "id": "change_repeated_conditions",
+  "intent": "change_over_time",
+  "question": "Each subject was measured at baseline and again under treatment A and treatment B. Did their measurements change across the three conditions?",
+  "cohorts": ["repeated_measures"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "repeated_measures.pulse"},
+      "tests": [{"type": "TEST_ANOVA_RM", "field": "metric", "split_by": "condition", "subject_field": "subject_id"}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["TEST_ANOVA_RM", "TEST_PAIRED_T", "TEST_WILCOXON_SR"]},
+    {"kind": "value", "section": "tests", "key": "p_value", "max": 0.001}
+  ]
+}

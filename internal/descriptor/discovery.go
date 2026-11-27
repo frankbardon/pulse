@@ -331,7 +331,10 @@ func (d *Discovery) SearchExamples(q examples.Query, opts examples.Options) []ex
 }
 
 // Example returns a visible example; a pruned name answers exactly as a
-// nonexistent one (nil, false).
+// nonexistent one (nil, false). A built-in example's body is served
+// through examples.Served, so it runs against the instance's own data
+// root rather than the repo-relative fixture directory; an embedder
+// example is served as registered.
 func (d *Discovery) Example(name string) (*examples.Example, bool) {
 	if !d.ExampleVisible(name) {
 		return nil, false
@@ -343,7 +346,11 @@ func (d *Discovery) Example(name string) (*examples.Example, bool) {
 		out.Body = slices.Clone(ex.Body)
 		return &out, true
 	}
-	return examples.Get(name)
+	ex, ok := examples.Get(name)
+	if ok {
+		ex.Body = examples.Served(ex.Body)
+	}
+	return ex, ok
 }
 
 // ExampleStats returns the manifest's examples count, categories and tags

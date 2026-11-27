@@ -283,8 +283,9 @@ const (
 	// PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN indicates an explicit import
 	// schema file declares a field whose type name is not a registered
 	// field type (details: field, type, valid — the registered type
-	// names). The name is never coerced: an unknown type used to fall
-	// back to f64 silently, so a typo stored a column in the wrong type.
+	// names). The name is never coerced: an unknown type is refused rather
+	// than falling back to f64, so a typo cannot store a column in the
+	// wrong type.
 	PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN Code = "PULSE_IMPORT_SCHEMA_TYPE_UNKNOWN"
 
 	// PULSE_IMPORT_SCHEMA_INVALID indicates an explicit import schema
@@ -2660,7 +2661,7 @@ const (
 	PULSE_OVERLAY_COMPONENTS_REQUIRED Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 
 	// PULSE_OVERLAY_SCOPE_UNSUPPORTED indicates an OverlaySpec named a
-	// scope that is not yet supported for the chosen Kind.
+	// scope the chosen Kind does not support.
 	// OVERLAY_INDEX_VS_MARGIN currently supports Scope=CELL only.
 	PULSE_OVERLAY_SCOPE_UNSUPPORTED Code = "PULSE_OVERLAY_SCOPE_UNSUPPORTED"
 
@@ -2689,11 +2690,9 @@ const (
 	// (Row axis depth = len(req.Crosstab.Rows), Column axis depth =
 	// len(req.Crosstab.Columns)). Mirrors
 	// PULSE_CROSSTAB_NORMALIZE_LEVEL_OUT_OF_RANGE on the crosstab
-	// normalize_level surface. Forward-compat: the code + fixup are
-	// registered so the catalog is in place for the deferred level /
-	// within overlay family; OverlaySpec carries no Level slot today,
-	// so this code is unreachable from runtime until that slot is
-	// wired through.
+	// normalize_level surface. The code + fixup are registered
+	// for the level / within overlay family; OverlaySpec carries no
+	// Level slot, so this code is unreachable from runtime.
 	PULSE_OVERLAY_LEVEL_OUT_OF_RANGE Code = "PULSE_OVERLAY_LEVEL_OUT_OF_RANGE"
 
 	// PULSE_OVERLAY_PARAM_MISSING indicates an OverlaySpec did not supply
@@ -2982,11 +2981,9 @@ const (
 	// whose Kind requires a MATRIX-shaped (crosstab) host but at least
 	// one resolved slot — reference or target — is not a crosstab
 	// result. The matrix-required Compose kinds (OVERLAY_RANK and the
-	// matrix-shape Compose family) have not yet registered their
-	// per-kind shape requirements, so the helper table
-	// `kindRequiresMatrix` is a stub and this code stays unreachable
-	// at runtime. The catalog row is in place so shape gating can be
-	// wired without touching this file again. Details carry the
+	// matrix-shape Compose family) declare no per-kind shape
+	// requirement, so the helper table `kindRequiresMatrix` is empty
+	// and this code is unreachable at runtime. Details carry the
 	// `required_shape: "MATRIX"`, the offending `target_label` (or
 	// "reference" when the reference itself is the offender), and the
 	// `observed_shape` ("series" / "scalar"). Sibling of
@@ -2998,13 +2995,11 @@ const (
 	PULSE_OVERLAY_SLOT_NOT_CROSSTAB Code = "PULSE_OVERLAY_SLOT_NOT_CROSSTAB"
 
 	// PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP indicates a multi-reference
-	// COMPOSE-host overlay spec (today: OVERLAY_PROP_Z_PANEL) named more
+	// COMPOSE-host overlay spec (OVERLAY_PROP_Z_PANEL) named more
 	// target slots than the per-spec `OverlayOptions.MaxPanelTargets`
-	// cap allows. Per the interview risk paragraph "Multi-reference
-	// combinatorics", the default cap is 16 — bumping the default
-	// requires an interview update; the per-request override surface
-	// lives on `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
-	// who need a larger panel today can opt in explicitly. Surfaced at
+	// cap allows. The default cap is 16; the per-request override
+	// surface is `ComposeOverlaySpec.Options.MaxPanelTargets` so callers
+	// who need a larger panel can opt in explicitly. Surfaced at
 	// runtime by `processing.applyPropZPanel` at handler entry; the
 	// internal/descriptor.ValidateCompose predict-time companion is
 	// deferred. Details carry `{kind, observed, cap}` so the renderer
@@ -3015,7 +3010,7 @@ const (
 	// OVERLAY_PAIRWISE_* spec asked for a DISTINCT-KEY slab sample size
 	// (`params.n_source = "n_within_distinct"`) over a pair axis whose
 	// summed-across dims include a FAN-OUT grouper
-	// (types.GroupType.FansOut() — today GROUP_SET_PER_ELEMENT).
+	// (types.GroupType.FansOut() — GROUP_SET_PER_ELEMENT).
 	//
 	// The slab fixes the first `n_within_depth + 1` pair-axis dims and
 	// sums the remaining cells. Summing per-cell DISTINCT cardinalities
@@ -3159,7 +3154,7 @@ const (
 
 	// PULSE_OVERLAY_EXPORT_PARTS_DROPPED is a WARNING-class code emitted
 	// by an export adapter that embeds an overlay layer's PRIMARY payload
-	// but cannot carry its named parts (OverlayPayload.Parts) — today the
+	// but cannot carry its named parts (OverlayPayload.Parts) — the
 	// Excel adapter, whose one-sheet-per-layer layout has no slot for a
 	// secondary payload. The primary rides its sheet unchanged; the parts
 	// are dropped. Details carry `layer_count` (layers with parts),
@@ -3456,7 +3451,7 @@ const (
 	// whose dictionary parsed cleanly but whose data section declares an
 	// encoding this reader cannot decode.
 	//
-	// All three encodings the format defines are read today —
+	// All three encodings the format defines are read —
 	// uncompressed (header compression flag 0), bytecode compression
 	// (flag 1, the SPSS save default) and ZSAV zlib block compression
 	// (flag 2, what a `.zsav` carries) — so this fires only for a
@@ -3853,16 +3848,10 @@ const (
 	// no honest `.sav` representation, so the export stops rather than
 	// writing a file that says something the cohort did not.
 	//
-	// It was minted for a blunter claim — "Pulse cannot write .sav at
-	// all" — which stopped being true when E5-S6 mounted the writer. It
-	// is REPURPOSED rather than retired, on the same grounds E3-S2 kept
-	// PULSE_SPSS_COMPRESSION_UNSUPPORTED: the code is already load-
-	// bearing inside the writer, where it is the standing answer to "this
-	// column cannot be expressed", and removing a code has a wider blast
-	// radius (manifest golden, doc sites, an embedder-visible lookup
-	// surface) than re-aiming one.
+	// It is the writer's standing answer to "this column cannot be
+	// expressed"; it does not claim that Pulse cannot write .sav at all.
 	//
-	// What raises it today:
+	// What raises it:
 	//
 	//   - A `set_*` column with an empty dictionary: a response set with
 	//     no member variable to name (dict_synth.go).

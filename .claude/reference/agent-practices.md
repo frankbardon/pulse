@@ -6,7 +6,7 @@ Each rule's reason comes from a failure this repo already shipped.
 
 ## Context loading
 
-- Read `CLAUDE.md` first. Next read the reference INDEX for your change from its "Reference Docs" table. Then load only the per-area slice or slices your change triggers. A file with a same-named subdirectory is an index, and its "How to load" note names the slices. *Why: the reference corpus is several hundred KB, and bulk-loading it uses up the context the actual change needs.*
+- Read `CLAUDE.md` first, then the reference INDEX for your change (its "Reference Docs" table), then only the slices your change triggers. A file with a same-named subdirectory is an index; its "How to load" note names the slices. *Why: the corpus is several hundred KB; bulk-loading it uses up the context the change needs.*
 - Never load a whole `.claude/reference/` directory or every slice; find a rule's slice with `grep -l '<identifier>' .claude/reference/<index>/*.md`.
 - Load a `history.md` slice only for a past decision's rationale. *Why: its superseded wording reintroduces fixed bugs.*
 - If you were handed an effort brief or a dispatch contract, read it before re-exploring the repo.
@@ -36,7 +36,6 @@ Each rule's reason comes from a failure this repo already shipped.
 - In an FMA-free kernel, write the barrier as an explicit `float64(x*y)`.
 - Test-input generators too: arm64 fuses `a*b + c`, amd64 does not. Write `float64(rng.NormFloat64()*k) + c` wherever the output feeds a bit-exact fixture. *Why: a frozen-word test passed on arm64, failed in amd64 CI.*
 - Never call `math.Signbit`, or compare raw bits, on a value that can be NaN. Guard NaN explicitly first. A runtime 0/0 is `0x7ff8…` (sign clear) on arm64 and `0xfff8…` (sign set) on x86 SSE. *Why: a sign check on a possibly-NaN statistic passed locally and failed in amd64 CI.*
-- `math/rand/v2` `NormFloat64` / `ExpFloat64` differ across arches: use uniform draws or `detmath` variates for bit-exact fixtures.
 - Cross-arch proof = the committed fingerprint golden (`internal/fingerprint`) plus CI's linux/amd64 run, never a container. Detail: `matrix-and-vectors/linalg.md` (Cross-architecture detail).
 
 ## Test tiers and parallelism
@@ -53,6 +52,11 @@ This set covers everything CI runs:
 3. `make smoke`. The embedder module is nested, so `./...` never reaches it.
 
 A story or companion agent runs only its touched packages' tests, any whole-repo gate it added or changed, and lint, unless told otherwise. The checkpoint or the PR owner runs the full set. After a push, check CI itself (`gh pr checks`). *Why: local arm64 misses amd64 divergence.*
+
+## Agent evaluation runs
+
+- Give each eval agent a fresh session; run the import task last and alone. The orchestrator never assembles a submission the agent did not write (`docs/src/contributing/agent-eval.md`). *Why: carried-over context broke run r4; a parallel import polluted r1.*
+- On macOS replace a running binary by `rm` then `cp`, never `cp` over it. *Why: an in-place copy got the server SIGKILLed (exit 137).*
 
 ## Shared-checkout safety
 
@@ -77,5 +81,4 @@ Other agents may share the checkout and git index.
 ## CLAUDE.md budget
 
 - CLAUDE.md is not an Update Demand companion. Contract detail goes in the per-area reference slice, the skill or the book; edit CLAUDE.md only when a rule every session needs changes. It stays under `TestClaudeMdSizeBudget`'s ceiling, which is never raised. *Why: CLAUDE.md is loaded on every turn of every session.*
-- Reference indexes and slices have their own ceilings (`reference_docs_test.go`), and an unsplit reference file carries the slice ceiling. A file or slice that grows past it is split (again), and the new slice is named in its index.
-- Every `.claude/reference/...` path or section pointer you write must resolve (`TestReferenceDocPointersResolve`, `TestSkillsCoverAllCrossReferences`).
+- Reference files have ceilings too (an unsplit file carries the slice one): a file past one is split (again) and the new slice named in its index. Every `.claude/reference/...` pointer must resolve (`TestReferenceDocPointersResolve`; rules in `.claude/reference/update-demand/gates.md`).

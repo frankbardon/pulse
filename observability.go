@@ -294,7 +294,7 @@ func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.C
 // ends (a leaked iterator is a caller bug).
 //
 // The panic recover covers fn — the stream's setup, which is where every
-// operator runs today (ProcessStream materialises its rows inside the
+// operator runs (ProcessStream materialises its rows inside the
 // call). Work after fn returns is outside it: the stream producer
 // goroutines (stream.go) recover their own panics into a StreamErrored
 // terminator, and the caller's iteration is the caller's.

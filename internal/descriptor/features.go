@@ -1209,13 +1209,13 @@ var coreSurfaces = []string{
 // The always-present core surfaces.
 const (
 	CoreOpen            = "open"             // Open
-	CoreInspect         = "inspect"          // Inspect*, pulse_inspect
+	CoreInspect         = "inspect"          // Inspect*, ListCohorts, pulse_inspect, pulse_cohorts_list
 	CorePredict         = "predict"          // Predict*, pulse_predict
 	CoreCountRecords    = "count_records"    // CountRecords
 	CoreManifest        = "manifest"         // Manifest, pulse_manifest
 	CorePayloadSchema   = "payload_schema"   // payload JSON Schema, pulse://schema
 	CoreSkills          = "skills"           // skills list/get
-	CoreExamples        = "examples"         // examples search/get
+	CoreExamples        = "examples"         // examples search/get, examples data
 	CoreErrorsLookup    = "errors_lookup"    // errors lookup
 	CoreCohortArtifacts = "cohort_artifacts" // CohortArtifacts
 )
@@ -1234,6 +1234,7 @@ type MCPToolBinding struct {
 // TestFeaturesHaveSince pins it to toolmeta in both directions.
 var mcpToolBindings = []MCPToolBinding{
 	{Tool: "pulse_inspect", Core: CoreInspect},
+	{Tool: "pulse_cohorts_list", Core: CoreInspect},
 	{Tool: "pulse_predict", Core: CorePredict},
 	{Tool: "pulse_manifest", Core: CoreManifest},
 	{Tool: "pulse_skills_list", Core: CoreSkills},
@@ -1288,6 +1289,7 @@ var commandBindings = []CommandBinding{
 	{Command: "facet", Feature: featFacet},
 	{Command: "lookup", Feature: featLookup},
 	{Command: "inspect", Core: CoreInspect},
+	{Command: "cohorts", Core: CoreInspect},
 	{Command: "predict", Core: CorePredict},
 	// The non-Request predict leaves follow the capability owning the
 	// request shape they validate (pulse_predict's alternative roots
@@ -1321,6 +1323,9 @@ var commandBindings = []CommandBinding{
 	{Command: "rake", Feature: featRake},
 	{Command: "recommend", Feature: featRecommend},
 	{Command: "explain", Feature: featExplain},
+	// The example cohorts follow the example library they serve (a
+	// core surface): embedded in the binary, never hidden.
+	{Command: "examples data", Core: CoreExamples},
 	// The feature-profile tooling describes the binary, not an instance.
 	{Command: "features init", Ungated: true},
 	{Command: "features check", Ungated: true},

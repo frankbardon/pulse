@@ -67,8 +67,9 @@ make build      # binary at ./bin/pulse
 
 `PULSE_DATA_DIR` is the one required environment variable: `pulse mcp`
 refuses to start without it (or `--data-dir`) and serves the cohorts under it. The other
-CLI commands resolve paths against the working directory, so the next
-pages work inside the data directory:
+CLI commands resolve paths against the working directory, not
+`PULSE_DATA_DIR`. The next pages run inside the data directory, so the
+cohort you build on the command line is the one `pulse mcp` serves later:
 
 ```bash
 export PULSE_DATA_DIR="$HOME/pulse-data"
@@ -83,6 +84,16 @@ Every other `PULSE_*` variable is optional; the table is in
 ```bash
 pulse --version
 pulse version --json
+```
+
+`pulse --version` prints one line: the release tag for a release
+binary (first line below). A source build adds the commits since that
+tag and the commit hash, plus `-dirty` with uncommitted changes (second
+line):
+
+```text
+pulse version vX.Y.Z
+pulse version vX.Y.Z-alpha.N-12-gc11271a6b
 ```
 
 `pulse version --json` prints the build in the standard envelope

@@ -1,0 +1,19 @@
+{
+  "id": "benchmark_income_target",
+  "intent": "benchmark",
+  "question": "Our plan assumed customers earn 35,000 dollars a year on average. Is the real average clearly above that, or could the gap be noise?",
+  "cohorts": ["customers"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "customers.pulse"},
+      "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}],
+      "tests": [{"type": "TEST_T", "field": "income", "params": {"mu": 35000}}]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["TEST_T", "TEST_WILCOXON_SR"]},
+    {"kind": "value", "section": "tests", "key": "p_value", "max": 0.001},
+    {"kind": "sign", "section": "tests", "key": "statistic", "sign": "positive"}
+  ]
+}

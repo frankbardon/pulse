@@ -126,18 +126,17 @@ const (
 	// `normalize_within` notion CrosstabHostView.RowSlabN serves on
 	// the MATRIX arm).
 	//
-	// It was spelled `n_within` on this branch and is NOT any more.
+	// It is NOT spelled `n_within`.
 	// The axis-pairing family's PairwiseNSourceNWithin owns that
 	// string and means something else: it sums
 	// CrosstabComponents.CellCounts — record COUNTS — over a slab of
 	// the PAIR axis at ONE fixed opposite index. This one sums a
 	// slot's ROW margins, i.e. ALL columns. The two therefore differ
 	// by roughly the column count, silently, which is precisely the
-	// one-name-two-quantities hazard `row_margin_value` was split out
-	// of `row_margin_n` to remove one story earlier. `n_within` is an
-	// UNKNOWN mode on the panel and must never be re-admitted as an
-	// alias: accepting both spellings would restore the ambiguity the
-	// rename exists to destroy. The PARAM keeps its name —
+	// one-name-two-quantities hazard `row_margin_value` and
+	// `row_margin_n` are kept apart to avoid. `n_within` is an
+	// UNKNOWN mode on the panel and must never be admitted as an
+	// alias: accepting both spellings would restore the ambiguity. The PARAM keeps its name —
 	// `n_within_depth` scopes a within-prefix leg on both families
 	// and denotes the same thing on each.
 	//

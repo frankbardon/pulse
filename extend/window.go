@@ -10,8 +10,8 @@ type WindowComputer interface {
 	Compute(rows []map[string]any, partitions [][]int, label string) error
 }
 
-// WindowOptions is reserved for future schema-aware window operators.
-// It is empty today; accept it and ignore it.
+// WindowOptions is reserved for schema-aware window operators.
+// It has no fields; accept it and ignore it.
 type WindowOptions struct{}
 
 // WindowFactory builds a fresh WindowComputer for one window slot of

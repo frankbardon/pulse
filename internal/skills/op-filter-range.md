@@ -13,6 +13,8 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
+Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `values` | array | (required) | `[low, high]`, number strings. Any other count → `PROCESSING_CONFIG` at run time; predict passes it. |
@@ -29,7 +31,7 @@ Row-level predicate. Pass when `low ≤ value ≤ high`; drop otherwise. No emit
 
 ## Gotchas
 
-- Inclusive bounds on both ends. <!-- feature: FILTER_EXPRESSION -->Open intervals require `FILTER_EXPRESSION`.<!-- /feature -->
+- Inclusive bounds on both ends; there is no open bound, so never use a sentinel like `255`. <!-- feature: FILTER_EXPRESSION -->One-sided ("at least 40"): `{"type": "FILTER_EXPRESSION", "expression": "age >= 40"}`.<!-- /feature -->
 - Null rows fail the predicate (dropped).
 - `date` interpreted as the numeric day-since-epoch — pass numeric strings, not formatted dates.
 

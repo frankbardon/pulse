@@ -1,0 +1,21 @@
+{
+  "id": "measure_engagement_scale",
+  "intent": "measure_construct",
+  "question": "Our six engagement ratings (one of them worded negatively) are meant to add up to one engagement score. Are they consistent enough to be combined that way?",
+  "cohorts": ["battery"],
+  "reference": {
+    "tool": "pulse_process",
+    "arguments": {
+      "cohort": {"filename": "battery.pulse"},
+      "matrices": [{
+        "type": "MAT_RELIABILITY",
+        "fields": ["bat_energy", "bat_proud", "bat_absorbed", "bat_recommend", "bat_time_flies", "bat_dread"],
+        "params": {"reverse": ["bat_dread"], "scale_min": 1, "scale_max": 5}
+      }]
+    }
+  },
+  "assertions": [
+    {"kind": "operator", "any_of": ["MAT_RELIABILITY"]},
+    {"kind": "value", "section": "matrices", "key": "scalars.alpha", "min": 0.75}
+  ]
+}

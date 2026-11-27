@@ -25,17 +25,35 @@ Parquet, Arrow IPC, Excel and SPSS ([`import`](../cli/reference.md)).
 pulse import csv --input sales.csv --output sales.pulse
 ```
 
-Pulse samples rows to infer each column's type and builds a dictionary
-for low-cardinality strings. To choose types and write field
-descriptions yourself, edit a template and import with it:
+A **cohort** is one `.pulse` file: the rows plus the schema that
+describes them. Pulse samples rows to infer each column's type, and
+stores a string column with few distinct values (`region`) as a
+**dictionary**: each distinct string once, each row a small code
+pointing at it.
+
+To choose types and write field descriptions yourself, write a template,
+edit it, and import with it:
 
 ```bash
 pulse import schema-template sales.csv > sales.schema.json
-# edit sales.schema.json: types, descriptions
+# edit sales.schema.json (below), then:
 pulse import csv --input sales.csv --schema sales.schema.json --output sales.pulse
 ```
 
-The type catalog is [Field Types](../format/field-types.md).
+The template lists each column with its inferred type and an empty
+description. Fill in what each column means: agents read the
+descriptions to pick fields, and `pulse api predict` warns while one is
+empty. One entry, before and after:
+
+```json
+{"name": "revenue", "type": "f64", "description": "", "nullable": false}
+{"name": "revenue", "type": "f64", "description": "Order revenue in US dollars", "nullable": false}
+```
+
+The inferred types here are `u4` (a whole number 0–15, enough for these
+ids; change it to `u32` when ids run higher), `categorical_u8` (a
+dictionary string with up to 256 distinct values) and `f64` (a decimal
+number). Every type: [Field Types](../format/field-types.md).
 
 ## 3. Inspect it
 

@@ -355,7 +355,7 @@ var uninstrumentedMethods = map[string]bool{
 	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,
 
-	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ResolveImport": true,
+	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ListCohorts": true, "ResolveImport": true,
 	"ResolveCanonicalSchema": true, "ApplySeriesOverlays": true, "InvalidatedSidecars": true,
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
 	"ExportReference": true,
@@ -377,6 +377,11 @@ var uninstrumentedMethods = map[string]bool{
 	// `populations` name and a join's right schema, as Recommend's
 	// in-process predicts do — firing no predict operation.
 	"ClassifyPostWindow": true,
+	// WriteExampleData is a composite: each cohort it writes goes
+	// through Import / BuildIndex / Profile / Synth on the instance,
+	// each firing its own operation (the shard archive is staged on a
+	// scratch in-memory instance and copied in).
+	"WriteExampleData": true,
 }
 
 // TestObservedMethodsCoverSurface guards against a missed method: every

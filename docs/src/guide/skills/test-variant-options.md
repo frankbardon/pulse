@@ -31,7 +31,7 @@ A numeric pre-period field adjusting the success indicator I to I − θ(x − x
 
 ## `reference` — the two-group tests
 
-The `split_by` level read SECOND, so `diff`, its CI, the statistic and the signed effect size read other − reference (default: alphabetical, second level). A value that is not a level, or no `split_by` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). On a `packed_bool` split the levels are `"0"` / `"1"`.
+The baseline `split_by` level, named by its value (`"control"`): `diff`, its CI, the statistic and the signed effect size read other − reference. Default: the alphabetically second level is the reference, so `diff` = first − second. A value that is not a level, or no `split_by` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`). On a `packed_bool` split the levels are `"0"` / `"1"`.
 
 ## `variance` — pooled two-sample t
 

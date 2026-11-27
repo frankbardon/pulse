@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "repeated_measures.pulse"}, "tests": [{"type": "TEST_ANOVA_RM", "field": "metric", "split_by": "condition", "subject_field": "subject_id"}]}}

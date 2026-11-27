@@ -62,7 +62,7 @@ type InspectResult struct {
 	// schema declares none.
 	Groups []*InspectGroup `json:"groups,omitempty"`
 	// SuggestedWeight names the row weight the cohort's own metadata
-	// proposes — today the SPSS weighting variable recorded in the
+	// proposes: the SPSS weighting variable recorded in the
 	// cohort's SPSS metadata sidecar. A suggestion only: nothing ever
 	// applies it. Omitted when there is no sidecar, the sidecar names
 	// no weight, the variable is not a weight-capable column of this
@@ -116,7 +116,7 @@ type InspectLayout struct {
 // for as long as the cohort is open. Verdict applies the import-time
 // ratio floor (internal/encoding.DefaultDedupRatioFloor) through the same
 // GroupViability.Finding rule the import gate uses: "low_ratio" means
-// the group would draw PULSE_DEDUP_LOW_RATIO at import today. Inspect
+// the group would draw PULSE_DEDUP_LOW_RATIO at import. Inspect
 // reports it as a figure, never as an envelope warning — a deliberately
 // deduped low-ratio group is a legitimate file.
 //

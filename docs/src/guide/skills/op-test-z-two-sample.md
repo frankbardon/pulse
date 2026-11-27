@@ -26,10 +26,12 @@ Use something else:
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
-| `reference` | string | — | The `split_by` level read second, so `diff` and the effect size read other − reference (default: alphabetical). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `reference` | string | — | The baseline `split_by` level, by value: `diff` and the effect size read other − reference (default: the alphabetically second level). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
 | `covariate` | string | — | A numeric pre-period field (CUPED): the test runs on the adjusted `y − θ(x − x̄)`; `details` add `diff_unadjusted`, `theta`, `variance_reduction`. Needs `split_by`; else `PULSE_TEST_COVARIATE_INVALID`. Detail: [`test-variant-options`](test-variant-options.md). |
 
 - `weight` — per-group moments on w*, SE reads N*_g (Σw frequency, Kish n_eff probability). `details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.

@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `measure`: 1 or more numeric fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_KURTOSIS`, `AGG_SKEWNESS` and `AGG_STDDEV`.
 
 ### Aggregators
 
@@ -73,6 +73,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show shape_moments > req.json
+pulse api process --request req.json --json
+```
+
 **Is customer income skewed, or does it follow a bell curve?**
 
 The request (example `shape_moments`; `pulse examples show shape_moments` prints it):
@@ -102,8 +111,7 @@ The request (example `shape_moments`; `pulse examples show shape_moments` prints
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "return": {
     "preset": "standard",
@@ -136,6 +144,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 It is clearly skewed to the right. Skewness is well above zero, which means a long tail of high earners pulls the average up, and the excess kurtosis is well above zero too, so extreme incomes turn up far more often than a bell curve would predict. The standard deviation is about three fifths of the mean, another sign of a wide, lopsided spread. For a measure shaped like this, report the median beside the mean, and consider a log transform before a test that assumes a bell shape. On a sample of this size a single extreme income can move skewness and kurtosis a lot, so read percentiles or a histogram beside them.
 
@@ -223,4 +233,4 @@ More on reading it: [AGG_STDDEV](../reading/descriptive.md#op-agg_stddev).
 - `pulse recommend --intent distribution_shape --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

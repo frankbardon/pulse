@@ -4,17 +4,17 @@ description: Canonical MCP session order — manifest once, then examples → pr
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [pulse_manifest, pulse_examples_search, pulse_examples_get, pulse_skills_list, pulse_skills_get, pulse_inspect, pulse_predict, pulse_errors_lookup]
+covers: [pulse_manifest, pulse_cohorts_list, pulse_examples_search, pulse_examples_get, pulse_skills_list, pulse_skills_get, pulse_inspect, pulse_predict, pulse_errors_lookup]
 ---
 
 # Session bootstrap
 
-Steps 1–2 once, cached; re-enter from step 3 per question.
+Steps 1–2 cached; re-enter at step 3 per question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skill list, extensions, capability blocks |
-| 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
+| 1 | `pulse_manifest` with `intent` (IDs: `intents` skill; unscoped = hundreds of KB) | once per intent | operator catalogs, field types, error codes, MCP tool list, skill list, extensions, capability blocks |
+| 2 | `pulse_cohorts_list` (which cohort?) → `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `intent` + `tags` + `category` (CLI `pulse examples search --intent`)<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
 | 5 | `pulse_skills_get` | on demand | shape, gotchas, contract; pick via `session-skill-routing`. Runnable JSON comes from examples, NOT skills |
@@ -62,10 +62,10 @@ A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`.
 
 Managed imports (`PULSE_IMPORTS_DIR`) keep each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `zone_field`, `--vector` folds); a handle never changes zone — re-import with `overwrite: true`. See `time-zones`.
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips listing `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (`--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host flags (`--log-level`, `--metrics-addr`, OTLP `OTEL_*`, worker caps, `--memory-limit`) never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips listing `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `pulse_cohorts_list`, `pulse_inspect` and `resources/read pulse://<path>` still work. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (`--limit name=value`, every CLI leaf); plan within `manifest.limits` (`-1` = none), re-fetch it on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host flags (`--log-level`, `--metrics-addr`, OTLP `OTEL_*`, worker caps, `--memory-limit`) never reach tool responses.
 
-Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
+Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: now malformed).
 
 ## Cross-links
 
-`request-envelope` (envelope, slot keys, defaults, streamability)<!-- feature: capability:union --> · `cohort-union` (several cohorts read as one)<!-- /feature --><!-- feature: capability:synth --> · `synthetic-data` (synth modes, multi-predictor models, correlations, determinism)<!-- /feature --><!-- feature: capability:synth --> · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields)<!-- /feature --> · `response-components` · `response-shaping` (`return`: trim a response, cap float digits) · `tool-*` (one atomic skill per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold start)<!-- feature: io_format:spss --> · `spss-cohorts`<!-- /feature -->.
+`request-envelope` (envelope, slot keys, defaults, streamability)<!-- feature: capability:union --> · `cohort-union` (several cohorts read as one)<!-- /feature --><!-- feature: capability:synth --> · `synthetic-data` (synth modes, models, correlations, determinism)<!-- /feature --><!-- feature: capability:synth --> · `synth-structural-rules` (`rules[]` / `constraints[]`: gating, masking, derived fields)<!-- /feature --> · `response-components` · `response-shaping` (`return`: trim a response, cap float digits) · `tool-*` (one per MCP tool, full argument shape) · `docs/src/internals/debugging-predict.md` · `docs/src/getting-started/` (cold start)<!-- feature: io_format:spss --> · `spss-cohorts`<!-- /feature -->.

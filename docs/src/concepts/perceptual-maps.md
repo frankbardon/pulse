@@ -21,7 +21,7 @@ A map is built from pieces you already know, in three steps, and all three fit i
 
 The two-axis picture is a flattened view of the ratings and always loses some information. To check what it shows, run a second `MAT_DISTANCE` with the same `between` over the rating items themselves (with `standardize`): that grid is exact. See [distance versus similarity](distance-vs-similarity.md) for the choice of metric.
 
-The story below maps five brands from six ratings (`pulse examples show perceptual_map` prints the request). The first component is premium versus budget, the second modern versus traditional; `brand_distance` gives the map grid and the centroids, `rating_distance` the check.
+The story below maps five brands from six ratings (`pulse examples show perceptual_map` prints the request; its cohorts: [Get the data](../examples/library.md#get-the-data)). The first component is premium versus budget, the second modern versus traditional; `brand_distance` gives the map grid and the centroids, `rating_distance` the check.
 
 ```json
 {{#include ../../../internal/examples/testdata/stories/perceptual_map.json}}

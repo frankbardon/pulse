@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "battery.pulse"}, "matrices": [{"type": "MAT_RELIABILITY", "name": "battery", "fields": ["bat_energy", "bat_proud", "bat_absorbed", "bat_recommend", "bat_time_flies", "bat_dread"], "params": {"reverse": ["bat_dread"], "scale_min": 1, "scale_max": 5}}], "return": {"precision": 4}}}

@@ -62,6 +62,11 @@ func TestHandleImport_CSV(t *testing.T) {
 	if out.TTLSeconds != int64(24*3600) {
 		t.Errorf("TTLSeconds = %d, want %d", out.TTLSeconds, 24*3600)
 	}
+	// format is the written cohort's format; source_format the format
+	// the source was read as (the sidecar's source_format).
+	if out.Format != "pulse" || out.SourceFormat != "csv" {
+		t.Errorf("format / source_format = %q / %q, want pulse / csv", out.Format, out.SourceFormat)
+	}
 	if ok, _ := afero.Exists(afs, "imports/data.pulse"); !ok {
 		t.Errorf("managed .pulse file not created on disk")
 	}
@@ -126,6 +131,47 @@ func TestHandleImportsList(t *testing.T) {
 	}
 	if len(out.Imports) != 1 || out.Imports[0].Handle != "data" {
 		t.Errorf("imports = %+v, want one entry for handle 'data'", out.Imports)
+	}
+}
+
+// TestHandleCohortsList pins pulse_cohorts_list: the plain cohorts and
+// the managed import side by side, the import flagged with its handle,
+// under the `cohorts` key; `dir` scopes the walk.
+func TestHandleCohortsList(t *testing.T) {
+	t.Parallel()
+
+	p, afs := newImportTestPulse(t)
+	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+	if err := afs.MkdirAll("waves", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv", Handle: "copy"}); err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+	if err := afs.Rename("imports/copy.pulse", "waves/w1.pulse"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := HandleCohortsList(context.Background(), p, CohortsListIn{})
+	if err != nil {
+		t.Fatalf("HandleCohortsList: %v", err)
+	}
+	if len(out.Cohorts) != 2 || out.Cohorts[0].Path != "imports/data.pulse" || !out.Cohorts[0].Managed ||
+		out.Cohorts[0].Handle != "data" || out.Cohorts[0].RecordCount != 3 ||
+		out.Cohorts[1].Path != "waves/w1.pulse" || out.Cohorts[1].Managed {
+		t.Fatalf("cohorts = %+v, want the managed import then waves/w1.pulse", out.Cohorts)
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(b, []byte(`{"cohorts":[{"path":"imports/data.pulse","record_count":3,"fields":[{"name":"id",`)) {
+		t.Errorf("wire = %s", b)
+	}
+	scoped, err := HandleCohortsList(context.Background(), p, CohortsListIn{Dir: "waves"})
+	if err != nil || len(scoped.Cohorts) != 1 || scoped.Cohorts[0].Path != "waves/w1.pulse" {
+		t.Errorf("dir=waves = %+v, %v; want waves/w1.pulse alone", scoped.Cohorts, err)
 	}
 }
 

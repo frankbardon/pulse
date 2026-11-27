@@ -15,10 +15,12 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
+`alpha` is a top-level key; the rest go in `params`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
-| `reference` | string | — | The `split_by` level read second: `diff` reads other − reference (default: alphabetical). Codes: `test-variant-options`. |
+| `reference` | string | — | The baseline `split_by` level, by value: `diff` = other − reference (default: the alphabetically second level, so `diff` = first − second). Codes: `test-variant-options`. |
 | `covariate` | string | — | A numeric pre-period field (CUPED): the test runs on `y − θ(x − x̄)`; needs `split_by`. Detail: `test-variant-options`. |
 
 - `weight` — per-group moments on w*, Welch–Satterthwaite df on N*_g (Σw frequency, Kish n_eff probability; fractional). `details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.

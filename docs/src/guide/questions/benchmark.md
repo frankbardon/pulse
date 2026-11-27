@@ -20,7 +20,7 @@ This question fits data shaped like:
 
 - `measure`: 1 or more numeric, categorical or bool fields; `group`: one categorical, bool or date field
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_AVERAGE`, `AGG_COUNT` and `TEST_T`.
 
 ### Aggregators
 
@@ -86,6 +86,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show t_test_one_sample > req.json
+pulse api process --request req.json --json
+```
+
 **Do customers spend more on average than the target of 100 per customer?**
 
 The request (example `t_test_one_sample`; `pulse examples show t_test_one_sample` prints it):
@@ -105,8 +114,7 @@ The request (example `t_test_one_sample`; `pulse examples show t_test_one_sample
     }
   ],
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "return": {
     "precision": 4
@@ -192,6 +200,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Yes, comfortably. The average customer brought in about half as much again as the target, and the test says an average this far above the target would almost never turn up if the true average sat at the target: the p-value is tiny and the whole confidence interval lies above it. Cohen's d puts the gap at a medium size next to how much customers vary, so plenty of individual customers can still sit below the target even though the average clears it. The test compares one average with a fixed figure you supply, so choose the target before looking at the data; to benchmark against another group instead, use a two-sample test.
 
@@ -330,4 +340,4 @@ More on reading it: [TEST_T](../reading/test.md#op-test_t).
 - `pulse recommend --intent benchmark --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

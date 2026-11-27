@@ -216,7 +216,7 @@ func PairwiseNSourceReadsDistinctKeys(s string) bool {
 // cardinalities are NOT additive: a key present in two cells of one
 // slab is counted twice, and the summed n over-states the sample size.
 // Only the distinct modes need the partition precondition, so gating on
-// UsesWithinDepth would refuse n_within requests that are correct today.
+// UsesWithinDepth would refuse n_within requests that are correct.
 func PairwiseNSourceSumsDistinctCells(s string) bool {
 	return s == PairwiseNSourceNWithinDistinct
 }

@@ -589,10 +589,9 @@ type AttributeRegistration struct {
 }
 
 // FiltererRegistration installs a custom FILTER_* operator. Filterers
-// are always row-local streamable today — every built-in filterer
-// evaluates per-row. The runtime records custom filterers as
-// streamable; a buffered-filterer registration shape lands the day
-// Pulse grows a buffered-filterer path.
+// are always row-local streamable: every built-in filterer
+// evaluates per-row, and the runtime records custom filterers as
+// streamable.
 type FiltererRegistration struct {
 	Name        types.FiltererType
 	Description string
@@ -629,7 +628,7 @@ type FiltererRegistration struct {
 	Params   []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Filterers don't carry a Params
-	// block today; the callback receives nil raw bytes and should
+	// block; the callback receives nil raw bytes and should
 	// return the static set of extra fields the filterer reads
 	// beyond Filterer.Field.
 	FieldInputs FieldInputsFunc
@@ -750,9 +749,8 @@ type GrouperRegistration struct {
 }
 
 // WindowRegistration installs a custom WIN_* operator. Window
-// operators run buffered today; the runtime records custom windows
-// as non-streamable. A streaming-window shape lands when the
-// runtime gains a streaming-window pipeline.
+// operators run buffered; the runtime records custom windows
+// as non-streamable.
 type WindowRegistration struct {
 	Name        types.WindowType
 	Description string
@@ -1305,8 +1303,8 @@ type ExprFunction struct {
 	// the runtime resolves argument types against the call site.
 	Fn any
 	// Pure declares the function is side-effect-free and depends
-	// only on its arguments. Reserved for a future memoization
-	// optimisation; declaring it has no runtime effect today.
+	// only on its arguments. Reserved for memoization; declaring
+	// it has no runtime effect.
 	Pure bool
 	// Derivative, optional, returns ∂Fn/∂argᵢ at the call's arguments
 	// — one partial per argument, index-aligned, as Fn received them

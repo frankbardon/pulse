@@ -123,8 +123,8 @@ const (
 	// Params: `confidence` (float, default 0.95), `method` (string,
 	// default "normal"). The "normal" method uses Welford mean + sample
 	// variance with z = inv_normal((1+confidence)/2); streamable +
-	// mergeable. The "bootstrap" method is reserved for a buffered
-	// follow-up — returns PROCESSING_CONFIG today.
+	// mergeable. The "bootstrap" method is refused with
+	// PROCESSING_CONFIG.
 	AGG_CI_LOWER AggregationType = "AGG_CI_LOWER"
 	// AGG_CI_UPPER is the upper bound of the same interval as AGG_CI_LOWER.
 	AGG_CI_UPPER AggregationType = "AGG_CI_UPPER"
@@ -1548,8 +1548,7 @@ type Request struct {
 	// PULSE_COMPOSE_LABEL_COLLISION at the same validate hook.
 	//
 	// Outside Compose (a standalone pulse.Process call) Label is
-	// retained verbatim but has no behavioural effect today; future
-	// stories may light it up for downstream reference resolution.
+	// retained verbatim but has no behavioural effect.
 	Label string `json:"label,omitempty"`
 
 	// Cohort identifies the .pulse file to process.
@@ -1780,7 +1779,7 @@ type ResponseMetadata struct {
 }
 
 // ResponseWarning is the envelope-ready projection of a cross-cutting
-// diagnostic emitted during a processing run (today: label-display
+// diagnostic emitted during a processing run (label-display
 // resolver warnings). Codes match the errors.Code namespace so a
 // CLI / MCP envelope wrapper can promote them verbatim.
 type ResponseWarning struct {
@@ -2394,8 +2393,7 @@ type ComposedRequest struct {
 // *ComposedResponse and the runtime populates the Overlays slot here
 // at the post-slot barrier.
 //
-// Forward-compat: every ComposedResponse marshalled before any overlay
-// landed produces byte-identical JSON to the same shape with
+// A ComposedResponse without overlays produces byte-identical JSON to the same shape with
 // `Overlays: nil` because the slot is `omitempty` — nil / empty slices
 // marshal to no key at all. See TestComposedResponse_OverlayFreeByteIdentical
 // in types/types_test.go for the lock.
@@ -2489,8 +2487,8 @@ type ComposedResponse struct {
 	// never rounded.
 	PostFit []PostFitResult `json:"post_fit,omitempty"`
 
-	// Warnings carries the batch-level diagnostics no slot owns: today
-	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the
+	// Warnings carries the batch-level diagnostics no slot owns: a fit's
+	// PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the
 	// fit request's regression — replaced an existing model file), with
 	// details.fit locating the entry. A `warnings` keep path: the
 	// Compose-level `return` (overlays only) never drops it. Omitted when

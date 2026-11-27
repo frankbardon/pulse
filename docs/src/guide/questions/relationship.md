@@ -21,7 +21,7 @@ This question fits data shaped like:
 - `measures`: 2 or more numeric fields
 - `categories`: 2 categorical or bool fields
 
-The operators that answer it, by kind. Start with a basic one; each name links to its catalog entry.
+The operators that answer it, by kind; each name links to its catalog entry. Basic ones need the least setup; the worked example below uses `AGG_COUNT` and `TEST_PEARSON_R`.
 
 ### Attributes
 
@@ -76,6 +76,15 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
+
+```bash
+pulse examples data --out pulse-data
+cd pulse-data
+pulse examples show pearson_correlation > req.json
+pulse api process --request req.json --json
+```
+
 **Do customers who spent more before the test also spend more during it?**
 
 The request (example `pearson_correlation`; `pulse examples show pearson_correlation` prints it):
@@ -90,8 +99,7 @@ The request (example `pearson_correlation`; `pulse examples show pearson_correla
     }
   ],
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "return": {
     "precision": 4
@@ -166,6 +174,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Very strongly. The correlation sits close to its ceiling and its interval is narrow, so spending during the test follows earlier spending along an almost perfect straight line: customers who spent more before spend more now. A correlation this high says the two measures rise and fall together; on its own it says nothing about cause, and nothing about whether spending went up overall, which is a before-and-after comparison of the same customers.
 
@@ -242,4 +252,4 @@ More on reading it: [TEST_PEARSON_R](../reading/test.md#op-test_pearson_r).
 - `pulse recommend --intent relationship --cohort PATH` drafts requests for this question bound to your cohort's fields.
 - `pulse api predict` checks a request against your cohort without running it.
 - `pulse api process` runs it.
-- `pulse explain --response FILE` reads a result back in plain words.
+- `pulse explain --response FILE --request REQ` reads a result back in plain words: save the `pulse api process --json` output as FILE, and pass the request that produced it as REQ so the findings name its fields.

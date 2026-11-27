@@ -46,7 +46,7 @@ type ComposeOverlaySpec struct {
 	Reference string `json:"reference"`
 
 	// Targets names the slot label(s) whose result(s) the comparison
-	// surface decorates. Length >= 1 for every kind today. The panel
+	// surface decorates. Length >= 1 for every kind. The panel
 	// kinds consume the full slice; every other kind but OVERLAY_FORMULA
 	// — the pair kinds OVERLAY_INDEX_VS_REF, OVERLAY_DELTA_VS_REF,
 	// OVERLAY_T_VS_REF, OVERLAY_Z_VS_REF and the matrix kinds
@@ -76,8 +76,7 @@ type ComposeOverlaySpec struct {
 	Within int `json:"within,omitempty"`
 
 	// Params holds kind-specific configuration as a free-form map.
-	// The per-kind schema lands alongside each kind's processor; v1
-	// uses: Params["population"] for OVERLAY_RANK,
+	// The per-kind schema is defined with each kind's processor. Uses: Params["population"] for OVERLAY_RANK,
 	// Params["scale"] for share-vs-index variants, etc. Omitted on
 	// the wire when nil.
 	Params map[string]any `json:"params,omitempty"`
