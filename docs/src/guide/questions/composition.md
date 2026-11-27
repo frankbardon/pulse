@@ -67,7 +67,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data

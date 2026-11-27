@@ -46,7 +46,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data
@@ -137,6 +137,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 K-means splits them into the three groups it was asked for: a large younger group, an older group on a similar typical income, and a small group whose average income is roughly three times the others'. Read that as a convenient split rather than a discovery. The younger and older groups look like two halves of one continuous age range cut near the middle, and the high-income group is the long upper tail of incomes rather than a separate population. The algorithm always returns as many groups as you ask for, whether or not the data has them; check the share of the spread the groups explain (`between_ss_ratio` in the grouper's components, which the full preset shows), try a different number of groups, and ask what each group means for a decision before naming segments. Age and income are standardised first, so both count equally despite their different units. Each row's cluster label sits in a column named after the grouper and its first field.
 
@@ -751,6 +753,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Two axes carry most of the picture. The first is premium versus budget: quality and premium load one way, value the other. The second is modern versus traditional: modern and innovative against heritage. The four outer brands sit one to a quadrant with the fifth near the middle. The closest pairs share a side of the price axis, the two premium brands and the two budget ones, so price separates customers' views more than style does; brands on opposite corners are the furthest apart. The distance grid over the six ratings themselves ranks those corner pairs the same way, so the flat picture does not mislead here. The middle brand is about equally close to all four and owns no position of its own. Distances between centres carry no p-value, so treat a small gap as no gap until a test says otherwise.
 

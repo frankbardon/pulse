@@ -379,9 +379,34 @@ func (g *gen) writeGetTheData(b *strings.Builder, s guideStoryOf) {
 	}
 	b.WriteString("To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](")
 	b.WriteString(exampleDataURL)
-	b.WriteString(")):\n\n```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show ")
+	b.WriteString(")). ")
+	b.WriteString(scratchDirLine)
+	b.WriteString("\n\n```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show ")
 	b.WriteString(s.ex.Name)
 	b.WriteString(" > req.json\npulse api process --request req.json --json\n```\n\n")
+}
+
+// scratchDirLine tells the reader where to run the get-the-data steps:
+// written inside PULSE_DATA_DIR, the cohorts would nest in the
+// directory `pulse mcp` serves.
+const scratchDirLine = "Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:"
+
+// reformatNote follows a result block that prints a float in exponent
+// notation. The block is the wire's own output (return.precision writes
+// strconv 'g', as `pulse api process --json` prints it); a JSON tool
+// such as jq reprints the same number in its own notation, which a
+// reader comparing the two would otherwise take for a difference.
+const reformatNote = "Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.\n\n"
+
+// hasExponent reports whether a result block holds a JSON number in
+// exponent notation.
+func hasExponent(block []byte) bool {
+	for i := 1; i+1 < len(block); i++ {
+		if (block[i] == 'e' || block[i] == 'E') && block[i-1] >= '0' && block[i-1] <= '9' && (block[i+1] == '+' || block[i+1] == '-') {
+			return true
+		}
+	}
+	return false
 }
 
 // andList joins items as "a", "a and b" or "a, b and c".
@@ -416,6 +441,9 @@ func (g *gen) writeStory(b *strings.Builder, s guideStoryOf) {
 	b.WriteString("\n```\n\nThe result:\n\n```json\n")
 	b.WriteString(strings.TrimRight(string(s.golden), "\n"))
 	b.WriteString("\n```\n\n")
+	if hasExponent(s.golden) {
+		b.WriteString(reformatNote)
+	}
 	b.WriteString(g.text(s.ex.Interpretation))
 	b.WriteString("\n")
 }

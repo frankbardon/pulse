@@ -93,7 +93,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data
@@ -207,6 +207,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Yes. The variant arm's average revenue is higher than the control arm's by close to a fifth, and the test says a gap this wide would rarely appear if the arms truly spent the same: the p-value sits well below alpha (the false-alarm rate the request accepts) and the interval for the difference stays on one side of zero. The difference reads as the first group minus the second (control minus variant), which is why it is negative. Cohen's d, the gap measured in standard deviations, falls in the small band of Cohen's convention (from two tenths to half a standard deviation), so the two arms overlap heavily and plenty of control customers still out-spend variant customers. The average in the data row is the whole cohort; the per-arm means sit in the test's details.
 

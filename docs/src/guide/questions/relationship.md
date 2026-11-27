@@ -76,7 +76,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data
@@ -174,6 +174,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Very strongly. The correlation sits close to its ceiling and its interval is narrow, so spending during the test follows earlier spending along an almost perfect straight line: customers who spent more before spend more now. A correlation this high says the two measures rise and fall together; on its own it says nothing about cause, and nothing about whether spending went up overall, which is a before-and-after comparison of the same customers.
 

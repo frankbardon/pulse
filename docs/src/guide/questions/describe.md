@@ -86,7 +86,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data
@@ -199,6 +199,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 The mean income sits in the middle of a fairly tight interval: each bound lies within about a tenth of the mean, so the cohort pins the typical income down well. The interval describes the mean, not individual customers, whose incomes spread far more widely.
 

@@ -2,6 +2,7 @@ package docgen_test
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -204,6 +205,53 @@ func TestRender_StoryEmbedEqualsGolden(t *testing.T) {
 	}
 }
 
+// TestRender_StoryExponentNote: a story result block holding a number
+// in exponent notation is followed by the note that it prints as the
+// CLI's --json does and that a JSON reformatter such as jq may print it
+// otherwise; a block without one carries no note. Both kinds exist, so
+// neither half is vacuous.
+func TestRender_StoryExponentNote(t *testing.T) {
+	t.Parallel()
+
+	files := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))
+	const lead = "The result:\n\n```json\n"
+	const note = "Exponents print here as `pulse api process --json` prints them"
+	with, without := 0, 0
+	for _, name := range examples.Stories() {
+		ex, _ := examples.Get(name)
+		golden, _ := examples.StoryGolden(name)
+		page := files["questions/"+ex.Intents[0]+".md"]
+		i := strings.Index(page, "`pulse examples show "+name+"`")
+		if i < 0 {
+			continue
+		}
+		rest := page[i:]
+		j := strings.Index(rest, lead)
+		if j < 0 {
+			t.Fatalf("%s: no result block", name)
+		}
+		body := rest[j+len(lead):]
+		k := strings.Index(body, "\n```\n")
+		after := body[k+len("\n```\n"):]
+		after = after[:strings.Index(after, ex.Interpretation)]
+		exp := regexpExponent.Match(golden)
+		got := strings.Contains(after, note)
+		if exp {
+			with++
+		} else {
+			without++
+		}
+		if got != exp {
+			t.Errorf("%s: exponent in result %v, note rendered %v", name, exp, got)
+		}
+	}
+	if with == 0 || without == 0 {
+		t.Fatalf("stories with an exponent %d, without %d: one half vacuous", with, without)
+	}
+}
+
+var regexpExponent = regexp.MustCompile(`[0-9][eE][+-][0-9]`)
+
 // TestRender_QuestionPagesLint: every question page of every instance
 // shape passes the guidance lint's text rules.
 func TestRender_QuestionPagesLint(t *testing.T) {
@@ -229,7 +277,8 @@ func TestRender_QuestionPagesLint(t *testing.T) {
 // TestRender_StoryGetTheData: a guide with a worked example opens the
 // section with the steps that make it run as shown (write the example
 // cohorts, work from their directory, save and process the first
-// story's request), and the pick-analysis line names the operators the
+// story's request) and says to run them outside PULSE_DATA_DIR, so the
+// cohorts never nest in the directory `pulse mcp` serves; the pick-analysis line names the operators the
 // example uses. Without the process capability nothing runs, so the
 // steps are left out.
 func TestRender_StoryGetTheData(t *testing.T) {
@@ -253,7 +302,7 @@ func TestRender_StoryGetTheData(t *testing.T) {
 			continue
 		}
 		section := page[strings.Index(page, "## A worked example\n\n")+len("## A worked example\n\n"):]
-		want := "```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show " + first.Name + " > req.json\npulse api process --request req.json --json\n```\n"
+		want := "Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:\n\n```bash\npulse examples data --out pulse-data\ncd pulse-data\npulse examples show " + first.Name + " > req.json\npulse api process --request req.json --json\n```\n"
 		if !strings.HasPrefix(section, "To run the example below yourself") || !strings.Contains(section[:strings.Index(section, "**")], want) {
 			t.Errorf("%s: worked example does not open with the get-the-data steps for %s", in.ID, first.Name)
 		}

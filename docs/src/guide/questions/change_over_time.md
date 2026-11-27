@@ -86,7 +86,7 @@ The operators that answer it, by kind; each name links to its catalog entry. Bas
 
 ## A worked example
 
-To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)):
+To run the example below yourself, write the example cohorts once and work from their directory, since command-line cohort paths resolve against the working directory ([Get the data](https://frankbardon.github.io/pulse/examples/library.html#get-the-data)). Start in a scratch directory outside your `PULSE_DATA_DIR`, so `pulse-data` does not nest inside the directory `pulse mcp` serves:
 
 ```bash
 pulse examples data --out pulse-data
@@ -186,6 +186,8 @@ The result:
   }
 }
 ```
+
+Exponents print here as `pulse api process --json` prints them (`6.069e+04`); a tool that reformats JSON, such as `jq`, may print the same number as `6.069E+4`.
 
 Yes, clearly. Comparing each customer with themselves, revenue rose on average by roughly a quarter of the earlier level (the test's mean_diff against avg_revenue_before, the average spend before, in the data row); the interval for that rise is narrow and well above zero, and the effect size is large. Pairing is what makes this sharp: each customer is their own baseline, so the wide differences between customers drop out. The test says spending rose, not why: the test period mixes the treatment with a gradual drift over time, so the rise belongs to both.
 
