@@ -17,8 +17,10 @@
   },
   "assertions": [
     {"kind": "any", "assertions": [
-      {"kind": "value", "near": 0.1739, "tol": 0.0005},
-      {"kind": "value", "near": 17.39, "tol": 0.05}
+      {"kind": "value", "section": "crosstab", "key": "value", "near": 0.1739, "tol": 0.0005},
+      {"kind": "value", "section": "crosstab", "key": "value", "near": 17.39, "tol": 0.05},
+      {"kind": "value", "section": "data", "in_row": ["bronze", "silver"], "near": 0.1739, "tol": 0.0005},
+      {"kind": "value", "section": "data", "in_row": ["bronze", "silver"], "near": 17.39, "tol": 0.05}
     ]}
   ]
 }

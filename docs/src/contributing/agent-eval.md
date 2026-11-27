@@ -24,19 +24,21 @@ text. Run the agent outside the repository so it can see only what the
 server serves.
 
 1. Build the binary and a fresh fixture data directory outside the
-   repository. Copy in the raw files the import task reads (each
-   task's `files` list):
+   repository. `pulse examples data` writes the cohorts but not the
+   raw CSVs, so copy in the files the import task reads (each task's
+   `files` list):
 
    ```bash
    make build
    export PULSE_DATA_DIR="$(mktemp -d)"
-   internal/examples/fixtures/build.sh
+   bin/pulse examples data --out "$PULSE_DATA_DIR"
    cp internal/examples/fixtures/intake.csv "$PULSE_DATA_DIR"/
    ```
 
 2. Register `bin/pulse mcp` as a stdio MCP server in the agent client,
    with `PULSE_DATA_DIR` set to that directory.
-3. Run one fresh agent session per task. Give the agent only the pulse
+3. Run one fresh agent session per task, with no context carried
+   from an earlier session. Give the agent only the pulse
    MCP tools (`pulse_*`): no shell, no file access, no web. Run the
    import task (`prepare_import_intake`) last and alone, after every
    other task has finished. It writes `imports/intake.pulse` into the
@@ -56,19 +58,22 @@ server serves.
    JSON: {"tool": "<tool name>", "arguments": {<its arguments>}}.
    ```
 
-5. Save the run under `internal/eval/runs/<date>/`, two files per task:
-   - `<task-id>.json`: the final submission, `{"tool", "arguments"}`.
-     The simulate task has no MCP tool, so the agent cannot run its
-     answer. The orchestrator records the synth spec the agent wrote
-     as `{"tool": "synth", "arguments": {"spec": …, "out": …,
-     "seed": …}}` (the synth pseudo-tool) and notes in the summary that
-     the answer was not runnable by the agent.
+5. Save the run under `internal/eval/runs/<date>-r<N>/` (`N` counts
+   the runs), two files per task:
+   - `<task-id>.json`: the final submission, `{"tool", "arguments"}`,
+     copied from the agent's answer. The orchestrator never writes or
+     completes a submission. The simulate task has no MCP tool, so the
+     agent cannot run its answer. The orchestrator records the synth
+     spec the agent itself wrote as `{"tool": "synth", "arguments":
+     {"spec": …, "out": …, "seed": …}}` (the synth pseudo-tool) and
+     notes in the summary that the agent could not run it. If the agent
+     wrote no spec, leave the file out: the task is unanswered.
    - `<task-id>.md`: a short transcript summary. Record the tool calls in
      order with a count, any retries, and where the agent went wrong.
 6. Score the run from the repository root:
 
    ```bash
-   go run ./internal/tools/evalscore internal/eval/runs/<date>
+   go run ./internal/tools/evalscore internal/eval/runs/<date>-r<N>
    ```
 
    It runs every submission on freshly built fixtures, prints `PASS` or
@@ -93,6 +98,7 @@ have read:
 | Tool description | The tool's served description |
 | Purpose | The operator's `Purpose` or `Interpretation` |
 | Code gap | The engine, then the docs that describe it |
+| Harness | The run procedure or the scorer; then rerun. The served text is not changed |
 | Model slip | Nothing, if the served text was right and clear. Record it |
 
 After the fixes, rerun the whole set, not only the failed tasks, until

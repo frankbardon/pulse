@@ -24,7 +24,7 @@ pulse examples data --out pulse-data      # writes every fixture cohort
 cd pulse-data                             # CLI cohort paths resolve against the working directory
 pulse examples show t_test_two_sample > req.json
 pulse api process -r req.json
-pulse mcp --data-dir pulse-data           # or serve it (from the parent directory)
+pulse mcp --data-dir "$PWD"               # or serve it (from inside pulse-data)
 ```
 
 It writes each fixture CSV imported under its schema, the point-lookup

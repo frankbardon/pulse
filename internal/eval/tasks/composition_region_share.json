@@ -16,15 +16,15 @@
     {"kind": "any", "assertions": [
       {"kind": "value", "in_row": ["south"], "near": 0.28, "tol": 0.0005},
       {"kind": "value", "in_row": ["south"], "near": 28, "tol": 0.05},
-      {"kind": "value", "near": 0.28, "tol": 0.0005},
-      {"kind": "value", "near": 28, "tol": 0.05},
+      {"kind": "value", "section": "crosstab", "near": 0.28, "tol": 0.0005},
+      {"kind": "value", "section": "crosstab", "near": 28, "tol": 0.05},
       {"kind": "value", "section": "data", "in_row": ["south"], "near": 56, "tol": 0.5}
     ]},
     {"kind": "any", "assertions": [
       {"kind": "value", "in_row": ["west"], "near": 0.205, "tol": 0.0005},
       {"kind": "value", "in_row": ["west"], "near": 20.5, "tol": 0.05},
-      {"kind": "value", "near": 0.205, "tol": 0.0005},
-      {"kind": "value", "near": 20.5, "tol": 0.05},
+      {"kind": "value", "section": "crosstab", "near": 0.205, "tol": 0.0005},
+      {"kind": "value", "section": "crosstab", "near": 20.5, "tol": 0.05},
       {"kind": "value", "section": "data", "in_row": ["west"], "near": 41, "tol": 0.5}
     ]}
   ]

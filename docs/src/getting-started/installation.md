@@ -86,11 +86,14 @@ pulse --version
 pulse version --json
 ```
 
-`pulse --version` prints one line, the release tag (a source build adds
-a commit suffix):
+`pulse --version` prints one line: the release tag for a release
+binary (first line below). A source build adds the commits since that
+tag and the commit hash, plus `-dirty` with uncommitted changes (second
+line):
 
 ```text
-pulse version v1.0.0
+pulse version vX.Y.Z
+pulse version vX.Y.Z-alpha.N-12-gc11271a6b
 ```
 
 `pulse version --json` prints the build in the standard envelope

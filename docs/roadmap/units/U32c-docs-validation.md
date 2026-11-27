@@ -32,7 +32,7 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 - [x] **#166** (11. Documentation audit) Fresh-reader review and agent task evaluation over MCP (~20 tasks, kept as a regression set); every failure fixed
   - Agent half done 2026-11-27: run `internal/eval/runs/2026-11-27-r3` passes 20/20 (`go run ./internal/tools/evalscore internal/eval/runs/2026-11-27-r3`). Runs r1 (15/20), r2 (19/20) and r4 (a broken harness run) are kept as records. Fresh-reader half done 2026-11-27 (proxy reader, a Sonnet subagent given only the built docs and the binary): run 1 logged 17 rows (3 stuck), all fixed; run 2 completed Getting Started, Compare groups and Change over time with no stuck point. Its 2 minor rows were fixed.
 - [x] **#167** (11. Documentation audit) Findings log closed (fixed or deferred with reason and issue) and maintainer sign-off recorded
-  - Done 2026-11-27 (E6-S1): [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md) gives every U32a, U32b and U32c row a disposition. The two open U32c rows were filed as #802 and #803 under [U33](U33-v1-release.md). The review's sign-off section exists and names the proxy-reader caveat; the owner fills its sign-off line.
+  - Done 2026-11-27 (E6-S1): [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md) gives every U32a, U32b and U32c row a disposition. The two open U32c rows were filed as #802 and #803 under [U33](U33-v1-release.md). The review's sign-off section names the proxy-reader caveat; the owner signed off on 2026-11-27.
 - [x] **#768** (12. Release v1.0.0) `SECURITY.md` sends reporters to GitHub private vulnerability reporting: the owner enabled it on 2026-11-26 (`enabled: true`), and the release gates in [U33](U33-v1-release.md) verify `enabled: true` before every tag
 - [x] **#775** (11. Documentation audit) Restructure `.claude/reference/guided-analysis/explain-and-skills.md` for readability (dense one-paragraph bullets), keeping every rule and the slice ceiling
 - [x] **#799** (11. Documentation audit) A facet overlay's unknown `params.field` is refused `PULSE_OVERLAY_FIELD_UNKNOWN`, as on every other host, at predict and runtime
@@ -49,7 +49,7 @@ The last gate before the release. Once U32 has built the checks and U32b has wri
 
 **Out of scope**
 - New checks ([U32](U32-docs-audit.md)) and content passes ([U32b](U32b-docs-content.md))
-- New features. Gaps that need code are logged and deferred with an issue unless trivial
+- New features beyond what a finding needs. A gap that needs code is fixed in this unit (owner call: fix everything in-effort, e.g. `ListCohorts` and `pulse examples data`); only an open contract decision (#802) or a new capability outside the fix set (#803) is filed with an issue
 
 ## Epics & stories
 
@@ -68,7 +68,7 @@ As built (one commit per story):
 
 - [x] The fresh reader completes Getting Started and two question guides without outside help (proxy reader run 2, 2026-11-27)
 - [x] The agent task evaluation passes every task and the task set is committed (run 2026-11-27-r3, 20/20)
-- [x] Every finding is fixed or deferred with a reason and an issue link; maintainer sign-off recorded (the sign-off section exists in [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md); the owner fills its sign-off line)
+- [x] Every finding is fixed or deferred with a reason and an issue link; maintainer sign-off recorded (in [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md); signed off by the owner on 2026-11-27)
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests

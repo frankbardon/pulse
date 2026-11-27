@@ -40,7 +40,7 @@ This unit does three things. It publishes that evidence. It closes the gaps the 
 ## References
 
 - `docs/src/internals/regenerating-goldens.md` (R toolchain, weighted reference, multivariate goldens)
-- `internal/descriptor/validation_registry.go` (the registry, since E1-S2) + `internal/docgen/validation.go` (the book's rendering) + `validation_intro.md`; `.claude/reference/guided-analysis/skills-and-docgen.md` (Operator mode, Validation page)
+- `internal/descriptor/validation_registry.go` (the registry, since E1-S2) + `internal/docgen/validation.go` (the book's rendering) + `validation_intro.md`; `.claude/reference/guided-analysis/explain-results.md` (Operator mode) and `.claude/reference/guided-analysis/skills-and-docgen.md` (Validation page)
 - [U08 statistics review](../reviews/U08-statistics-review.md) (the R-oracle layer); [U61](U61-cross-arch-determinism.md) (identical bits across architectures)
 - NIST Statistical Reference Datasets: <https://www.itl.nist.gov/div898/strd/>
 

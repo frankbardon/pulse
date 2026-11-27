@@ -3,7 +3,7 @@ PASS change_monthly_order_revenue
 PASS change_repeated_conditions
 PASS compare_segment_conversion
 PASS compare_variant_revenue
-FAIL composition_region_share
+PASS composition_region_share
 PASS describe_income_by_region
 PASS distribution_income_skew
 PASS drivers_revenue_ols
@@ -18,4 +18,4 @@ PASS relationship_prior_spend
 PASS segment_revenue_bands
 PASS segment_training_clusters
 PASS simulate_test_scores
-19/20 tasks passed
+20/20 tasks passed

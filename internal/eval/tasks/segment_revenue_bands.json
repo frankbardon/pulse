@@ -13,6 +13,10 @@
   },
   "assertions": [
     {"kind": "operator", "any_of": ["GROUP_QUANTILE"]},
-    {"kind": "rows", "section": "data", "count": 4}
+    {"kind": "rows", "section": "data", "count": 4},
+    {"kind": "value", "section": "data", "in_row": ["Q1"], "metric": {"types": ["AGG_AVERAGE"], "field": "session_minutes"}, "near": 13.3536, "tol": 0.005},
+    {"kind": "value", "section": "data", "in_row": ["Q2"], "metric": {"types": ["AGG_AVERAGE"], "field": "session_minutes"}, "near": 14.1362, "tol": 0.005},
+    {"kind": "value", "section": "data", "in_row": ["Q3"], "metric": {"types": ["AGG_AVERAGE"], "field": "session_minutes"}, "near": 13.6763, "tol": 0.005},
+    {"kind": "value", "section": "data", "in_row": ["Q4"], "metric": {"types": ["AGG_AVERAGE"], "field": "session_minutes"}, "near": 14.9118, "tol": 0.005}
   ]
 }

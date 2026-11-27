@@ -213,3 +213,45 @@ func canonicalRequest(t *testing.T, raw json.RawMessage) string {
 	}
 	return string(b)
 }
+
+// TestEvalCompositionAnswers pins the composition task's scoring both
+// ways: a count-by-region request and a crosstab share answer pass, a
+// request answering another question (average income by region) fails,
+// and so do shares attached to the wrong regions.
+func TestEvalCompositionAnswers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var task *Task
+	for _, tk := range loadTasks(t) {
+		if tk.ID == "composition_region_share" {
+			task = tk
+		}
+	}
+	if task == nil {
+		t.Fatal("no composition_region_share task")
+	}
+	env, err := NewEnv(ctx, fixtureDir, t.TempDir(), task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const byRegion = `"cohort":{"filename":"customers.pulse"},"groups":[{"type":"GROUP_CATEGORY","field":"region"}]`
+	for _, c := range []struct {
+		name, args string
+		pass       bool
+	}{
+		{"count by region", `{` + byRegion + `,"aggregations":[{"type":"AGG_COUNT","field":"id"}]}`, true},
+		{"crosstab share", `{"cohort":{"filename":"customers.pulse"},"crosstab":{"rows":[{"type":"GROUP_CATEGORY","field":"region"}],"cell":{"type":"AGG_COUNT","field":"id"},"normalize":"total"}}`, true},
+		{"average income by region", `{` + byRegion + `,"aggregations":[{"type":"AGG_AVERAGE","field":"income"}]}`, false},
+	} {
+		r := ScoreIn(ctx, env, task, Submission{Tool: "pulse_process", Arguments: json.RawMessage(c.args)})
+		if r.Pass != c.pass {
+			t.Errorf("%s: pass=%v, want %v (%v)", c.name, r.Pass, c.pass, r.Failures)
+		}
+	}
+	// The right share values on the wrong regions are not an answer.
+	wrong := outcome(t, `{}`, `{"data":[{"region":"south","share":0.26},{"region":"north","share":0.28},
+		{"region":"east","share":0.205},{"region":"west","share":0.255}]}`)
+	if fails := Check(task, wrong); len(fails) == 0 {
+		t.Error("shares on the wrong regions pass the composition task")
+	}
+}

@@ -6,8 +6,8 @@
 // Run it from the repository root; it is a development tool only (never
 // shipped).
 //
-//	go run ./internal/tools/evalscore internal/eval/runs/<date>
-//	go run ./internal/tools/evalscore -json internal/eval/runs/<date>
+//	go run ./internal/tools/evalscore internal/eval/runs/<date>-r<N>
+//	go run ./internal/tools/evalscore -json internal/eval/runs/<date>-r<N>
 package main
 
 import (

@@ -69,7 +69,7 @@ The follow-ups #739–#755 were carried into `TODO.md` in the U32a PR as roadmap
 
 ### U32b (docs-content)
 
-Of the 976 rows, about 750 are fixed and about 150 are no-change (accurate as written, or out of slice and owned by another slice). 54 rows carry a to-file part.
+Of the 976 rows, 737 are fixed, 150 are no-change (accurate as written, or out of slice and owned by another slice) and 43 are to-file. 21 rows mix dispositions: 16 fixed with a to-file part, 3 fixed / no-change, 2 no-change with a to-file part. The remaining 25 record a scripted check's result or a verification ("empty", "verified", "kept") rather than a disposition. So 61 rows carry a to-file part.
 
 **Fixed rows, by surface.** Every fix landed in U32b's PR, in the commit of the slice that found it:
 
@@ -159,7 +159,7 @@ Both are fixed in the current skills.
 
 ### U32c (docs-validation)
 
-There are 59 rows: 49 fixed, 8 no-change and 2 filed (#802, #803). The table records the owner-action row (#768) as fixed.
+There are 64 rows: 54 fixed, 8 no-change and 2 filed (#802, #803). The table records the owner-action row (#768) as fixed.
 
 **Eval infrastructure and harness**
 
@@ -245,6 +245,16 @@ There are 59 rows: 49 fixed, 8 no-change and 2 filed (#802, #803). The table rec
 | C-58 | guide/questions · result JSON | Cosmetic: exponent form differs from the reader's `jq` reprint | fixed: a note under every result block with an exponent (`5349ed368`) |
 | C-59 | guide/questions · "To run the example yourself" | Not saying to run `examples data` outside `PULSE_DATA_DIR` | fixed (`5349ed368`) |
 
+**Spec check (E6-S1)**
+
+| # | Surface | Finding | Disposition |
+|---|---|---|---|
+| C-60 | `internal/eval/check.go` | E1-S1 falsification not recorded | fixed: reverting one `inRange` bound fails `TestEvalReferences` |
+| C-61 | `internal/eval/check.go` | E1-S2 per-kind falsification not recorded | fixed: one line reverted per assertion kind, each fails `TestCheck_*` or `TestEvalReferences` |
+| C-62 | `internal/descriptor/overlay_facet.go` | E5-S1 predict-side falsification not recorded | fixed: reverting the code fails the predict tests and the root parity test |
+| C-63 | `internal/service/facet_overlay.go` | E5-S1 runtime-side falsification not recorded | fixed: reverting the code fails `TestFacetOverlay_ParamsFieldRefusalsParity` |
+| C-64 | eval answer key | Loose assertions: composition's bare share values, flows' unscoped cell, segment tasks checking only the row count | fixed: shares scoped to `crosstab`, flows to the crosstab cells or a bronze→silver row, band averages and cluster sizes checked; `TestEvalCompositionAnswers`. `simulate_test_scores` stays a schema check: no assertion kind reads a written cohort's values |
+
 ## Eval and reader results
 
 ### Agent evaluation
@@ -254,9 +264,12 @@ The runs are committed under `internal/eval/runs/`. Each holds the final request
 | Run | Score | Failures | Classification and fix |
 |---|---|---|---|
 | `2026-11-26-r1` | 15/20 | `benchmark_income_target`, `composition_region_share`, `prepare_income_zscore`, `quality_missing_income`, `distribution_income_skew` | code gap (cohort listing, C-17), harness contamination (C-18), tool description (C-19) |
-| `2026-11-27-r2` | 19/20 | `composition_region_share` | tool description (C-26) |
-| `2026-11-27-r3` | **20/20** | none (after the owner's answer-key call, C-31) | **the green run** |
+| `2026-11-27-r2` | 19/20 as run; 20/20 rescored | `composition_region_share` (as run) | tool description (C-26); passes under the widened key (C-31) |
+| `2026-11-27-r3` | 19/20 as run; **20/20** rescored | `composition_region_share` (as run) | answer key widened (C-31); **the green run** |
 | `2026-11-27-r4` | 17/20 | broken harness: oversized starting context, one agent killed, import task not run | not a measurement; kept as a record (C-32) |
+
+- **r3 is the green run.** It scored 19/20 as run: `composition_region_share` answered with counts by region. It scored 20/20 after the owner widened the composition key (C-31). Under that key r2 also rescores 20/20, but r3 is the green run by owner ruling: it is the first full run after the last served-text change (`222625dff`), and r2 predates it. Both still score 20/20 under the spec check's tighter keys (C-64).
+- **The r3 `simulate_test_scores` submission was assembled by the orchestrator.** The agent named the synth operators and params but ran no synth, since no MCP tool runs one (#802). The orchestrator built the spec from what the agent named and chose the seed (42). The procedure now forbids this: a task with no MCP tool is scored only on a spec the agent wrote itself ([Agent Evaluation](../../src/contributing/agent-eval.md)).
 
 The CI reference test and the intent-coverage gate run the 20 reference requests on every build. U33 reruns the evaluation on the release build before the rc and `v1.0.0` tags (U33, Gates & tests).
 
@@ -284,4 +297,4 @@ By signing, the maintainer confirms that:
 - the deferrals filed under U33 are accepted as v1.0.0 work;
 - the proxy-reader caveat above is accepted.
 
-Signed off on ____________ by ____________ (maintainer). Reader-log spot-check: ____________
+Signed off on 2026-11-27 by Frank Bardon Jr. (maintainer). Reader-log spot-check: approved with this review, 2026-11-27.

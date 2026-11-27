@@ -13,6 +13,9 @@
   },
   "assertions": [
     {"kind": "operator", "any_of": ["GROUP_KMEANS"]},
-    {"kind": "rows", "section": "data", "count": 3}
+    {"kind": "rows", "section": "data", "count": 3},
+    {"kind": "value", "section": "data", "near": 197, "tol": 0.5},
+    {"kind": "value", "section": "data", "near": 64, "tol": 0.5},
+    {"kind": "value", "section": "data", "near": 39, "tol": 0.5}
   ]
 }

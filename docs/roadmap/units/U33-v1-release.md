@@ -126,7 +126,7 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(v1-release/E<n>-S
 
 - All non-skippable gates green; API-compat job enabled
 - Before tagging any release: `gh api repos/frankbardon/pulse/private-vulnerability-reporting` returns `enabled: true`, since `SECURITY.md`'s only reporting channel is GitHub private vulnerability reporting; if it is `false`, the owner enables it in the repository settings before the tag
-- Before tagging the rc and `v1.0.0`: rerun the agent evaluation on the release build ([Agent Evaluation](../../src/contributing/agent-eval.md)) and score it with `go run ./internal/tools/evalscore internal/eval/runs/<date>`; every task passes
+- Before tagging the rc and `v1.0.0`: rerun the agent evaluation on the release build ([Agent Evaluation](../../src/contributing/agent-eval.md)) and score it with `go run ./internal/tools/evalscore internal/eval/runs/<date>-r<N>`; every task passes
 
 ## Update Demand companions
 
