@@ -105,6 +105,9 @@ func examplesShowCmd() *cli.Command {
 				// other leaf's, so stdout always parses (exit 1).
 				return cliError(cmd, cmd.Bool("json"), "CLI_INPUT", fmt.Sprintf("example %q not found", name))
 			}
+			// The served body: cohort paths resolve against the data
+			// directory, as pulse_examples_get serves them.
+			ex.Body = examples.Served(ex.Body)
 			if cmd.Bool("json") {
 				return writeEnvelope(cmd.Writer, ex)
 			}

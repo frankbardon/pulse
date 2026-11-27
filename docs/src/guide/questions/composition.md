@@ -74,8 +74,7 @@ The request (example `crosstab_row_normalize_conversion_rate`; `pulse examples s
 ```json cohort=experiment
 {
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "crosstab": {
     "rows": [

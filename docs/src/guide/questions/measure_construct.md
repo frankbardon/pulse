@@ -55,8 +55,7 @@ The request (example `scale_reliability`; `pulse examples show scale_reliability
 ```json cohort=battery
 {
   "cohort": {
-    "filename": "battery.pulse",
-    "data_dir": ".data"
+    "filename": "battery.pulse"
   },
   "matrices": [
     {

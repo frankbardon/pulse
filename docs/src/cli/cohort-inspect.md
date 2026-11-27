@@ -270,6 +270,24 @@ is `"synthesized"` rather than `"schema"`.
 | 1 | Any coded error (file not found, magic-byte mismatch, unsupported format version, …) — in the envelope's `errors` under `--json` |
 | 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
+## Listing the cohorts: `pulse cohorts`
+
+`pulse cohorts [DIR] [--json]` lists every `.pulse` cohort under the
+data directory (or under `DIR`, relative to it), in every subdirectory,
+sorted by path: record count, fields with their types, and whether each
+is a shard archive or a managed import. It reads the same header bytes
+as `pulse cohort inspect` and never a record. Sidecars, profiles, hidden
+entries and the shards inside an archive are not listed; an unreadable
+`.pulse` file is listed with its coded error. It formats
+`Pulse.ListCohorts`; the MCP tool is `pulse_cohorts_list`. An absolute
+or escaping `DIR` is `SERVICE_VALIDATION` and a missing one
+`SERVICE_RESOURCE` (exit 1).
+
+```bash
+pulse cohorts                   # one line per cohort
+pulse cohorts imports --json    # the managed imports, as an envelope
+```
+
 ## Examples
 
 ```bash

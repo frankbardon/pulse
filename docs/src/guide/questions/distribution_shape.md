@@ -102,8 +102,7 @@ The request (example `shape_moments`; `pulse examples show shape_moments` prints
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "return": {
     "preset": "standard",

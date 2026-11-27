@@ -28,7 +28,7 @@ var testReferenceParam = descriptor.Param{
 	Name:        "reference",
 	Type:        "string",
 	Required:    false,
-	Description: "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING.",
+	Description: "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING.",
 }
 
 // testCovariateParam is the two-sample mean tests' params.covariate

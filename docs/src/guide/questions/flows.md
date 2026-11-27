@@ -45,8 +45,7 @@ The request (example `crosstab-retention`; `pulse examples show crosstab-retenti
 ```json cohort=tier_migrations
 {
   "cohort": {
-    "filename": "tier_migrations.pulse",
-    "data_dir": ".data"
+    "filename": "tier_migrations.pulse"
   },
   "crosstab": {
     "rows": [

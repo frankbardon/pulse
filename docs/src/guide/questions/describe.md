@@ -118,8 +118,7 @@ The request (example `confidence_interval_normal`; `pulse examples show confiden
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "return": {
     "precision": 4

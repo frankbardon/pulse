@@ -65,8 +65,7 @@ The request (example `clustered_covariance`; `pulse examples show clustered_cova
 ```json cohort=experiment
 {
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "regressions": [
     {

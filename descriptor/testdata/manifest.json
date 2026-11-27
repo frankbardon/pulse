@@ -80,6 +80,15 @@
         }
       },
       {
+        "name": "cohorts",
+        "description": "List every .pulse cohort under the data directory with its record count and fields (header and schema only)",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "predict",
         "description": "Validate a request without executing",
         "annotations": {
@@ -1917,7 +1926,7 @@
               "name": "percentile",
               "type": "float",
               "required": true,
-              "description": "Required, no default: a number in [0, 100], e.g. 95 for p95 (50 is the median). Absent or null is refused (PROCESSING_CONFIG)."
+              "description": "Required, no default: a percent in [0, 100], e.g. 95 for p95 (50 is the median), never a 0–1 fraction (0.95 asks for p0.95). Absent or null is refused (PROCESSING_CONFIG)."
             },
             {
               "name": "ordered",
@@ -7888,7 +7897,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "exact",
@@ -8079,7 +8088,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -8195,7 +8204,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -8247,7 +8256,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -8316,7 +8325,7 @@
             "name": "reference",
             "type": "string",
             "required": false,
-            "description": "The split_by level read second, so diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
+            "description": "The baseline split_by level, named by its value: diff, its interval, the statistic and the signed effect size read other − reference (default: the alphabetically second level is the reference, so diff = first − second). Must be a split_by level (\"0\" / \"1\" on a packed_bool) and needs split_by, else PULSE_TEST_REFERENCE_INVALID; neither observed group is PULSE_TEST_REFERENCE_MISSING."
           },
           {
             "name": "covariate",
@@ -13076,6 +13085,10 @@
     ],
     "mcp_tools": [
       {
+        "name": "pulse_cohorts_list",
+        "description": "CALL FIRST WHEN YOU DO NOT KNOW WHICH COHORT HOLDS THE DATA. List every .pulse cohort under this server's data directory, in every subdirectory, sorted by path. Each entry: `path` (relative to the data directory: pass it as is as the request's cohort `filename`, or pulse_inspect `path`, with no `data_dir`), `record_count`, `fields` [{name, type, nullable}], `shard_archive` and `shard_count`, and `managed` plus `handle` for a managed import. Reads each file's header and schema only, never a record; sidecars, hidden files and the shards inside an archive are not listed, and listing does not extend a managed import's expiry. A .pulse file that cannot be read is still listed, with its coded `error` and no fields. Optional `dir` lists one subdirectory (relative to the data directory) only. Next, pulse_inspect one cohort for its dictionaries and field descriptions."
+      },
+      {
         "name": "pulse_compose",
         "description": "CALL TO RUN SEVERAL REQUESTS IN ONE ROUND-TRIP. Each entry of `requests` is a pulse_process body against the same or a different cohort — common for ecological-regression patterns (slot 1 aggregates, slot 2 regresses over aggregates) and any multi-question authoring loop.\n\nReturns `{responses, overlays}`: `responses` holds one pulse_process result per `requests[i]`, in order; `overlays` holds one executed layer per `overlays[i]`, in order, and is omitted when the request carries no compose overlays. Each slot's `matrices` (MAT_COVARIANCE / MAT_CORRELATION, with its `vectors`) runs per slot and lands on that slot's response; a slot combining `matrices` with `joins` or `crosstab` is refused (PULSE_MATRIX_UNSUPPORTED_SOURCE / PULSE_MATRIX_HOST_CONFLICT) like a standalone request. A slot's `return` shapes that slot's response; a top-level `return` (`overlays…` paths only) shapes `overlays` after the fold and adds `returned`. Any slot may read a `union` in place of its `cohort`; the member label rides the virtual union_source_field (default _source), so one slot grouped by it replaces one slot per cohort."
       },
@@ -13093,7 +13106,7 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable request with the _meta annotation block stripped and every cohort named by its filename relative to this server's data directory (no `data_dir`); swap in the cohort (pulse_cohorts_list) and fields your question needs. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
@@ -13113,11 +13126,11 @@
       },
       {
         "name": "pulse_import",
-        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a label table. `pulse export spss` writes a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar the import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, format, row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic field, and a generated `\u003cvar\u003e_missing` sibling field records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`.\n\nExplicit schema: `schema` takes `[{name, type, nullable, description}]` (the `pulse import --schema` document; omit it to infer). Fields match source columns BY NAME, never position, and each mismatch is refused before any row is read with its own code: PULSE_IMPORT_SCHEMA_FIELD_MISSING, _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE, _TYPE_UNKNOWN, _INVALID. `ignore_extra: true` drops unnamed source columns instead. `float` picks the inferred float width: `f64` (default, exact decimals) or `f32`.\n\nNative vectors (wide-format batteries such as rate_a..rate_e): `vectors` folds sibling columns into ONE vec_f64 / vec_f32 field — `[\"brand_rating:/^rate_(.*)$/\"]` (regex: matching columns in source order, first capture group labels each element) or `[\"brand_rating:rate_a,rate_b,rate_c\"]` (listed order); `vector_kinds` adds `[\"brand_rating:scale:1:7\"]`. A bare name (`[\"emb\"]`, `[\"emb:f32\"]`) reads the NATIVE list column of that name (Arrow FixedSizeList / LIST, Parquet LIST, an NDJSON / JSON array) as a vec_f64 / vec_f32 field whose dim is the list length; csv / tsv / excel refuse it. 2..1024 columns or elements; all elements empty (or null) = null vector, some = NaN. Bad declarations fail PULSE_IMPORT_VECTOR_INVALID before any row, and so does a variable-length, non-numeric or out-of-range list; requests then name the vector field directly in vector slots."
+        "description": "CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT. Import a tabular source file (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss) into a managed .pulse handle, or pass through an existing .pulse file unchanged. Auto-detects format from the extension; override via `format`. SPSS `.sav` / `.zsav` sources are schema-AUTHORITATIVE: the file's own dictionary supplies every column type, nullability and categorical dictionary ORDER, so inference is skipped entirely — and the cohort's categorical dictionaries hold the SPSS numeric CODES, not the value labels (two codes may share a label, so a label-keyed dictionary would collapse them); resolve labels at output time with a label table. `pulse export spss` writes a `.sav` from a cohort, reproducing the source dictionary from the metadata sidecar the import wrote beside it. Managed handles live in $PULSE_DATA_DIR/imports/ with a TTL-tracked sidecar — every subsequent inspect/predict/process/sample/facet against the handle slides expiry forward. TTL accepts Go duration form (`24h`, `30m`, `3600s`, `1h30m`) plus day suffix (`7d`, `30d`) and `pin` for never-expire. Returns the handle, managed path, `format` (the written cohort's format: always `pulse`), `source_format` (the format the source was read as), row count, expiry, and a managed flag. Pulse-format sources skip the copy + sidecar; they pass through with managed=false.\n\nSPSS read knobs: `charset` overrides the encoding a `.sav` declares about itself and is the ONLY recourse for a file that is wrong about itself — a stale record 7/20 name, or a pre-Unicode file declaring nothing at all, which reads as strict UTF-8 and fails PULSE_SPSS_CHARSET_INVALID on its first 8-bit byte. It is ignored for every other format. There is deliberately NO missing-value mode here: the default is the fidelity-preserving split (numeric user-missing values are null in the analytic field, and a generated `\u003cvar\u003e_missing` sibling field records why), and the only alternative discards those siblings — ask for that explicitly with `pulse import spss --spss-missing=null`.\n\nParent groups (denormalized joins): `groups` takes `[{key: [...], members: [...]}]` — each distinct member tuple is stored once and every row carries a 4-byte index, a smaller format 0x02 cohort; a member that varies within its key fails PULSE_GROUP_MEMBER_NOT_CONSTANT. Do not guess declarations: set `suggest_groups: true` to get measured `group_candidates` (ratio, resident dictionary bytes, projected size, verdict) whose key/members paste straight back as `groups`, then re-import with `overwrite: true`. Weak groups are reported as coded `group_warnings` (PULSE_GROUP_TOO_NARROW dropped, PULSE_DEDUP_LOW_RATIO written; default floor 2 rows per tuple), never failures; per-group figures ride `groups`.\n\nExplicit schema: `schema` takes `[{name, type, nullable, description}]` (the `pulse import --schema` document; omit it to infer). Fields match source columns BY NAME, never position, and each mismatch is refused before any row is read with its own code: PULSE_IMPORT_SCHEMA_FIELD_MISSING, _COLUMN_UNMAPPED, _DUPLICATE, _KEY_LATE, _TYPE_UNKNOWN, _INVALID. `ignore_extra: true` drops unnamed source columns instead. `float` picks the inferred float width: `f64` (default, exact decimals) or `f32`.\n\nNative vectors (wide-format batteries such as rate_a..rate_e): `vectors` folds sibling columns into ONE vec_f64 / vec_f32 field — `[\"brand_rating:/^rate_(.*)$/\"]` (regex: matching columns in source order, first capture group labels each element) or `[\"brand_rating:rate_a,rate_b,rate_c\"]` (listed order); `vector_kinds` adds `[\"brand_rating:scale:1:7\"]`. A bare name (`[\"emb\"]`, `[\"emb:f32\"]`) reads the NATIVE list column of that name (Arrow FixedSizeList / LIST, Parquet LIST, an NDJSON / JSON array) as a vec_f64 / vec_f32 field whose dim is the list length; csv / tsv / excel refuse it. 2..1024 columns or elements; all elements empty (or null) = null vector, some = NaN. Bad declarations fail PULSE_IMPORT_VECTOR_INVALID before any row, and so does a variable-length, non-numeric or out-of-range list; requests then name the vector field directly in vector slots."
       },
       {
         "name": "pulse_imports_list",
-        "description": "CALL TO SEE WHICH MANAGED IMPORTS EXIST AND WHICH HAVE EXPIRED. List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Listing sweeps nothing: an expired entry is flagged `expired: true` so you can decide whether to drop or re-import it."
+        "description": "CALL TO SEE WHICH MANAGED IMPORTS EXIST AND WHICH HAVE EXPIRED. List every managed-import handle currently in the pool with its sidecar metadata: source path, source format, imported_at, expires_at, ttl, expired flag, pinned flag. Listing sweeps nothing: an expired entry is flagged `expired: true` so you can decide whether to drop or re-import it. It lists managed imports ONLY, never the other cohorts in the data directory: to see every cohort, imported or not, call pulse_cohorts_list."
       },
       {
         "name": "pulse_inspect",
@@ -13141,7 +13154,7 @@
       },
       {
         "name": "pulse_manifest",
-        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: call once at session start, cache the result, reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID such as `compare_groups`) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Cache it per intent. An unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN.\n\nMCP always returns the slim payload (no prose descriptions); fetch per-operator prose via pulse_skills_get and per-error prose via pulse_errors_lookup when needed."
+        "description": "CALL FIRST IN EVERY SESSION. The request-authoring reference. Carries per-operator params, accepted field types and streamability, the row tests (`tests`) and post tests (`post_tests`), regression operators, matrix operators (`matrices`, used through the request's `vectors` / `matrices` slots, plus the `matrix` capability block), synth distributions, error codes, MCP tool list, and cohort field types with operator cross-references.\n\nWORKFLOW: unscoped, the manifest is very large (hundreds of KB) and can overflow a client's tool-output limit, so scope it by `intent` first, cache it per intent and reference it for every subsequent request-authoring decision. This is the source of truth for what operators exist in this Pulse deployment — do NOT infer operator names, param shapes, or accepted types from external documentation or source code. Pair with pulse_examples_search to find runnable templates for the question you are answering.\n\nPass `intent` (an intent-taxonomy ID) for a manifest scoped to that intent, a small fraction of the size: only operators serving it, its ranked skills and the intent record under `scope`; the fixed sections (commands, error codes, cohort types, tool list, limits, ...) are dropped and named in `elided`. Every ID, with its label and example questions, is in the `intents` skill (pulse_skills_get name `intents`); an unknown ID is PULSE_RECOMMEND_INTENT_UNKNOWN, whose details.valid lists them all. Pick the intent whose example questions match yours: a scoped manifest lists only that intent's operators, so when the operator you need is absent, check the `intents` skill for a closer intent before concluding this deployment lacks it.\n\nMCP always returns the slim payload (no prose descriptions): a param's meaning, scale and units are not in it. Before setting a param you have not used, fetch the operator's skill (`op-` plus the kebab-case operator name) via pulse_skills_get; per-error prose comes from pulse_errors_lookup."
       },
       {
         "name": "pulse_materialize",
@@ -13169,7 +13182,7 @@
       },
       {
         "name": "pulse_recommend",
-        "description": "CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST. Turns an intent ID (the `intents` skill lists them: describe, compare_groups, relationship, drivers, change_over_time, …) into ranked draft requests instead of hand-built JSON. Without `cohort` the drafts are UNBOUND skeletons: every value you must supply is a \"\u003cplaceholder\u003e\" string named after its wire key and listed in `placeholders` — useful for planning before data exists. With `cohort` (a .pulse path) the drafts are BOUND to the cohort's own fields and each one has passed pulse_predict; a draft with `bound: false` still `needs` a value only you can choose (a success value, a reference mean, a model family). `fields` pins hint fields to roles (cohort only); `level` (basic / intermediate / advanced) ranks that level first; `limit` caps the list (default 10; `truncated` and `candidates_considered` say what was cut). Each draft carries `why`, the intent's field `shapes`, predict `advisories`, `alternatives` and `follow_ups`. A non-analytic intent (prepare, simulate, lookup) or one nothing serves returns an empty `recommendations` list plus `routes_to` — the tooling that answers it — never an error. An unknown intent is PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists every ID); a bad field hint is SERVICE_VALIDATION; an unreadable cohort is SERVICE_RESOURCE. Reads the cohort header, schema and sidecar only."
+        "description": "CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST. Turns an intent ID (the `intents` skill lists every ID with its example questions) into ranked draft requests instead of hand-built JSON. Without `cohort` the drafts are UNBOUND skeletons: every value you must supply is a \"\u003cplaceholder\u003e\" string named after its wire key and listed in `placeholders` — useful for planning before data exists. With `cohort` (a .pulse path) the drafts are BOUND to the cohort's own fields and each one has passed pulse_predict; a draft with `bound: false` still `needs` a value only you can choose (a success value, a reference mean, a model family). `fields` pins hint fields to roles (cohort only); `level` (basic / intermediate / advanced) ranks that level first; `limit` caps the list (default 10; `truncated` and `candidates_considered` say what was cut). Each draft carries `why`, the intent's field `shapes`, predict `advisories`, `alternatives` and `follow_ups`. A non-analytic intent (prepare, simulate, lookup) or one nothing serves returns an empty `recommendations` list plus `routes_to` — the tooling that answers it — never an error. An unknown intent is PULSE_RECOMMEND_INTENT_UNKNOWN (details.valid lists every ID); a bad field hint is SERVICE_VALIDATION; an unreadable cohort is SERVICE_RESOURCE. Reads the cohort header, schema and sidecar only."
       },
       {
         "name": "pulse_sample",
@@ -13181,7 +13194,7 @@
       },
       {
         "name": "pulse_skills_list",
-        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Pass `intent` (an intent-taxonomy ID such as `compare_groups`) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN. Fetch a skill's markdown body via pulse_skills_get."
+        "description": "CALL TO DISCOVER WHICH SKILLS EXIST BEFORE AUTHORING AN UNFAMILIAR REQUEST. List the embedded skill pack: topical guides (request design, statistical testing, regression, compose, crosstab, cohort schema, SPSS, synthetic data, ...) and one atomic skill per operator (`op-*`), tool (`tool-*`) and field type (`type-*`). Each entry is {name, description, applies_to}. Unscoped, the list is very large (over 100 KB: an entry per operator, tool and field type), so pass `intent` (an intent-taxonomy ID; the `intents` skill lists every ID with its example questions) to list only that intent's skills, ranked: the intents skill, design skills covering its operators, then their atomic skills basic to advanced; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN, whose details.valid lists every ID. Fetch a skill's markdown body via pulse_skills_get."
       }
     ],
     "cohort_types": [
@@ -15885,6 +15898,10 @@
       {
         "name": "time-zones",
         "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
+      },
+      {
+        "name": "tool-cohorts-list",
+        "description": "List every .pulse cohort under the data directory with its record count and fields."
       },
       {
         "name": "tool-compose",
@@ -22197,4 +22214,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e6e0cbf9ddd6458ba170b2f510f0d7d8bbbc08ffce5002aae8e5a684b863282d
+// golden-hash: 30f5285ee6835f8af8521c0be668958f739f590989974ed36809f0cc5bf26e43

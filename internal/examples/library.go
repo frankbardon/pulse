@@ -331,6 +331,108 @@ func Get(name string) (*Example, bool) {
 	return &out, true
 }
 
+// FixtureDataDir is the repo-relative directory the built-in examples
+// name as their cohorts' data_dir: where
+// internal/examples/fixtures/build.sh writes the fixture cohorts.
+const FixtureDataDir = ".data"
+
+// Served returns a built-in example body as a server serves it: runnable
+// against the instance's own data root. Every "data_dir" equal to
+// FixtureDataDir is dropped (a cohort filename then resolves against
+// the data root) and a "cohort" path string under FixtureDataDir (a
+// facet overlay's population) loses that prefix. Everything else keeps
+// its bytes and order. A body that does not parse is returned unchanged.
+//
+// Get and All keep the file's data_dir: the in-repo runners rebase it
+// onto the directory their fixtures were built in.
+func Served(body json.RawMessage) json.RawMessage {
+	out, _, changed, err := servedValue(body, "")
+	if err != nil || !changed {
+		return append(json.RawMessage(nil), body...)
+	}
+	return out
+}
+
+// servedValue rewrites one JSON value found under key as Served
+// describes. Members and elements keep their order and every untouched
+// value keeps its bytes. drop reports a member to remove; changed
+// whether anything below was rewritten.
+func servedValue(raw json.RawMessage, key string) (out json.RawMessage, drop, changed bool, err error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return raw, false, false, nil
+	}
+	switch trimmed[0] {
+	case '"':
+		if key != "data_dir" && key != "cohort" {
+			return raw, false, false, nil
+		}
+		var s string
+		if err := json.Unmarshal(trimmed, &s); err != nil {
+			return nil, false, false, err
+		}
+		switch {
+		case key == "data_dir" && s == FixtureDataDir:
+			return nil, true, true, nil
+		case key == "cohort" && strings.HasPrefix(s, FixtureDataDir+"/"):
+			b, err := json.Marshal(strings.TrimPrefix(s, FixtureDataDir+"/"))
+			return b, false, true, err
+		}
+		return raw, false, false, nil
+	case '{', '[':
+		dec := json.NewDecoder(bytes.NewReader(trimmed))
+		if _, err := dec.Token(); err != nil {
+			return nil, false, false, err
+		}
+		object := trimmed[0] == '{'
+		var buf bytes.Buffer
+		buf.WriteByte(trimmed[0])
+		first := true
+		for dec.More() {
+			var k string
+			if object {
+				tok, err := dec.Token()
+				if err != nil {
+					return nil, false, false, err
+				}
+				k, _ = tok.(string)
+			}
+			var v json.RawMessage
+			if err := dec.Decode(&v); err != nil {
+				return nil, false, false, err
+			}
+			nv, d, ch, err := servedValue(v, k)
+			if err != nil {
+				return nil, false, false, err
+			}
+			changed = changed || ch
+			if d {
+				continue
+			}
+			if !first {
+				buf.WriteByte(',')
+			}
+			first = false
+			if object {
+				kb, err := json.Marshal(k)
+				if err != nil {
+					return nil, false, false, err
+				}
+				buf.Write(kb)
+				buf.WriteByte(':')
+			}
+			buf.Write(nv)
+		}
+		if object {
+			buf.WriteByte('}')
+		} else {
+			buf.WriteByte(']')
+		}
+		return buf.Bytes(), false, changed, nil
+	}
+	return raw, false, false, nil
+}
+
 // All returns a copy of every embedded example, sorted by name.
 func All() []*Example {
 	idx := loadIndex()

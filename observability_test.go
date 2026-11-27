@@ -355,7 +355,7 @@ var uninstrumentedMethods = map[string]bool{
 	"ErrorsByDomain": true, "ErrorsSearch": true, "ExamplesSearch": true, "ExamplesSearchWith": true, "ExampleGet": true,
 	"FeatureProfile": true, "FeatureSetDigest": true, "Fs": true, "ResolveLabel": true,
 
-	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ResolveImport": true,
+	"CohortArtifacts": true, "NewCohortBuilder": true, "Imports": true, "ListCohorts": true, "ResolveImport": true,
 	"ResolveCanonicalSchema": true, "ApplySeriesOverlays": true, "InvalidatedSidecars": true,
 	"Watch": true, "WatchWithOptions": true, "WatchDir": true, "WatchDirWithOptions": true,
 	"ExportReference": true,

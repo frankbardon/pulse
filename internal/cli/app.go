@@ -42,6 +42,7 @@ func App() *cli.Command {
 			ExportCommand(),
 			ConvertCommand(),
 			CohortCommand(),
+			CohortsCommand(),
 			APICommand(),
 			SkillsCommand(),
 			ExamplesCommand(),

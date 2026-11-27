@@ -1730,6 +1730,9 @@ Not yet released. `format_version` stays `"1.1"`; no `.pulse` byte-layout change
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
 | a facet population overlay (`OVERLAY_INDEX_VS_POP`, `_ZSCORE_VS_POP`, `_CHISQ_VS_POP`, `_KS_VS_POP`) whose `params.field` names none of the facet request's `fields` was refused `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE` | refused `PULSE_OVERLAY_FIELD_UNKNOWN`, the code every other host raises for an unknown `params.field`, at predict and runtime alike; message and details `{index, kind, field, available_fields}` unchanged | behaviour change (error code) | match `PULSE_OVERLAY_FIELD_UNKNOWN` for an unknown facet field; `_REF_INCOMPATIBLE_WITH_SHAPE` still covers a wrong ref family and a field of the wrong shape for the kind | U32c (E5-S1) |
+| (none) | `(*Pulse).ListCohorts(ctx, ListCohortsOptions{Dir})` → `[]CohortListEntry{Path, RecordCount, Fields []CohortListField{Name, Type, Nullable}, ShardArchive, ShardCount, Managed, Handle, Warnings, Error}`; MCP tool `pulse_cohorts_list`; CLI `pulse cohorts [DIR]` | added | list the cohorts under the data root (header and schema only) instead of walking `Fs()` yourself | U32c (E2-S2) |
+| `pulse_import` / `ImportFile` reported only `format` (always `pulse`, the written cohort's) | `ImportResult.SourceFormat` (`source_format`) carries the format the source was read as; `format` unchanged | added (wire-additive) | read `source_format` for the source's format | U32c (E2-S2) |
+| `ExampleGet` / `pulse_examples_get` / `pulse examples show` served a built-in body with the fixture `"data_dir": ".data"` | the served body drops that `data_dir` (and the `.data/` prefix of a facet population `cohort`), so it runs against the instance's data root; embedder examples are served as registered | behaviour change (served example body) | none; a caller that rebased `data_dir` keeps working | U32c (E2-S2) |
 
 ## Third-party dependency
 

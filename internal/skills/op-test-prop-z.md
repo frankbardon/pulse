@@ -20,7 +20,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 | `alpha` | float | `0.05` | Significance level in `(0, 1)`; `reject_null` when p < alpha. |
 | `success` | string | (required) | The `field` dictionary value counted a success; on `packed_bool` `"1"` or `"0"`. |
 | `p0` | float | — | In `(0, 1)`, `split_by` absent: the one-proportion test (`variant` `one_proportion`). |
-| `reference` | string | — | The `split_by` level read second: `diff` reads other − reference (default: alphabetical). |
+| `reference` | string | — | Baseline `split_by` level: `diff` = other − reference (default: 2nd alphabetically). |
 | `covariate` | string | — | A numeric pre-period field (CUPED) adjusting the success indicator; not with `p0`. |
 | `interval` | enum | `wald` | `wald`, or `wilson` with `p0`. |
 | `correct` | bool | `false` | `prop.test`'s continuity correction. |

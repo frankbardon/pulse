@@ -445,7 +445,7 @@ because the CLI is an admin tool and is not profiled.
 The server mounts only what the profile offers. A tool tied to a
 feature (`pulse_process` to `capability:process`, `pulse_facet` to
 `capability:facet`, and so on) is registered only when that feature is
-listed; the discovery tools (`pulse_inspect`, `pulse_predict`,
+listed; the discovery tools (`pulse_inspect`, `pulse_cohorts_list`, `pulse_predict`,
 `pulse_manifest`, the skills, examples and errors lookups) are always
 there. Calling a tool the profile hides fails exactly like calling one
 that does not exist. Each prompt needs its own `mcp_extra:prompt_*`

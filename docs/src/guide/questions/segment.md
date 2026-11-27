@@ -70,8 +70,7 @@ The request (example `group_kmeans`; `pulse examples show group_kmeans` prints i
     }
   ],
   "cohort": {
-    "filename": "customers.pulse",
-    "data_dir": ".data"
+    "filename": "customers.pulse"
   },
   "groups": [
     {
@@ -173,8 +172,7 @@ The request (example `perceptual_map`; `pulse examples show perceptual_map` prin
     }
   ],
   "cohort": {
-    "filename": "brand_ratings.pulse",
-    "data_dir": ".data"
+    "filename": "brand_ratings.pulse"
   },
   "matrices": [
     {

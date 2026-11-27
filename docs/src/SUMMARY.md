@@ -393,6 +393,7 @@
     - [synthetic-data](guide/skills/synthetic-data.md)
     - [test-variant-options](guide/skills/test-variant-options.md)
     - [time-zones](guide/skills/time-zones.md)
+    - [tool-cohorts-list](guide/skills/tool-cohorts-list.md)
     - [tool-compose](guide/skills/tool-compose.md)
     - [tool-dedup](guide/skills/tool-dedup.md)
     - [tool-drop](guide/skills/tool-drop.md)

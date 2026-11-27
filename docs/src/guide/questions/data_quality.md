@@ -89,8 +89,7 @@ The request (example `agg_missing_by_channel`; `pulse examples show agg_missing_
     }
   ],
   "cohort": {
-    "filename": "intake.pulse",
-    "data_dir": ".data"
+    "filename": "intake.pulse"
   },
   "groups": [
     {

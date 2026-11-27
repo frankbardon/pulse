@@ -113,6 +113,7 @@ func init() {
 	d := func(name string) string { return desc[name] }
 
 	register(toolmeta.ToolInspect, d(toolmeta.ToolInspect), reflect.TypeFor[InspectIn](), reflect.TypeFor[InspectOut]())
+	register(toolmeta.ToolCohortsList, d(toolmeta.ToolCohortsList), reflect.TypeFor[CohortsListIn](), reflect.TypeFor[CohortsListOut]())
 	register(toolmeta.ToolPredict, d(toolmeta.ToolPredict), reflect.TypeFor[PredictIn](), reflect.TypeFor[PredictOut]())
 	register(toolmeta.ToolProcess, d(toolmeta.ToolProcess), reflect.TypeFor[ProcessIn](), reflect.TypeFor[ProcessOut]())
 	register(toolmeta.ToolProcessChain, d(toolmeta.ToolProcessChain), reflect.TypeFor[ProcessChainIn](), reflect.TypeFor[ProcessChainOut]())

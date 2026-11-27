@@ -105,8 +105,7 @@ The request (example `t_test_one_sample`; `pulse examples show t_test_one_sample
     }
   ],
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "return": {
     "precision": 4

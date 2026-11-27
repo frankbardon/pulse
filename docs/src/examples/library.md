@@ -37,7 +37,12 @@ tolerate it.)
 
 Fetching via `pulse_examples_get` returns the request body with the `_meta`
 block already stripped, so you can pass it straight to
-`pulse_process` / `pulse_predict`.
+`pulse_process` / `pulse_predict`. The served body (`pulse_examples_get`,
+`pulse examples show`, `Pulse.ExampleGet`) also drops the files'
+repo-relative `"data_dir": ".data"` (and the `.data/` prefix of a facet
+population's `cohort` path), so each cohort filename resolves against the
+server's own data directory. The checked-in files keep it, so they run
+verbatim from the repo root.
 
 A **story** example also declares `_meta.question` (the plain-language
 question it answers) and `_meta.interpretation` (a qualitative reading of

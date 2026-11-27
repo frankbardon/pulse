@@ -96,9 +96,9 @@ mounts only what it enables. Each tool's full description is served with
 | Job | Tools |
 |---|---|
 | Discover | `pulse_manifest` (**call first**, cache per session), `pulse_skills_list`, `pulse_skills_get`, `pulse_examples_search`, `pulse_examples_get`, `pulse_errors_lookup` (per-code Message + Fixups) |
-| Look at a cohort | `pulse_inspect` (header + schema, never records; also binds schemas, below), `pulse_sample` (up to N rows), `pulse_facet` (distinct values of one field), `pulse_facet_schema` (multi-field summary: counts, nulls, stats, histograms) |
+| Look at a cohort | `pulse_cohorts_list` (every cohort in the data directory with its record count and fields; call it first when you do not know which cohort holds the data), `pulse_inspect` (header + schema, never records; also binds schemas, below), `pulse_sample` (up to N rows), `pulse_facet` (distinct values of one field), `pulse_facet_schema` (multi-field summary: counts, nulls, stats, histograms) |
 | Author and run | `pulse_recommend` (an intent ID to draft requests), `pulse_predict` (validate without running), `pulse_process`, `pulse_compose` (several requests, same or different cohorts, one round trip), `pulse_process_chain` (each stage reads the previous stage's rows), `pulse_explain` (plain-words reading of a request or result), `pulse_lookup` (rows by key from a prebuilt sidecar index) |
-| Bring data in | `pulse_import` (a tabular file, SPSS included, to a managed handle; `.pulse` passes through), `pulse_imports_list`, `pulse_drop` |
+| Bring data in | `pulse_import` (a tabular file, SPSS included, to a managed handle; `.pulse` passes through), `pulse_imports_list` (managed imports only), `pulse_drop` |
 | Write a new cohort | `pulse_dedup` (parent groups), `pulse_materialize` (derived columns as fields), `pulse_rake` (survey weights) |
 | Name things | `pulse_label_tables`, `pulse_label_resolve` (display name to raw key), `pulse_range_tables`, `pulse_lookup_tables` |
 

@@ -340,6 +340,7 @@ func instanceOf(p *pulse.Pulse) *descx.InstanceSnapshot {
 func invokers(cfg Config) map[string]InvokeFunc {
 	return map[string]InvokeFunc{
 		toolmeta.ToolInspect:        makeInvoke(strictDecode[InspectIn], HandleInspect),
+		toolmeta.ToolCohortsList:    makeInvoke(strictDecode[CohortsListIn], HandleCohortsList),
 		toolmeta.ToolPredict:        makeInvoke(withReturnDefault(cfg, strictPredictDecode, fillPredictReturn), HandlePredict),
 		toolmeta.ToolProcess:        makeInvoke(withReturnDefault(cfg, strictRequestDecode, fillRequestReturn), HandleProcess),
 		toolmeta.ToolProcessChain:   makeInvoke(withReturnDefault(cfg, strictChainDecode, fillChainReturn), HandleProcessChain),

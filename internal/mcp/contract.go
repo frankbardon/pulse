@@ -253,6 +253,11 @@ type DropIn struct {
 // ImportsListIn is the (empty) input contract for pulse_imports_list.
 type ImportsListIn struct{}
 
+// CohortsListIn is the input contract for pulse_cohorts_list.
+type CohortsListIn struct {
+	Dir string `json:"dir,omitempty" jsonschema:"Optional subdirectory of the data directory to list (relative, inside it); omit to list the whole data directory"`
+}
+
 // LabelTablesIn is the (empty) input contract for pulse_label_tables.
 type LabelTablesIn struct{}
 
@@ -473,6 +478,11 @@ type DropOut struct {
 // ImportsListOut is the output contract for pulse_imports_list.
 type ImportsListOut struct {
 	Imports []imports.Entry `json:"imports" jsonschema:"Managed-import pool entries with sidecar metadata"`
+}
+
+// CohortsListOut is the output contract for pulse_cohorts_list.
+type CohortsListOut struct {
+	Cohorts []pulse.CohortListEntry `json:"cohorts" jsonschema:"Every .pulse cohort under the data directory, sorted by path: path, record_count, fields, shard_archive, managed / handle; error when unreadable"`
 }
 
 // LabelTablesOut is the output contract for pulse_label_tables.

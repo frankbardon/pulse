@@ -9,13 +9,13 @@ applies_to: mcp
 ## When to use
 
 CALL TO BRING AN EXTERNAL DATA FILE INTO PULSE AS A COHORT.
-CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live under `$PULSE_DATA_DIR/imports/` with a TTL sidecar; each read of a handle slides its expiry. `.pulse` passes through (`managed=false`).
+CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live in `$PULSE_DATA_DIR/imports/` with a TTL sidecar; each read slides the expiry. `.pulse` passes through (`managed=false`).
 
 ## Input
 
 | Field | Notes |
 |---|---|
-| `source` (req) | path relative to `PULSE_DATA_DIR` |
+| `source` (req) | relative to `PULSE_DATA_DIR` |
 | `format` | default by extension (`.sav`/`.zsav` → `spss`) |
 | `handle` | default = source basename |
 | `ttl` | `24h`, `7d` (default) or `pin` (no expiry) |
@@ -28,7 +28,7 @@ CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel, SPSS. Managed handles live 
 
 ## Output
 
-No envelope: `handle`, `path` (the managed `.pulse`), `format`, `managed`, `rows_imported`, `imported_at`, `expires_at` / `ttl_seconds` (absent if pinned or passed through), plus, when non-empty, `promoted_fields`, `null_warnings`, `width_warnings`, `source_warnings` (`PULSE_SPSS_*`, `PULSE_IMPORT_TIMESTAMP_TRUNCATED`), `groups`, `group_warnings`, `group_candidates`, `zone_warnings`, `rows_dropped`, `dropped_warnings`.
+No envelope: `handle`, `path` (the managed `.pulse`), `format` (always `pulse`), `source_format` (as read), `managed`, `rows_imported`, `imported_at`, `expires_at` / `ttl_seconds` (absent: pinned / passthrough), plus, when non-empty, `promoted_fields`, `null_warnings`, `width_warnings`, `source_warnings` (`PULSE_SPSS_*`, `PULSE_IMPORT_TIMESTAMP_TRUNCATED`), `groups`, `group_warnings`, `group_candidates`, `zone_warnings`, `rows_dropped`, `dropped_warnings`.
 
 ## Gotchas
 
@@ -36,7 +36,7 @@ No envelope: `handle`, `path` (the managed `.pulse`), `format`, `managed`, `rows
 - **Explicit schema matches BY NAME**, never position; each mismatch refused, coded, before any row.
 - **Naive datetimes import as UTC** unless `source_tz` names the zone; a DST gap / overlap is fatal unless `dst_policy` resolves it. Re-import to change zone.
 - **Zero rows out of a non-empty source is FATAL `PULSE_IMPORT_ROW_ERROR`**; a partial failure warns `PULSE_IMPORT_ROWS_DROPPED`.
-- A `.pulse.zst` is refused `PULSE_COHORT_COMPRESSED`. Success rebinds session-scoped tools to the new cohort.
+- A `.pulse.zst` is refused `PULSE_COHORT_COMPRESSED`. Success rebinds session tools to the new cohort.
 
 ## See
 

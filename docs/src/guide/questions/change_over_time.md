@@ -93,8 +93,7 @@ The request (example `paired_t_before_after`; `pulse examples show paired_t_befo
 ```json cohort=experiment
 {
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "return": {
     "precision": 4

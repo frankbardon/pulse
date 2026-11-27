@@ -191,6 +191,7 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "api materialize", fatal: []string{"-r", f.p("bad.json"), "--out", f.p("never.pulse")},
 			ok: []string{"-r", f.p("mat.json"), "--out", f.p("mat.pulse")}},
 		{leaf: "cohort inspect", fatal: []string{m}, ok: []string{f.cohort}},
+		{leaf: "cohorts", fatal: []string{"no-such-dir"}, ok: []string{}},
 		{leaf: "cohort filter", fatal: []string{"-i", m, "-o", f.p("x.pulse"), "--filter", "age > 10"},
 			ok: []string{"-i", f.cohort, "-o", f.p("filtered.pulse"), "--filter", "age > 10"}},
 		{leaf: "cohort zone set", fatal: []string{f.p("zones.pulse"), "id"}, ok: []string{f.p("zones.pulse"), "tz"}},

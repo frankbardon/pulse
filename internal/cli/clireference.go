@@ -41,6 +41,7 @@ var leafDocLinks = map[string][]docgen.CLILink{
 	"pulse cohort inspect":         {{Text: "cohort inspect", Target: "cohort-inspect.md"}},
 	"pulse cohort zone clear":      {{Text: "default zone field", Target: "flags.md#--zone-field-cohort-default-zone"}},
 	"pulse cohort zone set":        {{Text: "default zone field", Target: "flags.md#--zone-field-cohort-default-zone"}},
+	"pulse cohorts":                {{Text: "listing the cohorts", Target: "cohort-inspect.md#listing-the-cohorts-pulse-cohorts"}},
 	"pulse completion bash":        {{Text: "completion", Target: "completion.md"}},
 	"pulse completion fish":        {{Text: "completion", Target: "completion.md"}},
 	"pulse completion zsh":         {{Text: "completion", Target: "completion.md"}},

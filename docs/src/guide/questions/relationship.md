@@ -90,8 +90,7 @@ The request (example `pearson_correlation`; `pulse examples show pearson_correla
     }
   ],
   "cohort": {
-    "filename": "experiment.pulse",
-    "data_dir": ".data"
+    "filename": "experiment.pulse"
   },
   "return": {
     "precision": 4

@@ -79,10 +79,11 @@ const bootstrapPromptBody = `You are using a Pulse MCP server to answer analytic
 
 The operator catalog, request-shape contracts, and runnable examples ship with the server. Do not infer request shapes from external documentation, blog posts, or source code — those may be out of date for this deployment.
 
-1. **pulse_manifest** — call once at session start, cache the result. Lists every registered operator with its params, accepted field types and streamability.
-2. **pulse_examples_search** + **pulse_examples_get** — the example library. Search by keywords, tags, or category to find a runnable template that matches the user's question; fetch the body and modify the field names for the target cohort.
-3. **pulse_skills_list** + **pulse_skills_get** — domain guides for operator families (regression-modeling, statistical-testing, financial-cohorts, geospatial-cohorts, etc.).
-4. **pulse_errors_lookup** — per-code message and fixups.
+1. **pulse_manifest** — call it with an intent ID (the intents skill lists them) and cache it per intent; unscoped it is very large. Lists each operator with its params, accepted field types and streamability.
+2. **pulse_cohorts_list** — every cohort in the data directory with its record count and fields. Call it when you do not know which cohort holds the data.
+3. **pulse_examples_search** + **pulse_examples_get** — the example library. Search by keywords, tags, or category to find a runnable template that matches the user's question; fetch the body and modify the field names for the target cohort.
+4. **pulse_skills_list** + **pulse_skills_get** — domain guides for operator families (regression-modeling, statistical-testing, financial-cohorts, geospatial-cohorts, etc.).
+5. **pulse_errors_lookup** — per-code message and fixups.
 
 # Recommended flow for a new question
 
@@ -241,7 +242,7 @@ func intentPromptDesc(in descriptor.Intent, roles []string) string {
 // and field hints are user content and never scrubbed.
 func intentPromptFlow(intentID string) string {
 	return "Follow this guided workflow:\n\n" +
-		"1. Call `pulse_inspect` on the cohort to read its fields and types. If no cohort was given, ask the user which cohort to use first.\n" +
+		"1. Call `pulse_inspect` on the cohort to read its fields and types. If no cohort was given, call `pulse_cohorts_list` to see the cohorts in the data directory and their fields, then ask the user which one to use.\n" +
 		"2. Call `pulse_recommend` with `intent: \"" + intentID + "\"`, the cohort, and `fields` set to every field hint above, in role order. Pick the top recommendation whose `bound` is true, and fill each `needs[].param` with the user.\n" +
 		"3. Call `pulse_explain` with the draft as `request` and read its summary back to the user. Confirm it answers their question before running anything.\n" +
 		"4. Call `pulse_process` with the confirmed request.\n" +

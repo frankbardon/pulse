@@ -21,7 +21,7 @@ No arguments.
 
 ## Gotchas
 
-- Pulse-format passthroughs are NOT in the list — they are not managed.
+- Managed imports ONLY: passthroughs and every other cohort are absent — `pulse_cohorts_list` lists all cohorts in the data directory.
 - `expired=true` entries are still openable (Pulse never garbage-collects the underlying `.pulse`); use `pulse_drop` to evict.
 - `pinned=true` ⇒ imported with `ttl: "pin"` (`ttl_seconds` 0); `expires_at` and `expires_in` are absent.
 
@@ -29,3 +29,4 @@ No arguments.
 
 - `tool-import` — create a managed handle.
 - `tool-drop` — explicit eviction.
+- `tool-cohorts-list` — every cohort, imported or not.

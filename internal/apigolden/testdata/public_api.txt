@@ -154,6 +154,20 @@ pulse: type CohortBuilderOptions field Shards *pulse.ShardSplit
 pulse: type CohortBuilderOptions field Strict bool
 pulse: type CohortFingerprint = pulse/internal/encoding.Fingerprint
 pulse: type CohortFingerprint underlying [32]byte
+pulse: type CohortListEntry struct
+pulse: type CohortListEntry field Error *pulse/descriptor.EnvelopeEntry "json:\"error,omitempty\""
+pulse: type CohortListEntry field Fields []pulse.CohortListField "json:\"fields\""
+pulse: type CohortListEntry field Handle string "json:\"handle,omitempty\""
+pulse: type CohortListEntry field Managed bool "json:\"managed\""
+pulse: type CohortListEntry field Path string "json:\"path\""
+pulse: type CohortListEntry field RecordCount int64 "json:\"record_count\""
+pulse: type CohortListEntry field ShardArchive bool "json:\"shard_archive\""
+pulse: type CohortListEntry field ShardCount int "json:\"shard_count,omitempty\""
+pulse: type CohortListEntry field Warnings []*pulse/descriptor.EnvelopeEntry "json:\"warnings,omitempty\""
+pulse: type CohortListField struct
+pulse: type CohortListField field Name string "json:\"name\""
+pulse: type CohortListField field Nullable bool "json:\"nullable\""
+pulse: type CohortListField field Type string "json:\"type\""
 pulse: type CohortReader struct
 pulse: type CohortReader method (*CohortReader) Close() error
 pulse: type CohortReader method (*CohortReader) Len() int64
@@ -604,6 +618,7 @@ pulse: type ImportResult field PromotedFields []string "json:\"promoted_fields,o
 pulse: type ImportResult field RowsDropped int "json:\"rows_dropped,omitempty\""
 pulse: type ImportResult field RowsImported int "json:\"rows_imported,omitempty\""
 pulse: type ImportResult field Schema *pulse/encoding.Schema "json:\"-\""
+pulse: type ImportResult field SourceFormat string "json:\"source_format,omitempty\""
 pulse: type ImportResult field SourceWarnings []*pulse/errors.CodedError "json:\"source_warnings,omitempty\""
 pulse: type ImportResult field TTLSeconds int64 "json:\"ttl_seconds,omitempty\""
 pulse: type ImportResult field WidthWarnings []*pulse/errors.CodedError "json:\"width_warnings,omitempty\""
@@ -702,6 +717,8 @@ pulse: type Limits field MaxMMMDrawValues int64
 pulse: type Limits field MaxMMMGeos int64
 pulse: type Limits field MaxMatrixDim int64
 pulse: type Limits field RequestTimeout time.Duration
+pulse: type ListCohortsOptions struct
+pulse: type ListCohortsOptions field Dir string
 pulse: func LoadMemberSetFromReader(r io.Reader, schema *pulse/encoding.Schema, fieldName string) (pulse.LoadMemberSetResult, error)
 pulse: type LoadMemberSetResult struct
 pulse: type LoadMemberSetResult field Invalid int
@@ -941,6 +958,7 @@ pulse: type Pulse method (*Pulse) InspectEnvelope(ctx context.Context, path stri
 pulse: type Pulse method (*Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]pulse.StaleSidecar, error)
 pulse: type Pulse method (*Pulse) LabelTables() []pulse.LabelTableInfo
 pulse: type Pulse method (*Pulse) Limits() pulse.Limits
+pulse: type Pulse method (*Pulse) ListCohorts(ctx context.Context, opts pulse.ListCohortsOptions) ([]pulse.CohortListEntry, error)
 pulse: type Pulse method (*Pulse) ListIndexes(ctx context.Context, path string) ([]pulse.IndexInfo, error)
 pulse: type Pulse method (*Pulse) ListShards(ctx context.Context, archivePath string) ([]pulse.ShardEntry, error)
 pulse: type Pulse method (*Pulse) ListTemplates() []pulse.TemplateSummary
@@ -7221,4 +7239,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9205b1fb92eae30ccf23040fb3993917931bfcbc01147c82d02d789d8ada5d32
+// golden-hash: 7c1bcd01e304298285e86ba1ddf72266ce7ce4e23fabdbe6f9854cb4efe27764
