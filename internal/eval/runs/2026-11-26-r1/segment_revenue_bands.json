@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "experiment.pulse"}, "groups": [{"type": "GROUP_QUANTILE", "field": "revenue", "interval": 4}], "aggregations": [{"type": "AGG_COUNT", "field": "id", "label": "n"}, {"type": "AGG_AVERAGE", "field": "session_minutes", "label": "avg_session_minutes"}]}}

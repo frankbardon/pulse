@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "experiment.pulse"}, "regressions": [{"type": "REG_OLS", "name": "revenue_model", "target": "revenue", "predictors": ["revenue_before", "session_minutes"]}], "return": {"precision": 4}}}

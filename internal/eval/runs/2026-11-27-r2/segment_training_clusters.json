@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "training_data.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "price", "label": "n"}], "groups": [{"type": "GROUP_KMEANS", "fields": ["price", "income"], "params": {"k": 3, "seed": 7}}], "return": {"preset": "standard", "precision": 4}}}

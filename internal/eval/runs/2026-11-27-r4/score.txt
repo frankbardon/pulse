@@ -1,0 +1,21 @@
+PASS benchmark_income_target
+PASS change_monthly_order_revenue
+PASS change_repeated_conditions
+PASS compare_segment_conversion
+PASS compare_variant_revenue
+PASS composition_region_share
+PASS describe_income_by_region
+PASS distribution_income_skew
+PASS drivers_revenue_ols
+PASS drivers_session_minutes_effect
+PASS flows_bronze_to_silver
+PASS lookup_experiment_unit
+PASS measure_engagement_scale
+FAIL prepare_import_intake
+PASS prepare_income_zscore
+PASS quality_missing_income
+PASS relationship_prior_spend
+FAIL segment_revenue_bands
+PASS segment_training_clusters
+FAIL simulate_test_scores
+17/20 tasks passed

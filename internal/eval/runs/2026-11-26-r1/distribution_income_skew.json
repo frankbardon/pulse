@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "customers.pulse"}, "aggregations": [{"type": "AGG_AVERAGE", "field": "income"}, {"type": "AGG_MEDIAN", "field": "income"}, {"type": "AGG_MAX", "field": "income"}, {"type": "AGG_MIN", "field": "income"}, {"type": "AGG_STDDEV", "field": "income"}]}}

@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"cohort": {"filename": "customers.pulse"}, "aggregations": [{"type": "AGG_SKEWNESS", "field": "income"}, {"type": "AGG_AVERAGE", "field": "income"}, {"type": "AGG_MEDIAN", "field": "income"}, {"type": "AGG_KURTOSIS", "field": "income"}]}}

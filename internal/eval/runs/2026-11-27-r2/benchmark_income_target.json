@@ -1,0 +1,1 @@
+{"tool": "pulse_process", "arguments": {"aggregations": [{"type": "AGG_AVERAGE", "field": "income", "label": "avg_income"}, {"type": "AGG_COUNT", "field": "income", "label": "n"}], "cohort": {"filename": "customers.pulse"}, "tests": [{"type": "TEST_T", "field": "income", "alpha": 0.05, "label": "income_vs_35000", "params": {"mu": 35000}}], "return": {"precision": 4}}}
