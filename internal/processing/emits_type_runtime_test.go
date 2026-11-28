@@ -45,8 +45,9 @@ package processing
 //     negative or fractional value in a u32 column is the actual failure
 //     mode. The ceiling IS pressed wherever it is reachable:
 //     ATTR_SET_POPCOUNT at 256 (the exact value that broke "u8"),
-//     FEAT_TRAIN_TEST_SPLIT at 2 against "u8", ATTR_SET_HAS against
-//     packed_bool.
+//     ATTR_SET_HAS against packed_bool. A FEAT_* declaration is also the
+//     materialized column type (f64), held by the root package's
+//     TestManifestFeatureEmitsTypeMatchesMaterialize.
 //   - A row on which the operator emitted NO value (a window row left
 //     null, a null-masked feature output) carries nothing to check and
 //     is skipped; every probe must still emit at least one value, so a

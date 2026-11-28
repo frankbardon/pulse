@@ -5,6 +5,7 @@ package regmmm_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -314,6 +315,7 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 				if w.Details["reason"] == regmmm.ReasonRHatHigh {
 					got := w.Details["max_rhat"].(float64)
 					return slices.Equal(w.Details["parameters"].([]string), []string{regmmm.InterceptName}) &&
+						strings.Contains(w.Message, "on 1 parameter(s):") &&
 						slices.Equal(flagged(r, regmmm.ReasonESSLow), []string{regmmm.InterceptName}) &&
 						len(w.Details["channels"].([]string)) == 0 && w.Details["threshold"] == regmmm.BayesRHatMax &&
 						got > regmmm.BayesRHatMax && (want == 0 || math.Abs(got-want) < 1e-3)
@@ -351,7 +353,11 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 			func(r *types.RegressionResult) bool {
 				for _, w := range r.Warnings {
 					if w.Details["reason"] == regmmm.ReasonESSLow {
+						// #787: the message counts details.parameters and
+						// details.channels apart, never their sum.
+						count := fmt.Sprintf("on %d parameter(s) and 1 channel ROI(s)", len(flagged(r, regmmm.ReasonESSLow)))
 						return w.Details["threshold"] == regmmm.BayesESSMin && len(flagged(r, regmmm.ReasonESSLow)) == len(r.Coefficients) &&
+							strings.Contains(w.Message, count) &&
 							slices.Equal(w.Details["channels"].([]string), []string{"tv"}) &&
 							w.Details["min_ess_bulk"].(float64) < regmmm.BayesESSMin && w.Details["min_ess_tail"].(float64) < regmmm.BayesESSMin
 					}
@@ -380,6 +386,50 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 				t.Errorf("warnings = %s", mustJSON(t, r.Warnings))
 			}
 		})
+	}
+}
+
+// TestMMMBayes_FitNamesUnnamedRegression (#787): an unnamed
+// REG_MMM_BAYES inside a named Compose fit labels its diagnostics with
+// the fit's name, never `regression ""`; outside a fit (or named) it
+// keeps its own name. The draws are doctored, so no seed matters.
+func TestMMMBayes_FitNamesUnnamedRegression(t *testing.T) {
+	// serial: swaps the package-level MMM sampler hook (bayesSampler)
+
+	regmmm.SetBayesSampler(t, func(float64) mcmc.Sampler { return doctoredSampler{sticky: 50} })
+	p := bayesInstance(t, nil)
+	const doctored = `{"channels":["tv"],"chains":2,"warmup":150,"draws":1000}`
+	unnamed := regmmm.BayesSpec(doctored)
+	unnamed.Name = ""
+	resp, err := p.Compose(context.Background(), &types.ComposedRequest{
+		Fits: []types.FitSpec{{Name: "mmm", Request: bayesRequest(regmmm.BayesCohort, unnamed)}},
+		Requests: []*types.Request{{Cohort: &types.Cohort{Filename: regmmm.BayesCohort},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "sales", Label: "n"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var seen int
+	for _, w := range resp.Warnings {
+		if w.Code != string(perr.PROCESSING_REGRESSION_DIAGNOSTIC) {
+			continue
+		}
+		seen++
+		if !strings.Contains(w.Message, `regression "mmm":`) {
+			t.Errorf("fit diagnostic %q does not name the fit", w.Message)
+		}
+	}
+	if seen == 0 {
+		t.Fatalf("no diagnostic raised: %s", mustJSON(t, resp.Warnings))
+	}
+	// Standalone and unnamed: no fit to fall back to; named: its own.
+	for name, want := range map[string]string{"": `regression "":`, "bayes": `regression "bayes":`} {
+		spec := regmmm.BayesSpec(doctored)
+		spec.Name = name
+		r := process(t, p, bayesRequest(regmmm.BayesCohort, spec)).Regressions[0]
+		if len(r.Warnings) == 0 || !strings.Contains(r.Warnings[0].Message, want) {
+			t.Errorf("name %q: warnings %s, want %s", name, mustJSON(t, r.Warnings), want)
+		}
 	}
 }
 

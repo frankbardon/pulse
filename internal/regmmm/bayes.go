@@ -864,7 +864,7 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	return r.output(post), nil
+	return r.output(ctx, post), nil
 }
 
 // addLiftTests resolves params.lift_tests onto the fitted rows: a

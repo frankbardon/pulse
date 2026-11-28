@@ -1,6 +1,7 @@
 package regmmm
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -10,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/mcmc"
 	"github.com/frankbardon/pulse/types"
@@ -143,6 +145,18 @@ func paramChains(draws [][][]float64, j int) [][]float64 {
 	return out
 }
 
+// flaggedCount spells a diagnostic's failures as its details list them:
+// "<n> parameter(s)" counting details.parameters exactly, plus "and <m>
+// channel ROI(s)" for details.channels when any (#787: the message once
+// summed both as parameters).
+func flaggedCount(params, channels []string) string {
+	s := fmt.Sprintf("%d parameter(s)", len(params))
+	if len(channels) > 0 {
+		s += fmt.Sprintf(" and %d channel ROI(s)", len(channels))
+	}
+	return s
+}
+
 // health accumulates the convergence checks over the reported
 // parameters: the worst figures and who failed each check.
 type health struct {
@@ -193,9 +207,11 @@ func nonNil(s []string) []string {
 
 // output is the regression output: the coefficient table (posterior
 // mean and SD), the posterior covariance, the Outputs and the coded
-// sampler-health warnings.
-func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
+// sampler-health warnings. Their messages name the regression, or the
+// Compose fit it runs under when it has no name (pmodel.RegressionLabel).
+func (r *bayesRegression) output(ctx context.Context, post *bayesPosterior) extend.RegressionOutput {
 	cfg := r.cfg
+	label := pmodel.RegressionLabel(ctx, cfg.name)
 	mean, cov := posteriorMoments(post.coefs)
 	names := post.names
 	if names == nil {
@@ -273,22 +289,22 @@ func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
 	if len(cfg.liftOverlap) > 0 {
 		warnings = append(warnings, &types.ResponseWarning{Code: string(perr.PULSE_MMM_LIFT_PRIOR_OVERLAP),
 			Message: fmt.Sprintf("%s regression %q: channel(s) %s carry both an roi prior and a lift test; a prior built from the same experiment counts its evidence twice — drop one",
-				BayesName, cfg.name, strings.Join(cfg.liftOverlap, ", ")),
+				BayesName, label, strings.Join(cfg.liftOverlap, ", ")),
 			Details: map[string]any{"channels": slices.Clone(cfg.liftOverlap)}})
 	}
 	warn := func(reason, msg string, details map[string]any) {
 		details["reason"] = reason
 		warnings = append(warnings, &types.ResponseWarning{Code: string(perr.PROCESSING_REGRESSION_DIAGNOSTIC),
-			Message: fmt.Sprintf("%s regression %q: %s; the posterior summaries may not be trustworthy", BayesName, cfg.name, msg), Details: details})
+			Message: fmt.Sprintf("%s regression %q: %s; the posterior summaries may not be trustworthy", BayesName, label, msg), Details: details})
 	}
 	if len(h.rhatParams)+len(h.rhatChannels) > 0 {
-		warn(reasonRHatHigh, fmt.Sprintf("R-hat is above %v (or undefined, with one chain) on %d parameter(s): the chains disagree — raise warmup / draws",
-			bayesRHatMax, len(h.rhatParams)+len(h.rhatChannels)),
+		warn(reasonRHatHigh, fmt.Sprintf("R-hat is above %v (or undefined, with one chain) on %s: the chains disagree — raise warmup / draws",
+			bayesRHatMax, flaggedCount(h.rhatParams, h.rhatChannels)),
 			map[string]any{"threshold": bayesRHatMax, "max_rhat": h.maxRHat, "parameters": nonNil(h.rhatParams), "channels": nonNil(h.rhatChannels)})
 	}
 	if len(h.essParams)+len(h.essChannels) > 0 {
-		warn(reasonESSLow, fmt.Sprintf("the bulk or tail effective sample size is below %d on %d parameter(s) — raise draws",
-			bayesESSMin, len(h.essParams)+len(h.essChannels)),
+		warn(reasonESSLow, fmt.Sprintf("the bulk or tail effective sample size is below %d on %s — raise draws",
+			bayesESSMin, flaggedCount(h.essParams, h.essChannels)),
 			map[string]any{"threshold": bayesESSMin, "min_ess_bulk": h.minBulk, "min_ess_tail": h.minTail,
 				"parameters": nonNil(h.essParams), "channels": nonNil(h.essChannels)})
 	}

@@ -806,6 +806,9 @@
           "regressions[*].l1_ratio",
           "regressions[*].prior",
           "regressions[*].resample",
+          "regressions[*].bootstrap_requested",
+          "regressions[*].bootstrap_succeeded",
+          "regressions[*].jackknife_groups",
           "regressions[*].criterion",
           "regressions[*].coefficients",
           "regressions[*].std_errors",
@@ -819,6 +822,13 @@
           "regressions[*].deviance",
           "regressions[*].null_deviance",
           "regressions[*].pseudo_r2",
+          "regressions[*].reference",
+          "regressions[*].categories",
+          "regressions[*].theta",
+          "regressions[*].theta_std_err",
+          "regressions[*].two_log_lik",
+          "regressions[*].aic",
+          "regressions[*].dispersion",
           "regressions[*].n_obs",
           "regressions[*].sum_weights",
           "regressions[*].n_eff",
@@ -950,4 +960,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 54f139a1581919f84c608d572d1ac8800d0a529d394bfcbd138efef7f25c7775
+// golden-hash: d369c4c277afbe3151af83ef633c15712fd957a94a3cd15acd6f1013b578c907

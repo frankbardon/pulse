@@ -70,13 +70,19 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"post_tests[*].label", "post_tests[*].type", "post_tests[*].group_key", "post_tests[*].variant", "post_tests[*].statistic", "post_tests[*].df",
 		"post_tests[*].p_value", "post_tests[*].alpha", "post_tests[*].reject_null", "post_tests[*].p_adjusted",
 		"post_tests[*].significant_adjusted", "post_tests[*].multiplicity", "post_tests[*].details.effect_size",
-		// regressions[*] minus credible_intervals and selection
+		// regressions[*] minus credible_intervals and selection (the two
+		// bulky blocks; every other RegressionResult key is kept —
+		// TestReturnPresetStandard_RegressionMembership pins it)
 		"regressions[*].name", "regressions[*].type", "regressions[*].family", "regressions[*].link",
 		"regressions[*].penalty", "regressions[*].alpha", "regressions[*].l1_ratio", "regressions[*].prior",
-		"regressions[*].resample", "regressions[*].criterion", "regressions[*].coefficients",
+		"regressions[*].resample", "regressions[*].bootstrap_requested", "regressions[*].bootstrap_succeeded",
+		"regressions[*].jackknife_groups", "regressions[*].criterion", "regressions[*].coefficients",
 		"regressions[*].std_errors", "regressions[*].p_values", "regressions[*].ci_lower", "regressions[*].ci_upper",
 		"regressions[*].df", "regressions[*].conf_level", "regressions[*].r2", "regressions[*].adj_r2",
 		"regressions[*].deviance", "regressions[*].null_deviance", "regressions[*].pseudo_r2",
+		"regressions[*].reference", "regressions[*].categories", "regressions[*].theta", "regressions[*].theta_std_err",
+		"regressions[*].two_log_lik", "regressions[*].aic", "regressions[*].dispersion",
+		"regressions[*].p_adjusted", "regressions[*].significant_adjusted", "regressions[*].multiplicity",
 		"regressions[*].n_obs", "regressions[*].sum_weights", "regressions[*].n_eff",
 		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
 		"regressions[*].vcov", "regressions[*].correlation", "regressions[*].covariance",

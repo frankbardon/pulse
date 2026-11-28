@@ -21,7 +21,7 @@ func TestMMMBayes_LiftAbsentDigest(t *testing.T) {
 	t.Parallel()
 
 	const base = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30`
-	const want = "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"
+	const want = "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"
 	for _, params := range []string{base + `,"lift_tests":[]}`, base + `,"lift_tests":null}`} {
 		if got := fitDigest(t, params, 99); got != want {
 			t.Errorf("%s: digest %s, want %s", params, got, want)
@@ -62,8 +62,8 @@ func TestMMMBayes_GeoPerCurvesAbsentDigest(t *testing.T) {
 
 	const base = geoParams + `,"chains":1,"warmup":20,"draws":10`
 	for _, c := range []struct{ params, want string }{
-		{base, "7a82326b26438942325ab970a912ba1e2be6487a91b55c6a121656eb5a43acc1"},
-		{base + `,"target_accept":0.8`, "c49dfdc172bf47df36f360c17a39fd1d95c1afe06c1fda2856c38538e1695209"},
+		{base, "4abcc3d90b588547cb0deb7e18a6edb8cc91adb53a991f1c5fdb345751877928"},
+		{base + `,"target_accept":0.8`, "d2c2c56f7b458a937360a8577316c65cc75e7ab67d67c30fb6ef7f58d9dcc045"},
 	} {
 		for _, params := range []string{c.params + `}`, c.params + `,"per_geo_curves":false}`, c.params + `,"lift_tests":[]}`} {
 			if got := geoFitDigest(t, params, 99); got != c.want {
@@ -80,7 +80,7 @@ func TestMMMBayes_LiftDigest(t *testing.T) {
 	t.Parallel()
 
 	const params = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30,"lift_tests":[{"channel":"tv","start":10,"end":20,"spend_delta":-300,"lift":-150,"se":20}]}`
-	if got, want := fitDigest(t, params, 99), "ad3550f6aee9904b7d95a34c17b8e27045fbdc5ecca02785aee39c0b2dbc01ee"; got != want {
+	if got, want := fitDigest(t, params, 99), "348b3dbec3db5c900bada891b307fc04669985fc9d957c6fb882a494ede09059"; got != want {
 		t.Errorf("digest %s, want %s", got, want)
 	}
 }

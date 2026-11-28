@@ -7188,8 +7188,8 @@
             "u64",
             "u8"
           ],
-          "emits_type": "u32",
-          "emits_type_note": "single column \"\u003clabel\u003e\" with bucket index per row",
+          "emits_type": "f64",
+          "emits_type_note": "single column \"\u003clabel\u003e\" with the 0-based bucket index per row (a whole number)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -7230,7 +7230,7 @@
             "categorical_u8",
             "packed_bool"
           ],
-          "emits_type": "f32",
+          "emits_type": "f64",
           "emits_type_note": "single column \"\u003clabel\u003e\" with frequency per row",
           "streamable": true,
           "component_schema": {
@@ -7273,7 +7273,7 @@
         {
           "name": "FEAT_ONE_HOT",
           "category": "feature",
-          "description": "One-hot encode a categorical field as one f32 column per dictionary entry; a packed_bool's levels are \"0\" / \"1\".",
+          "description": "One-hot encode a categorical field as one f64 (0 / 1) column per dictionary entry; a packed_bool's levels are \"0\" / \"1\".",
           "params": null,
           "accepts_types": [
             "categorical_u16",
@@ -7399,7 +7399,7 @@
             "categorical_u8",
             "packed_bool"
           ],
-          "emits_type": "f32",
+          "emits_type": "f64",
           "emits_type_note": "single column \"\u003clabel\u003e\"; leaks the holdout's outcomes unless fit_on names the training rows",
           "streamable": true,
           "component_schema": {
@@ -7476,8 +7476,8 @@
             "u64",
             "u8"
           ],
-          "emits_type": "u8",
-          "emits_type_note": "single column \"\u003clabel\u003e\" with split assignment per row",
+          "emits_type": "f64",
+          "emits_type_note": "single column \"\u003clabel\u003e\" with split assignment per row (0, 1 or 2)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -22052,6 +22052,9 @@
           "regressions[*].l1_ratio",
           "regressions[*].prior",
           "regressions[*].resample",
+          "regressions[*].bootstrap_requested",
+          "regressions[*].bootstrap_succeeded",
+          "regressions[*].jackknife_groups",
           "regressions[*].criterion",
           "regressions[*].coefficients",
           "regressions[*].std_errors",
@@ -22065,6 +22068,16 @@
           "regressions[*].deviance",
           "regressions[*].null_deviance",
           "regressions[*].pseudo_r2",
+          "regressions[*].reference",
+          "regressions[*].categories",
+          "regressions[*].theta",
+          "regressions[*].theta_std_err",
+          "regressions[*].two_log_lik",
+          "regressions[*].aic",
+          "regressions[*].dispersion",
+          "regressions[*].p_adjusted",
+          "regressions[*].significant_adjusted",
+          "regressions[*].multiplicity",
           "regressions[*].n_obs",
           "regressions[*].sum_weights",
           "regressions[*].n_eff",
@@ -22214,4 +22227,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 118480a1b6946f4933f0a0b286462dd7da73c28adaac2f36adfe39f0fa26f799
+// golden-hash: 3fe7ca4982e2e7a2b4b4a2d8e5c29c8e6fece35cee4db5bd1eaf80048db1e837

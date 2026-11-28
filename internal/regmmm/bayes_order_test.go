@@ -51,8 +51,8 @@ func TestMMMBayes_OrderIsTheTimeAlias(t *testing.T) {
 		seed   int64
 		want   string
 	}{
-		{"order_only_derived_seed", `{"channels":["tv"],` + tail, 0, "c5253d29b46fd7911b0cb3de70c061ab0f69138ea7449736e77c2f74b21fcab3"},
-		{"order_only_explicit_seed", `{"channels":["tv"],` + tail, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
+		{"order_only_derived_seed", `{"channels":["tv"],` + tail, 0, "9d823f85c561c3d2023f857786e2935d489237383144c5b4918ed4d9a4101642"},
+		{"order_only_explicit_seed", `{"channels":["tv"],` + tail, 99, "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

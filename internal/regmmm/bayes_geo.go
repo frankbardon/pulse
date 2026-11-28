@@ -294,7 +294,7 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	return r.output(post), nil
+	return r.output(ctx, post), nil
 }
 
 // addGeoLiftTests resolves params.lift_tests onto the panel: each test's

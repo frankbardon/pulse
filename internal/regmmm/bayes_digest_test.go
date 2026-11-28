@@ -62,11 +62,11 @@ func TestMMMBayes_GeometricDefaultDigest(t *testing.T) {
 		seed   int64
 		want   string
 	}{
-		{base + `}`, 0, "c5253d29b46fd7911b0cb3de70c061ab0f69138ea7449736e77c2f74b21fcab3"},
-		{base + `}`, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
-		{base + `,"adstock":"geometric"}`, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
-		{base + `,"saturation":"hill"}`, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
-		{base + `,"adstock":"geometric","saturation":"hill"}`, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
+		{base + `}`, 0, "9d823f85c561c3d2023f857786e2935d489237383144c5b4918ed4d9a4101642"},
+		{base + `}`, 99, "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"},
+		{base + `,"adstock":"geometric"}`, 99, "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"},
+		{base + `,"saturation":"hill"}`, 99, "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"},
+		{base + `,"adstock":"geometric","saturation":"hill"}`, 99, "e33f4e12579d6296ac8700f9229b3ed26516cafd7b3bbf7aa0f2bf6b79cd9879"},
 	} {
 		if got := fitDigest(t, tc.params, tc.seed); got != tc.want {
 			t.Errorf("%s seed %d: digest %s, want %s", tc.params, tc.seed, got, tc.want)
