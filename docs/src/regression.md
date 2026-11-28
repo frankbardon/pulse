@@ -98,7 +98,7 @@ Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and t
 - **`intercept: false`.** Fits through the origin. The intercept is pinned to 0, not estimated: `coefficients["(intercept)"]` is `0`, so a bound fit scores unchanged, and its `std_errors`, `p_values`, `ci_lower` / `ci_upper` and `vcov` row are `null`. As R's `lm(y ~ 0 + x)` reports, `r2` is the uncentred Σŷ² / Σy², the residual `df` is N* − p, and `adj_r2` is 1 − (1 − R²)·N*/df. NIST NoInt1 and NoInt2 agree to 14 and 15 digits.
 - **Refusals.** Both knobs are `REG_OLS` only and are refused `PROCESSING_CONFIG` (predict too) on another type. `solver` is also refused beside a penalty or `bounds`. `intercept: false` is also refused beside a penalty, `bounds`, `selection`, `resample`, `holdout`, a robust `covariance` or `solver: "normal"`.
 
-Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` (advisory, l1/elasticnet without resample: null SEs / p-values), `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (advisory, a binding `bounds` without resample: null SEs / p-values), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
+Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` (advisory, l1/elasticnet without resample: null SEs / p-values), `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (advisory, a binding `bounds` without resample: null SEs / p-values), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
 
 ### `REG_GLM`
 
@@ -534,7 +534,6 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`        | XᵀX is singular; add regularization or drop a predictor.                       |
 | `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `max_iters`.                         |
-| `PROCESSING_REGRESSION_SINGULAR_GRAM`         | XᵀX non-invertible even after regularization; increase `alpha`.               |
 | `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma, negative_binomial}`.     |
 | `PROCESSING_REGRESSION_INVALID_LINK`          | Link not one of the chosen Family's (`details.allowed`).                      |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |

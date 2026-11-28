@@ -35,7 +35,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2868 | 0 |
+| [Go API symbols](#go-api-symbols) | 2853 | 0 |
 | [Options fields](#options-fields) | 36 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -46,7 +46,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
 | [Field types](#field-types) | 22 | 0 |
-| [Error codes](#error-codes) | 496 | 0 |
+| [Error codes](#error-codes) | 481 | 0 |
 | [Environment variables](#environment-variables) | 10 | 0 |
 
 ## Go API symbols
@@ -901,10 +901,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.AllCodes` |  |  | yes |
 | `errors.AllDomains` |  |  | yes |
 | `errors.ByDomain` |  |  | yes |
-| `errors.CLI_COMMAND` |  |  | yes |
 | `errors.CLI_ERROR` |  |  | yes |
 | `errors.CLI_INPUT` |  |  | yes |
-| `errors.CLI_INTERNAL` |  |  | yes |
 | `errors.CLI_OUTPUT` |  |  | yes |
 | `errors.Code` |  |  | yes |
 | `errors.Code.Fixup` |  |  | yes |
@@ -912,11 +910,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.CodedError.Error` |  |  | yes |
 | `errors.CodedError.MarshalJSON` |  |  | yes |
 | `errors.CodedError.Unwrap` |  |  | yes |
-| `errors.DATA_CALCULATION` |  |  | yes |
-| `errors.DATA_CONFIG` |  |  | yes |
 | `errors.DATA_FILE` |  |  | yes |
-| `errors.DATA_INTERNAL` |  |  | yes |
-| `errors.DATA_PARSE` |  |  | yes |
 | `errors.DetailSPSSActual` |  |  | yes |
 | `errors.DetailSPSSActualCases` |  |  | yes |
 | `errors.DetailSPSSBlock` |  |  | yes |
@@ -982,10 +976,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PROCESSING_REGRESSION_RANK_DEFICIENT` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_REGULARIZED_SELECTION` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_SEPARATION` |  |  | yes |
-| `errors.PROCESSING_REGRESSION_SINGULAR_GRAM` |  |  | yes |
 | `errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED` |  |  | yes |
 | `errors.PROCESSING_RUNTIME` |  |  | yes |
-| `errors.PROCESSING_STATE` |  |  | yes |
 | `errors.PROCESSING_VECTOR_LENGTH_MISMATCH` |  |  | yes |
 | `errors.PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` |  |  | yes |
 | `errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` |  |  | yes |
@@ -1025,7 +1017,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL` |  |  | yes |
 | `errors.PULSE_CROSSTAB_CELLS_INVALID` |  |  | yes |
 | `errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS` |  |  | yes |
-| `errors.PULSE_CROSSTAB_EMPTY_COLUMNS` |  |  | yes |
 | `errors.PULSE_CROSSTAB_EMPTY_ROWS` |  |  | yes |
 | `errors.PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL` |  |  | yes |
 | `errors.PULSE_CROSSTAB_MARGIN_AGG_INVALID` |  |  | yes |
@@ -1123,7 +1114,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_INDEX_MANIFEST_STALE` |  |  | yes |
 | `errors.PULSE_INDEX_MISSING` |  |  | yes |
 | `errors.PULSE_INDEX_STALE` |  |  | yes |
-| `errors.PULSE_INDEX_UNSUPPORTED_SHARDED` |  |  | yes |
 | `errors.PULSE_IO_FORMAT_UNSUPPORTED` |  |  | yes |
 | `errors.PULSE_JOIN_FIELD_COLLISION` |  |  | yes |
 | `errors.PULSE_JOIN_FIELD_UNKNOWN` |  |  | yes |
@@ -1259,7 +1249,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_POSTFIT_FAILED` |  |  | yes |
 | `errors.PULSE_POSTFIT_INVALID` |  |  | yes |
 | `errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` |  |  | yes |
-| `errors.PULSE_PROFILE_FIELD_UNSUPPORTED` |  |  | yes |
 | `errors.PULSE_RAKE_EMPTY_CELL` |  |  | yes |
 | `errors.PULSE_RAKE_INVALID` |  |  | yes |
 | `errors.PULSE_RAKE_MISSING_VALUE` |  |  | yes |
@@ -1399,7 +1388,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_TEST_EXPECTED_LABEL_MISSING` |  |  | yes |
 | `errors.PULSE_TEST_FIELD2_NOT_NUMERIC` |  |  | yes |
 | `errors.PULSE_TEST_FIELD_NOT_NUMERIC` |  |  | yes |
-| `errors.PULSE_TEST_FISHER_R_OR_C_GT_2` |  |  | yes |
 | `errors.PULSE_TEST_INSUFFICIENT_N` |  |  | yes |
 | `errors.PULSE_TEST_INVALID_ALPHA` |  |  | yes |
 | `errors.PULSE_TEST_P0_INVALID` |  |  | yes |
@@ -1407,12 +1395,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_TEST_PARTITION_INVALID` |  |  | yes |
 | `errors.PULSE_TEST_REFERENCE_INVALID` |  |  | yes |
 | `errors.PULSE_TEST_REFERENCE_MISSING` |  |  | yes |
-| `errors.PULSE_TEST_SHAPIRO_N_BOUND` |  |  | yes |
 | `errors.PULSE_TEST_SPLIT_GROUPS_LT_2` |  |  | yes |
 | `errors.PULSE_TEST_SUBJECT_MISSING` |  |  | yes |
 | `errors.PULSE_TEST_SUCCESS_VALUE_MISSING` |  |  | yes |
 | `errors.PULSE_TEST_TIES_DOMINATE` |  |  | yes |
-| `errors.PULSE_TEST_TUKEY_REQUIRES_K_GE_3` |  |  | yes |
 | `errors.PULSE_TEST_UNKNOWN_TYPE` |  |  | yes |
 | `errors.PULSE_TEST_VARIANCE_ZERO` |  |  | yes |
 | `errors.PULSE_TIMEZONE_UNKNOWN` |  |  | yes |
@@ -1448,7 +1434,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_WINDOW_INVALID` |  |  | yes |
 | `errors.ParseCode` | yes |  | yes |
 | `errors.SERVICE_INTERNAL` |  |  | yes |
-| `errors.SERVICE_REGISTRY` |  |  | yes |
 | `errors.SERVICE_RESOURCE` |  |  | yes |
 | `errors.SERVICE_VALIDATION` |  |  | yes |
 | `errors.Search` |  |  | yes |
@@ -3695,16 +3680,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Identifier | mdBook | Skill pack |
 |---|---|---|
-| `CLI_COMMAND` | yes |  |
 | `CLI_ERROR` | yes |  |
 | `CLI_INPUT` | yes | yes |
-| `CLI_INTERNAL` | yes |  |
 | `CLI_OUTPUT` | yes |  |
-| `DATA_CALCULATION` | yes |  |
-| `DATA_CONFIG` | yes |  |
 | `DATA_FILE` | yes | yes |
-| `DATA_INTERNAL` | yes |  |
-| `DATA_PARSE` | yes |  |
 | `ENCODING_INTERNAL` | yes |  |
 | `ENCODING_INVALID` | yes | yes |
 | `ENCODING_IO` | yes |  |
@@ -3723,10 +3702,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PROCESSING_REGRESSION_RANK_DEFICIENT` | yes | yes |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | yes | yes |
 | `PROCESSING_REGRESSION_SEPARATION` | yes | yes |
-| `PROCESSING_REGRESSION_SINGULAR_GRAM` | yes |  |
 | `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` | yes | yes |
 | `PROCESSING_RUNTIME` | yes | yes |
-| `PROCESSING_STATE` | yes |  |
 | `PROCESSING_VECTOR_LENGTH_MISMATCH` | yes | yes |
 | `PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC` | yes | yes |
 | `PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT` | yes | yes |
@@ -3766,7 +3743,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL` | yes | yes |
 | `PULSE_CROSSTAB_CELLS_INVALID` | yes | yes |
 | `PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS` | yes | yes |
-| `PULSE_CROSSTAB_EMPTY_COLUMNS` | yes |  |
 | `PULSE_CROSSTAB_EMPTY_ROWS` | yes | yes |
 | `PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL` | yes | yes |
 | `PULSE_CROSSTAB_MARGIN_AGG_INVALID` | yes | yes |
@@ -3864,7 +3840,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_INDEX_MANIFEST_STALE` | yes | yes |
 | `PULSE_INDEX_MISSING` | yes | yes |
 | `PULSE_INDEX_STALE` | yes | yes |
-| `PULSE_INDEX_UNSUPPORTED_SHARDED` | yes |  |
 | `PULSE_IO_FORMAT_UNSUPPORTED` | yes | yes |
 | `PULSE_JOIN_FIELD_COLLISION` | yes | yes |
 | `PULSE_JOIN_FIELD_UNKNOWN` | yes | yes |
@@ -4000,7 +3975,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_POSTFIT_FAILED` | yes | yes |
 | `PULSE_POSTFIT_INVALID` | yes | yes |
 | `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` | yes | yes |
-| `PULSE_PROFILE_FIELD_UNSUPPORTED` | yes | yes |
 | `PULSE_RAKE_EMPTY_CELL` | yes | yes |
 | `PULSE_RAKE_INVALID` | yes | yes |
 | `PULSE_RAKE_MISSING_VALUE` | yes | yes |
@@ -4140,7 +4114,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEST_EXPECTED_LABEL_MISSING` | yes | yes |
 | `PULSE_TEST_FIELD2_NOT_NUMERIC` | yes | yes |
 | `PULSE_TEST_FIELD_NOT_NUMERIC` | yes | yes |
-| `PULSE_TEST_FISHER_R_OR_C_GT_2` | yes |  |
 | `PULSE_TEST_INSUFFICIENT_N` | yes | yes |
 | `PULSE_TEST_INVALID_ALPHA` | yes | yes |
 | `PULSE_TEST_P0_INVALID` | yes | yes |
@@ -4148,12 +4121,10 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEST_PARTITION_INVALID` | yes |  |
 | `PULSE_TEST_REFERENCE_INVALID` | yes | yes |
 | `PULSE_TEST_REFERENCE_MISSING` | yes | yes |
-| `PULSE_TEST_SHAPIRO_N_BOUND` | yes | yes |
 | `PULSE_TEST_SPLIT_GROUPS_LT_2` | yes | yes |
 | `PULSE_TEST_SUBJECT_MISSING` | yes | yes |
 | `PULSE_TEST_SUCCESS_VALUE_MISSING` | yes | yes |
 | `PULSE_TEST_TIES_DOMINATE` | yes | yes |
-| `PULSE_TEST_TUKEY_REQUIRES_K_GE_3` | yes |  |
 | `PULSE_TEST_UNKNOWN_TYPE` | yes |  |
 | `PULSE_TEST_VARIANCE_ZERO` | yes | yes |
 | `PULSE_TIMEZONE_UNKNOWN` | yes | yes |
@@ -4188,7 +4159,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_WEIGHT_UNSUPPORTED` | yes | yes |
 | `PULSE_WINDOW_INVALID` | yes | yes |
 | `SERVICE_INTERNAL` | yes | yes |
-| `SERVICE_REGISTRY` | yes |  |
 | `SERVICE_RESOURCE` | yes | yes |
 | `SERVICE_VALIDATION` | yes | yes |
 

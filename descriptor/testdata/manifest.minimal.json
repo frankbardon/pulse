@@ -396,7 +396,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 117,
+    "error_codes_count": 109,
     "error_domains": [
       "CLI",
       "DATA",
@@ -406,16 +406,10 @@
       "SERVICE"
     ],
     "error_codes": [
-      "CLI_COMMAND",
       "CLI_ERROR",
       "CLI_INPUT",
-      "CLI_INTERNAL",
       "CLI_OUTPUT",
-      "DATA_CALCULATION",
-      "DATA_CONFIG",
       "DATA_FILE",
-      "DATA_INTERNAL",
-      "DATA_PARSE",
       "ENCODING_INTERNAL",
       "ENCODING_INVALID",
       "ENCODING_IO",
@@ -426,7 +420,6 @@
       "PROCESSING_PANIC",
       "PROCESSING_REGRESSION_DIAGNOSTIC",
       "PROCESSING_RUNTIME",
-      "PROCESSING_STATE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
@@ -520,7 +513,6 @@
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
-      "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
       "SERVICE_VALIDATION"
     ],
@@ -1492,4 +1484,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9e0b029443e2fe748263c13302e89c6e5adbdeed79b7caf1da6143f3ddd54bc7
+// golden-hash: fb13974543d8fbef0f8c89de45d38af86d1d0fb3228af190f8e92103b521530f

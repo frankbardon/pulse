@@ -126,3 +126,130 @@ func envVarNames(t *testing.T) map[string]bool {
 	}
 	return out
 }
+
+// codeRegistryFiles declare or describe every code without emitting
+// one: the constants, their metadata and their feature owners.
+var codeRegistryFiles = map[string]bool{
+	"errors/codes.go":                     true,
+	"errors/fixup_metadata.go":            true,
+	"internal/descriptor/error_owners.go": true,
+}
+
+// reservedCodes are registered codes no production path emits yet, each
+// with the reason it stays registered. Keep it short: a code nothing
+// will emit is retired (constant, metadata, owner, docs, a
+// doccheck.RemovedNames entry and a migration row), not listed here.
+var reservedCodes = map[perrors.Code]string{
+	perrors.PULSE_DECIMAL_PRECISION_LOSS: "documented warning for a decimal variance / stddev that falls back to f64 (decimalAggResult.FellBack); no orchestrator raises it yet",
+}
+
+// TestRegisteredCodesEmittedOrReserved: every registered code is emitted
+// by some non-test Go file — named as a value (an argument, a return, a
+// field or a map value), not merely matched against (a map key, a case
+// label, an ==/!= operand, an errors.HasCode argument) — or is listed in
+// reservedCodes with its reason. The converse of
+// TestEmittedCodeLiteralsRegistered: a code `pulse errors lookup` and
+// the manifest list is one a caller can receive (#796).
+func TestRegisteredCodesEmittedOrReserved(t *testing.T) {
+	t.Parallel()
+
+	registered := map[string]bool{}
+	for _, c := range perrors.AllCodes() {
+		registered[string(c)] = true
+	}
+	emitted := map[string]bool{}
+	fset := token.NewFileSet()
+	for _, path := range findGoFiles(t, ".") {
+		slash := filepath.ToSlash(path)
+		if strings.HasSuffix(path, "_test.go") || codeRegistryFiles[slash] {
+			continue
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !domainCodeWord.Match(src) {
+			continue
+		}
+		f, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", path, err)
+		}
+		for name := range codeValueNames(f, registered) {
+			emitted[name] = true
+		}
+	}
+	for _, c := range perrors.AllCodes() {
+		_, reserved := reservedCodes[c]
+		switch {
+		case emitted[string(c)] && reserved:
+			t.Errorf("%s is emitted now: drop it from reservedCodes", c)
+		case !emitted[string(c)] && !reserved:
+			t.Errorf("%s is registered but no production code emits it: emit it, retire it (constant, codeMetadata, owner, docs, doccheck.RemovedNames, a migration row) or list it in reservedCodes with a reason", c)
+		}
+	}
+}
+
+// domainCodeWord pre-filters files: only a file spelling a
+// domain-prefixed word can name a code.
+var domainCodeWord = regexp.MustCompile(`\b(CLI|DATA|ENCODING|PROCESSING|PULSE|SERVICE)_[A-Z0-9_]+`)
+
+// codeValueNames returns the registered codes f names as a value: an
+// identifier (errors.X / X) or an exact string literal, outside the
+// match-only positions (a composite-literal key, a case label, an ==/!=
+// operand, an argument of a HasCode call).
+func codeValueNames(f *ast.File, registered map[string]bool) map[string]bool {
+	matchOnly := map[ast.Node]bool{}
+	mark := func(e ast.Node) {
+		ast.Inspect(e, func(n ast.Node) bool {
+			matchOnly[n] = true
+			return true
+		})
+	}
+	out := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.KeyValueExpr:
+			switch k := x.Key.(type) {
+			case *ast.SelectorExpr:
+				mark(k)
+			case *ast.Ident:
+				if registered[k.Name] {
+					mark(k)
+				}
+			}
+		case *ast.CaseClause:
+			for _, e := range x.List {
+				mark(e)
+			}
+		case *ast.BinaryExpr:
+			if x.Op == token.EQL || x.Op == token.NEQ {
+				mark(x.X)
+				mark(x.Y)
+			}
+		case *ast.CallExpr:
+			if sel, ok := x.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "HasCode" {
+				for _, a := range x.Args {
+					mark(a)
+				}
+			}
+		}
+		if matchOnly[n] {
+			return true
+		}
+		switch x := n.(type) {
+		case *ast.Ident:
+			if registered[x.Name] {
+				out[x.Name] = true
+			}
+		case *ast.BasicLit:
+			if x.Kind == token.STRING {
+				if s, err := strconv.Unquote(x.Value); err == nil && registered[s] {
+					out[s] = true
+				}
+			}
+		}
+		return true
+	})
+	return out
+}

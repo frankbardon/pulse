@@ -825,7 +825,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 209,
+    "error_codes_count": 200,
     "error_domains": [
       "CLI",
       "DATA",
@@ -835,16 +835,10 @@
       "SERVICE"
     ],
     "error_codes": [
-      "CLI_COMMAND",
       "CLI_ERROR",
       "CLI_INPUT",
-      "CLI_INTERNAL",
       "CLI_OUTPUT",
-      "DATA_CALCULATION",
-      "DATA_CONFIG",
       "DATA_FILE",
-      "DATA_INTERNAL",
-      "DATA_PARSE",
       "ENCODING_INTERNAL",
       "ENCODING_INVALID",
       "ENCODING_IO",
@@ -855,7 +849,6 @@
       "PROCESSING_PANIC",
       "PROCESSING_REGRESSION_DIAGNOSTIC",
       "PROCESSING_RUNTIME",
-      "PROCESSING_STATE",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
@@ -867,7 +860,6 @@
       "PULSE_COHORT_COMPRESSED",
       "PULSE_CROSSTAB_AGG_UNCLASSIFIED",
       "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS",
-      "PULSE_CROSSTAB_EMPTY_COLUMNS",
       "PULSE_CROSSTAB_EMPTY_ROWS",
       "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL",
       "PULSE_CROSSTAB_MARGIN_AGG_INVALID",
@@ -1041,7 +1033,6 @@
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
-      "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
       "SERVICE_VALIDATION"
     ],
@@ -2514,4 +2505,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8137e20d353d7ff018cd6598ebd8e8ae8a9003ae48908bd529e246fa44a94a74
+// golden-hash: f7d45ba9235ba939c0242d8ad63c4910db2da189727d132295b4a4c7b4ca96eb

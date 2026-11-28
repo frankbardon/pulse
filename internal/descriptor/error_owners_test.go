@@ -249,17 +249,17 @@ func TestErrorLookup_HiddenCodeNotFound(t *testing.T) {
 func TestErrorLookup_FixupStrip(t *testing.T) {
 	t.Parallel()
 
-	full, _ := errors.Lookup("PULSE_TEST_TUKEY_REQUIRES_K_GE_3")
-	if len(full.Fixups) != 1 || !strings.Contains(full.Fixups[0].Hint, "TEST_WELCH") {
+	full, _ := errors.Lookup("PULSE_TEST_EXPECTED_COUNT_TOO_LOW")
+	if len(full.Fixups) != 1 || !strings.Contains(full.Fixups[0].Hint, "TEST_FISHER_EXACT") {
 		t.Fatalf("fixture drifted: %+v", full.Fixups)
 	}
-	inst := scopedExcept("TEST_WELCH")
-	got, ok := ErrorLookup(inst, "PULSE_TEST_TUKEY_REQUIRES_K_GE_3")
+	inst := scopedExcept("TEST_FISHER_EXACT")
+	got, ok := ErrorLookup(inst, "PULSE_TEST_EXPECTED_COUNT_TOO_LOW")
 	if !ok {
-		t.Fatal("code hidden though TEST_TUKEY_HSD is enabled")
+		t.Fatal("code hidden though TEST_PROP_Z is enabled")
 	}
 	if got.Fixups != nil {
-		t.Errorf("fixup naming hidden TEST_WELCH survived: %+v", got.Fixups)
+		t.Errorf("fixup naming hidden TEST_FISHER_EXACT survived: %+v", got.Fixups)
 	}
 	if got.Message != full.Message {
 		t.Error("Message rewritten")

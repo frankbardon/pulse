@@ -65,10 +65,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PROCESSING_STATE: {
-		Message:            "Pipeline state-machine invariant violated mid-run (typically a streaming-pass ordering bug).",
-		FixupNotApplicable: true,
-	},
 	PROCESSING_RUNTIME: {
 		Message: "An operator failed during row processing (formula compile failure, divide-by-zero, etc.).",
 		Fixups: []Fixup{
@@ -149,16 +145,6 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"regressions", "*", "penalty"},
 				Hint:     "Add penalty: l2 (a ridge penalty keeps every coefficient finite), or drop the named predictor, merge its rare level, or check that it is not recorded after the outcome.",
 				Examples: []any{"l2"},
-			},
-		},
-	},
-	PROCESSING_REGRESSION_SINGULAR_GRAM: {
-		Message: "The Gram matrix XᵀX remained non-invertible even after regularization.",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Path:   []string{"regressions", "*", "alpha"},
-				Hint:   "Increase alpha to lift the conditioning, or drop the degenerate (all-zero or duplicated) predictor from predictors.",
 			},
 		},
 	},
@@ -299,15 +285,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	SERVICE_REGISTRY: {
-		Message: "The request named an operator this instance does not register (a misspelt type, or one its feature profile hides).",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceOperator,
-				Hint:   "Check the name against the manifest (pulse_manifest, or pulse --json: its `components`); spelling and case must match exactly.",
-			},
-		},
-	},
 	SERVICE_INTERNAL: {
 		Message:            "Internal invariant violated inside the service orchestration layer; report with reproducer.",
 		FixupNotApplicable: true,
@@ -322,37 +299,6 @@ var codeMetadata = map[Code]Metadata{
 				Hint:   "Check the path in the message (details.path when present) exists, is readable and is in the format its command expects; an import source must match its `pulse import <format>` leaf.",
 			},
 		},
-	},
-	DATA_PARSE: {
-		Message: "A tabular import source (CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel) failed to parse.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Open the source at the row or offset the message names; common causes are an inconsistent column count, a stray quote or a file in another format than its import leaf.",
-			},
-		},
-	},
-	DATA_CONFIG: {
-		Message: "An I/O job's configuration is invalid (conflicting flags, unknown format, bad target path).",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Hint:   "Re-run the leaf with --help: the message names the conflicting flag, the unknown format or the bad target path.",
-			},
-		},
-	},
-	DATA_CALCULATION: {
-		Message: "A calculation over data values failed (e.g., reading a field that does not exist on the record).",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Verify every field reference in the request appears in pulse cohort inspect --json output for the cohort.",
-			},
-		},
-	},
-	DATA_INTERNAL: {
-		Message:            "Internal invariant violated inside the data layer; report with reproducer.",
-		FixupNotApplicable: true,
 	},
 
 	// ---------- CLI ----------
@@ -373,19 +319,6 @@ var codeMetadata = map[Code]Metadata{
 				Hint:   "Pick a writable output path with free disk space.",
 			},
 		},
-	},
-	CLI_COMMAND: {
-		Message: "A CLI command failed to dispatch or returned a non-zero status.",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Hint:   "Read the message for the underlying failure; for a request, run predict on it first (pulse api predict --json).",
-			},
-		},
-	},
-	CLI_INTERNAL: {
-		Message:            "Internal invariant violated inside the CLI binary; report with reproducer.",
-		FixupNotApplicable: true,
 	},
 	CLI_ERROR: {
 		Message: "A CLI command failed with an error that carries no Pulse code of its own; the message is the underlying error (most often a file that cannot be read or written).",
@@ -1714,15 +1647,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_PROFILE_FIELD_UNSUPPORTED: {
-		Message: "The profile layer cannot summarize this field type; the field is skipped.",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Synthesize the affected field from an explicit schema spec instead of relying on profile-driven mode.",
-			},
-		},
-	},
 	PULSE_TEST_UNKNOWN_TYPE: {
 		Message: "The request names a test type registered as neither a test nor a post-test.",
 		Fixups: []Fixup{
@@ -1808,10 +1732,16 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder groups so the split key comes last.",
 				Examples: []any{map[string]any{"partition_by": []any{}}},
 			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"tests", "*", "type"},
+				Hint:     "TEST_TUKEY_HSD needs k >= 3 groups (details.min_required 3): with two groups swap it for TEST_T or TEST_WELCH (continuous) or TEST_PROP_Z (proportions).",
+				Examples: []any{"TEST_T", "TEST_WELCH", "TEST_PROP_Z"},
+			},
 		},
 	},
 	PULSE_TEST_CONTINGENCY_DEGENERATE: {
-		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when rows or cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
+		Message: "A chi-square contingency table is empty or has a single row/column, or an exact 2 x 2 test saw another shape. On a grouped request it is also raised at predict and runtime when rows or cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1821,6 +1751,12 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"groups", "*", "field"},
 				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the rows / cols field from groups.",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"tests", "*", "type"},
+				Hint:     "TEST_FISHER_EXACT supports 2 x 2 tables only (details.rows / details.cols give the observed shape): run TEST_CHISQ on a larger table, or filter rows / cols down to two levels each.",
+				Examples: []any{"TEST_CHISQ"},
 			},
 		},
 	},
@@ -2007,37 +1943,6 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"filterers"},
 				Hint:   "Filter or pre-aggregate (for example average the repeats) so each subject contributes exactly one observation per condition before running TEST_ANOVA_RM.",
-			},
-		},
-	},
-	PULSE_TEST_TUKEY_REQUIRES_K_GE_3: {
-		Message: "Tukey HSD requires k >= 3 groups; a t-test or two-proportion z is the appropriate alternative for k = 2.",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"tests", "*", "type"},
-				Hint:     "Swap TEST_TUKEY_HSD for TEST_T or TEST_WELCH (continuous) or TEST_PROP_Z (proportions) when only two groups are present.",
-				Examples: []any{"TEST_T", "TEST_WELCH", "TEST_PROP_Z"},
-			},
-		},
-	},
-	PULSE_TEST_SHAPIRO_N_BOUND: {
-		Message: "A Shapiro-Wilk test observed n above its supported limit (5000).",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Sample at most 5000 rows before TEST_SHAPIRO_WILK, or compare the distribution with TEST_KS.",
-			},
-		},
-	},
-	PULSE_TEST_FISHER_R_OR_C_GT_2: {
-		Message: "TEST_FISHER_EXACT requires a 2x2 table.",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"tests", "*", "type"},
-				Hint:     "Use TEST_CHISQ for rxc tables when expected counts are large enough; or filter the cohort to a 2x2 subset with FILTER_INCLUDE.",
-				Examples: []any{"TEST_CHISQ"},
 			},
 		},
 	},
@@ -3611,16 +3516,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_CROSSTAB_EMPTY_COLUMNS: {
-		Message: "Not raised: a crosstab with no column-axis groupers runs with one implicit \"Total\" column. The code is kept so lookups of it resolve.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Path:   []string{"crosstab", "columns"},
-				Hint:   "Omit crosstab.columns for a single Total column holding every record whose row key resolved, or add groupers for a real column axis.",
-			},
-		},
-	},
 	PULSE_CROSSTAB_MISSING_CELL: {
 		Message: "The crosstab has no cell aggregation. The cell is the value emitted per (row key, column key) intersection and is required.",
 		Fixups: []Fixup{
@@ -4486,15 +4381,6 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "For a shard archive, details.shards_uncovered lists the shards the index does not cover. Rebuild the archive's index (`pulse index build <archive.pulse> --key <field>` rewrites every shard's sidecar and the manifest's coverage); `pulse index verify` reports the same shards as shards_uncovered.",
-			},
-		},
-	},
-	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Not raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards. The code is kept so lookups of it resolve.",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Build the index on the archive itself — `pulse index build <archive.pulse> --key <field>` — and look up against the archive path; an anchored shard (`archive.pulse#shard.pulse`) reads the same per-shard sidecar.",
 			},
 		},
 	},

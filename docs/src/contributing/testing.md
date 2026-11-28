@@ -84,6 +84,7 @@ How to run the documentation checks and work their allowlists:
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`                   | Each error code has a `codeMetadata` Message and at least one Fixup (or `FixupNotApplicable`) |
 | `TestEmittedCodeLiteralsRegistered`     | Every code-shaped string literal in non-test Go source is a registered code (`errors/codes.go`) |
+| `TestRegisteredCodesEmittedOrReserved` | The converse: every registered code is emitted by non-test Go source (named as a value, not only matched against), or listed in the gate's `reservedCodes` with a reason |
 | `TestRefusalMessagesUseWireKeys`        | Request-facing refusal prose names wire keys (`params.field`, `max_iters`), not Go field paths |
 | `TestFixupPathsAreWireKeys`             | Every `Fixup.Path` segment in `errors/fixup_metadata.go` is an index (`*`, digits) or a wire key (a JSON tag, a manifest param name); a fix on a Go-only surface carries no Path |
 | `TestPredict_DefaultsAppliedPathsAreWireKeys` | `defaults_applied[].path` is wire keys (`["crosstab", "cells", "1", "type"]`) |

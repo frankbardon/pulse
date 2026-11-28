@@ -106,7 +106,6 @@ var RegressionCodes = map[errors.Code]bool{
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT:    true,
 	errors.PROCESSING_REGRESSION_NO_CONVERGE:       true,
 	errors.PROCESSING_REGRESSION_SEPARATION:        true,
-	errors.PROCESSING_REGRESSION_SINGULAR_GRAM:     true,
 	// An ordered slot's admitted rows with a repeat or a gap
 	// (internal/regorder.CheckSeries).
 	errors.PROCESSING_REGRESSION_ORDER: true,

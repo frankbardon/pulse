@@ -58,7 +58,7 @@ A whole battery of numeric fields (mean profiles, covariance, sphericity, joint 
 
 ## Assumption gates before an ANOVA
 
-1. Per-group normality — the Shapiro-Wilk test with `split_by` (n ≤ 5000 per group; larger → `PULSE_TEST_SHAPIRO_N_BOUND`).
+1. Per-group normality — the Shapiro-Wilk test with `split_by` (n ≤ 5000 per group; above, it runs with an advisory `warning`).
 2. Equal spread — the Brown-Forsythe test (median-based, robust under non-normality).
 
 A failed spread gate → Welch's ANOVA (same Welford state); badly failed normality → rank-based Kruskal-Wallis.

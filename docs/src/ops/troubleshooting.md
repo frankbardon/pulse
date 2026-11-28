@@ -197,18 +197,12 @@ CODE`.
 
 | Code | Meaning | What to do |
 |---|---|---|
-| `SERVICE_REGISTRY` | The request names an operator this instance does not register | Fix the `type` spelling; check `pulse --json` (a feature profile may hide it) |
-| `DATA_PARSE` | Tabular input failed to parse at a row | Fix the source row, or the delimiter / format flags |
-| `DATA_CONFIG` | An import or export job is misconfigured (conflicting flags, unknown format, bad target) | Read the message's `details`; fix the job |
-| `DATA_CALCULATION` | A value-level read failed, such as a field missing from a record | Check the field names against the schema |
-| `CLI_COMMAND` | A CLI command failed to dispatch | Check the command and flags (`pulse <command> --help`) |
 | `CLI_OUTPUT` | Output could not be written (a file error, an unsupported format) | Check the output path and format |
-| `CLI_INTERNAL`, `DATA_INTERNAL`, `ENCODING_INTERNAL`, `PROCESSING_STATE` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
+| `ENCODING_INTERNAL` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
 
-Two codes are never raised and exist only so a lookup resolves:
-`PULSE_CROSSTAB_EMPTY_COLUMNS` (a crosstab without column groupers runs
-with one implicit Total column) and `PULSE_INDEX_UNSUPPORTED_SHARDED`
-(point-lookup indexes accept shard archives).
+Every registered code is raised by some path or held as reserved with
+its reason (`TestRegisteredCodesEmittedOrReserved`); a code nothing
+raises is retired, not kept for lookup.
 
 ## MCP "tool not found" / "no tools registered"
 
