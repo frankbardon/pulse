@@ -56,7 +56,7 @@ An aggregator takes a decimal field iff its manifest `accepts_types` lists `deci
 | sum | decimal128 (overflow → error) |
 | min / max | decimal128 |
 | mean | decimal128 at `mean_scale` = `max(scale, 4)`; f64 fallback + `PULSE_DECIMAL_PRECISION_LOSS` warning on overflow |
-| variance | decimal128 at `2 * mean_scale` (f64 fallback, same warning) |
+| variance | decimal128 at `2 * mean_scale` (f64 fallback, same warning — always when `2 * mean_scale` > 38, i.e. scale ≥ 20) |
 | standard deviation | decimal128 at `mean_scale`, banker-rounded sqrt (f64 fallback, same warning) |
 | ratio (decimal numerator / denominator params) | f64 |
 | counts (rows, distinct values, nulls) | JSON integer, never a decimal string; null count reads the bitmap only |
@@ -67,7 +67,7 @@ An empty sum is `"0.00"` (at the field scale), never null; `n == 0` in the compo
 
 ## Precision-loss path on the mean
 
-Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_DECIMAL_PRECISION_LOSS` **warning** (not an error). For audited workloads, split or coarsen so the warning never fires.
+Default path accumulates `decimal128` sum and divides by count. If running sum would overflow `decimal128(38)` mid-aggregation: re-run with `f64` accumulators, emit `PULSE_DECIMAL_PRECISION_LOSS` **warning** (not an error): one per aggregation slot, `details {label, aggregation, field, cells}` (`cells` = fallen-back rows / crosstab cells / margins), on every host and arm alike (decimal folds run buffered). The fallen-back figure is a JSON number, not a decimal string. For audited workloads, split or coarsen so the warning never fires.
 
 ## Null state
 

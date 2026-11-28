@@ -139,9 +139,7 @@ var codeRegistryFiles = map[string]bool{
 // with the reason it stays registered. Keep it short: a code nothing
 // will emit is retired (constant, metadata, owner, docs, a
 // doccheck.RemovedNames entry and a migration row), not listed here.
-var reservedCodes = map[perrors.Code]string{
-	perrors.PULSE_DECIMAL_PRECISION_LOSS: "documented warning for a decimal variance / stddev that falls back to f64 (decimalAggResult.FellBack); no orchestrator raises it yet",
-}
+var reservedCodes = map[perrors.Code]string{}
 
 // TestRegisteredCodesEmittedOrReserved: every registered code is emitted
 // by some non-test Go file — named as a value (an argument, a return, a

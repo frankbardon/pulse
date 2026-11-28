@@ -589,6 +589,7 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 		return nil, err
 	}
 	req = p.prepare(req)
+	p.decimalLoss = &decimalLossTally{}
 	spec := req.Crosstab
 	if err := validateCrosstabSpec(spec, req, p.exts); err != nil {
 		return nil, err
@@ -885,6 +886,9 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	if err := applyLowNEff(resp, rowTests, p.strictWeights); err != nil {
 		return nil, err
 	}
+	// A decimal cell, measure or margin that fell back to f64 warns once
+	// per slot (#804, decimal_loss.go).
+	resp.Warnings = append(resp.Warnings, p.decimalLoss.warnings()...)
 
 	return resp, nil
 }
@@ -1576,6 +1580,7 @@ func (p *Processor) runCellAggregation(slot *types.Aggregation, bucket []*Record
 			if err != nil {
 				return cellAggregationResult{}, nil, 0, 0, err
 			}
+			p.decimalLoss.note(slot, out)
 			// Decimal aggregators do not implement MetaAggregator — the
 			// orchestrator's floor-only entry is the full components
 			// payload (mirrors the ungrouped buffered path).

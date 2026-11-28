@@ -59,6 +59,11 @@ type Processor struct {
 	schema   *encoding.Schema
 	lastPath ProcessPath
 
+	// decimalLoss tallies the current run's decimal aggregates that fell
+	// back to f64 (decimal_loss.go); Process resets it and raises its
+	// PULSE_DECIMAL_PRECISION_LOSS warnings.
+	decimalLoss *decimalLossTally
+
 	// deriveWarnings holds the Response-level warnings the last
 	// DeriveRecords run's attributes raised (DeriveWarnings).
 	deriveWarnings []*types.ResponseWarning
@@ -329,10 +334,14 @@ func (p *Processor) Process(ctx context.Context, req *types.Request, iter Record
 		allRecords = append(allRecords, iter.Record())
 	}
 	p.lap(observe.PhaseDecode)
+	p.decimalLoss = &decimalLossTally{}
 	resp, err := p.processRecords(ctx, req, allRecords)
 	if err != nil {
 		return nil, err
 	}
+	// A decimal aggregate that fell back to f64 warns once per slot
+	// (#804); the decimal fold is buffered-only, so only this arm can.
+	resp.Warnings = append(resp.Warnings, p.decimalLoss.warnings()...)
 	p.lastPath = PathBuffered
 	return resp, nil
 }
@@ -2661,6 +2670,7 @@ func (p *Processor) aggregateWithComponents(aggs []*types.Aggregation, records [
 				if err != nil {
 					return nil, nil, err
 				}
+				p.decimalLoss.note(agg, out)
 				row[label] = out.cellValue()
 				if collectComponents {
 					workAggComponentBuilds.Add(1)

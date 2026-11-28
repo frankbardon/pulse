@@ -68,7 +68,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [x] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision *Done in pre-v1 E1-S6.*
 - [x] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier
-- [ ] **#804** (11. Documentation audit) `PULSE_DECIMAL_PRECISION_LOSS` is raised when a decimal aggregate falls back to f64
+- [x] **#804** (11. Documentation audit) `PULSE_DECIMAL_PRECISION_LOSS` is raised when a decimal aggregate falls back to f64
 - [x] **#805** (11. Documentation audit) Predict ≡ runtime on an unknown pairwise `n_source` and a non-whole `GROUP_QUANTILE` interval *Done in pre-v1 E3-S5.*
 - [x] **#806** (11. Documentation audit) Every numeric reader of an aggregation cell reads a `decimal128` cell as its value *Done in pre-v1 E4-S8.*
 - [x] **#807** (11. Documentation audit) Facet over `set_*` / `vec_*` / `datetime` lists or refuses, predict ≡ runtime *Done in pre-v1 E4-S8.*
@@ -311,7 +311,7 @@ Found in docs-validation (E1-S2, E2-S2); full text in [`TODO.md`](../TODO.md); t
 
 - [x] **#802** — **No MCP tool runs synth**, so an MCP-only agent can author a spec but not run it; add a synth tool or keep simulate CLI / library-only by decision. **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** — **Example search has no plain-word synonym tier** ("null" does not find "missing"); add a small word-synonym table to the synonym tier.
-- [ ] **#804** — **The decimal f64-fallback warning is never raised**; raise `PULSE_DECIMAL_PRECISION_LOSS` on every host, then un-reserve it.
+- [x] **#804** — **The decimal f64-fallback warning is never raised**; raise `PULSE_DECIMAL_PRECISION_LOSS` on every host, then un-reserve it. *Done in pre-v1 E4-S7.*
 - [x] **#805** — **An unknown pairwise `n_source` runs as the default; a bad `GROUP_QUANTILE` interval is silently 4 buckets**; refuse both at predict and at run time. *Done in pre-v1 E3-S5: `PULSE_OVERLAY_PARAM_MISSING` / `PROCESSING_CONFIG` on both sides; pinned by `TestPairwiseUnknownNSource_PredictMatchesRuntime` / `TestQuantileInterval_PredictMatchesRuntime`.*
 - [x] **#806** — **Overlays, post-tests, crosstab normalize, chain and `MatrixCell.Scalar` read a decimal cell as nothing**; read its value. *Done in pre-v1 E4-S8: `decimalCellFloat` ahead of each reader's type switch; pinned by `TestDecimalCells_*`.*
 - [x] **#807** — **Facet over set / vector fields returns nothing; the rich facet refuses what predict passes**; list or refuse, one rule. *Done in pre-v1 E4-S8: a set lists its dictionary, a vector is refused; `descx.FacetFieldTypeRefusal` on both sides.*
