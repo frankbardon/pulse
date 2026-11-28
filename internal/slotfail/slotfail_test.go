@@ -3,6 +3,7 @@ package slotfail
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -166,4 +167,42 @@ func TestScope_RewritesEveryFailedSlot(t *testing.T) {
 func failedRequestOnly() *types.Request {
 	req, _ := failedResponse()
 	return req
+}
+
+// TestWarning_NamesAnUnnamedSlotOnce: the PULSE_SLOT_FAILED message
+// names a slot by its path, then its quoted label only when the label is
+// its own. An unnamed regression (Collect labels it "regressions[i]")
+// or an unlabelled test reads `regressions[0] failed …`, never
+// `regressions[0] "regressions[0]" failed …`; details.label is unchanged.
+func TestWarning_NamesAnUnnamedSlotOnce(t *testing.T) {
+	t.Parallel()
+
+	se := &types.SlotError{Code: string(errors.PROCESSING_REGRESSION_SEPARATION), Message: "separated"}
+	for _, tc := range []struct {
+		f    Failure
+		want string
+	}{
+		{Failure{Kind: KindRegressions, Index: 0, Label: "regressions[0]", Err: se}, "regressions[0] failed with "},
+		{Failure{Kind: KindTests, Index: 2, Label: "", Err: se}, "tests[2] failed with "},
+		{Failure{Kind: KindRegressions, Index: 1, Label: "g", Err: se}, `regressions[1] "g" failed with `},
+		{Failure{Kind: KindRegressions, Index: 1, Label: "regressions[0]", Err: se}, `regressions[1] "regressions[0]" failed with `},
+	} {
+		w := Warning(tc.f)
+		if !strings.HasPrefix(w.Message, tc.want) {
+			t.Errorf("%+v: message %q, want prefix %q", tc.f, w.Message, tc.want)
+		}
+		if w.Details["label"] != tc.f.Label {
+			t.Errorf("%+v: details.label %v, want %q", tc.f, w.Details["label"], tc.f.Label)
+		}
+	}
+
+	// Collect's own label for an unnamed regression reaches the message once.
+	req := &types.Request{Regressions: []*types.RegressionSpec{{}}}
+	resp := &types.Response{Regressions: []*types.RegressionResult{{Error: se}}}
+	if err := Apply(req, resp, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Warnings) != 1 || strings.Count(resp.Warnings[0].Message, "regressions[0]") != 1 {
+		t.Errorf("unnamed regression warning %+v, want the slot path named once", resp.Warnings)
+	}
 }

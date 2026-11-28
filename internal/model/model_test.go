@@ -298,7 +298,10 @@ func TestModel_ImportBoundary(t *testing.T) {
 		// The no-execute params readings an adstock record is judged by.
 		modulePrefix + "/internal/distlagparams": true, modulePrefix + "/internal/windowparams": true,
 		// response()'s Hill curve: the portable power hill() uses.
-		modulePrefix + "/linalg/detmath": true}
+		modulePrefix + "/linalg/detmath": true,
+		// The stdlib-only message path-quoting leaf (a save path reads
+		// with single backslashes on Windows).
+		modulePrefix + "/internal/pathq": true}
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +319,7 @@ func TestModel_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowed[path] {
-				t.Errorf("%s imports %q; internal/model may import only the standard library, types, errors, internal/paramread, the window params readings and linalg/detmath", name, path)
+				t.Errorf("%s imports %q; internal/model may import only the standard library, types, errors, internal/paramread, the window params readings, linalg/detmath and internal/pathq", name, path)
 			}
 		}
 	}

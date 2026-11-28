@@ -3,12 +3,12 @@ package template_test
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/spf13/afero"
 )
@@ -678,7 +678,7 @@ func TestNewStore_DirectoryEdgeCases(t *testing.T) {
 		if err == nil {
 			t.Fatal("NewStore() = nil error, want an error for a configured path that is not a directory")
 		}
-		if !strings.Contains(err.Error(), strconv.Quote(file)) {
+		if !strings.Contains(err.Error(), pathq.Quote(file)) {
 			t.Errorf("error %q does not name the offending path %q", err.Error(), file)
 		}
 	})

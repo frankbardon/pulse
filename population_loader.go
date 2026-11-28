@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/pathq"
 
 	"github.com/spf13/afero"
 )
@@ -53,14 +54,14 @@ func loadPopulationsFromDir(opts *Options) error {
 		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q", dir), err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q is not a directory", dir), nil)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
 	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("population", dir, fmt.Sprintf("pulse: reading populations dir %q", dir), err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: reading populations dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {

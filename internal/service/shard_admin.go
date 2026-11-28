@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -611,8 +612,8 @@ func validateBasenames(paths []string) error {
 		base := filepath.Base(p)
 		if base == encx.ReservedSchemaName {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
-				fmt.Sprintf("shard path %q has the reserved basename %q",
-					p, encx.ReservedSchemaName),
+				fmt.Sprintf("shard path %s has the reserved basename %q",
+					pathq.Quote(p), encx.ReservedSchemaName),
 				map[string]any{"path": p, "basename": base})
 		}
 		if _, dup := seen[base]; dup {

@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -58,7 +59,7 @@ func WriteSpec(fs afero.Fs, spec *Spec, path string) error {
 	raw = append(raw, '\n')
 	if err := afero.WriteFile(fs, path, raw, 0o644); err != nil {
 		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			fmt.Sprintf("writing synth spec to %q: %v", path, err),
+			fmt.Sprintf("writing synth spec to %s: %v", pathq.Quote(path), err),
 			map[string]any{"path": path})
 	}
 	return nil
@@ -104,7 +105,7 @@ func ApplyRulesFile(fs afero.Fs, spec *Spec, path string) error {
 	raw, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			fmt.Sprintf("reading rules file %q: %v", path, err),
+			fmt.Sprintf("reading rules file %s: %v", pathq.Quote(path), err),
 			map[string]any{"path": path})
 	}
 	rules, err := ParseRules(raw)
@@ -188,7 +189,7 @@ func ApplyConstraintsFile(fs afero.Fs, spec *Spec, path string) error {
 	raw, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			fmt.Sprintf("reading constraints file %q: %v", path, err),
+			fmt.Sprintf("reading constraints file %s: %v", pathq.Quote(path), err),
 			map[string]any{"path": path})
 	}
 	constraints, err := ParseConstraints(raw)
@@ -276,7 +277,7 @@ func withDocumentFilePath(err error, kind, path string) error {
 	}
 	return &errors.CodedError{
 		Code:    ce.Code,
-		Message: fmt.Sprintf("%s file %q: %s", kind, path, ce.Message),
+		Message: fmt.Sprintf("%s file %s: %s", kind, pathq.Quote(path), ce.Message),
 		Details: details,
 		Cause:   ce.Cause,
 	}
@@ -322,7 +323,7 @@ func WriteRuleCandidates(fs afero.Fs, candidates []RuleSpec, path string) error 
 	raw = append(raw, '\n')
 	if err := afero.WriteFile(fs, path, raw, 0o644); err != nil {
 		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			fmt.Sprintf("writing rule candidates to %q: %v", path, err),
+			fmt.Sprintf("writing rule candidates to %s: %v", pathq.Quote(path), err),
 			map[string]any{"path": path})
 	}
 	return nil

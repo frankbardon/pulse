@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -398,7 +399,7 @@ func TestNew_TemplateDirShapes(t *testing.T) {
 				if err == nil {
 					t.Fatal("New = nil error, want a failure")
 				}
-				if tc.wantErrSubstr != "" && !strings.Contains(err.Error(), strconv.Quote(tc.wantErrSubstr)) {
+				if tc.wantErrSubstr != "" && !strings.Contains(err.Error(), pathq.Quote(tc.wantErrSubstr)) {
 					t.Fatalf("New error %q does not name %q", err, tc.wantErrSubstr)
 				}
 				return

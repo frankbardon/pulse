@@ -14,6 +14,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 )
 
 // ReadOS reads and strictly decodes the profile at path with the OS
@@ -26,7 +27,7 @@ func ReadOS(path string) (*pulse.FeatureProfile, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_INVALID,
-			fmt.Sprintf("feature profile: cannot read %q: %v", path, err),
+			fmt.Sprintf("feature profile: cannot read %s: %v", pathq.Quote(path), err),
 			map[string]any{"reason": "file_unreadable", "path": path})
 	}
 	fp, err := pulse.ParseFeatureProfile(raw)
@@ -39,7 +40,7 @@ func ReadOS(path string) (*pulse.FeatureProfile, error) {
 			}
 			details["path"] = path
 			return nil, errors.NewCodedErrorWithDetails(ce.Code,
-				fmt.Sprintf("feature profile: %q: %s", path, strings.TrimPrefix(ce.Message, "feature profile: ")),
+				fmt.Sprintf("feature profile: %s: %s", pathq.Quote(path), strings.TrimPrefix(ce.Message, "feature profile: ")),
 				details)
 		}
 		return nil, err

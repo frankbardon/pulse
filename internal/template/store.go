@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -832,7 +833,7 @@ func scanDirs(fsys afero.Fs, dirs []string, prev *prevSnapshot, strict bool, opt
 		}
 		if !info.IsDir() {
 			return scanResult{}, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-				"template directory "+strconv.Quote(dir)+" is not a directory; "+
+				"template directory "+pathq.Quote(dir)+" is not a directory; "+
 					"each configured template root must be a directory of *.json template files",
 				map[string]any{detailPath: dir})
 		}
@@ -1135,7 +1136,7 @@ func invalidFile(path, name, message string) error {
 // wrong place.
 func ioError(path, action string, err error) error {
 	out := errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-		action+" "+strconv.Quote(path)+": "+err.Error(),
+		action+" "+pathq.Quote(path)+": "+err.Error(),
 		map[string]any{detailPath: path})
 	out.Cause = err
 	return out

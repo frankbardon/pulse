@@ -40,6 +40,9 @@ var allowedIntraModuleDeps = map[string]bool{
 	// sites through: which body strings are expressions, so a
 	// `{{token}}` spliced into one is refused. Stdlib only.
 	modulePrefix + "/internal/exprslots": true,
+	// The message path-quoting helper (a path reads with single
+	// backslashes on Windows). Stdlib only (TestPathq_ImportBoundary).
+	modulePrefix + "/internal/pathq": true,
 }
 
 // forbiddenDeps are the packages named explicitly in the import ceiling.

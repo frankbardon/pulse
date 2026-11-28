@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -335,7 +336,7 @@ func checkAppendTarget(fsys afero.Fs, target, archive, shard string, opts Cohort
 			"an anchored target must name an archive and a shard: archive.pulse#name.pulse", nil)
 	case shard != filepath.Base(shard) || strings.ContainsAny(shard, `/\#`) || shard == "." || shard == "..":
 		return invalid("invalid_shard_name",
-			fmt.Sprintf("shard name %q must be a plain file name", shard), map[string]any{"shard": shard})
+			fmt.Sprintf("shard name %s must be a plain file name", pathq.Quote(shard)), map[string]any{"shard": shard})
 	case strings.HasSuffix(strings.ToLower(archive), ".zst") || strings.HasSuffix(strings.ToLower(shard), ".zst"):
 		return invalid("compressed_target",
 			"a .zst file is a transfer artifact, never a cohort or a shard", nil)

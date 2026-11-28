@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/frankbardon/pulse/internal/pathq"
 )
 
 // File is the floor table's path relative to the module root.
@@ -86,7 +88,7 @@ func Validate(root string, floors []Floor) []string {
 		}
 		seen[f.Dir] = f.Line
 		if f.Dir != filepath.ToSlash(filepath.Clean(f.Dir)) || f.Dir == ".." || strings.HasPrefix(f.Dir, "../") || filepath.IsAbs(f.Dir) {
-			probs = append(probs, fmt.Sprintf("%s: %q is not a clean module-relative package dir", at, f.Dir))
+			probs = append(probs, fmt.Sprintf("%s: %s is not a clean module-relative package dir", at, pathq.Quote(f.Dir)))
 			continue
 		}
 		if !isPackage(filepath.Join(root, filepath.FromSlash(f.Dir))) {

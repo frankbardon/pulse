@@ -65,6 +65,7 @@ How to run the documentation checks and work their allowlists:
 |---|---|
 | `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `internal/processing/` |
 | `TestDescriptorNoFmtSprintf`            | `descriptor/` + `internal/descriptor/` never build JSON via `fmt.Sprintf` |
+| `TestNoQuotedPathVerbs`                 | no message builder `%q`s (or `strconv.Quote`s) a filesystem path; it uses `pathq.Quote`, so a Windows path reads with single backslashes (`internal/pathq`) |
 | `TestGoldensNotHandEdited`              | `descriptor/testdata/*` hashes match the generator |
 | `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdSizeBudget` | CLAUDE.md names the current `format_version` and stays under its size ceiling |
 | `TestEnvVarsDocumented`                 | Every `PULSE_*` env var has a row in [Options → Environment variables](../library/options.md#environment-variables) |

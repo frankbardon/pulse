@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -50,14 +51,14 @@ func loadLabelTablesFromDir(opts *Options) error {
 		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q", dir), err)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q is not a directory", dir), nil)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
 	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("label_table", dir, fmt.Sprintf("pulse: reading label tables dir %q", dir), err)
+		return tableFileError("label_table", dir, fmt.Sprintf("pulse: reading label tables dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {

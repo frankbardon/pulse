@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -56,14 +57,14 @@ func loadRangeTablesFromDir(opts *Options) error {
 		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q", dir), err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q is not a directory", dir), nil)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
 	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: reading range tables dir %q", dir), err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: reading range tables dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {

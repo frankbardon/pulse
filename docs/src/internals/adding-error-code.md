@@ -34,6 +34,16 @@ Every code MUST have either:
   caller can apply (rare — most error codes are recoverable in
   principle).
 
+A message that names a filesystem path quotes it with
+`pathq.Quote(path)` (`internal/pathq`) and formats it with `%s`, never
+`%q` or `strconv.Quote`: those escape every backslash, so a Windows path
+would read `"C:\\Users\\…"`. `pathq.Quote` writes `"C:\Users\…"` and
+leaves a Unix path byte-identical to `%q`. `details.path` (or whichever
+details key names the path) carries the raw path. `TestNoQuotedPathVerbs`
+refuses a `%q` of an operand named like a path (`dir`, `opts.SourcePath`)
+or after a path noun (`"source file %q"`); its allowlist names the
+look-alikes that are not filesystem paths (a JSON path, a Go import path).
+
 `TestCodesHaveFixups` enforces that every code has either fixups or
 the explicit `FixupNotApplicable: true` flag. The fixup templates are
 surfaced to MCP clients via `pulse_errors_lookup` and to CLI users via
