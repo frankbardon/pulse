@@ -74,6 +74,8 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [x] **#807** (11. Documentation audit) Facet over `set_*` / `vec_*` / `datetime` lists or refuses, predict ≡ runtime *Done in pre-v1 E4-S8.*
 - [x] **#808** (11. Documentation audit) `packed_bool` facet values spelled as Sample spells them *Done in pre-v1 E4-S8.*
 - [x] **#809** (11. Documentation audit) ±Inf / NaN grouper keys spelled the same on every architecture *Done in pre-v1 E4-S8.*
+- [x] **#810** (11. Documentation audit) `ATTR_SET_*`, `ATTR_CODE_IN` and the `WIN_*` rank `emits_type` is the materialized column type, gated *Done in pre-v1 E4-S9.*
+- [x] **#811** (11. Documentation audit) `REG_MMM_BAYES` runtime refusals in a named Compose fit name the fit *Done in pre-v1 E4-S9.*
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [x] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) **Done (pre-v1 E1-S3): removed, with the `REG_MMM_BAYES` `params.time` alias.** · [U33](U33-v1-release.md)
@@ -317,3 +319,5 @@ Found in docs-validation (E1-S2, E2-S2); full text in [`TODO.md`](../TODO.md); t
 - [x] **#807** — **Facet over set / vector fields returns nothing; the rich facet refuses what predict passes**; list or refuse, one rule. *Done in pre-v1 E4-S8: a set lists its dictionary, a vector is refused; `descx.FacetFieldTypeRefusal` on both sides.*
 - [x] **#808** — **`packed_bool` facet spellings disagree**; use Sample's. *Done in pre-v1 E4-S8: `"1"` / `"0"`.*
 - [x] **#809** — **±Inf grouper keys are platform-defined**; spell them fixed. *Done in pre-v1 E4-S8.*
+- [x] **#810** — **Attribute and window `emits_type` is narrower than the materialized column**; declare the column type, gate it. *Done in pre-v1 E4-S9.*
+- [x] **#811** — **Bayesian MMM refusals in a named fit say `regression ""`**; name the fit. *Done in pre-v1 E4-S9.*

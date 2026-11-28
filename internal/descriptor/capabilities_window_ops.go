@@ -57,8 +57,8 @@ func windowCapabilities() []descriptor.Operator {
 			// it accepts no field type.
 			AcceptsTypes:  []string{},
 			ForbidsField:  true,
-			EmitsType:     "u32",
-			EmitsTypeNote: "one integer per row (resets per partition)",
+			EmitsType:     "f64",
+			EmitsTypeNote: "one whole number ≥ 1 per row (resets per partition)",
 			Streamable:    false,
 		},
 		{
@@ -69,8 +69,8 @@ func windowCapabilities() []descriptor.Operator {
 			// it accepts no field type.
 			AcceptsTypes:  []string{},
 			ForbidsField:  true,
-			EmitsType:     "u32",
-			EmitsTypeNote: "one integer per row",
+			EmitsType:     "f64",
+			EmitsTypeNote: "one whole number ≥ 1 per row",
 			Streamable:    false,
 		},
 		{
@@ -81,8 +81,8 @@ func windowCapabilities() []descriptor.Operator {
 			// it accepts no field type.
 			AcceptsTypes:  []string{},
 			ForbidsField:  true,
-			EmitsType:     "u32",
-			EmitsTypeNote: "one integer per row",
+			EmitsType:     "f64",
+			EmitsTypeNote: "one whole number ≥ 1 per row",
 			Streamable:    false,
 		},
 		{

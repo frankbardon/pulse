@@ -640,3 +640,39 @@ func toF(v any) float64 {
 	}
 	panic(fmt.Sprintf("not a number: %T", v))
 }
+
+// TestMMMBayes_ComposeRefusalNamesFit (E4-S9): an unnamed
+// REG_MMM_BAYES fit that fails on its data inside a named Compose fit
+// reports regression "<fit>" in its slot error and the lifted
+// PULSE_SLOT_FAILED warning, never regression "". The refusal fires
+// before any sampling.
+func TestMMMBayes_ComposeRefusalNamesFit(t *testing.T) {
+	t.Parallel()
+
+	p := bayesInstance(t, nil)
+	writeBayesCohort(t, p, "short.pulse", encoding.FieldTypeU16, regmmm.BayesRows(11)[:4])
+	spec := regmmm.BayesSpec(`{"channels":["tv"],"chains":1,"warmup":10,"draws":5}`)
+	spec.Name = ""
+	resp, err := p.Compose(context.Background(), &types.ComposedRequest{
+		Fits: []types.FitSpec{{Name: "mmm", Request: bayesRequest("short.pulse", spec)}},
+		Requests: []*types.Request{{Cohort: &types.Cohort{Filename: regmmm.BayesCohort},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "sales", Label: "n"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `regression "mmm":`
+	var seen int
+	for _, w := range resp.Warnings {
+		if w.Code != string(perr.PULSE_SLOT_FAILED) {
+			continue
+		}
+		seen++
+		if !strings.Contains(w.Message, want) {
+			t.Errorf("slot-failed warning %q does not name the fit", w.Message)
+		}
+	}
+	if seen == 0 {
+		t.Fatalf("no PULSE_SLOT_FAILED warning: %s", mustJSON(t, resp.Warnings))
+	}
+}

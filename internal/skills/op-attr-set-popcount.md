@@ -23,7 +23,7 @@ None.
 
 ## Output
 
-One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hence `emits_type` `u16`, not `u8`. Empty mask → `0` (valid). Null source → `null` (counted in `n_null`), never the empty mask's `0`.
+One whole number per record (an `f64` column, `emits_type`), 0..set width **inclusive** — 0..256 at `set_u256`. Empty mask → `0` (valid). Null source → `null` (counted in `n_null`), never the empty mask's `0`.
 
 <!-- generated: contract -->
 
@@ -31,7 +31,7 @@ One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hen
 
 - Row-local one-pass — streams cleanly; merges (shards, parallel decode, chain stages).
 - Filters run before attributes, so none reads this label: to keep "respondents who selected ≥ 3", filter on `popcount(issuers) >= 3`<!-- feature: FILTER_EXPRESSION --> with `FILTER_EXPRESSION`<!-- /feature -->.
-- A fully-selected `set_u256` gives 256, one past a `u8`'s 255 — size any destination column from `emits_type`, not from the rung's byte width.
+- A fully-selected `set_u256` gives 256, one past a `u8`'s 255 — a `materialize` cast to an integer needs `u16`, not the rung's byte width.
 
 ## See
 

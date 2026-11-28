@@ -3,6 +3,7 @@ package descriptor
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -387,9 +388,12 @@ func widestSetRung(t *testing.T) uint32 {
 // Exactly one value overflows, at exactly one rung, only when every
 // member is ticked — the shape that ships.
 //
-// EmitsType never narrows a value on the wire — the attribute channel is
-// float64 end to end — so this was a wrong declaration rather than a
-// truncation; internal/processing/attribute_set_popcount_range_test.go pins the
+// The declaration is now the column type, f64 (E4-S9, following #784:
+// Materialize writes a nullable f64 column), which holds every whole
+// number up to 2^53 exactly; the value domain moved to the note, which
+// must name the widest rung's top value. EmitsType never narrows a value
+// on the wire — the attribute channel is float64 end to end — so the old
+// "u8" was a wrong declaration rather than a truncation; internal/processing/attribute_set_popcount_range_test.go pins the
 // wire side. Asserted against the registry so adding a wider rung fails
 // here instead of quietly re-breaking the declaration. This is the
 // STATIC half: it reads the declaration against the registry without
@@ -418,12 +422,18 @@ func TestCapabilities_SetPopcountEmitsTypeHoldsWidestRung(t *testing.T) {
 		t.Fatalf("ATTR_SET_POPCOUNT EmitsType %q is not a registered field type", op.EmitsType)
 	}
 	max, ok := maxUnsignedValue(ft)
+	if ft == encoding.FieldTypeF64 {
+		max, ok = 1<<53, true // every whole number to 2^53 is exact
+	}
 	if !ok {
-		t.Fatalf("ATTR_SET_POPCOUNT EmitsType %q is not an unsigned integer type", op.EmitsType)
+		t.Fatalf("ATTR_SET_POPCOUNT EmitsType %q is neither f64 nor an unsigned integer type", op.EmitsType)
 	}
 	widest := widestSetRung(t)
 	if max < uint64(widest) {
 		t.Errorf("ATTR_SET_POPCOUNT EmitsType = %q (max %d) but a fully-selected column at the widest rung has popcount %d — the declaration cannot hold its own output",
 			op.EmitsType, max, widest)
+	}
+	if top := "0.." + strconv.FormatUint(uint64(widest), 10); !strings.Contains(op.EmitsTypeNote, top) {
+		t.Errorf("ATTR_SET_POPCOUNT EmitsTypeNote %q does not state the widest rung's domain %s", op.EmitsTypeNote, top)
 	}
 }

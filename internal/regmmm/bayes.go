@@ -776,9 +776,14 @@ func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	return regresample.DeriveSeed(body, 0, nil)
 }
 
-// bayesRegression is one slot's buffered fit.
+// bayesRegression is one slot's buffered fit. label is the name its
+// refusals call it by (pmodel.RegressionLabel): FitContext binds it per
+// call, so a regression with no name inside a named Compose fit says
+// regression "<fit>" (message text only; details.regression stays the
+// regression's own name).
 type bayesRegression struct {
-	cfg *bayesConfig
+	cfg   *bayesConfig
+	label string
 }
 
 // Fit is FitContext under a background context.
@@ -799,7 +804,11 @@ func (r *bayesRegression) slotError(err error) error {
 	}
 	msg := strings.TrimPrefix(ce.Message, string(BayesName)+": ")
 	msg = strings.TrimPrefix(msg, string(BayesName)+" ")
-	return perr.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("%s regression %q: %s", BayesName, r.cfg.name, msg), details)
+	label := r.label
+	if label == "" {
+		label = r.cfg.name
+	}
+	return perr.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("%s regression %q: %s", BayesName, label, msg), details)
 }
 
 // configError is a PROCESSING_CONFIG refusal of the rows.
@@ -819,6 +828,9 @@ type bayesData struct {
 // and samples it. The row count is checked first, before any value is
 // read, so a short input is a cheap coded refusal.
 func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (extend.RegressionOutput, error) {
+	// A per-call copy: the slot's model may fit concurrently under
+	// different Compose fits, each labelling its own refusals.
+	r = &bayesRegression{cfg: r.cfg, label: pmodel.RegressionLabel(ctx, r.cfg.name)}
 	cfg := r.cfg
 	n, nc, nz := rows.Len(), len(cfg.channels), len(cfg.controls)
 	per := len(cfg.kernel.Params()) + len(cfg.curve.Params()) + 1

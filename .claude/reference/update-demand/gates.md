@@ -30,7 +30,7 @@ Numeric determinism: the `TestCrossArch*` gates — `update-demand/gates-cross-a
 
 **Operator declaration flags, runtime halves.** Each manifest flag has a runtime test that can contradict it:
 
-- `TestManifestEmitsTypeHoldsAtRuntime` is the only runtime consumer of `Operator.EmitsType`; a new `EmitsType` declaration without a probe in its table fails, because an unprobed declaration is prose nothing can contradict.
+- `Operator.EmitsType` is the materialized column type. `TestManifestEmitsTypeMatchesMaterialize` (root) holds it to the column Materialize writes and `TestManifestEmitsTypeHoldsAtRuntime` holds the emitted values to its (or the note's narrower) domain; a declaration without a probe in both tables fails, because an unprobed declaration is prose nothing can contradict.
 - `TestCapabilities_IgnoresFieldDeclarationsAreCoherent` + `TestAggregators_IgnoredFieldSlotIsReallyIgnored` cover `Operator.IgnoresField` (the Field slot is never read, e.g. AGG_RATIO): the operator accepts every type, names its real inputs as `Type: "field"` params, and returns the same scalar whatever Field names.
 - `TestWindows_IgnoresFrameMatchesRuntime` covers `Operator.IgnoresFrame`: the column is identical across bounded frames exactly when the flag is set.
 - `TestOperators_ReadsExpressionMatchesRuntime` covers `Operator.ReadsExpression`: a flagged attribute or filterer refuses a missing `Expression`, an unflagged one builds identically with or without it, and no other category may declare it.

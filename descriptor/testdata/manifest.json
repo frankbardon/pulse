@@ -3554,7 +3554,7 @@
             "u64",
             "u8"
           ],
-          "emits_type": "packed_bool",
+          "emits_type": "f64",
           "emits_type_note": "one 0/1 per record (0 when the value is null)",
           "streamable": true,
           "component_schema": {
@@ -5048,7 +5048,7 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type": "packed_bool",
+          "emits_type": "f64",
           "emits_type_note": "one 0/1 per record (0 when the set is null)",
           "streamable": true,
           "component_schema": {
@@ -5071,8 +5071,8 @@
             "set_u64",
             "set_u8"
           ],
-          "emits_type": "u16",
-          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
+          "emits_type": "f64",
+          "emits_type_note": "one whole number per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -6690,8 +6690,8 @@
           "params": null,
           "accepts_types": [],
           "forbids_field": true,
-          "emits_type": "u32",
-          "emits_type_note": "one integer per row",
+          "emits_type": "f64",
+          "emits_type_note": "one whole number ≥ 1 per row",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -7040,8 +7040,8 @@
           "params": null,
           "accepts_types": [],
           "forbids_field": true,
-          "emits_type": "u32",
-          "emits_type_note": "one integer per row",
+          "emits_type": "f64",
+          "emits_type_note": "one whole number ≥ 1 per row",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -7057,8 +7057,8 @@
           "params": null,
           "accepts_types": [],
           "forbids_field": true,
-          "emits_type": "u32",
-          "emits_type_note": "one integer per row (resets per partition)",
+          "emits_type": "f64",
+          "emits_type_note": "one whole number ≥ 1 per row (resets per partition)",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -22227,4 +22227,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3fe7ca4982e2e7a2b4b4a2d8e5c29c8e6fece35cee4db5bd1eaf80048db1e837
+// golden-hash: 69b3ccc029cc39aeca1b26675647dd9d194c78e8f875c8a87eae1f01aca8efd1

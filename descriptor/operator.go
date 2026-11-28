@@ -86,19 +86,23 @@ type Operator struct {
 	// runtime by processing's TestOperators_ReadsExpressionMatchesRuntime.
 	ReadsExpression bool `json:"reads_expression,omitempty"`
 
-	// EmitsType is the field type produced for single-output operators.
-	// Empty when the operator's emit type is conditional on input or
-	// when it does not emit a typed column (e.g. an aggregator emits a
-	// scalar).
+	// EmitsType is the field type of the column a single-output
+	// operator's output is written as (Materialize's derived column), not
+	// its value domain: a whole-number or 0/1 output is still "f64", and
+	// EmitsTypeNote states the domain. Empty when the operator's emit
+	// type is conditional on input or when it does not emit a typed
+	// column (e.g. an aggregator emits a scalar).
 	//
 	// No execution path reads this: attribute outputs are float64 end to
 	// end, window outputs land in a map[string]any and feature outputs in
 	// feature.Output.Values. It is a claim MCP clients size destination
-	// columns from, and the only thing that can contradict it is
-	// processing.TestManifestEmitsTypeHoldsAtRuntime, which runs every
-	// operator that declares one and checks the values it really emits
-	// against the declared domain. A new declaration must arrive with a
-	// probe there or that gate fails.
+	// columns from, contradicted only by two gates: the root package's
+	// TestManifestEmitsTypeMatchesMaterialize materializes every
+	// declaring attribute, window and feature and holds the column type
+	// to it, and processing.TestManifestEmitsTypeHoldsAtRuntime runs each
+	// one and checks the values it really emits against the declared (or
+	// the note's narrower) domain. A new declaration must arrive with a
+	// probe in both or they fail.
 	EmitsType string `json:"emits_type,omitempty"`
 
 	// EmitsTypeNote provides context when EmitsType is empty or
