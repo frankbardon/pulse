@@ -74,6 +74,24 @@ func (r decimalAggResult) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%q", r.Value.String(r.Scale))), nil
 }
 
+// CellFloat64 is the cell's value as a float64 — the decimal at its
+// scale (Decimal128.Float64), the fallen-back float, the count, or NaN
+// for an undefined figure — the value every numeric reader of a cell
+// (an overlay, a post-test, crosstab normalization, the chain hand-off,
+// types.MatrixCell.Scalar) takes, as a float64 column's cell carries it
+// (decimalCellFloat).
+func (r decimalAggResult) CellFloat64() float64 {
+	switch {
+	case r.Undefined:
+		return math.NaN()
+	case r.IsCount:
+		return float64(r.Count)
+	case r.FellBack:
+		return r.Float
+	}
+	return r.Value.Float64(r.Scale)
+}
+
 // String renders the decimal at its scale.
 func (r decimalAggResult) String() string {
 	if r.Undefined {

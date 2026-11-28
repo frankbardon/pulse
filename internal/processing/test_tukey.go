@@ -181,6 +181,9 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 // float64 (floatFromRow's numeric set). Aggregator/window outputs land
 // here as float64 or int64.
 func floatValue(v any) (float64, bool) {
+	if f, ok := decimalCellFloat(v); ok {
+		return f, true
+	}
 	switch x := v.(type) {
 	case float64:
 		return x, true

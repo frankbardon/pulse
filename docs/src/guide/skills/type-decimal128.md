@@ -14,7 +14,7 @@ Fixed-width: 16 bytes per record, a two's-complement little-endian 128-bit integ
 
 Precision 1..38 significant digits, scale 0..precision; the mantissa magnitude is at most 10^38 − 1 (anything larger overflows). A division result takes at least 4 decimal places. Use for money, regulated metrics and balances, where base-10 rounding error is unacceptable.
 
-**Output form:** a decimal STRING at the field's scale (`"-123.4567"`) wherever a value reaches a caller: record rows, `pulse_sample`, `pulse_lookup`, decimal aggregates, export. Window `order_by` and the request `sort` still order by value.
+**Output form:** a decimal STRING at the field's scale (`"-123.4567"`) wherever a value reaches a caller: record rows, `pulse_sample`, `pulse_lookup`, decimal aggregates, export. Window `order_by` and the request `sort` still order by value, and every numeric reader of an aggregate cell (windows, overlays, post-tests, crosstab `normalize`, `MatrixCell.Scalar`) reads it as its float64 value.
 
 ## Null
 

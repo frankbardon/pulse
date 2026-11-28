@@ -355,6 +355,9 @@ func compareRows(a, b map[string]any, keys []types.OrderKey) int {
 }
 
 func toFloat64(v any) float64 {
+	if f, ok := decimalCellFloat(v); ok {
+		return f
+	}
 	switch x := v.(type) {
 	case float64:
 		return x

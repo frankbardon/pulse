@@ -48,6 +48,10 @@ func (c decimalCell) SortValue() any {
 // String renders the decimal at its column scale.
 func (c decimalCell) String() string { return c.value.String(c.scale) }
 
+// CellFloat64 is the cell's value as a float64 at its column scale
+// (decimalCellFloat).
+func (c decimalCell) CellFloat64() float64 { return c.value.Float64(c.scale) }
+
 // MarshalJSON renders the decimal string, so a row that escapes
 // finalizeRowCells still never marshals as `{}`.
 func (c decimalCell) MarshalJSON() ([]byte, error) { return json.Marshal(c.String()) }
@@ -324,11 +328,13 @@ func (r *Record) fieldNamed(name string) *encoding.Field {
 // render (RenderRecordCells) — a date its YYYY-MM-DD literal, a
 // datetime its RFC 3339 UTC literal, a decimal128 its string at the
 // column scale ("87.50"), a u64 its exact word — and any other numeric
-// cell its plain shortest float ("2.5"). key is the distinct-value key:
+// cell its plain shortest float ("2.5"; a packed_bool "1" / "0", as
+// Sample renders it). key is the distinct-value key:
 // the float64 for a plain number (so 0 and -0 are one value, as
 // before), else the rendered string, which is exact (a decimal or a u64
 // past 2^53 whose float64 echoes collide stay two values). ok is false
-// for a null or non-numeric cell (a set or vector field is never listed).
+// for a null or non-numeric cell (Service.Facet lists a set field's
+// dictionary and refuses a vector field before it reads a record).
 func FacetValue(rec *Record, f *encoding.Field) (key any, text string, ok bool) {
 	switch f.Type {
 	case encoding.FieldTypeDecimal128:

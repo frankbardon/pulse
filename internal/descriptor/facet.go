@@ -268,21 +268,14 @@ func validateFacetWithOptions(head cohortHead, warns *[]encx.CohesionWarning, re
 				map[string]any{"field": name})
 			continue
 		}
+		// A set_*, vec_* or datetime field is refused, as the run
+		// refuses it before any record is read.
+		if ce := FacetFieldTypeRefusal(f); ce != nil {
+			addCodedError(env, ce)
+			continue
+		}
 		for _, w := range FacetNotMeaningfulWarnings(req, f) {
 			env.AddWarning(w.Code, w.Message, w.Details)
-		}
-		// Set-typed fields: numeric stats are not meaningful on bitmasks
-		// (mean / percentile / histogram of raw mask values is gibberish).
-		// Reject up-front so the caller switches to per-bit value_counts.
-		if f.Type.IsSet() && len(req.NumericPercentiles) > 0 {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				fmt.Sprintf("numeric_percentiles is not meaningful on set field %q; use the per-bit value_counts that the facet surface already returns", name),
-				map[string]any{"field": name, "type": f.Type.String()})
-		}
-		if f.Type.IsSet() && req.IncludeHistogram {
-			env.AddError(string(errors.SERVICE_VALIDATION),
-				fmt.Sprintf("include_histogram is not meaningful on set field %q; use the per-bit value_counts that the facet surface already returns", name),
-				map[string]any{"field": name, "type": f.Type.String()})
 		}
 	}
 
@@ -293,6 +286,9 @@ func validateFacetWithOptions(head cohortHead, warns *[]encx.CohesionWarning, re
 				fmt.Sprintf("additive field %q not found in schema", name),
 				map[string]any{"field": name})
 			continue
+		}
+		if ce := FacetFieldTypeRefusal(f); ce != nil {
+			addCodedError(env, ce)
 		}
 		for _, fil := range req.Filterers {
 			if fil == nil {
@@ -446,6 +442,31 @@ func FacetCodedField(req *types.FacetRequest, f *encoding.Field) bool {
 		}
 	}
 	return false
+}
+
+// FacetTypeUnsupported is the refusal of a facet over field f, whose
+// type the facet does not list or summarise: SERVICE_VALIDATION
+// "facet does not support field type <type>", details {field, type}.
+func FacetTypeUnsupported(f *encoding.Field) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		fmt.Sprintf("facet does not support field type %s", f.Type.String()),
+		map[string]any{"field": f.Name, "type": f.Type.String()})
+}
+
+// FacetFieldTypeRefusal is the rich facet's (FacetSchema's) field-type
+// rule for a faceted or additive field f: a categorical or packed_bool
+// field is tallied as discrete values, a facetIsNumeric field
+// summarised numerically (or, coded, as discrete codes — always a
+// numeric type); every other type — a set_*, a vec_*, a datetime — is
+// refused FacetTypeUnsupported. The one rule predict
+// (validateFacetWithOptions) and the runtime (service's
+// validateFacetSchemaRequest, before any record is read) share; before,
+// predict judged such a request valid and the run refused it.
+func FacetFieldTypeRefusal(f *encoding.Field) *errors.CodedError {
+	if f == nil || f.Type.IsCategorical() || f.Type == encoding.FieldTypePackedBool || facetIsNumeric(f.Type) {
+		return nil
+	}
+	return FacetTypeUnsupported(f)
 }
 
 func facetIsNumeric(t encoding.FieldType) bool {

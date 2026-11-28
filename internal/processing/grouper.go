@@ -27,9 +27,20 @@ import (
 // precision. Lifted out of categoryGrouper / roundedGrouper /
 // rangeGrouper so the KeyFor and Group paths share a single
 // canonicalisation site.
+//
+// Only an integral value inside int64's range goes through int64(v):
+// the conversion of ±Inf or of a magnitude of 2^63 or more is
+// platform-defined in Go (amd64 yields MinInt64, arm64 saturates), so
+// the key would differ between architectures. Those values take
+// FormatFloat's fixed spellings instead — "+Inf", "-Inf", the exact
+// integer digits of a huge value ("9223372036854775808" for 2^63) —
+// and NaN, never integral, its "NaN". Each still parses back (keyRank).
 func formatRoundedNumeric(v float64) string {
 	if v == math.Trunc(v) {
-		return strconv.FormatInt(int64(v), 10)
+		if v >= -0x1p63 && v < 0x1p63 {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', 0, 64)
 	}
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }

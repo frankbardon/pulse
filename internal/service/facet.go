@@ -21,11 +21,16 @@ import (
 //     enforced at insert time (sharding design contract §3.2). No
 //     record streaming is required.
 //
+// A set_* field lists its dictionary the same way (its members, in
+// dictionary order); a vec_* field is refused SERVICE_VALIDATION
+// (descx.FacetTypeUnsupported) — it has no scalar values to list.
+//
 // For numeric fields the cohort is streamed once and the set of
 // distinct values observed is returned in encounter order, each
 // rendered by its field type (processing.FacetValue): a date as
 // YYYY-MM-DD, a datetime as RFC 3339 UTC, a decimal128 at its column
-// scale, a u64 as its exact word, any other number as a plain float. For shard
+// scale, a u64 as its exact word, a packed_bool as "1" / "0",
+// any other number as a plain float. For shard
 // archives the stream spans every shard in central-directory
 // (insertion) order — the union semantics specified in §5.4. The
 // streamed distinct-value set is bounded by MaxGroups, and a set
@@ -61,6 +66,21 @@ func (s *Service) facet(ctx context.Context, path string, field string) ([]strin
 	// way we sidestep record streaming.
 	if f.Type.IsCategorical() && f.Dictionary != nil {
 		return f.Dictionary.Values(), nil
+	}
+	// A set field lists its dictionary the same way: its members, in
+	// dictionary order — the labels a FILTER_SET_* value names — never
+	// the bitmasks. A shard archive's canonical dictionary is the union
+	// of every shard's (set fields widen across shards).
+	if f.Type.IsSet() {
+		if f.Dictionary == nil {
+			return []string{}, nil
+		}
+		return f.Dictionary.Values(), nil
+	}
+	// A vector has no distinct scalar values to list: refused, never
+	// an empty list.
+	if f.Type.IsVector() {
+		return nil, descx.FacetTypeUnsupported(f)
 	}
 
 	// Instance resource limits on the streamed path: a set

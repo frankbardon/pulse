@@ -1692,6 +1692,9 @@ func coerceAnyMarginMap(in map[string]any) map[string]float64 {
 }
 
 func coerceFloat64(v any) float64 {
+	if f, ok := decimalCellFloat(v); ok {
+		return f
+	}
 	switch x := v.(type) {
 	case float64:
 		return x

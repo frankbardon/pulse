@@ -30,7 +30,7 @@ Two entry points. `pulse.Facet(ctx, path, field)`: distinct values. `pulse.Facet
 
 ## Discrete vs numeric dispatch
 
-Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"true"`/`"false"`). All numeric / date / decimal ⇒ numeric<!-- feature: capability:labels -->, except a `u4`–`u32` field under an augment label binding: per-code counts (`label-display`)<!-- /feature -->. `numeric_percentiles` / `include_histogram` on a non-numeric field compute nothing: one `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning each (predict and `FacetResult.Warnings`). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
+Field type drives dispatch: `categorical_*` + `packed_bool` ⇒ discrete (dictionary fast path; bool emits `"1"`/`"0"`). All numeric / date / decimal ⇒ numeric<!-- feature: capability:labels -->, except a `u4`–`u32` field under an augment label binding: per-code counts (`label-display`)<!-- /feature -->. `numeric_percentiles` / `include_histogram` on a non-numeric field compute nothing: one `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` warning each (predict and `FacetResult.Warnings`). Histograms require a numeric field plus caller-supplied `histogram_range` — no two-pass auto-range. A field's distinct values past `max_groups` refuse `PULSE_LIMIT_EXCEEDED`.
 
 ## TopK, percentiles, histograms
 
