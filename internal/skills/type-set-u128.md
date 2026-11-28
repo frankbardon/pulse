@@ -12,7 +12,7 @@ Fixed-width: 16 bytes per record: 2 little-endian 64-bit words, `words[0]` = bit
 
 ## Range
 
-Up to `128` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`65`..`128` lands here). Every record pays the full width whether or not it sets a high bit. Import never promotes a set rung: a cell past it drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`). Declare a wider rung in the schema, or raise `--sample-rows`.
+Up to `128` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`65`..`128` lands here). Every record pays the full width whether or not it sets a high bit. An INFERRED rung a later cell outgrows is promoted up the set ladder (to `set_u256` at most) and the row imports (`PULSE_IMPORT_WIDTH_PROMOTED`); a DECLARED rung (`--schema`, an override, a source schema) is a ceiling — a cell past it drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`).
 
 ## Null
 

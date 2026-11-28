@@ -329,10 +329,12 @@ snake_case with field types as names (`"type": "f64"`).
 ### Width promotion (inferred imports and converts)
 
 Not a flag: every inferred `import <format>`, `import auto`,
-`pulse_import` and `pulse convert` does it. Inference sizes `categorical_*` rungs and integer
+`pulse_import` and `pulse convert` does it. Inference sizes `categorical_*` and `set_*` rungs and integer
 widths from the first `--sample-rows` rows. A later value that outgrows
 them promotes the field to the narrowest type that holds it instead of
-dropping the row: `categorical_u8` → `u16` → `u32`; `u4` → `u8` → `u16`
+dropping the row: `categorical_u8` → `u16` → `u32`; `set_u8` → `u16` →
+`u32` → `u64` → `u128` → `u256` for a cell whose tokens outgrow the rung
+(a set past `set_u256` stays a row error); `u4` → `u8` → `u16`
 → `u32` → `u64` for a larger non-negative integer; `u4`..`u32` → `f64`
 for a negative, fractional or signed number; `f32` → `f64` for a value
 outside f32's range — past `MaxFloat32`, or a non-zero magnitude f32

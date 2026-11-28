@@ -12,7 +12,7 @@ Fixed-width: 32 bytes per record: 4 little-endian 64-bit words, `words[0]` = bit
 
 ## Range
 
-Up to `256` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`129`..`256` lands here). Every record pays the full width whether or not it sets a high bit. The widest rung, a hard ceiling: a source with more distinct tokens infers no set type, and a cell past 256 entries drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`).
+Up to `256` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference picks the smallest rung that holds the sampled tokens (`129`..`256` lands here). Every record pays the full width whether or not it sets a high bit. The widest rung, a hard ceiling and the top of the import's set promotion ladder: a source with more distinct tokens infers no set type, and a cell past 256 entries drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`), promoted or not.
 
 ## Null
 

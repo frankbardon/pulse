@@ -197,7 +197,8 @@ const (
 	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
 	// field when an inferred import meets a value, past the bounded
 	// inference sample, that the sample-inferred width cannot hold — a
-	// categorical_* dictionary outgrowing its rung, an integer past its
+	// categorical_* dictionary outgrowing its rung, a set_* cell whose
+	// tokens outgrow its rung (up to set_u256), an integer past its
 	// u4..u32 width, or a non-integer number in an integer column. The
 	// field is promoted to the narrowest type that holds it (details:
 	// field, from, to, source_row) and the row imports instead of
@@ -330,7 +331,9 @@ const (
 	// set-typed column exceeds the declared set width — or, at the top
 	// of the ladder, the largest available one (256 entries for
 	// set_u256). Surfaced by the importer when a multi-select column's
-	// observed vocabulary cannot fit the column's set tier.
+	// observed vocabulary cannot fit the column's set tier; an inferred
+	// tier below set_u256 is promoted instead
+	// (PULSE_IMPORT_WIDTH_PROMOTED).
 	PULSE_IMPORT_SET_OVERFLOW Code = "PULSE_IMPORT_SET_OVERFLOW"
 
 	// PULSE_IMPORT_CATEGORICAL_UNBOUNDED indicates sample suggests unbounded cardinality.

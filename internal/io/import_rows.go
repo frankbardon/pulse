@@ -193,6 +193,28 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 				return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
 			}
 		}
+		if f.Type.IsSet() {
+			// Every set rung, narrow or wide, through the one set arm
+			// (internSetOrWiden): a sample-inferred rung the tokens
+			// outgrow steps up the set ladder, possibly from a uint64
+			// rung to a wide one, so the storage is chosen after it.
+			mask, steps, err := internSetOrWiden(c.schema, i, raw, c.dicts[i], c.delimFor(f.Name), c.widenable[i], rowNum)
+			if len(steps) > 0 {
+				c.widened = append(c.widened, steps...)
+				c.pending = append(c.pending, steps...)
+				f = c.schema.Fields[i]
+			}
+			if err == nil {
+				err = c.setSet(i, f.Type, mask)
+			}
+			if err != nil {
+				if c.isForced(i) {
+					return &RowError{Row: rowNum, Err: overrideRefusal(f.Name, f.Type, raw, rowNum, err)}
+				}
+				return rowErr(f, err.Error())
+			}
+			continue
+		}
 		if isWideFieldType(f.Type) {
 			wb, err := convertValueWide(raw, f, c.dicts[i], c.delimFor(f.Name))
 			if err != nil {

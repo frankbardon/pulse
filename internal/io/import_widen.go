@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"encoding/binary"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -27,13 +28,16 @@ import (
 //	u4 | u8 | u16 | u32 → f64   (any other number: negative, fractional,
 //	                             signed, past uint64)
 //	f32 → f64                   (a number outside f32's range)
+//	set_u8 → set_u16 → set_u32 → set_u64 → set_u128 → set_u256
+//	                            (a cell whose tokens outgrow the rung)
 //
 // The f64 arm is lossless for every value already imported: each fits
 // 32 bits, and f64 holds every integer up to 2^53 and every f32 value
 // exactly. From u64 it would not be, so a u64 field never leaves the
 // integer ladder and such a value stays a row error, as does anything
-// that is not a number, a categorical past categorical_u32, and a
-// packed_bool cell that is not a boolean (no wider type holds both a
+// that is not a number, a categorical past categorical_u32, a set past
+// set_u256 (PULSE_IMPORT_SET_OVERFLOW, the reason of the row's
+// PULSE_IMPORT_ROW_ERROR) and a packed_bool cell that is not a boolean (no wider type holds both a
 // boolean and an arbitrary value losslessly).
 //
 // The f32 trigger is RANGE, the same test inference used to choose f32
@@ -52,7 +56,10 @@ import (
 // contract, not a guess.
 //
 // Promotion never changes a value: dictionary IDs are assigned in the
-// same order at any rung, integers zero-extend, and every
+// same order at any rung (a set's token -> bit assignment too),
+// integers and set masks zero-extend — the low bytes of a wider set
+// rung are byte-identical to the narrower rung's mask, set_u64 →
+// set_u128 included (byte-layout.md, Wide-set word order) — and every
 // u32-or-narrower integer is exact in f64. The rows already converted
 // are re-strided in memory (widenBufferedColumn), so the written cohort
 // is byte-identical to one imported with the final types from the
@@ -212,6 +219,57 @@ func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.D
 	}
 }
 
+// nextSetRung returns the set rung one step wider than ft on the shared
+// ladder (encx.SetLadder), or ok=false for set_u256 and every non-set
+// type.
+func nextSetRung(ft encoding.FieldType) (encoding.FieldType, bool) {
+	ladder := encx.SetLadder()
+	for k := 0; k+1 < len(ladder); k++ {
+		if ladder[k] == ft {
+			return ladder[k+1], true
+		}
+	}
+	return 0, false
+}
+
+// internSetOrWiden is convertOrWiden's set arm: it interns the tokens of
+// raw, a present cell of set field i, and returns the membership mask.
+// A set mask does not fit convertOrWiden's uint64 once the rung is wide,
+// so the set ladder has its own entry point; the rule is the same. When
+// the tokens outgrow the rung (PULSE_IMPORT_SET_OVERFLOW) and the field
+// is widenable, the field steps up the set ladder one rung at a time,
+// writing each step to schema.Fields[i].Type, until the cell interns or
+// set_u256 still overflows — the row error that stands. Tokens interned
+// before a failed attempt stay in the dictionary and keep their IDs, so
+// the retry assigns every token the bit a full-sample import gives it.
+//
+// The import row pass (rowConverter), the measured import predict and
+// ConvertJob.Run all call it, so a set field widens at the same row to
+// the same rung whichever verb reads the source.
+func internSetOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.Dictionary, delim string, widenable bool, rowNum int) (encoding.SetMask, []widening, error) {
+	ft := schema.Fields[i].Type
+	mask, err := setMaskFromCell(raw, ft, dict, delim)
+	var steps []widening
+	for widenable && isSetOverflow(err) {
+		to, ok := nextSetRung(ft)
+		if !ok {
+			break
+		}
+		steps = append(steps, widening{field: i, from: ft, to: to, row: rowNum})
+		schema.Fields[i].Type = to
+		ft = to
+		mask, err = setMaskFromCell(raw, ft, dict, delim)
+	}
+	return mask, steps, err
+}
+
+// isSetOverflow reports whether err is the set rung ceiling
+// (internSetTokens' PULSE_IMPORT_SET_OVERFLOW).
+func isSetOverflow(err error) bool {
+	var ce *errors.CodedError
+	return stderrors.As(err, &ce) && ce.Code == errors.PULSE_IMPORT_SET_OVERFLOW
+}
+
 // widenBufferedColumn re-strides rows import rows held in buf, laid out
 // field by field per held (Schema.FieldWidth each, bit-packed = one
 // byte, no bitmap), so field fi is stored as to instead of its held type.
@@ -219,7 +277,8 @@ func convertOrWiden(schema *encoding.Schema, i int, raw string, dict *encoding.D
 // for the next promotion to start from; held itself is not modified. It
 // works in place, last row first: a row's new position is never before
 // its old one, so no row is overwritten before it has been moved. Values
-// are preserved — integers and dictionary IDs zero-extend, and an
+// are preserved — integers, dictionary IDs and set masks (to set_u256's
+// 32 bytes) zero-extend, and an
 // integer bound for f64 is written as the exactly-equal float, an f32 as
 // the exactly-equal f64.
 func widenBufferedColumn(buf *bytes.Buffer, rows int, held *encoding.Schema, fi int, to encoding.FieldType) (*encoding.Schema, error) {
@@ -242,24 +301,27 @@ func widenBufferedColumn(buf *bytes.Buffer, rows int, held *encoding.Schema, fi 
 	if buf.Len() != rows*oldStride {
 		return nil, fmt.Errorf("import width promotion: %d buffered bytes are not %d rows of %d", buf.Len(), rows, oldStride)
 	}
+	var cell [32]byte // set_u256, the widest promoted width
+	if wNew > len(cell) || wOld > wNew {
+		return nil, fmt.Errorf("import width promotion: %s (%d bytes) to %s (%d bytes) is not a widening", from, wOld, to, wNew)
+	}
 	buf.Write(make([]byte, rows*(newStride-oldStride)))
 	b := buf.Bytes()
-	var cell [8]byte
 	for k := rows - 1; k >= 0; k-- {
 		src, dst := k*oldStride, k*newStride
-		cell = [8]byte{}
+		cell = [32]byte{}
 		copy(cell[:wOld], b[src+off:src+off+wOld])
-		v := binary.LittleEndian.Uint64(cell[:])
 		copy(b[dst+off+wNew:dst+newStride], b[src+off+wOld:src+oldStride])
 		copy(b[dst:dst+off], b[src:src+off])
-		switch {
-		case to != encoding.FieldTypeF64:
-		case from == encoding.FieldTypeF32:
-			v = math.Float64bits(float64(math.Float32frombits(uint32(v))))
-		default:
-			v = math.Float64bits(float64(v))
+		if to == encoding.FieldTypeF64 {
+			v := binary.LittleEndian.Uint64(cell[:8])
+			if from == encoding.FieldTypeF32 {
+				v = math.Float64bits(float64(math.Float32frombits(uint32(v))))
+			} else {
+				v = math.Float64bits(float64(v))
+			}
+			binary.LittleEndian.PutUint64(cell[:8], v)
 		}
-		binary.LittleEndian.PutUint64(cell[:], v)
 		copy(b[dst+off:dst+off+wNew], cell[:wNew])
 	}
 	return &next, nil
