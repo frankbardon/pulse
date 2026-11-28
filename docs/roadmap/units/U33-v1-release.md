@@ -238,7 +238,7 @@ Filed from [U77 handed on](U77-ci-platform.md#handed-on); tick in [`TODO.md`](..
 
 Filed from [U75 handed on](U75-zones-labels-2.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#735** — **Black-box proof of the grouped-cohort `0x02` filter precompute's per-row zone.** The precompute that reads a per-row zone on a grouped (`0x02`) cohort is covered by a unit test only; add an integration case beside the per-row oracle (`internal/integration/time_zone_field*_test.go`) over a grouped cohort. Found in U50 (E1-S2), carried by #481.
+- [x] **#735** — **Black-box proof of the grouped-cohort `0x02` filter precompute's per-row zone.** The precompute that reads a per-row zone on a grouped (`0x02`) cohort is covered by a unit test only; add an integration case beside the per-row oracle (`internal/integration/time_zone_field*_test.go`) over a grouped cohort. Found in U50 (E1-S2), carried by #481. *Done in pre-v1 E7-S1: `TestTimeZoneField_GroupedFilterPrecompute`.*
 
 ## Inherited from U74
 
@@ -265,7 +265,7 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 - [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
 - [x] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations. *(2)(3) done in pre-v1 E1-S6.* *(1) done in pre-v1 E3-S4: a hidden (or never-registered) `params.fit_on` filterer type refuses at predict as at run time; a feature's expression `fit_on` is not a filterer slot and runs on both sides; pinned by `TestHiddenFitOn_PredictMatchesRuntime`. All three parts closed.*
 - [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
-- [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
+- [x] **#747** — **Residual-correlation fidelity for a staircase endpoint.** *Done in pre-v1 E7-S1: `TestBuildModelFidelity_StaircaseEndpointResidualPack` — a staircase endpoint is unmeasured per pair by design.*
 - [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*
 - [x] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) closed in pre-v1 E4-S6 (set-field MCP enums narrowed to `c.Set`).*
 
