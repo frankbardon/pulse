@@ -35,7 +35,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2866 | 0 |
+| [Go API symbols](#go-api-symbols) | 2867 | 0 |
 | [Options fields](#options-fields) | 36 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -46,7 +46,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [MCP resources](#mcp-resources) | 3 | 0 |
 | [Operators](#operators) | 218 | 0 |
 | [Field types](#field-types) | 22 | 0 |
-| [Error codes](#error-codes) | 495 | 0 |
+| [Error codes](#error-codes) | 496 | 0 |
 | [Environment variables](#environment-variables) | 10 | 0 |
 
 ## Go API symbols
@@ -1381,6 +1381,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `errors.PULSE_TEMPLATE_INVALID` |  |  | yes |
 | `errors.PULSE_TEMPLATE_NOT_FOUND` |  |  | yes |
 | `errors.PULSE_TEMPLATE_RENDER_INVALID` |  |  | yes |
+| `errors.PULSE_TEMPLATE_TARGET_MISMATCH` |  |  | yes |
 | `errors.PULSE_TEMPLATE_TARGET_UNKNOWN` |  |  | yes |
 | `errors.PULSE_TEMPLATE_UNRESOLVED` |  |  | yes |
 | `errors.PULSE_TEMPLATE_VAR_ENUM` |  |  | yes |
@@ -4121,6 +4122,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_TEMPLATE_INVALID` | yes | yes |
 | `PULSE_TEMPLATE_NOT_FOUND` | yes |  |
 | `PULSE_TEMPLATE_RENDER_INVALID` | yes |  |
+| `PULSE_TEMPLATE_TARGET_MISMATCH` | yes |  |
 | `PULSE_TEMPLATE_TARGET_UNKNOWN` | yes |  |
 | `PULSE_TEMPLATE_UNRESOLVED` | yes |  |
 | `PULSE_TEMPLATE_VAR_ENUM` | yes |  |

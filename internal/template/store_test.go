@@ -343,6 +343,7 @@ func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
 		rel      string
 		content  string
 		wantCode perr.Code
+		bodyPath string // the fault's own details.path ("" = none: path is the file)
 	}{
 		{
 			name:     "malformed JSON",
@@ -379,6 +380,7 @@ func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
 			rel:      "deep/nested/typo-marker.json",
 			content:  `{"target":"request","variables":[{"name":"metric","type":"field"}],"body":{"aggregations":[{"$var":"metrc"}]}}`,
 			wantCode: perr.PULSE_TEMPLATE_INVALID,
+			bodyPath: "body.aggregations[0]",
 		},
 	}
 
@@ -402,8 +404,18 @@ func TestNewStore_MalformedFileFailsConstruction(t *testing.T) {
 			}
 
 			ce := codedError(t, err)
-			if got := ce.Details["path"]; got != path {
-				t.Errorf("details[path] = %v, want %q", got, path)
+			// #526: the file is details.file; a fault located in the
+			// body keeps that location in details.path (the file only
+			// when the fault has none).
+			if got := ce.Details["file"]; got != path {
+				t.Errorf("details[file] = %v, want %q", got, path)
+			}
+			wantPath := path
+			if tt.bodyPath != "" {
+				wantPath = tt.bodyPath
+			}
+			if got := ce.Details["path"]; got != wantPath {
+				t.Errorf("details[path] = %v, want %q", got, wantPath)
 			}
 			wantName := strings.TrimSuffix(tt.rel, ".json")
 			if got := ce.Details[perr.DetailTemplate]; got != wantName {

@@ -12578,7 +12578,7 @@
         ]
       }
     ],
-    "error_codes_count": 495,
+    "error_codes_count": 496,
     "error_domains": [
       "CLI",
       "DATA",
@@ -13016,6 +13016,7 @@
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
       "PULSE_TEMPLATE_RENDER_INVALID",
+      "PULSE_TEMPLATE_TARGET_MISMATCH",
       "PULSE_TEMPLATE_TARGET_UNKNOWN",
       "PULSE_TEMPLATE_UNRESOLVED",
       "PULSE_TEMPLATE_VAR_ENUM",
@@ -22215,4 +22216,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b312796dd070a7356f754ddd31b124c1293ae0dbb1ceb013c0a87f89c083bf2f
+// golden-hash: 7ed8547529a35d49db01337dae401eb6409427e46126913e13e4e136d1ef93e3

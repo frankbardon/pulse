@@ -334,7 +334,7 @@ fails when one is missing). An `Options` field always overrides its variable.
 | `PULSE_RANGE_TABLES_DIR` | The same, for range tables; `Options.RangeTablesDir` wins. |
 | `PULSE_LOOKUP_TABLES_DIR` | The same, for lookup tables (`lookup()`); parser `pulse.ParseLookupTableFile`; `Options.LookupTablesDir` wins. |
 | `PULSE_POPULATIONS_DIR` | `*.pulse-population.json` files register as populations, named by file stem. |
-| `PULSE_TEMPLATES_DIR` | Request-template roots, `os.PathListSeparator`-separated; the first root wins. |
+| `PULSE_TEMPLATES_DIR` | Request-template roots, `os.PathListSeparator`-separated; the first root wins. Pulse's own `*.json` sidecars under a root are skipped. |
 | `PULSE_MCP_NO_COHORT_SCAN` | `pulse mcp` only (flag `--no-cohort-scan`): skip listing `.pulse` files as resources. |
 | `PULSE_FEATURE_PROFILE` | `pulse mcp` / `mcpserve.NewPulse` only (flag `--feature-profile` wins): OS path to a feature profile. `pulse.New` never reads it. |
 | `PULSE_BENCH_DIR` | Benchmarks only: cohort cache directory (default `<tmp>/pulse-bench`). |

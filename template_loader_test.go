@@ -452,3 +452,67 @@ func TestNew_MalformedTemplateFailsNew(t *testing.T) {
 		})
 	}
 }
+
+// TestNew_TemplateDirsSkipPulseSidecars (#776): a templates directory
+// that is also a data directory holds Pulse's own *.json sidecars beside
+// its cohorts. They are skipped unread, as the table loaders skip them —
+// pulse.New neither fails on one nor lists it, and a reload reports none
+// broken. A malformed non-sidecar *.json still fails New.
+func TestNew_TemplateDirsSkipPulseSidecars(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	dir := filepath.Join(string(filepath.Separator)+"pulse-mem-only", "data")
+	writeTmplOn(t, fsys, dir, "revenue.json", tmplDoc("a template"))
+	for _, name := range pulseSidecarSuffixes {
+		writeTmplOn(t, fsys, dir, "cohort.pulse"+name, `{"not": "a template"}`)
+	}
+
+	p, err := New(Options{FS: fsys, TemplateDirs: []string{dir}})
+	if err != nil {
+		t.Fatalf("New = %v, want the sidecars skipped", err)
+	}
+	if listed := p.ListTemplates(); len(listed) != 1 || listed[0].Name != "revenue" {
+		t.Fatalf("ListTemplates() = %+v, want only revenue", listed)
+	}
+	if err := p.ReloadTemplates(); err != nil {
+		t.Fatalf("ReloadTemplates = %v", err)
+	}
+	for _, s := range p.ListTemplates() {
+		if s.Broken {
+			t.Errorf("%s reported broken after reload: %+v", s.Name, s)
+		}
+	}
+
+	writeTmplOn(t, fsys, dir, "cohort.notes.json", `{"not": "a template"}`)
+	if _, err := New(Options{FS: fsys, TemplateDirs: []string{dir}}); err == nil {
+		t.Fatal("New accepted a malformed non-sidecar *.json; only Pulse's own sidecars are skipped")
+	}
+}
+
+// TestNew_TemplateLoadFaultKeepsBothPaths (#526): a document fault the
+// store wraps at pulse.New keeps its own details.path — where in the body
+// it sits (here the PULSE_TEMPLATE_EXPR_SPLICE slot) — and carries the
+// file in details.file; it used to overwrite the body path with the file.
+func TestNew_TemplateLoadFaultKeepsBothPaths(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	dir := filepath.Join(string(filepath.Separator)+"pulse-mem-only", "templates")
+	file := writeTmplOn(t, fsys, dir, "splice.json", `{
+  "target": "request",
+  "variables": [{"name": "cut", "type": "number"}],
+  "body": {"cohort": {"filename": "sales.pulse"}, "filterers": [{"type": "FILTER_EXPRESSION", "expression": "x > {{cut}}"}]}
+}`)
+	_, err := New(Options{FS: fsys, TemplateDirs: []string{dir}})
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEMPLATE_EXPR_SPLICE {
+		t.Fatalf("New = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
+	}
+	if got := ce.Details["file"]; got != file {
+		t.Errorf("details.file = %v, want %s", got, file)
+	}
+	if got, _ := ce.Details["path"].(string); got == "" || got == file || !strings.HasPrefix(got, "body.") {
+		t.Errorf("details.path = %v, want the fault's body path", ce.Details["path"])
+	}
+}

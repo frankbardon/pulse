@@ -4543,13 +4543,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_TARGET_UNKNOWN: {
-		Message: "A template's target is absent or does not name one of the five public request roots, or a target-specific facade method was handed a template declaring a different target. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
+		Message: "A template's target is absent or does not name one of the five public request roots. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
 				Path:     []string{"Target"},
-				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted. When the details carry expected_target the target is valid but the calling method cannot return it — RenderTemplateRequest handles only \"request\", so call RenderTemplate(name, vars) instead and read the Rendered pointer the declared target names.",
+				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted.",
 				Examples: []any{"request", "composed", "chain", "facet", "sample"},
+			},
+		},
+	},
+	PULSE_TEMPLATE_TARGET_MISMATCH: {
+		Message: "A target-specific facade method was handed a template whose target is valid but not one that method can return: RenderTemplateRequest returns *types.Request, so it handles only the \"request\" target. The template needs no change.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "Call RenderTemplate(name, vars) instead and read the Rendered pointer the declared target names (Rendered.Composed, .Chain, .Facet or .Sample, or Rendered.Typed()), then hand it to the matching execution method. details.target is the template's target, details.expected_target the one the method handles.",
 			},
 		},
 	},

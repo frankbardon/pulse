@@ -25,10 +25,18 @@ import (
 const templateExt = ".json"
 
 // detailPath is the CodedError.Details key carrying the source file a
-// store-raised template error refers to. It sits alongside
+// store-raised filesystem error refers to (DATA_FILE). It sits alongside
 // errors.DetailTemplate: the name says which template failed, the path says
 // which file to open.
 const detailPath = "path"
+
+// detailFile is the Details key carrying the source file of a template
+// document fault the store raises or wraps (loadError, invalidFile). A
+// wrapped fault keeps its own details.path — the location in the
+// document body (a PULSE_TEMPLATE_EXPR_SPLICE slot, an axis name) —
+// and details.path falls back to the file only when the fault carries
+// none.
+const detailFile = "file"
 
 // templateRescanInterval is how long the store trusts its snapshot of the
 // configured roots before the next lookup re-walks them.
@@ -853,6 +861,11 @@ func scanDir(fsys afero.Fs, dir string, rootIndex int, prev *prevSnapshot, res *
 		if d.IsDir() || !strings.HasSuffix(d.Name(), templateExt) {
 			return nil
 		}
+		if opts.SkipName != nil && opts.SkipName(d.Name()) {
+			// One of Pulse's own sidecars: not a template, so it is
+			// neither parsed nor reported broken (ValidateOptions.SkipName).
+			return nil
+		}
 		name, err := templateName(dir, path)
 		if err != nil {
 			if strict {
@@ -1076,6 +1089,10 @@ func notFound(name string) error {
 // knows both the file it read and the name that file derives. Without this,
 // a broken document in a directory of fifty produces an error nobody can
 // act on.
+//
+// The file goes in details.file. The fault's own details.path (where in
+// the body it sits) is kept; details.path is the file only when the fault
+// carries none.
 func loadError(path, name string, err error) error {
 	code := errors.PULSE_TEMPLATE_INVALID
 	message := err.Error()
@@ -1088,7 +1105,10 @@ func loadError(path, name string, err error) error {
 		maps.Copy(details, ce.Details)
 	}
 	details[errors.DetailTemplate] = name
-	details[detailPath] = path
+	details[detailFile] = path
+	if _, ok := details[detailPath]; !ok {
+		details[detailPath] = path
+	}
 
 	out := errors.NewCodedErrorWithDetails(code, "template file "+path+": "+message, details)
 	out.Cause = err
@@ -1104,6 +1124,7 @@ func invalidFile(path, name, message string) error {
 		map[string]any{
 			errors.DetailTemplate: name,
 			detailPath:            path,
+			detailFile:            path,
 		})
 }
 

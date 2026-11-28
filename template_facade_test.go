@@ -394,7 +394,7 @@ func TestRenderTemplateRequest(t *testing.T) {
 				}
 
 				_, err := p.RenderTemplateRequest("t", nil)
-				ce := codedErr(t, err, perr.PULSE_TEMPLATE_TARGET_UNKNOWN)
+				ce := codedErr(t, err, perr.PULSE_TEMPLATE_TARGET_MISMATCH)
 
 				msg := ce.Error()
 				for _, want := range []string{tc.target, "RenderTemplate", tc.wantRenderPtr, "t"} {

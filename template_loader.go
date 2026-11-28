@@ -68,12 +68,17 @@ func resolveTemplateDirs(opts *Options) []string {
 // The store reads through templateFs(opts): the embedder's Options.FS when
 // one is supplied, so an embedder on an in-memory filesystem keeps its
 // templates there, and the host filesystem otherwise.
+//
+// Pulse's own *.json sidecars (isPulseSidecarName) are skipped unread, as
+// the label-, lookup- and range-table loaders skip them: a templates
+// directory may also be a data directory, and a sidecar is not a broken
+// template.
 func loadTemplateStore(opts *Options, exprParams map[string][]string) (*template.Store, error) {
 	dirs := resolveTemplateDirs(opts)
 	if len(dirs) == 0 {
 		return nil, nil
 	}
-	return template.NewStoreWith(templateFs(opts), dirs, template.ValidateOptions{ExprParams: exprParams})
+	return template.NewStoreWith(templateFs(opts), dirs, template.ValidateOptions{ExprParams: exprParams, SkipName: isPulseSidecarName})
 }
 
 // templateFs is the filesystem template roots are paths on. A supplied

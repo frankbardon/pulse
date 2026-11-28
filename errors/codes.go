@@ -3257,15 +3257,19 @@ const (
 	// "sample" (types.SampleRequest) — never as the Go type name. The
 	// target selects the type the rendered JSON strict-decodes into, so
 	// it cannot be inferred. Details carry the template under
-	// DetailTemplate and the offending target value.
-	//
-	// Also raised when a target-specific facade method is handed a
-	// template declaring a different one — RenderTemplateRequest returns
-	// *types.Request and so accepts only the "request" target. The
-	// declared target is valid, just not one that method can produce;
-	// details then also carry expected_target, and the message names the
-	// general RenderTemplate as the method that handles it.
+	// DetailTemplate and the offending target value. A valid target
+	// handed to a method that cannot produce it is
+	// PULSE_TEMPLATE_TARGET_MISMATCH, not this code.
 	PULSE_TEMPLATE_TARGET_UNKNOWN Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
+
+	// PULSE_TEMPLATE_TARGET_MISMATCH indicates a target-specific facade
+	// method was handed a template whose (valid) target it cannot
+	// produce — RenderTemplateRequest returns *types.Request and so
+	// accepts only the "request" target. The template is fine; the call
+	// is wrong: the message names the general RenderTemplate as the
+	// method that handles it. Details carry the template under
+	// DetailTemplate, the declared target and expected_target.
+	PULSE_TEMPLATE_TARGET_MISMATCH Code = "PULSE_TEMPLATE_TARGET_MISMATCH"
 
 	// PULSE_TEMPLATE_VAR_MISSING indicates a variable declared
 	// `required` resolved to nothing at render: the caller supplied no
@@ -5383,6 +5387,7 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_NOT_FOUND,
 	PULSE_TEMPLATE_INVALID,
 	PULSE_TEMPLATE_TARGET_UNKNOWN,
+	PULSE_TEMPLATE_TARGET_MISMATCH,
 	PULSE_TEMPLATE_VAR_MISSING,
 	PULSE_TEMPLATE_VAR_UNKNOWN,
 	PULSE_TEMPLATE_VAR_TYPE,

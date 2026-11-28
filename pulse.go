@@ -3011,7 +3011,7 @@ func (p *Pulse) renderTemplate(name string, vars map[string]any) (*RenderedTempl
 // straight to Process, Predict, or ProcessStream.
 //
 // It is RenderTemplate restricted to the "request" target. A template
-// declaring any other target is PULSE_TEMPLATE_TARGET_UNKNOWN: the target
+// declaring any other target is PULSE_TEMPLATE_TARGET_MISMATCH: the target
 // is a valid one, just not one this method can return, so the message names
 // both the target the template actually declares and RenderTemplate as the
 // method that handles it. Every other fault is RenderTemplate's, unchanged.
@@ -3037,7 +3037,7 @@ func (p *Pulse) renderTemplateRequest(name string, vars map[string]any) (*Reques
 // the render — the call is the mismatch — so the message leads with the
 // target the document declares and points at the method that returns it.
 func wrongTemplateTarget(name string, target template.Target) error {
-	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_UNKNOWN,
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_MISMATCH,
 		"template "+strconv.Quote(name)+" declares target "+strconv.Quote(target.String())+
 			", so RenderTemplateRequest cannot return it: that method returns *types.Request and "+
 			"only handles the \"request\" target. Call RenderTemplate("+strconv.Quote(name)+

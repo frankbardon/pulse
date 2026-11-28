@@ -43,7 +43,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [x] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row. **Done (pre-v1 E1-S1): replaced by `ComposeOptions.CollectErrors`; the zero value fails fast; `--no-fail-fast` sets `CollectErrors`.**
 - [x] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
 - [ ] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines
-- [ ] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders
+- [x] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders *Done in pre-v1 E1-S4.*
 - [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
 - [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
 - [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
@@ -246,7 +246,7 @@ Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO
 
 Recorded only in shipped efforts' notes and PR bodies; checked against the code and filed under this unit. Full text in [`TODO.md`](../TODO.md) §15; tick there when delivered.
 
-- [ ] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze.
+- [x] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze. *Done in pre-v1 E1-S4.*
 - [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
 - [ ] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document.
 - [ ] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks.
@@ -275,7 +275,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [x] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it). *Resolved by pre-v1 E1-S1:* `CollectErrors` is the opt-out; the zero value fails fast.
 - [x] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`. *Done in pre-v1 E1-S2:* `WatchOptions.AllFiles`.
 - [ ] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767).
-- [ ] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not.
+- [x] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not. *Done in pre-v1 E1-S4.*
 - [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.
 - [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
 - [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.

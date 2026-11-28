@@ -85,12 +85,14 @@ func TestTemplateExprSplice_ExtensionParamEveryCategory(t *testing.T) {
 			if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEMPLATE_EXPR_SPLICE {
 				t.Fatalf("pulse.New = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
 			}
-			// details.path is the file (the store's loadError); the body
-			// path rides in the message.
+			// details.file is the file (the store's loadError); the
+			// fault's body path stays details.path and rides in the
+			// message (#526).
 			if !strings.Contains(ce.Message, "body."+tc.slot+".params.scale") {
 				t.Errorf("message %q does not locate body.%s.params.scale", ce.Message, tc.slot)
 			}
-			want := map[string]any{"template": "bad", "variable": "w", "path": filepath.Join(dir, "bad.json"), "slot": "extension_param"}
+			want := map[string]any{"template": "bad", "variable": "w", "file": filepath.Join(dir, "bad.json"),
+				"path": "body." + tc.slot + ".params.scale", "slot": "extension_param"}
 			for k, v := range want {
 				if ce.Details[k] != v {
 					t.Errorf("details[%s] = %v, want %v (all: %v)", k, ce.Details[k], v, ce.Details)

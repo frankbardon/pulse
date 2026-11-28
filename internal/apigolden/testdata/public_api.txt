@@ -3273,6 +3273,7 @@ pulse/errors: const PULSE_TEMPLATE_EXPR_SPLICE pulse/errors.Code = "PULSE_TEMPLA
 pulse/errors: const PULSE_TEMPLATE_INVALID pulse/errors.Code = "PULSE_TEMPLATE_INVALID"
 pulse/errors: const PULSE_TEMPLATE_NOT_FOUND pulse/errors.Code = "PULSE_TEMPLATE_NOT_FOUND"
 pulse/errors: const PULSE_TEMPLATE_RENDER_INVALID pulse/errors.Code = "PULSE_TEMPLATE_RENDER_INVALID"
+pulse/errors: const PULSE_TEMPLATE_TARGET_MISMATCH pulse/errors.Code = "PULSE_TEMPLATE_TARGET_MISMATCH"
 pulse/errors: const PULSE_TEMPLATE_TARGET_UNKNOWN pulse/errors.Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
 pulse/errors: const PULSE_TEMPLATE_UNRESOLVED pulse/errors.Code = "PULSE_TEMPLATE_UNRESOLVED"
 pulse/errors: const PULSE_TEMPLATE_VAR_ENUM pulse/errors.Code = "PULSE_TEMPLATE_VAR_ENUM"
@@ -7245,4 +7246,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7072b7978a6a93c34ebdf424f3ef44c36a32275a9e75a57629148e3b11023745
+// golden-hash: 0cc0401e4244785ae5b056261a968cebfa0eeb7c9c10cb24b7940fa15880982f

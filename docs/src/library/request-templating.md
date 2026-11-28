@@ -378,6 +378,19 @@ Root edge cases:
 A file whose derived name would be empty (`.json`, `finance/.json`) is
 an error naming the path at startup, not a silent skip.
 
+Pulse's own `*.json` sidecars — a managed import's `.meta.json`, an SPSS
+`.spss.json`, an index manifest `.indexes.json`, a saved
+`.pulse-model.json` / `.pulse-population.json` / `.pulse-sem.json` — are
+skipped unread, as the label-, lookup- and range-table loaders skip
+them, so a template root that is also a data directory neither fails
+`pulse.New` nor lists a sidecar as a broken template. Any other
+malformed `*.json` still fails.
+
+A document fault raised while loading a file names the file in
+`details.file`. Its `details.path` is where in the document the fault
+sits when the fault has a location (a `PULSE_TEMPLATE_EXPR_SPLICE` slot,
+an undeclared marker's `body.…` path), else the file again.
+
 **Filesystem faults use `DATA_FILE`**, not the `PULSE_TEMPLATE_*`
 family. That split is deliberate: `PULSE_TEMPLATE_*` describes a fault
 in a *document* or a *render*, while an unreadable directory, an
@@ -511,7 +524,8 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 |---|---|---|
 | `PULSE_TEMPLATE_NOT_FOUND` | the requested name is not registered — including every name on an engine with no template directories | Check the derived name (path relative to its own root, minus `.json`); check the roots are configured and reachable. |
 | `PULSE_TEMPLATE_INVALID` | a document failed declaration validation: malformed JSON, unknown wrapper key, non-object body, duplicate variable name, uninterpretable declaration, bad declared default, marker naming an undeclared variable, or `name` disagreeing with the path | Fix the document. This is always an **author** fault, and at startup it is fatal. |
-| `PULSE_TEMPLATE_TARGET_UNKNOWN` | `target` is absent or not one of the five roots — **and also** when `RenderTemplateRequest` is called on a template declaring some other (perfectly valid) target | Two meanings, so read the details. `expected_target` present means the target is fine and the *method* is the mismatch: call `RenderTemplate` and read the pointer named in the message. |
+| `PULSE_TEMPLATE_TARGET_UNKNOWN` | `target` is absent or not one of the five roots | Set `target` to one of the lowercase wire spellings (`request`, `composed`, `chain`, `facet`, `sample`). |
+| `PULSE_TEMPLATE_TARGET_MISMATCH` | `RenderTemplateRequest` is called on a template declaring some other (perfectly valid) target | The template is fine; the *method* is the mismatch: call `RenderTemplate` and read the pointer named in the message. Details carry `target` and `expected_target`. |
 | `PULSE_TEMPLATE_VAR_MISSING` | a `required` variable resolved to nothing — no supplied value, no default | Supply the variable, or give the declaration a default. |
 | `PULSE_TEMPLATE_VAR_UNKNOWN` | the caller supplied a variable the template does not declare | Fix the caller's key. Unknown variables are **rejected, never ignored** — silently dropping one produces a request that looks parameterised but is not. |
 | `PULSE_TEMPLATE_VAR_TYPE` | a supplied value does not match the declared type — including a `list` or `period` used inside a `{{}}` string, which has no text form | Correct the supplied JSON type, or splice with a `{"$var": ...}` marker instead of string sugar. |
