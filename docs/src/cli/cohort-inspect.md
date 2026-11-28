@@ -72,6 +72,20 @@ labels; any format `0x02` cohort ends with a `Format:` line:
 Format: 0x02 (record stride 50 bytes physical, 50 logical)
 ```
 
+A cohort that declares a default per-row zone field (`pulse cohort zone
+set`, `--zone-field` at import) names it after the `Format:` line — the
+`zone_field` of `--json`:
+
+```
+Records: 2
+Fields: 2
+  local                          datetime             Numeric field: local
+  zone                           categorical_u8       Categorical field: zone
+    dictionary: 2 entries
+Format: 0x02 (record stride 9 bytes physical, 9 logical)
+Zone field: zone
+```
+
 A shard archive additionally prints the per-shard breakdown under the
 aggregate:
 

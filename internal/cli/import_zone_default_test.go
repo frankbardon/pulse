@@ -167,3 +167,39 @@ func TestConvert_ZoneField(t *testing.T) {
 		t.Fatalf("no-cohort refusal details = %v", ce.Details)
 	}
 }
+
+// TestCohortInspect_ZoneFieldLine: text inspect prints `Zone field:`
+// beside the Format line when the schema declares one (the --json
+// zone_field), and no such line when it does not.
+func TestCohortInspect_ZoneFieldLine(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	in := writeZoneDefaultCSV(t, dir, zoneDefaultCSV)
+	out := filepath.Join(dir, "out.pulse")
+	if err := runImportCLI(t, "csv", "-i", in, "-o", out, "--zone-field", "zone"); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := runCohortCLIOut(t, &buf, "inspect", out); err != nil {
+		t.Fatal(err)
+	}
+	text := buf.String()
+	format := strings.Index(text, "Format: 0x02")
+	zone := strings.Index(text, "Zone field: zone\n")
+	if format < 0 || zone < format {
+		t.Errorf("inspect text lacks `Zone field: zone` after the Format line:\n%s", text)
+	}
+
+	plain := filepath.Join(dir, "plain.pulse")
+	if err := runImportCLI(t, "csv", "-i", in, "-o", plain); err != nil {
+		t.Fatal(err)
+	}
+	buf.Reset()
+	if err := runCohortCLIOut(t, &buf, "inspect", plain); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "Zone field:") {
+		t.Errorf("a cohort declaring no zone field prints the line:\n%s", buf.String())
+	}
+}

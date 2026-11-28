@@ -117,7 +117,7 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   named first.
 - **Cohort paths.** A cohort flag (`--input` on a cohort-reading leaf,
   `recommend --cohort`, `synth from-profile --source`) and a cohort
-  positional (`cohort inspect`, `widen`, `dedup`, `rake`,
+  positional (`cohort inspect`, `cohort zone set|clear`, `widen`, `dedup`, `rake`,
   `index build|list|verify|drop`, `shard add|list|compact|verify|remove|extract`)
   complete the `.pulse` cohorts under `PULSE_DATA_DIR` — single files and
   shard archives, in subdirectories too (managed imports included), never

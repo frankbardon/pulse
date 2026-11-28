@@ -434,3 +434,25 @@ func TestCompletion_CohortSources(t *testing.T) {
 		t.Errorf("no cohort named: got %v, want nothing", got)
 	}
 }
+
+// TestCompletion_CohortZonePositionals: `cohort zone set` and `cohort
+// zone clear` complete their COHORT positional with the data dir's
+// cohorts, exactly as `cohort inspect` does; `zone set`'s FIELD
+// completes through --field.
+func TestCompletion_CohortZonePositionals(t *testing.T) {
+	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
+
+	fx := newCompletionFixture(t)
+	cohorts := completeLeaf(t, "cohort", "inspect")
+	if len(cohorts) == 0 || !slices.ContainsFunc(cohorts, func(c string) bool { return strings.HasSuffix(c, "wide.pulse") }) {
+		t.Fatalf("cohort inspect completes %v, want the data dir's cohorts (test premise)", cohorts)
+	}
+	for _, words := range [][]string{{"cohort", "zone", "set"}, {"cohort", "zone", "clear"}} {
+		if got := completeLeaf(t, words...); !slices.Equal(got, cohorts) {
+			t.Errorf("%v <TAB> = %v, want the cohorts %v", words, got, cohorts)
+		}
+	}
+	if got := completeLeaf(t, "cohort", "zone", "set", fx.single, "--field"); !slices.Equal(got, fx.fields) {
+		t.Errorf("cohort zone set COHORT --field <TAB>: %d candidates, want the %d schema fields", len(got), len(fx.fields))
+	}
+}
