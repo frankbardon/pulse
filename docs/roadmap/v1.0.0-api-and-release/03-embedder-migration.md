@@ -354,7 +354,7 @@ Complete for U17 (no release tag cut by the unit). Contract: `docs/src/contract/
 | `descriptor.PredictResult` and the manifest had no return keys | `PredictResult.Return` (`descriptor.ReturnPlan`: expanded paths, `rp1:` digest), manifest `return_presets` (`[{name, paths}]`, expanded against the instance) | added | none | U17 |
 | no return error codes | `PULSE_RETURN_INVALID`, `PULSE_RETURN_PATH_UNKNOWN`, `PULSE_RETURN_PATH_UNMATCHED` (warning, buffered runs only) | added | resolve with `pulse errors lookup CODE`; the manifest golden changed (error list only) | U17 |
 
-Not shipped, by decision: a `pulse.ReturnedMarker` root alias (U33 decides before the freeze; use `types.ReturnedMarker`); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
+Not shipped, by decision: a `pulse.ReturnedMarker` root alias (final at the v1 freeze, U33 #220: `types.ReturnedMarker` is the only spelling, as `types.Return` has no root alias either); `Response.overlays` is not yet feature-gated, so hiding overlays leaves its paths listed (U35).
 
 ## Changes from U18 (response shaping execution)
 

@@ -24,6 +24,18 @@ import (
 // OperationKind names one kind of Pulse operation — one instrumented
 // *pulse.Pulse method family. The set is closed and bounded so it is
 // safe as a metric label.
+//
+// Not every exported *pulse.Pulse method is an operation, by decision:
+// the in-memory getters (Skills, Limits, LabelTables, ...) have nothing
+// to time; the cohort-less request classifiers (Recommend, Explain,
+// RequestReads, ClassifyPostWindow) fire no operation; builders and
+// handles (NewCohortBuilder, Watch*) do their real work through
+// instrumented calls; and the filesystem helpers off the request path
+// (CohortArtifacts, Imports, ResolveImport, ResolveCanonicalSchema,
+// ApplySeriesOverlays, InvalidatedSidecars, ExportReference) would add
+// metric label values without information. A later minor release may
+// add a kind (an additive change); a host must tolerate an
+// OperationKind it does not know.
 type OperationKind string
 
 // The operation kinds. Several facade methods share a kind: Inspect,

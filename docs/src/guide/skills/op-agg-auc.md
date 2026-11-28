@@ -63,6 +63,7 @@ Scalar in [0, 1]; 0.5 = no discrimination, ties count half. An empty class or a 
 ## Gotchas
 
 - Ranking, not calibration.
+- Unweighted it matches pROC (the oracle). Deviations, by design: `positive` is explicit (no auto-direction; AUC < 0.5 stays); weights have no pROC analogue; a NaN score gives NaN, never dropped; a non-0/1 outcome fails, never recoded; the CI is clipped to [0, 1].
 
 ## See
 

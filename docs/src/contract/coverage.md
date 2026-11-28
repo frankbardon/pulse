@@ -1990,7 +1990,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `observe.OpTemplateRender` |  |  | yes |
 | `observe.OpWiden` |  |  | yes |
 | `observe.OperationInfo` | yes |  | yes |
-| `observe.OperationKind` |  |  | yes |
+| `observe.OperationKind` | yes |  | yes |
 | `observe.OperationResult` | yes |  | yes |
 | `observe.Phase` |  |  | yes |
 | `observe.PhaseDecode` |  |  | yes |

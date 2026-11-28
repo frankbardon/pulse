@@ -47,6 +47,9 @@ Within a major version (v1.x.y):
 - Default resource-limit values may be RAISED in any release; raising a default is compatible, lowering one is breaking (it can refuse a request that ran before) and happens only in a major release.
 - Golden test files.
 - Pre-release tags (`-rc.N`, `-beta.N`).
+- The closed enums a host reads but never writes may gain values in a
+  minor release (an additive change): an `observe.OperationKind` a host
+  does not know must be tolerated, not treated as an error.
 
 ## Deprecation
 
@@ -66,6 +69,10 @@ open an issue with the two versions and a reproducing request.
 ## Notes for review
 
 - **The package list mirrors [00](00-public-surface.md)'s public, public-narrowed and new classes exactly.** For a narrowed package only its kept subset is exported, so "exported identifiers" is the whole promise. Embedder-facing differences from today's layout are listed in [03](03-embedder-migration.md).
+
+- **Root aliases are not added for completeness (v1 decision, #220).** There is no `pulse.ReturnedMarker`; `types.ReturnedMarker` is the only spelling. Root aliases are sparse by design — `types.Return`, which `Options.DefaultReturn` takes, has none either — and an embedder that shapes or reads a `return` block already imports `types`, so an alias for the one marker type would freeze a second spelling for no capability. A root alias may still be added later; that is additive.
+
+- **`mcpserve.ServeInfo` is not comparable with `==` (v1 decision, #233).** Its `Limits` is a `[]descriptor.LimitMeta`, the manifest's `limits` vocabulary. Compare it field by field.
 
 - **The numerical-results row is a deliberate promise.** Pulse's goldens and determinism conventions (eigenvector sign, merge order, seeded k-means) already make it achievable, and harness and LLM consumers rely on it.
 - **"Default resource-limit values may be raised"** pairs with the embedder-operations decision: high defaults that can be tuned. Lowering a default would be breaking, so the policy only allows raising one.

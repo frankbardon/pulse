@@ -4838,7 +4838,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Schema"},
-				Hint:   "If the variable named in the details is free text rather than a coded category, exclude it from the import; if a near-unique categorical is expected, accept the warning.",
+				Hint:   "Informational: the import is lossless and the threshold (half the case count) is fixed, not a setting. If the variable named in the details is free text rather than a coded category, drop or recode it in the source file to shrink the dictionary; if a near-unique categorical is expected, accept the warning.",
 			},
 		},
 	},

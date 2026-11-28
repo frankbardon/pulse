@@ -736,7 +736,7 @@ each.
 
 | Code | Raised when |
 |---|---|
-| `PULSE_SPSS_CARDINALITY_HIGH` | A string column is near-unique — a free-text signature |
+| `PULSE_SPSS_CARDINALITY_HIGH` | A string column is near-unique — a free-text signature (distinct values above half the case count; a fixed threshold, not a setting) |
 | `PULSE_SPSS_DATE_WIDENED` | A date column widened to `datetime` |
 | `PULSE_SPSS_TEMPORAL_PRECISION` | A temporal column demoted to `f64` raw seconds |
 | `PULSE_SPSS_TYPE_NOT_RESTORED` | A `@PulseType` hint was not restored — a value does not fit it exactly, or the hint is unreadable — so the column maps as if unhinted; see [Pulse type hints](#pulse-type-hints) |

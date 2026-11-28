@@ -33,7 +33,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](../v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
-- [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
+- [x] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze *Done in pre-v1 E1-S6.*
 - [x] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3) *Done in pre-v1 E1-S5.*
 - [x] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4) *Done in pre-v1 E1-S5.*
 - [ ] **#767** (1. API surface & release pipeline) `make sites` has no mode for an I/O-path change: add an `io` mode in `internal/tools/sites` that finds a reader / importer change's companions by shape (format readers, `internal/io` import / convert / widen, byte-layout and io-import slices, import skills, migration doc), with a falsified fixture test and a recipe line. Found in docs-content (E4-S1)
@@ -65,7 +65,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys
 - [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
 - [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
-- [ ] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision
+- [x] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision *Done in pre-v1 E1-S6.*
 - [x] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
@@ -191,18 +191,18 @@ U24 shipped the multivariate matrix operators without a human reviewer: an exter
 
 ## Inherited from U17
 
-- **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way).
+- **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way). *Decided in pre-v1 E1-S6 (TODO #220 ticked).*
 
 ## Inherited from U19
 
 - **`FailFast=false` discards successful slots** (#224). `ComposeParallel` with `FailFast=false` returns `(nil, SERVICE_INTERNAL)` with `failed_indices` / `first_error` details, dropping every slot that succeeded. U19 corrected `docs/src/library/parallel-compose.md`, which claimed the successful slots populate the response. Decide before the freeze whether to return the partial `ComposedResponse` (a behaviour change for `STABILITY.md` and the migration doc) or keep the all-or-nothing contract and say so in `STABILITY.md`. *Resolved by pre-v1 E1-S1:* kept all-or-nothing (`(nil, err)` in both modes, no partial slots), stated in the `ComposeOptions` / `ComposeParallel` GoDoc, `docs/src/library/parallel-compose.md`, `docs/src/cli/api-compose.md` and the migration guide.
-- **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator.
+- **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator. *Decided in pre-v1 E1-S6 (TODO #228 ticked).*
 
 ## Inherited from U20
 
 - **Lockstep contrib release rehearsal** (#232). *Resolved by observability-adapters:* the adapters moved into the root module as `observe/otel` / `observe/prom`, so there are no contrib tags, no `scripts/release-contrib.sh` and no `contrib` release job left to rehearse; nothing for the release runbook.
-- **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`.
-- **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze.
+- **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`. *Decided in pre-v1 E1-S6 (TODO #233 ticked).*
+- **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze. *Decided in pre-v1 E1-S6 (TODO #234 ticked).*
 
 ## Inherited from U38
 
@@ -248,15 +248,15 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 
 - [x] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze. *Done in pre-v1 E1-S4.*
 - [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
-- [ ] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document.
-- [ ] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks.
+- [x] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document. *Done in pre-v1 E1-S6.*
+- [x] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks. *Done in pre-v1 E1-S6.*
 - [ ] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect.
 - [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
-- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations.
+- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations. *(2)(3) done in pre-v1 E1-S6; (1) open.*
 - [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
 - [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
-- [ ] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze.
-- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing.
+- [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*
+- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) open.*
 
 ## Handed on from U32
 
@@ -297,7 +297,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys.
 - [ ] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it.
 - [ ] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys.
-- [ ] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide.
+- [x] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide. *Done in pre-v1 E1-S6.*
 
 ## Handed on from U32c
 

@@ -1111,6 +1111,12 @@ type RowIter = service.RowIter
 // shaping pass raises). The `--stream` writer ends its NDJSON with
 // them as one {"warnings":[...]} record.
 //
+// Timeout: Options.Limits.RequestTimeout bounds the run this call
+// starts, not the drain. Once the iterator is returned, each Next(ctx)
+// runs under the ctx passed to it, so a slow consumer never trips
+// PULSE_LIMIT_EXCEEDED; bound the drain with a deadline on that ctx, or
+// use ProcessStreamResult, whose RequestTimeout covers run and drain.
+//
 // Observability: the operation starts at the call and ends exactly once
 // — when the iterator is drained (or fails), closed, or ctx is
 // cancelled, whichever comes first. Its scan phase runs from the first

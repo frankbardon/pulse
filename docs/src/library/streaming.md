@@ -126,6 +126,13 @@ underlying reader; rows that are already in flight may still be
 returned before `Next` returns `(_, false, ctx.Err())`. `Close()`
 releases any reader resources and is safe to call multiple times.
 
+`Options.Limits.RequestTimeout` bounds the run `ProcessStream` starts,
+not your drain: once the iterator is returned, each `Next(ctx)` runs
+under the ctx you pass it, so a slow consumer never trips
+`PULSE_LIMIT_EXCEEDED`. Pass a deadline-bearing ctx to `Next` to bound
+the drain, or use `ProcessStreamResult`, whose `RequestTimeout` covers
+the run and the drain ([Tuning Limits](tuning-limits.md)).
+
 ## Backpressure
 
 The iterator is pull-based: the engine produces rows only as fast as

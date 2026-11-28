@@ -43,7 +43,7 @@ The primary stays RAW p-values; direction and significance ride `letters` only w
 The proportion kinds (pooled z, probit t) read a share and an n per leg.
 
 - **`p_source` mismatch empties the layer.** A leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips EVERY pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. A count cell needs `normalize` first (`row` for row scope).
-- The distinct-KEY n modes are admitted only on a distinct-key cell aggregator and carry the slab partition refusal (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): [`pairwise-n-sources`](pairwise-n-sources.md).
+- The distinct-KEY n modes are admitted only on a distinct-key cell aggregator (an extension one by EXACT key set: `{cardinality}` or `{sum, distinct_count}`; an extra key refuses) and carry the slab partition refusal (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): [`pairwise-n-sources`](pairwise-n-sources.md).
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 - Buffered as a layer, but the HOST crosstab still FUSES on a mergeable cell aggregator (a weighted mean included, even over a per-element set axis).
 

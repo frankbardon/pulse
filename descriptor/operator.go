@@ -61,6 +61,10 @@ type Operator struct {
 	// discards. Held by descriptor's
 	// TestCapabilities_ForbidsFieldMatchesWindowRule against the shared
 	// window rule (internal/windowparams.FieldForbidden) and AGG_CONSTANT.
+	// The bool is the frozen v1 shape (kept over a required / optional /
+	// forbidden enum): with IgnoresField and AcceptsTypes it already
+	// spells every slot state, and a further state would be an additive
+	// new field.
 	ForbidsField bool `json:"forbids_field,omitempty"`
 
 	// IgnoresFrame marks a window operator that accepts (or requires) a

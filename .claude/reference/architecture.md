@@ -6,6 +6,7 @@
 
 - **Library-first.** The public API is the root package `pulse` (`pulse.go` plus the root `*.go` files). The CLI (`cmd/pulse/`, `internal/cli/`) parses flags, builds library objects, calls them and formats output; it never holds business logic. The frozen exported surface is `internal/apigolden/testdata/public_api.txt` — read it (or `go doc`) for the method list instead of keeping one here.
 - **Every non-`internal/` package is public** and frozen at `v1.0.0` by `TestPublicAPIGolden`. A new public package or symbol needs a general embedder use case, never one consumer's convenience.
+- **grpc is an accepted transitive dependency (v1 decision, #748).** Pulse has no gRPC code, but the root package links `google.golang.org/grpc` through Parquet: `github.com/apache/arrow-go/v18/parquet/pqarrow` imports `arrow/flight` (`go list -deps . | grep grpc`). `go mod why` names the CLI's OTLP HTTP exporter, yet dropping or moving it would not remove grpc (`observe/otel` itself has none), and a module split cannot shed a dependency the root package's Parquet adapter needs. Accept it; do not try to engineer it out.
 - **Import boundaries are gates.** Each leaf package that must stay a leaf has a `Test*ImportBoundary` test beside it; `grep -rn 'func Test.*ImportBoundary' --include='*_test.go' .` lists them.
 
 ## Section map
