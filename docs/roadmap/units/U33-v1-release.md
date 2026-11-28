@@ -241,7 +241,7 @@ Filed from [U75 handed on](U75-zones-labels-2.md#handed-on); tick in [`TODO.md`]
 
 Filed from [U74 handed-on](U74-memory-bounds.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it.
+- [x] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it. *Done in pre-v1 E5-S3: inline value set promoted to a map past 16 values; ~232 → ~75–130 B a group at 1–8 values, state entry 320 → 176 B; counts exact and worker-invariant (`TestDistinctCountInvariance_Archive` / `_Heavy`).*
 
 ## Handed on from U76
 

@@ -21,7 +21,8 @@ import "github.com/frankbardon/pulse/types"
 // weighted). Each entry rounds the largest share it measured up by at
 // least 9% (AGG_FREQUENCY weighted: 392 B against 432), and the widest
 // bucket — every streaming built-in in one, weighted — holds 86% of its
-// entries' sum.
+// entries' sum. AGG_DISTINCT_COUNT's inline value set (#723) measured
+// 161 B at up to eight values a key (its per-bucket map took 320).
 
 // aggregatorBytes is one built-in aggregator's measured charges.
 type aggregatorBytes struct {
@@ -76,7 +77,7 @@ var aggregatorBytesTable = map[types.AggregationType]aggregatorBytes{
 	types.AGG_MODE:                {state: 352, weighted: 544, outputOff: aggOutputOffBytes, cell: cellBytes{848, 1232, 352}},
 	types.AGG_SKEWNESS:            {state: 144, weighted: 368, outputOff: aggOutputOffBytes, cell: cellBytes{848, 1232, 352}},
 	types.AGG_KURTOSIS:            {state: 160, weighted: 368, outputOff: aggOutputOffBytes, cell: cellBytes{864, 1248, 352}},
-	types.AGG_DISTINCT_COUNT:      {state: 320, weighted: 320, outputOff: aggOutputOffBytes, cell: cellBytes{832, 832, 320}},
+	types.AGG_DISTINCT_COUNT:      {state: 176, weighted: 176, outputOff: aggOutputOffBytes, cell: cellBytes{832, 832, 320}},
 	types.AGG_FREQUENCY:           {state: 160, weighted: 432, outputOff: aggOutputOffBytes, cell: cellBytes{944, 1072, 400}},
 	types.AGG_NULL_COUNT:          {state: 96, weighted: 96, outputOff: aggOutputOffBytes, cell: cellBytes{960, 976, 400}},
 	types.AGG_WEIGHTED_MEAN:       {state: 576, weighted: 576, outputOff: aggOutputOffBytes, cell: cellBytes{1648, 1648, 512}},

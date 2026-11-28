@@ -48,7 +48,8 @@ Scalar `int64` — number of distinct non-null values. Per-group when wired unde
 
 ## Gotchas
 
-- High-cardinality fields → memory growth proportional to distinct values.
+- High-cardinality fields → memory growth proportional to distinct values (a group of up to 16 values stays compact).
+- `-0` and `0` are one value; each NaN counts as its own value.
 - Counts non-null only; nulls collapsed.
 - Over `decimal128` the count is a JSON integer (`3`), never a decimal string; distinct by value at the field's scale.
 
