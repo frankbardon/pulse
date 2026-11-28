@@ -172,14 +172,14 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 
 | Path | Enum |
 |---|---|
-| `aggregations[].field` | All cohort field names |
+| `aggregations[].field` | All cohort field names, narrowed on the `AGG_SET_*` types to the cohort's set fields (an `allOf` `if type ∈ {…} then {field ∈ sets}` branch; `false` on a cohort with none); the same on a crosstab's `cell` / `cells` / `margin_aggregations` |
 | `aggregations[].type` | Full aggregator catalogue (`AGG_*`) |
 | `attributes[].field` | The fields the attribute `type` accepts (manifest `accepts_types`): the enum is the union over the instance's attribute types, and an `allOf` of `if type ∈ {…} then {narrower enum}` branches narrows it per type — numeric for `ATTR_ZSCORE` / `TSCORE` / `NORMALIZED` / `PERCENTILE`, a categorical or `packed_bool` state for `ATTR_PREVIOUS_STATE`, a categorical or unsigned integer for `ATTR_CODE_IN`, a date or datetime for `ATTR_DATE_PART`, a set for `ATTR_SET_*`, an extension attribute's declared `Accepts`; an attribute that reads no field of its own keeps the numeric class |
 | `attributes[].subject_field`, `attributes[].order_field` | All cohort field names, narrowed on `ATTR_PREVIOUS_STATE` to any scalar but a set (subject) and a date or datetime (order) |
 | `attributes[].type` | Full attribute catalogue (`ATTR_*`) |
-| `filterers[].field` | All cohort field names |
+| `filterers[].field` | All cohort field names, narrowed on the `FILTER_SET_*` types to the cohort's set fields (same branch) |
 | `filterers[].type` | Full filterer catalogue (`FILTER_*`) |
-| `groups[].field` | All cohort field names |
+| `groups[].field` | All cohort field names, narrowed on `GROUP_SET_VALUE` / `GROUP_SET_PER_ELEMENT` to the cohort's set fields (same branch; also a crosstab's `rows` / `columns`) |
 | `groups[].type` | Full grouper catalogue (`GROUP_*`) |
 | `windows[].field`, `windows[].partition_by[]` | All cohort field names |
 | `windows[].order_by[].field` | Numeric and date fields |
@@ -205,7 +205,8 @@ Beyond the enums, a bound schema carries every key the payload schema declares o
 
 **Limitations.**
 - *Multi-file sessions:* the latest inspect wins. Track multiple cohorts client-side.
-- *No per-element type ↔ field correlation:* JSON Schema can't easily express "if `aggregations[i].type == AGG_SUM` then `aggregations[i].field` must be numeric." Operator–type compatibility lives in the `type` property description; strict validation remains `pulse_predict`'s job.
+- *Per-element type ↔ field correlation is partial:* the per-type `allOf` branches cover the `attributes[]` types and the set operators (`AGG_SET_*`, `FILTER_SET_*`, `GROUP_SET_*`, pinned by `TestBindSetFieldTypes`); any other aggregator, filterer or grouper keeps the cohort-wide enum ("if `aggregations[i].type == AGG_SUM` then `field` must be numeric" is not expressed). Operator–type compatibility lives in the `type` property description; strict validation remains `pulse_predict`'s job.
+- *Field names, not values:* the enums constrain field names only; a `values` list, a set's labels or a categorical's levels are never narrowed to the field's dictionary — read them with `pulse_facet`.
 - *Transport support:* an embedder serving one server to several HTTP sessions shares one tool set, so the latest bind applies to every session; one server per session (the go-sdk `getServer` factory) keeps them apart. The manifest's `accepts_types` table stays authoritative either way.
 - *Empty enums omitted:* when the cohort has zero fields in a category (e.g. no geo fields), the enum is omitted entirely rather than emitted as `[]`.
 

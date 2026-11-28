@@ -262,7 +262,7 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 - [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
 - [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
 - [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*
-- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) open.*
+- [x] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) closed in pre-v1 E4-S6 (set-field MCP enums narrowed to `c.Set`).*
 
 ## Handed on from U32
 

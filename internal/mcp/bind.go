@@ -721,6 +721,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the compose request, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
 		types.AllMultiplicityFamilies(), true)
 	bindAttributeFieldTypes(reqProps, c, attrTypes, inst)
+	bindSetFieldTypes(reqProps, c, aggTypes, filterTypes, groupTypes)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
 	if ct, ok := reqProps["crosstab"].(map[string]any); ok {
 		dropHiddenSlots(ct, &types.CrosstabSpec{}, inst)
