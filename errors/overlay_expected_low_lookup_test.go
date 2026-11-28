@@ -20,7 +20,7 @@ func TestErrorsLookup_OverlayExpectedLow_FixupPointsAtExact(t *testing.T) {
 		t.Fatal("Lookup returned ok=false for PULSE_OVERLAY_EXPECTED_LOW")
 	}
 	for _, f := range r.Fixups {
-		if !slices.Equal(f.Path, []string{"Overlays", "*", "Params", "exact"}) {
+		if !slices.Equal(f.Path, []string{"overlays", "*", "params", "exact"}) {
 			continue
 		}
 		if f.Action != perr.FixupReplaceField || !strings.Contains(f.Hint, "OVERLAY_SYMMETRY") ||
@@ -53,7 +53,7 @@ func TestErrorsLookup_OverlayParamMissing_SymmetryExactFixups(t *testing.T) {
 	for param, reason := range map[string]string{"exact": "exact_too_large", "conf_level": "needs_2x2"} {
 		found := false
 		for _, f := range r.Fixups {
-			if slices.Equal(f.Path, []string{"Overlays", "*", "Params", param}) && f.Action == perr.FixupRemoveParam &&
+			if slices.Equal(f.Path, []string{"overlays", "*", "params", param}) && f.Action == perr.FixupRemoveParam &&
 				strings.Contains(f.Hint, reason) && strings.Contains(f.Hint, "OVERLAY_SYMMETRY") {
 				found = true
 			}

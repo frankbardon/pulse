@@ -62,9 +62,9 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
 - [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
 - [x] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
-- [ ] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys
+- [x] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
 - [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
-- [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
+- [x] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys *Done in pre-v1 E2-S2: wire keys throughout, Go-only fixes carry no path; gated by `TestFixupPathsAreWireKeys`.*
 - [x] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision *Done in pre-v1 E1-S6.*
 - [x] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
 - [ ] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier
@@ -294,9 +294,9 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
 - [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
 - [x] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms. *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
-- [ ] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys.
+- [x] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys. *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
 - [ ] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it.
-- [ ] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys.
+- [x] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys. *Done in pre-v1 E2-S2: wire keys throughout, Go-only fixes carry no path; gated by `TestFixupPathsAreWireKeys`.*
 - [x] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide. *Done in pre-v1 E1-S6.*
 
 ## Handed on from U32c

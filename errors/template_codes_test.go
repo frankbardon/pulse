@@ -187,8 +187,8 @@ func TestTemplateCodes_TargetExamplesAreWireSpellings(t *testing.T) {
 	}
 	fx := res.Fixups[0]
 
-	if got, want := fx.Path, []string{"Target"}; !slices.Equal(got, want) {
-		t.Errorf("fixup Path = %v, want %v (the Template.Target slot)", got, want)
+	if got, want := fx.Path, []string{"target"}; !slices.Equal(got, want) {
+		t.Errorf("fixup Path = %v, want %v (the template document's target key)", got, want)
 	}
 
 	want := []string{"request", "composed", "chain", "facet", "sample"}
@@ -231,7 +231,7 @@ func TestTemplateCodes_VariableScopedFixupPaths(t *testing.T) {
 		perr.PULSE_TEMPLATE_VAR_ENUM,
 		perr.PULSE_TEMPLATE_UNRESOLVED,
 	}
-	want := []string{"Variables", "*"}
+	want := []string{"variables", "*"}
 	for _, code := range variableScoped {
 		t.Run(string(code), func(t *testing.T) {
 			m, ok := perr.MetadataFor(code)

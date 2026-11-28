@@ -56,13 +56,13 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupsCoverComposeAndChainSlots(t 
 	sawCompose, sawChain := false, false
 	for _, f := range r.Fixups {
 		path := strings.Join(f.Path, "/")
-		// Compose arm: ["Overlays", "*", "Reference"] — exact match.
-		if path == "Overlays/*/Reference" {
+		// Compose arm: ["overlays", "*", "reference"] — exact match.
+		if path == "overlays/*/reference" {
 			sawCompose = true
 		}
-		// Chain arm: ["Overlays", "*", "Ref", "Index"] or
-		// ["Overlays", "*", "Ref", "Name"] — both qualify.
-		if strings.HasPrefix(path, "Overlays/*/Ref/") {
+		// Chain arm: ["overlays", "*", "ref", "index"] or
+		// ["overlays", "*", "ref", "name"] — both qualify.
+		if strings.HasPrefix(path, "overlays/*/ref/") {
 			sawChain = true
 		}
 	}
@@ -83,7 +83,7 @@ func TestErrorsLookup_OverlayReferenceUnknown_FixupHintMentionsRequestsLabel(t *
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_REFERENCE_UNKNOWN))
 	for _, f := range r.Fixups {
-		if strings.Join(f.Path, "/") != "Overlays/*/Reference" {
+		if strings.Join(f.Path, "/") != "overlays/*/reference" {
 			continue
 		}
 		if strings.Contains(f.Hint, "requests[].label") {
@@ -143,10 +143,10 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupsCoverComposeAndChainSlots(t *te
 	sawCompose, sawChain := false, false
 	for _, f := range r.Fixups {
 		path := strings.Join(f.Path, "/")
-		if path == "Overlays/*/Targets" {
+		if path == "overlays/*/targets" {
 			sawCompose = true
 		}
-		if strings.HasPrefix(path, "Overlays/*/Target/") {
+		if strings.HasPrefix(path, "overlays/*/target/") {
 			sawChain = true
 		}
 	}
@@ -166,7 +166,7 @@ func TestErrorsLookup_OverlayTargetUnknown_FixupHintMentionsRequestsLabel(t *tes
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_TARGET_UNKNOWN))
 	for _, f := range r.Fixups {
-		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {
+		if strings.Join(f.Path, "/") != "overlays/*/targets" {
 			continue
 		}
 		if strings.Contains(f.Hint, "requests[].label") {
@@ -224,10 +224,10 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_FixupsCoverBothSurfaces(t *test
 	sawTargets, sawOptions := false, false
 	for _, f := range r.Fixups {
 		path := strings.Join(f.Path, "/")
-		if path == "Overlays/*/Targets" {
+		if path == "overlays/*/targets" {
 			sawTargets = true
 		}
-		if strings.HasPrefix(path, "Overlays/*/Options/") {
+		if strings.HasPrefix(path, "overlays/*/options/") {
 			sawOptions = true
 		}
 	}
@@ -248,7 +248,7 @@ func TestErrorsLookup_OverlayPanelTargetsOverCap_TargetsFixupMentionsCap(t *test
 
 	r, _ := perr.Lookup(string(perr.PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP))
 	for _, f := range r.Fixups {
-		if strings.Join(f.Path, "/") != "Overlays/*/Targets" {
+		if strings.Join(f.Path, "/") != "overlays/*/targets" {
 			continue
 		}
 		if strings.Contains(f.Hint, "details.cap") {

@@ -70,7 +70,7 @@ func TestPredict_MetricDefaultsApplied(t *testing.T) {
 				t.Fatalf("metric defaults %+v", got)
 			}
 			d := got[0]
-			if !slices.Equal(d.Path, []string{"Matrices", "0", "Params", "metric"}) || d.Field != "v" || d.Type != c.want || d.Reason != c.reason {
+			if !slices.Equal(d.Path, []string{"matrices", "0", "params", "metric"}) || d.Field != "v" || d.Type != c.want || d.Reason != c.reason {
 				t.Errorf("default %+v", d)
 			}
 			echo := env.Request.(*types.Request)

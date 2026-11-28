@@ -144,31 +144,31 @@ func appendTypoSuggestions(out []descriptor.Suggestion, req *types.Request, sche
 	}
 
 	for i, agg := range req.Aggregations {
-		emit([]string{"Aggregations", strconv.Itoa(i), "Field"}, agg.Field)
+		emit([]string{"aggregations", strconv.Itoa(i), "field"}, agg.Field)
 	}
 	for i, fil := range req.Filterers {
 		if fil.Type == types.FILTER_EXPRESSION && !inst.Hidden(string(fil.Type)) {
 			continue
 		}
-		emit([]string{"Filterers", strconv.Itoa(i), "Field"}, fil.Field)
+		emit([]string{"filterers", strconv.Itoa(i), "field"}, fil.Field)
 	}
 	for i, grp := range req.Groups {
-		emit([]string{"Groups", strconv.Itoa(i), "Field"}, grp.Field)
+		emit([]string{"groups", strconv.Itoa(i), "field"}, grp.Field)
 	}
 	for i, attr := range req.Attributes {
-		emit([]string{"Attributes", strconv.Itoa(i), "Field"}, attr.Field)
+		emit([]string{"attributes", strconv.Itoa(i), "field"}, attr.Field)
 	}
 	for i, w := range req.Windows {
-		emit([]string{"Windows", strconv.Itoa(i), "Field"}, w.Field)
+		emit([]string{"windows", strconv.Itoa(i), "field"}, w.Field)
 		for j, ob := range w.OrderBy {
-			emit([]string{"Windows", strconv.Itoa(i), "OrderBy", strconv.Itoa(j), "Field"}, ob.Field)
+			emit([]string{"windows", strconv.Itoa(i), "order_by", strconv.Itoa(j), "field"}, ob.Field)
 		}
 		for j, p := range w.PartitionBy {
-			emit([]string{"Windows", strconv.Itoa(i), "PartitionBy", strconv.Itoa(j)}, p)
+			emit([]string{"windows", strconv.Itoa(i), "partition_by", strconv.Itoa(j)}, p)
 		}
 	}
 	for i, feat := range req.Features {
-		emit([]string{"Features", strconv.Itoa(i), "Field"}, feat.Field)
+		emit([]string{"features", strconv.Itoa(i), "field"}, feat.Field)
 	}
 
 	return out
@@ -192,7 +192,7 @@ func appendOperatorTypeSuggestions(out []descriptor.Suggestion, req *types.Reque
 		if f == nil {
 			continue
 		}
-		path := []string{"Aggregations", strconv.Itoa(i), "Type"}
+		path := []string{"aggregations", strconv.Itoa(i), "type"}
 		route := opRoute(inst, agg.Type)
 
 		switch {
@@ -266,7 +266,7 @@ func appendDateMisuseSuggestions(out []descriptor.Suggestion, req *types.Request
 			continue
 		}
 		out = append(out, descriptor.Suggestion{
-			Path:       []string{"Groups", strconv.Itoa(i), "Type"},
+			Path:       []string{"groups", strconv.Itoa(i), "type"},
 			Reason:     "GROUP_CATEGORY on a date field bucketizes by exact epoch value; use GROUP_DATE with a calendar component (year, quarter, month, ...) for a useful grouping",
 			Current:    string(grp.Type),
 			Proposed:   []any{string(types.GROUP_DATE)},
@@ -300,7 +300,7 @@ func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Reque
 			continue
 		}
 		out = append(out, descriptor.Suggestion{
-			Path:       []string{"Windows", strconv.Itoa(i), "OrderBy"},
+			Path:       []string{"windows", strconv.Itoa(i), "order_by"},
 			Reason:     "window " + string(w.Type) + " requires at least one OrderBy key; pick a date or numeric field",
 			Current:    nil,
 			Proposed:   proposed,
@@ -317,7 +317,7 @@ func appendMissingParamSuggestions(out []descriptor.Suggestion, req *types.Reque
 			continue
 		}
 		out = append(out, descriptor.Suggestion{
-			Path:       []string{"Aggregations", strconv.Itoa(i), "Params", "percentile"},
+			Path:       []string{"aggregations", strconv.Itoa(i), "params", "percentile"},
 			Reason:     "AGG_PERCENTILE requires a percentile parameter in [0, 100]; common choices follow",
 			Current:    nil,
 			Proposed:   append([]any(nil), commonPercentiles...),
@@ -398,23 +398,23 @@ func appendStreamabilitySuggestions(out []descriptor.Suggestion, req *types.Requ
 		if opRoute(inst, agg.Type).Streamable() {
 			continue
 		}
-		emit([]string{"Aggregations", strconv.Itoa(i), "Type"}, string(agg.Type))
+		emit([]string{"aggregations", strconv.Itoa(i), "type"}, string(agg.Type))
 	}
 	for i, attr := range req.Attributes {
 		if opRoute(inst, attr.Type).Streamable() {
 			continue
 		}
-		emit([]string{"Attributes", strconv.Itoa(i), "Type"}, string(attr.Type))
+		emit([]string{"attributes", strconv.Itoa(i), "type"}, string(attr.Type))
 	}
 	for i, grp := range req.Groups {
 		if opRoute(inst, grp.Type).Streamable() {
 			continue
 		}
-		emit([]string{"Groups", strconv.Itoa(i), "Type"}, string(grp.Type))
+		emit([]string{"groups", strconv.Itoa(i), "type"}, string(grp.Type))
 	}
 	for i, w := range req.Windows {
 		// Every WIN_* is non-streamable today.
-		emit([]string{"Windows", strconv.Itoa(i), "Type"}, string(w.Type))
+		emit([]string{"windows", strconv.Itoa(i), "type"}, string(w.Type))
 	}
 
 	return out

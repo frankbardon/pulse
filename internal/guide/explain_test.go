@@ -228,7 +228,7 @@ func TestExplain_EveryRoot(t *testing.T) {
 	}) {
 		t.Errorf("compose slot 1 aggregation not defaulted: %+v", comp.Steps)
 	}
-	if len(comp.DefaultsApplied) != 2 || !slices.Equal(comp.DefaultsApplied[1].Path[:2], []string{"Requests", "1"}) {
+	if len(comp.DefaultsApplied) != 2 || !slices.Equal(comp.DefaultsApplied[1].Path[:2], []string{"requests", "1"}) {
 		t.Errorf("compose defaults = %+v", comp.DefaultsApplied)
 	}
 	if !slices.ContainsFunc(comp.Steps, func(s descriptor.ExplainStep) bool { return s.Slot == "overlays[0]" }) {

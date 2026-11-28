@@ -65,7 +65,7 @@ func TestPredict_Suggestions_TypoMatchesNearestField(t *testing.T) {
 				Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: c.field}},
 			}
 			ss := runPredictForSuggestions(t, schema, req)
-			s := findSuggestionByPath(t, ss, "Aggregations.0.Field")
+			s := findSuggestionByPath(t, ss, "aggregations.0.field")
 			if s == nil {
 				t.Fatalf("expected a typo suggestion for %s; got none in %+v", c.field, ss)
 			}
@@ -97,7 +97,7 @@ func TestPredict_Suggestions_NoTypoWhenFieldExists(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "revenue"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	if s := findSuggestionByPath(t, ss, "Aggregations.0.Field"); s != nil {
+	if s := findSuggestionByPath(t, ss, "aggregations.0.field"); s != nil {
 		t.Errorf("did not expect typo suggestion on valid field; got %+v", s)
 	}
 }
@@ -115,7 +115,7 @@ func TestPredict_Suggestions_NumericAggOnCategorical(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "grade"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Aggregations.0.Type")
+	s := findSuggestionByPath(t, ss, "aggregations.0.type")
 	if s == nil {
 		t.Fatalf("expected operator-type suggestion; got %+v", ss)
 	}
@@ -148,7 +148,7 @@ func TestPredict_Suggestions_DecimalAggMismatch(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "amount"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Aggregations.0.Type")
+	s := findSuggestionByPath(t, ss, "aggregations.0.type")
 	if s == nil {
 		t.Fatalf("expected decimal-mismatch suggestion; got %+v", ss)
 	}
@@ -179,7 +179,7 @@ func TestPredict_Suggestions_GroupCategoryOnDate(t *testing.T) {
 		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "ts"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Groups.0.Type")
+	s := findSuggestionByPath(t, ss, "groups.0.type")
 	if s == nil {
 		t.Fatalf("expected GROUP_DATE suggestion; got %+v", ss)
 	}
@@ -204,7 +204,7 @@ func TestPredict_Suggestions_WindowMissingOrderBy(t *testing.T) {
 		Windows: []*types.Window{{Type: types.WIN_LAG, Field: "qty"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Windows.0.OrderBy")
+	s := findSuggestionByPath(t, ss, "windows.0.order_by")
 	if s == nil {
 		t.Fatalf("expected missing-OrderBy suggestion; got %+v", ss)
 	}
@@ -250,7 +250,7 @@ func TestPredict_Suggestions_ShareOrderByOnlyWhenCumulative(t *testing.T) {
 		{&types.Window{Type: types.WIN_LIFT, Field: "qty", Label: "l", Params: json.RawMessage(`{"base": "ts", "cumulative": true}`)}, true},
 	} {
 		ss := runPredictForSuggestions(t, schema, &types.Request{Windows: []*types.Window{tc.win}})
-		if got := findSuggestionByPath(t, ss, "Windows.0.OrderBy") != nil; got != tc.want {
+		if got := findSuggestionByPath(t, ss, "windows.0.order_by") != nil; got != tc.want {
 			t.Errorf("%s params %s: OrderBy suggestion %v, want %v (%+v)", tc.win.Type, tc.win.Params, got, tc.want, ss)
 		}
 	}
@@ -268,7 +268,7 @@ func TestPredict_Suggestions_PercentileMissingP(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Aggregations.0.Params.percentile")
+	s := findSuggestionByPath(t, ss, "aggregations.0.params.percentile")
 	if s == nil {
 		t.Fatalf("expected missing-percentile suggestion; got %+v", ss)
 	}
@@ -296,7 +296,7 @@ func TestPredict_Suggestions_PercentileMissingForms(t *testing.T) {
 			Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score", Params: json.RawMessage(raw)}},
 		}
 		ss := runPredictForSuggestions(t, schema, req)
-		if findSuggestionByPath(t, ss, "Aggregations.0.Params.percentile") == nil {
+		if findSuggestionByPath(t, ss, "aggregations.0.params.percentile") == nil {
 			t.Errorf("params %s: expected the missing-percentile suggestion; got %+v", raw, ss)
 		}
 	}
@@ -314,7 +314,7 @@ func TestPredict_Suggestions_PercentileWithParamSilent(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score", Params: json.RawMessage(`{"percentile": 95}`)}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	if s := findSuggestionByPath(t, ss, "Aggregations.0.Params.percentile"); s != nil {
+	if s := findSuggestionByPath(t, ss, "aggregations.0.params.percentile"); s != nil {
 		t.Errorf("did not expect missing-percentile suggestion when param is supplied; got %+v", s)
 	}
 }
@@ -331,7 +331,7 @@ func TestPredict_Suggestions_StreamabilityAlternative(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Aggregations.0.Type")
+	s := findSuggestionByPath(t, ss, "aggregations.0.type")
 	if s == nil {
 		t.Fatalf("expected streamability suggestion for AGG_MEDIAN; got %+v", ss)
 	}
@@ -361,7 +361,7 @@ func TestPredict_Suggestions_StreamabilityNoPeer(t *testing.T) {
 		Attributes:   []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "score"}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Attributes.0.Type")
+	s := findSuggestionByPath(t, ss, "attributes.0.type")
 	if s == nil {
 		t.Fatalf("expected suggestion noting ATTR_PERCENTILE has no streamable peer; got %+v", ss)
 	}
@@ -417,7 +417,7 @@ func TestPredict_Suggestions_StreamabilityGroupQuantile(t *testing.T) {
 		Groups:       []*types.Group{{Type: types.GROUP_QUANTILE, Field: "score", Interval: 4}},
 	}
 	ss := runPredictForSuggestions(t, schema, req)
-	s := findSuggestionByPath(t, ss, "Groups.0.Type")
+	s := findSuggestionByPath(t, ss, "groups.0.type")
 	if s == nil {
 		t.Fatalf("expected streamability suggestion for GROUP_QUANTILE; got %+v", ss)
 	}
