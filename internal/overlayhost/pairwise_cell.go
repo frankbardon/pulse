@@ -189,3 +189,35 @@ func PairwiseMeanCellRefusal(kind types.OverlayKind, pSource string, mode types.
 		"\" when the cell is a 0..1 proportion (an AGG_AVERAGE of a 0/1 indicator) or \"" + types.PairwisePSourceCellValuePct +
 		"\" when it is a 0..100 percentage"
 }
+
+// PairwiseWithinDepthMessage is the PULSE_OVERLAY_PARAM_MISSING message
+// of an OVERLAY_PAIRWISE_* params.n_within_depth the kind would not
+// apply, "" when the depth is admissible: a negative depth, or a
+// non-zero one under an n_source that does not read it
+// (types.PairwiseNSourceUsesWithinDepth — only n_within and
+// n_within_distinct fix a slab prefix; every other mode, the omitted
+// default and the Welford / weighted-moment kinds' n included, ignores
+// it, and an ignored param the caller believes is applied is a silent
+// no-op, #743). NWithinDepth is a plain int, so 0 — the unset value —
+// is never refused. Predict (descriptor.validateOverlayPairwise) and the
+// runtime (processing.pairwiseGate) raise it with the same text.
+func PairwiseWithinDepthMessage(kind types.OverlayKind, params types.PairwiseOverlayParams) string {
+	if params.NWithinDepth < 0 {
+		return "overlay " + string(kind) + " n_within_depth must be >= 0"
+	}
+	if params.NWithinDepth == 0 || types.PairwiseNSourceUsesWithinDepth(params.NSource) {
+		return ""
+	}
+	nSource := params.NSource
+	if nSource == "" {
+		nSource = "(default)"
+	}
+	return "overlay " + string(kind) + " n_within_depth is not read by n_source " + nSource +
+		" (it applies to " + types.PairwiseNSourceNWithin + ", " + types.PairwiseNSourceNWithinDistinct + " only)"
+}
+
+// PairwiseWithinDepthDetails are the details of the
+// PairwiseWithinDepthMessage refusal (predict adds the spec index).
+func PairwiseWithinDepthDetails(kind types.OverlayKind, params types.PairwiseOverlayParams) map[string]any {
+	return map[string]any{"kind": string(kind), "n_source": params.NSource, "n_within_depth": params.NWithinDepth}
+}

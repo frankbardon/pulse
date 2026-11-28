@@ -69,7 +69,7 @@ func twoSampleParams() []descriptor.Param {
 func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 	ps := []descriptor.Param{
 		{Name: "pair_along_dim", Type: "int", Required: false, Description: "Restrict pairs to pair-axis keys that agree on every dim position except this one; absent = every pair."},
-		{Name: "n_within_depth", Type: "int", Required: false, Default: 0, Description: "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."},
+		{Name: "n_within_depth", Type: "int", Required: false, Default: 0, Description: "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; a non-zero depth under any other n_source is refused (PULSE_OVERLAY_PARAM_MISSING)."},
 		{Name: "letters", Type: "object", Required: false, Description: "{} or {\"alpha\": a}, 0 < a < 1: significance letters (the letters part); reads significant_adjusted under a correction, else raw p < 0.05 (an explicit alpha applies to either)."},
 	}
 	switch {

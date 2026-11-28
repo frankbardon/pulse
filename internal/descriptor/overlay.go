@@ -319,12 +319,11 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 	// Runs BEFORE the known-mode checks on purpose — "unknown n_source"
 	// would tell the caller a known one would work, and none would.
 	//
-	// n_within_depth is deliberately excluded. It is equally inert
-	// here, but only BECAUSE n_source is: a non-zero depth without a
-	// slab n_source is just as inert on the proportion kinds, so a
-	// Welford-only refusal would be the incoherence this gate avoids.
-	// It is also a plain int whose zero value is meaningful, so
-	// "was it set?" is not observable after decode.
+	// n_within_depth is not judged here: a non-zero depth without a
+	// slab n_source is just as inert on the proportion kinds, so it is
+	// the one every-kind rule below (overlayhost.PairwiseWithinDepthMessage,
+	// #743, predict and runtime alike). A plain int, so its zero value
+	// — unset — is never refused.
 	//
 	// Predict-only, by decision. Unlike the slab partition gate below,
 	// no wrong NUMBER can come of this — the param is inert, so the
@@ -520,10 +519,12 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 			map[string]any{"index": index, "kind": string(spec.Kind), "pair_along_dim": *params.PairAlongDim})
 		return
 	}
-	if params.NWithinDepth < 0 {
-		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" n_within_depth must be >= 0",
-			map[string]any{"index": index, "kind": string(spec.Kind), "n_within_depth": params.NWithinDepth})
+	// n_within_depth: negative, or non-zero under an n_source that does
+	// not read it (#743) — the rule the runtime's pairwiseGate raises.
+	if msg := overlayhost.PairwiseWithinDepthMessage(spec.Kind, params); msg != "" {
+		details := overlayhost.PairwiseWithinDepthDetails(spec.Kind, params)
+		details["index"] = index
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg, details)
 		return
 	}
 
@@ -624,8 +625,9 @@ func validateOverlayPanel(env *descriptor.Envelope, kind types.OverlayKind, para
 	// refusal only because PanelOverlayParams.NWithinDepth is a *int:
 	// "written" is distinguishable from "zero", so the check cannot
 	// misfire on a caller who never named the key. (The axis-pairing
-	// family's plain int cannot make that distinction, which is why
-	// its equivalent no-op is still open — this is not a fix for it.)
+	// family's plain int cannot tell an explicit 0 from unset, so it
+	// refuses only a NON-ZERO inert depth —
+	// overlayhost.PairwiseWithinDepthMessage, #743.)
 	if params.NWithinDepth != nil && !types.PanelNSourceUsesWithinDepth(params.NSource) {
 		nSource := params.NSource
 		if nSource == "" {

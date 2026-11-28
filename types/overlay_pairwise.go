@@ -31,7 +31,10 @@ type PairwiseOverlayParams struct {
 
 	// NWithinDepth, with NSource=n_within or n_within_distinct, fixes the
 	// first NWithinDepth+1 pair-axis dim positions in the denominator
-	// (mirrors CrosstabSpec.NormalizeWithin). Must be >= 0.
+	// (mirrors CrosstabSpec.NormalizeWithin). Must be >= 0; a non-zero
+	// depth under any other n_source (which ignores it) is refused
+	// PULSE_OVERLAY_PARAM_MISSING at predict and at runtime. A plain
+	// int, so 0 is also the unset value and is never refused.
 	NWithinDepth int `json:"n_within_depth,omitempty"`
 
 	// PSource selects how the proportion leg is derived for the

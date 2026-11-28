@@ -251,9 +251,9 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 - [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
 - [x] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document. *Done in pre-v1 E1-S6.*
 - [x] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks. *Done in pre-v1 E1-S6.*
-- [ ] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect.
+- [x] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect. *Done in pre-v1 E3-S4: a non-zero (or negative) `n_within_depth` under an `n_source` that does not read it is refused `PULSE_OVERLAY_PARAM_MISSING` on both sides (`overlayhost.PairwiseWithinDepthMessage`); 0 stays unset (plain int); pinned by `TestPairwiseWithinDepth_PredictMatchesRuntime`.*
 - [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
-- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations. *(2)(3) done in pre-v1 E1-S6; (1) open.*
+- [x] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations. *(2)(3) done in pre-v1 E1-S6.* *(1) done in pre-v1 E3-S4: a hidden (or never-registered) `params.fit_on` filterer type refuses at predict as at run time; a feature's expression `fit_on` is not a filterer slot and runs on both sides; pinned by `TestHiddenFitOn_PredictMatchesRuntime`. All three parts closed.*
 - [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
 - [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
 - [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*

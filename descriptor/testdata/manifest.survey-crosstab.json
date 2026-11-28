@@ -2017,7 +2017,7 @@
             "type": "int",
             "required": false,
             "default": 0,
-            "description": "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."
+            "description": "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; a non-zero depth under any other n_source is refused (PULSE_OVERLAY_PARAM_MISSING)."
           },
           {
             "name": "letters",
@@ -2505,4 +2505,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f7d45ba9235ba939c0242d8ad63c4910db2da189727d132295b4a4c7b4ca96eb
+// golden-hash: 5c8d1d145c7eb5f959ceea408c1d3420df6b30338d31aba19b338861616be26b

@@ -2015,6 +2015,16 @@ func validateRegisteredOperators(env *descriptor.Envelope, req *types.Request, o
 		}
 		if !registered(string(a.Type), builtinAttributes[a.Type], snapAttrs) {
 			report("unknown attribute type: ", "attributes", i, string(a.Type))
+			continue
+		}
+		// A fitted attribute's params.fit_on filterers are built by the
+		// one filter build (the runtime's fitOnBinder), where a type the
+		// instance hides is unknown exactly as in Request.Filterers
+		// (#745).
+		for j, f := range vectors.AttributeFitOn(opRoute(opts.instance(), a.Type), a) {
+			if f != nil && !registered(string(f.Type), builtinFilterers[f.Type], snapFilters) {
+				report("unknown filter type: ", "attributes["+strconv.Itoa(i)+"].params.fit_on", j, string(f.Type))
+			}
 		}
 	}
 	if ct := req.Crosstab; ct != nil {

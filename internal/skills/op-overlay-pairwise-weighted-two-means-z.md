@@ -18,7 +18,7 @@ Weighted pairwise two-means z: pairs rows (`row` scope) or columns (`column`) on
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `pair_along_dim` | int | — | Restrict pairs to same-bucket comparisons on the pair axis. |
-| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
+| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; non-zero under any other n_source → `PULSE_OVERLAY_PARAM_MISSING`. |
 | `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
 | `n_basis` | enum | (required) | `weights` or `kish`. |
 

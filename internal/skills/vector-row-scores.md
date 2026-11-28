@@ -31,7 +31,7 @@ A row score reads one vector — exactly one of `vector`<!-- feature: capability
 
 Each fits once, then scores every row; a score is an ordinary field (average it by group, use it as a regression predictor):
 
-- `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
+- `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored. Each entry is judged as a `filterers` entry: an unknown type → `PROCESSING_CONFIG`, at predict and at run time.
 - `fit` — a bound vector fit's name, scored against instead of fitting: <!-- feature: capability:compose_fits -->a compose `fits` entry over one matrix or fitted-attribute battery (`compose-fits`), or <!-- /feature -->a loaded `populations` entry. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`.<!-- feature: ATTR_SEM_SCORE --> `ATTR_SEM_SCORE` reads a SEM fit instead (`sem-fits`).<!-- /feature -->
 - `missing` — `listwise` only.
 <!-- feature: capability:weighting -->

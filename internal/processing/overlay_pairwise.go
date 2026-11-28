@@ -231,6 +231,12 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
 			map[string]any{"kind": string(spec.Kind), "param": "letters", "alpha": *params.Letters.Alpha})
 	}
+	// n_within_depth: negative, or non-zero under an n_source that does
+	// not read it — the rule predict raises (#743).
+	if msg := overlayhost.PairwiseWithinDepthMessage(spec.Kind, params); msg != "" {
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+			overlayhost.PairwiseWithinDepthDetails(spec.Kind, params))
+	}
 
 	// Components gate — every kind reads per-cell counters / Welford
 	// triples / margin counts. Without them there is no sample-size leg.
