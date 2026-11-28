@@ -668,14 +668,14 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "compose parallel slots", host: hostCompose, site: "compose (parallel)", setup: serialArm,
 			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
-				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
+				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{})
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxComposeSlots = 1 }, wantTrip: limits.MaxComposeSlots},
 		{name: "compose parallel slot groups", host: hostCompose, site: "compose (parallel slot)", setup: serialArm,
 			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
-				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
+				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{})
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},

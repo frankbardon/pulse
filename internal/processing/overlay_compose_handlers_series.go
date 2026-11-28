@@ -42,7 +42,7 @@ import (
 // and target slots — when this returns true the per-kind handler
 // dispatches into its series arm.
 //
-// A nil response (failed slot under FailFast=false) returns false so
+// A nil response (the defensive failed-slot guard) returns false so
 // the matrix arm's defense-in-depth nil check surfaces a coded error
 // rather than the series arm silently producing an empty layer.
 func composeHostIsSeries(reference *types.Response, target *types.Response) bool {

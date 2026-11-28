@@ -307,14 +307,14 @@ func TestApplyComposeOverlays_TargetsEmpty_CodedError(t *testing.T) {
 
 // TestApplyComposeOverlays_NilSlot_CodedError asserts that resolving
 // a reference / target label whose corresponding *Response slot is
-// nil (the FailFast=false failed-slot hole) surfaces a coded error
+// nil (the defensive failed-slot nil guard) surfaces a coded error
 // rather than dereferencing the nil downstream.
 func TestApplyComposeOverlays_NilSlot_CodedError(t *testing.T) {
 	t.Parallel()
 
 	responses := []*types.Response{
 		composeSlotOf(types.OverlayShapeScalar),
-		nil, // slot 1 failed under FailFast=false
+		nil, // slot 1: the defensive nil hole
 	}
 	labels := []string{"baseline", "treatment"}
 	specs := []types.ComposeOverlaySpec{{

@@ -319,7 +319,7 @@ func TestReturn_ComposeAndChainRefusalsMatchPredict(t *testing.T) {
 		for _, parallel := range []bool{false, true} {
 			var rerr error
 			if parallel {
-				_, rerr = p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+				_, rerr = p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2})
 			} else {
 				_, rerr = p.Compose(ctx, mk())
 			}

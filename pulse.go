@@ -1332,10 +1332,15 @@ type ComposeOptions = service.ComposeOptions
 // execution is safe.
 //
 // Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
-// FailFast = false (the zero value): every request runs to completion
-// and the errors are collected. Set FailFast=true to cancel in-flight
-// siblings on the first error instead (`pulse api compose --parallel`
-// sets it unless --no-fail-fast).
+// fail-fast (CollectErrors = false, the zero value): the first request
+// error cancels in-flight siblings and is returned at once, matching
+// serial Compose and `pulse api compose --parallel`. Set
+// CollectErrors = true (the CLI's --no-fail-fast) to run every request
+// to completion; any failure then returns (nil, SERVICE_INTERNAL) with
+// failed_indices and first_error in its details. Neither mode returns
+// partial slots: on a failure the slots that succeeded are discarded.
+// A slot that fails on its data (PULSE_SLOT_FAILED) is not a request
+// error and keeps its identity in a successful response.
 //
 // Returned shape mirrors Compose:
 //

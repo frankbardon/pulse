@@ -76,7 +76,7 @@ func assertComposeParity(t *testing.T, p *pulse.Pulse, name string, mk func() *t
 		t.Errorf("%s: predict %s %q, runtime %s %q", name, got.Code, got.Message, ce.Code, ce.Message)
 	}
 	// Predict locates the slot (RefusalAt); the runtime locates every
-	// coded slot refusal the same way (serial Compose and FailFast
+	// coded slot refusal the same way (serial Compose and fail-fast
 	// ComposeParallel alike).
 	if wantSlot >= 0 {
 		if got.Details["request"] != wantSlot {
@@ -85,7 +85,7 @@ func assertComposeParity(t *testing.T, p *pulse.Pulse, name string, mk func() *t
 		if ce.Details["request"] != wantSlot {
 			t.Errorf("%s: runtime located at %v (%v), want request %d", name, ce.Details["request"], ce.Details, wantSlot)
 		}
-		_, perr := p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+		_, perr := p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2})
 		var pce *errors.CodedError
 		if !stderrors.As(perr, &pce) || pce.Code != ce.Code || pce.Message != ce.Message || pce.Details["request"] != wantSlot {
 			t.Errorf("%s: ComposeParallel %v (details %v), want %s located at request %d", name, perr, detailsOf(pce), ce.Code, wantSlot)

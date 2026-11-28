@@ -78,7 +78,7 @@ Every SERIAL per-record loop polls the caller's ctx through `processing.CtxPolle
 
 - **The ctx error is returned UNCHANGED** — `context.Canceled` / `context.DeadlineExceeded` itself, never coded, never wrapped. Mapping an INNER deadline (`RequestTimeout`) to `PULSE_LIMIT_EXCEEDED` is the entry point's job via `context.Cause`, not the loop's.
 - **A new serial per-record loop adds a poll and a case** to the cancellation tables (`internal/processing/ctxpoll_test.go`, `internal/service/ctx_poll_test.go`).
-- FailFast `ComposeParallel`: a still-running sibling stops with `context.Canceled`, so the reported error is the lowest-index failure that is NOT a sibling cancellation (`failFastWinner`); a caller-done ctx keeps the plain lowest-index failure. A ctx done before every slot launched, with no slot error, returns the ctx error — never a "successful" response with unrun `nil` slots.
+- Fail-fast `ComposeParallel`: a still-running sibling stops with `context.Canceled`, so the reported error is the lowest-index failure that is NOT a sibling cancellation (`failFastWinner`); a caller-done ctx keeps the plain lowest-index failure. A ctx done before every slot launched, with no slot error, returns the ctx error — never a "successful" response with unrun `nil` slots.
 
 ## Request timeout (`Limits.RequestTimeout`)
 

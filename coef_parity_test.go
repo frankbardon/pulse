@@ -65,7 +65,7 @@ func TestCoef_PredictRuntimeParity(t *testing.T) {
 			runs := map[string]func() error{
 				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
 				"ComposeParallel": func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			}

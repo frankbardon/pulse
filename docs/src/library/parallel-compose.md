@@ -34,7 +34,7 @@ re-exported as `pulse.ComposeOptions`:
 type ComposeOptions struct {
     MaxWorkers        int           // 0 = runtime.GOMAXPROCS(0); negative clamps to 1
     PerRequestTimeout time.Duration // positive: a context.WithTimeout per request
-    FailFast          bool          // cancel in-flight siblings on the first error
+    CollectErrors     bool          // run every request; aggregate the failures
 }
 ```
 
@@ -42,7 +42,7 @@ type ComposeOptions struct {
 |---|---|---|
 | `MaxWorkers` | `runtime.GOMAXPROCS(0)` | `0` resolves to GOMAXPROCS; `<1` clamps to 1 |
 | `PerRequestTimeout` | unlimited | When positive, each worker derives `context.WithTimeout` |
-| `FailFast` | `false` (Go zero value) | `true`: the first error cancels siblings and returns immediately. The CLI sets it unless `--no-fail-fast` |
+| `CollectErrors` | `false` (Go zero value: fail fast) | `false`: the first error cancels siblings and returns immediately, like serial `Compose`. `true`: every request runs and the failures come back as one `SERVICE_INTERNAL` aggregate. The CLI sets it with `--no-fail-fast`. Neither mode returns partial slots |
 
 ## Example
 
@@ -56,7 +56,7 @@ composed := &pulse.ComposedRequest{
 resp, err := p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
     MaxWorkers:        4,
     PerRequestTimeout: 30 * time.Second,
-    FailFast:          true,
+    // CollectErrors left false: the first failure cancels the rest.
 })
 if err != nil {
     return err
@@ -67,9 +67,9 @@ for i, r := range resp.Responses {
 }
 ```
 
-## FailFast semantics
+## Failure semantics
 
-With `FailFast = true`:
+With `CollectErrors = false` (the zero value, fail-fast):
 
 - The first request to return an error cancels the shared context.
 - In-flight siblings observe cancellation via `ctx.Err()` (every
@@ -77,10 +77,10 @@ With `FailFast = true`:
   with `context.Canceled`.
 - `ComposeParallel` returns `(nil, err)` where `err` is the
   lowest-index failure that is not such a sibling cancellation, so the
-  error that tripped FailFast is the one reported. When the caller's
+  error that tripped fail-fast is the one reported. When the caller's
   own ctx is done, the lowest-index failure is reported as is.
 
-With `FailFast = false` (the zero value):
+With `CollectErrors = true`:
 
 - Every request runs to completion (or its own per-request timeout).
 - Errors are aggregated into a single `SERVICE_INTERNAL` error whose
@@ -125,7 +125,8 @@ pulse api compose --request batch.json --parallel 4 --no-fail-fast
 - `0` → `runtime.GOMAXPROCS`.
 - `> 1` → exactly that many workers.
 
-`--no-fail-fast` mirrors `FailFast = false`.
+`--no-fail-fast` mirrors `CollectErrors = true`; without it the CLI, like
+the zero `ComposeOptions`, fails fast.
 
 ## Performance considerations
 

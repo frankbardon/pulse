@@ -149,7 +149,7 @@ func (s *Service) composeOptimizePreflight(expanded int) error {
 
 // composeSlotsPreflight refuses a Compose call carrying more than
 // MaxComposeSlots slots — explicit plus sweep-expanded — the whole call,
-// before any slot runs (FailFast does not apply). sweep.Expand calls it
+// before any slot runs (fail-fast versus CollectErrors does not apply). sweep.Expand calls it
 // with the total before rendering a single sweep slot.
 func (s *Service) composeSlotsPreflight(slots int) error {
 	if err := limits.CheckComposeSlots(s.Limits(), slots); err != nil {

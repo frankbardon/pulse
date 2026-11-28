@@ -350,7 +350,7 @@ func TestModelLoad_Refusals(t *testing.T) {
 				if workers == 1 {
 					_, err = svc.Compose(ctx, c)
 				} else {
-					_, err = svc.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: workers})
+					_, err = svc.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: workers, CollectErrors: true})
 				}
 				var bce *perr.CodedError
 				if !stderrors.As(err, &bce) || bce.Code != tc.code || bce.Details["request"] != 1 {

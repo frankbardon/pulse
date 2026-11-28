@@ -55,7 +55,7 @@ func TestComposeResult_PrePhaseSchedule(t *testing.T) {
 			if mode == "serial" {
 				out, err = svc.Compose(context.Background(), resultSchedBatch())
 			} else {
-				out, err = svc.ComposeParallel(context.Background(), resultSchedBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+				out, err = svc.ComposeParallel(context.Background(), resultSchedBatch(), ComposeOptions{MaxWorkers: 4})
 			}
 			if err != nil {
 				t.Fatal(err)

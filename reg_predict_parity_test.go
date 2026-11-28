@@ -98,7 +98,7 @@ func TestRegPredict_PredictRuntimeParity(t *testing.T) {
 			runs := map[string]func() error{
 				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
 				"ComposeParallel": func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			}
@@ -192,7 +192,7 @@ func TestRegPredict_CarryRefusalsPredictRuntimeParity(t *testing.T) {
 			for name, run := range map[string]func() error{
 				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
 				"ComposeParallel": func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			} {
@@ -301,7 +301,7 @@ func TestRegFitted_CarryRefusalsPredictRuntimeParity(t *testing.T) {
 			for name, run := range map[string]func() error{
 				"Compose": func() error { _, err := p.Compose(ctx, c); return err },
 				"ComposeParallel": func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			} {

@@ -281,15 +281,15 @@ func TestComposeParallel_StubOverlayRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCompose_FailFast_SkipsOverlays asserts that under FailFast=true
-// (default) a slot failure causes the orchestrator to return the
+// TestCompose_FailFast_SkipsOverlays asserts that under fail-fast (the
+// zero ComposeOptions) a slot failure causes the orchestrator to return the
 // first observed error WITHOUT invoking applyComposeOverlays. The
 // guarantee is that no partial overlay emission leaks when a slot
 // could not produce a *Response.
 //
-// The serial Compose path has no FailFast knob — a slot error
+// The serial Compose path has no CollectErrors knob — a slot error
 // returns early from the loop. This test exercises the parallel
-// path's FailFast=true branch which carries the explicit "skip
+// path's fail-fast branch which carries the explicit "skip
 // overlays" comment in the source.
 func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 	t.Parallel()
@@ -298,7 +298,7 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 	svc := stubComposeService(cfg)
 
 	// Mix one bad cohort with one valid one. Slot 0 fires a coded
-	// error → FailFast=true → the orchestrator returns immediately.
+	// error → fail-fast (the zero value) → the orchestrator returns immediately.
 	composed := &types.ComposedRequest{
 		Requests: []*types.Request{
 			{
@@ -329,10 +329,9 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 
 	_, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
 		MaxWorkers: 2,
-		FailFast:   true,
 	})
 	if err == nil {
-		t.Fatal("ComposeParallel(FailFast, broken slot): want error, got nil")
+		t.Fatal("ComposeParallel(fail-fast, broken slot): want error, got nil")
 	}
 	// The error must come from the per-slot failure (the failing
 	// cohort open), NOT from the overlay dispatch. The overlay hook
@@ -343,7 +342,7 @@ func TestCompose_FailFast_SkipsOverlays(t *testing.T) {
 	// signature ("missing.pulse") rather than the overlay-resolver
 	// signature ("overlay reference").
 	if strings.Contains(err.Error(), "overlay") {
-		t.Errorf("FailFast=true should have skipped overlays, but error mentions overlay: %v", err)
+		t.Errorf("fail-fast should have skipped overlays, but error mentions overlay: %v", err)
 	}
 }
 
@@ -354,7 +353,7 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 	svc := stubComposeService(cfg)
 
 	// Both slots SUCCEED in this test — the assertion is that
-	// FailFast=false with all-succeed runs the overlay hook
+	// CollectErrors with all-succeed runs the overlay hook
 	// successfully. The mixed-failure path is covered by
 	// TestComposeParallel_NoFailFastAggregatesErrors.
 	composed := composeOverlayBaseRequest()
@@ -369,11 +368,11 @@ func TestCompose_NoFailFast_RunsOverlaysOnSucceededSlots(t *testing.T) {
 	}
 
 	composedResp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
-		MaxWorkers: 2,
-		FailFast:   false,
+		MaxWorkers:    2,
+		CollectErrors: true,
 	})
 	if err != nil {
-		t.Fatalf("ComposeParallel(FailFast=false, all-succeed): %v", err)
+		t.Fatalf("ComposeParallel(CollectErrors, all-succeed): %v", err)
 	}
 	responses := composedResp.Responses
 	if got, want := len(responses), 2; got != want {

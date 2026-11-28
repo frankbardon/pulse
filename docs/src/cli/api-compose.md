@@ -77,22 +77,24 @@ Workers share Pulse's read-only registries; per-request stateful
 operators are constructed fresh. See [Parallel
 Compose](../library/parallel-compose.md) for full mechanics.
 
-## FailFast semantics
+## Failure semantics
 
-With `--no-fail-fast` unset (the default, fail-fast on):
+With `--no-fail-fast` unset (the default, fail-fast on; the library's
+zero `ComposeOptions` behaves the same):
 
 - The first failing request cancels in-flight siblings.
 - The command exits 1 with the first error.
 
-With `--no-fail-fast`:
+With `--no-fail-fast` (the library's `ComposeOptions.CollectErrors`):
 
 - Every request runs to its own completion (or per-request timeout).
 - Errors aggregate into a single `SERVICE_INTERNAL` error whose
   `details.failed_indices` lists the slot indices that failed.
   When a sweep-bound fit's sweep slots fail, no other slot runs and
   `details.skipped_indices` lists the slots that never ran.
-- Successful slots populate `data.responses[]`; failed slots are
-  `null`.
+- No slots are returned, not even the ones that succeeded: the
+  command exits 1 and the aggregate is the only result (the
+  envelope's `errors` under `--json`).
 
 ## Output
 

@@ -29,11 +29,16 @@ type ComposeOptions struct {
 	// deadline still applies).
 	PerRequestTimeout time.Duration
 
-	// FailFast cancels in-flight siblings on the first request error.
-	// The zero value is false: every request's outcome is collected
-	// (errors aggregated into a single CodedError with per-index detail).
-	// Set true to surface the first error quickly.
-	FailFast bool
+	// CollectErrors runs every request to completion instead of failing
+	// fast. The zero value (false) fails fast: the first request error
+	// cancels in-flight siblings and is returned at once, matching serial
+	// Compose and the CLI. With CollectErrors set, every slot's outcome is
+	// collected and any failure returns (nil, SERVICE_INTERNAL) whose
+	// details carry failed_indices and first_error. Neither mode returns
+	// partial slots: the slots that succeeded are discarded, and a slot
+	// that fails on its data keeps its identity as PULSE_SLOT_FAILED
+	// inside a successful response instead.
+	CollectErrors bool
 }
 
 // resolvedOptions returns a copy with defaults applied.
@@ -164,16 +169,16 @@ func (s *Service) composeParallel(
 	errs := make([]error, n)
 	deferred := make([]func() error, n)
 
-	// Cancellation context: derived once so FailFast can fan out cancellation
+	// Cancellation context: derived once so fail-fast can fan out cancellation
 	// to every in-flight goroutine via cancel().
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// failOnce ensures FailFast triggers cancel() exactly once, even if
+	// failOnce ensures fail-fast triggers cancel() exactly once, even if
 	// multiple goroutines fail concurrently.
 	var failOnce sync.Once
-	triggerFailFast := func() {
-		if o.FailFast {
+	triggerCancel := func() {
+		if !o.CollectErrors {
 			failOnce.Do(cancel)
 		}
 	}
@@ -228,7 +233,7 @@ func (s *Service) composeParallel(
 				end(err)
 				if err != nil {
 					errs[i] = err
-					triggerFailFast()
+					triggerCancel()
 					return
 				}
 				echoSlotLabel(resp, req)
@@ -245,7 +250,7 @@ func (s *Service) composeParallel(
 		if err := launch(idx, models); err != nil {
 			return err
 		}
-		return slotPoolFailure(ctx, errs, o.FailFast)
+		return slotPoolFailure(ctx, errs, !o.CollectErrors)
 	}
 	// An adaptive sweep's rounds run on the same pool. Fail-fast stops
 	// at the failing round with the pool's own located error;
@@ -259,7 +264,7 @@ func (s *Service) composeParallel(
 				if err := launch(idx, models); err != nil {
 					return nil, err
 				}
-				if o.FailFast {
+				if !o.CollectErrors {
 					if err := slotPoolFailure(ctx, errs, true); err != nil {
 						return nil, err
 					}
@@ -294,13 +299,13 @@ func (s *Service) composeParallel(
 	// The result pre-phase: every slot a block's result() reads runs
 	// now, once, on the pool, before the blocks (runComposeResultPhase —
 	// ran marks it for the slot phase below). A failed one stops every
-	// optimize block (its dependents) and the comparisons. FailFast
+	// optimize block (its dependents) and the comparisons. Fail-fast
 	// returns its error at once, naming the slot; otherwise every other
 	// slot still runs, so the SERVICE_INTERNAL aggregate is the whole
 	// batch's, its result_slots naming the failed read slots.
 	ran, phase, err := runComposeResultPhase(composed, n, ran, models, pool)
 	if err != nil {
-		if o.FailFast {
+		if !o.CollectErrors {
 			return nil, err
 		}
 		if rerr := pool(unranSlots(n, ran), models); rerr != nil {
@@ -355,8 +360,8 @@ func (s *Service) composeParallel(
 	// pool drains and all per-slot results are gathered into the
 	// order-preserved `responses` slice. The parallel path only
 	// reaches this barrier when every slot succeeded: any slot
-	// failure returns above (FailFast=true with the first error,
-	// FailFast=false with the aggregated SERVICE_INTERNAL), so the
+	// failure returns above (fail-fast with the first error,
+	// CollectErrors with the aggregated SERVICE_INTERNAL), so the
 	// overlay and multiplicity folds never see a partial set of
 	// slots. The order of layer emission matches
 	// `req.Overlays` spec order regardless of slot dispatch order
@@ -413,7 +418,7 @@ func (s *Service) composeParallel(
 	return out, nil
 }
 
-// failFastWinner picks the slot whose error a FailFast Compose reports:
+// failFastWinner picks the slot whose error a fail-fast Compose reports:
 // the lowest-index failure that is not a sibling cancellation. A slot
 // that was still running when another slot's error cancelled runCtx
 // stops with context.Canceled (the serial loops poll ctx); reporting
@@ -434,7 +439,7 @@ func failFastWinner(ctx context.Context, errs []error, failed []int) int {
 // processSlotRecovered is s.Process for one ComposeParallel slot on its
 // pool goroutine. Operator code runs there, so a panic is recovered into
 // PROCESSING_PANIC (recoverInto) and returned as the slot's error: the
-// slot's child operation ends with it, FailFast cancels the siblings,
+// slot's child operation ends with it, fail-fast cancels the siblings,
 // and wg.Done / the semaphore release still run.
 func (s *Service) processSlotRecovered(ctx context.Context, req *types.Request) (resp *types.Response, err error) {
 	defer recoverInto(panicOpComposeParallel, s.disablePanicRecovery, &err)
@@ -442,12 +447,12 @@ func (s *Service) processSlotRecovered(ctx context.Context, req *types.Request) 
 }
 
 // slotPoolFailure is a ComposeParallel pool run's failure, nil when no
-// slot failed. FailFast surfaces the lowest-index error that is not a
-// sibling cancellation (failFastWinner); non-FailFast wraps every error
-// with its slot index so callers see the full picture. FailFast=true +
+// slot failed. Fail-fast surfaces the lowest-index error that is not a
+// sibling cancellation (failFastWinner); CollectErrors wraps every error
+// with its slot index so callers see the full picture. Fail-fast +
 // any-slot-failed SKIPS the overlay barrier entirely: no
 // applyComposeOverlays call, no partial emission — the failing call
-// returns immediately with the error that tripped FailFast.
+// returns immediately with the error that tripped fail-fast.
 func slotPoolFailure(ctx context.Context, errs []error, failFast bool) error {
 	var firstErr error
 	var failed []int

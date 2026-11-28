@@ -187,7 +187,7 @@ pulse: type CohortZoneResult field Warnings []pulse/internal/encoding.CohesionWa
 pulse: type CohortZoneResult field ZoneField string "json:\"zone_field\""
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
-pulse: type ComposeOptions field FailFast bool
+pulse: type ComposeOptions field CollectErrors bool
 pulse: type ComposeOptions field MaxWorkers int
 pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
@@ -7252,4 +7252,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e519ed4a1c1445f7d426eff786d4aec6496b9112b9131c0b5a65be763e0521c2
+// golden-hash: 13acfefaedf61cf902336fc36b5455d0c02afa0d80708002c2a35876d4071f66

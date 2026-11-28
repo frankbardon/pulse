@@ -66,9 +66,9 @@ import (
 // (post-auto-default) slot label:
 //
 //   - byLabel maps each final label to the *types.Response at the
-//     same slot index. The value MAY be nil — under FailFast=false
-//     the orchestrator passes a partial responses slice with nil
-//     holes for failed slots, and the resolver preserves those holes
+//     same slot index. The value MAY be nil — production never
+//     passes a failed slot (any failure returns before the fold),
+//     but a nil hole is guarded defensively: the resolver preserves it
 //     so the downstream LookupReference / LookupTarget helpers can
 //     surface a coded error (rather than silently skipping the slot).
 //
@@ -148,7 +148,7 @@ func ResolveComposeSlots(req *types.ComposedRequest, responses []*types.Response
 // against the byLabel map produced by ResolveComposeSlots. Returns a
 // coded error carrying PULSE_OVERLAY_REFERENCE_UNKNOWN when the label
 // is empty, absent from the map, or resolves to a nil *Response (the
-// FailFast=false failed-slot hole).
+// defensive failed-slot nil guard).
 //
 // The handler-side wrapping pattern: every per-kind COMPOSE handler
 // calls LookupReference once at the top of its body and returns the
@@ -181,9 +181,8 @@ func LookupReference(byLabel map[string]*types.Response, label string, specIdx i
 			})
 	}
 	if resp == nil {
-		// FailFast=false hole: the slot at the resolved index failed
-		// and the orchestrator passed a nil entry in the responses
-		// slice. The resolver flags it as unknown so the overlay
+		// Defensive nil hole: a nil entry in the responses slice
+		// (production returns before the fold on any slot failure). The resolver flags it as unknown so the overlay
 		// dispatch fails closed rather than panicking downstream.
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_REFERENCE_UNKNOWN,
@@ -201,7 +200,7 @@ func LookupReference(byLabel map[string]*types.Response, label string, specIdx i
 // label against the byLabel map produced by ResolveComposeSlots.
 // Returns a coded error carrying PULSE_OVERLAY_TARGET_UNKNOWN when
 // the label is empty, absent from the map, or resolves to a nil
-// *Response (the FailFast=false failed-slot hole).
+// *Response (the defensive failed-slot nil guard).
 //
 // `specIdx` is the originating ComposeOverlaySpec index in
 // `ComposedRequest.Overlays`; `targetIdx` is the index inside the
@@ -232,8 +231,7 @@ func LookupTarget(byLabel map[string]*types.Response, label string, specIdx, tar
 			})
 	}
 	if resp == nil {
-		// Same FailFast=false hole as LookupReference — the slot
-		// failed and the orchestrator passed a nil entry. Surface
+		// Same defensive nil hole as LookupReference. Surface
 		// the missing-target coded error.
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_TARGET_UNKNOWN,

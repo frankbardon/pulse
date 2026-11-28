@@ -162,7 +162,7 @@ func TestQueryProcessAndCompose(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Compose: %v", err)
 			}
-			par, err := p.ComposeParallel(ctx, creq, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			par, err := p.ComposeParallel(ctx, creq, pulse.ComposeOptions{MaxWorkers: 2})
 			if err != nil {
 				t.Fatalf("ComposeParallel: %v", err)
 			}

@@ -297,7 +297,7 @@ func TestTimeZone_DateRangesLocalDayEveryArm(t *testing.T) {
 					requireCounts(t, dayCountsFromRows(t, rows, sh.key), sh.want)
 				})
 				t.Run(name+"/compose-parallel", func(t *testing.T) {
-					out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(cohort)}}, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+					out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(cohort)}}, pulse.ComposeOptions{MaxWorkers: 2})
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -865,7 +865,7 @@ func TestBayesInfluence_RefusedByDesignPredictRuntimeParity(t *testing.T) {
 			run := func() error { _, err := p.Compose(ctx, c); return err }
 			if slot.typ == types.ATTR_REG_INFLUENCE {
 				run = func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				}
 			}

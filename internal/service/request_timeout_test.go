@@ -75,11 +75,11 @@ func timeoutEntries(svc *Service) map[string]func(ctx context.Context) error {
 			return err
 		},
 		"ComposeParallel/FailFast": func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{FailFast: true})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{})
 			return err
 		},
 		"ComposeParallel/CollectAll": func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{CollectErrors: true})
 			return err
 		},
 		"ProcessChain": func(ctx context.Context) error {
@@ -100,7 +100,7 @@ func isLimitCode(err error) bool {
 // TestRequestTimeout_TripsOnEveryEntry: the inner RequestTimeout
 // deadline maps to PULSE_LIMIT_EXCEEDED {limit: request_timeout,
 // configured, observed: elapsed} on every entry FR-23 names — the whole
-// Compose / ComposeParallel (both FailFast modes) / chain call included.
+// Compose / ComposeParallel (both failure modes) / chain call included.
 func TestRequestTimeout_TripsOnEveryEntry(t *testing.T) {
 	t.Parallel()
 
@@ -238,7 +238,7 @@ func TestRequestTimeout_NestedEntriesShareOneBudget(t *testing.T) {
 
 // TestRequestTimeout_PerRequestTimeoutStaysRaw: ComposeOptions'
 // per-slot PerRequestTimeout is unchanged — its DeadlineExceeded is not
-// relabelled as the limit, and FailFast reports the timed-out slot.
+// relabelled as the limit, and fail-fast reports the timed-out slot.
 func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +246,7 @@ func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	svc.entryHook = waitOutShortDeadlines
 	_, err := svc.ComposeParallel(context.Background(), timeoutCompose(),
-		ComposeOptions{FailFast: true, PerRequestTimeout: time.Millisecond})
+		ComposeOptions{PerRequestTimeout: time.Millisecond})
 	if isLimitCode(err) || !stderrors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want the per-slot context.DeadlineExceeded", err)
 	}
@@ -333,11 +333,11 @@ func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
 			return err
 		}},
 		{"ComposeParallel/FailFast", 2, func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
 			return err
 		}},
 		{"ComposeParallel/CollectAll", 2, func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, CollectErrors: true})
 			return err
 		}},
 		{"ProcessChain", 1, func(ctx context.Context) error {

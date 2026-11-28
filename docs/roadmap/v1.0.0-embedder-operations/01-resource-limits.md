@@ -27,7 +27,7 @@ All limits accept `0` = unlimited (except where "derive" is noted), and negative
 - **Predict:** `PredictResult.LimitFindings[]` reports `{limit, configured, estimated}`. Process refuses before scanning, with the same coded error.
 - **Runtime:** stop at the first breach, release buffers, return `PULSE_LIMIT_EXCEEDED` with `details {limit, configured, observed, option}` and the fixup "raise `Options.Limits.MaxGroups` (currently 10,000,000) or reduce the grouping cardinality". There are no partial results.
 - **Streaming:** a breach ends the stream with the coded error as its terminal event.
-- **Compose:** the slot fails; `FailFast` governs whether its siblings continue (existing semantics).
+- **Compose:** the slot fails; `ComposeOptions.CollectErrors` (formerly `FailFast`) governs whether its siblings continue.
 
 ## Configuration surfaces
 
@@ -63,4 +63,4 @@ The deviations from the proposal above, all deliberate:
 - **Facet.** Covered: the rich facet has a memory pre-flight and `RequestTimeout`; the simple `pulse.Facet(path, field)` has no pre-flight.
 - **`RequestTimeout`.** Covers the whole Compose / ComposeParallel / ProcessChain call and the `ProcessStreamResult` drain; only the inner deadline is `PULSE_LIMIT_EXCEEDED`.
 - **Streaming.** `ProcessStream` is buffered, so a breach errors before the stream exists; a mid-stream timeout ends `ProcessStreamResult` with the coded error.
-- **Compose.** `FailFast=false` returns `(nil, SERVICE_INTERNAL)` rather than partial slots (the doc previously claimed otherwise).
+- **Compose.** `CollectErrors` (then `FailFast=false`) returns `(nil, SERVICE_INTERNAL)` rather than partial slots (the doc previously claimed otherwise).

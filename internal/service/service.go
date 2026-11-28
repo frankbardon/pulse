@@ -1550,7 +1550,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 
 	// Compose-only overlay barrier. Runs AFTER every slot has
 	// produced a finalised *Response and BEFORE the response is
-	// returned to the caller. The serial path has no FailFast knob
+	// returned to the caller. The serial path has no CollectErrors knob
 	// (a slot error returned early above), so when we reach this
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation

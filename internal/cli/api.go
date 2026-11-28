@@ -243,8 +243,8 @@ func apiComposeCmd() *cli.Command {
 			var resp *types.ComposedResponse
 			if workers != 1 {
 				resp, err = p.ComposeParallel(ctx, composed, pulse.ComposeOptions{
-					MaxWorkers: workers,
-					FailFast:   !noFailFast,
+					MaxWorkers:    workers,
+					CollectErrors: noFailFast,
 				})
 			} else {
 				resp, err = p.Compose(ctx, composed)

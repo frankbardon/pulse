@@ -66,7 +66,7 @@ func outputCollisionRequests(cohort string) map[string]struct {
 // equal to a group field or to another aggregation's label is refused
 // by the shared field rule with one code, message and details on
 // Process, ProcessStream and predict — and located inside Compose
-// (serial and FailFast parallel) and a chain, where the validators
+// (serial and fail-fast parallel) and a chain, where the validators
 // agree.
 func TestOutputNamespace_CollisionRefusedOnEverySide(t *testing.T) {
 	t.Parallel()
@@ -107,7 +107,7 @@ func TestOutputNamespace_CollisionRefusedOnEverySide(t *testing.T) {
 				t.Fatalf("compose details = %v, want request=1", c.Details)
 			}
 			sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), cerr)
-			_, pcerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, pcerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2})
 			if c := requireCode(t, pcerr, errors.SERVICE_VALIDATION); c.Details["request"] != 1 {
 				t.Fatalf("parallel compose details = %v, want request=1", c.Details)
 			}

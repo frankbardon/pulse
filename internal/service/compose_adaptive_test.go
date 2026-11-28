@@ -53,7 +53,7 @@ func runAdaptive(svc *Service, mode string, c *types.ComposedRequest, failFast b
 	if mode == "serial" {
 		return svc.Compose(context.Background(), c)
 	}
-	return svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4, FailFast: failFast})
+	return svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4, CollectErrors: !failFast})
 }
 
 // TestComposeAdaptive_FromSweepBindsWinner: the fit bound from an

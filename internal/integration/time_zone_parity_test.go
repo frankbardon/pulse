@@ -270,7 +270,7 @@ func TestTimeZone_ValidatorsMatchRuntime(t *testing.T) {
 
 // TestTimeZone_RefusalCarriesLocation: a zone refusal inside a
 // multi-request root names where it happened — details.request (0-based
-// Compose slot, serial and FailFast parallel alike) and details.stage
+// Compose slot, serial and fail-fast parallel alike) and details.stage
 // (0-based chain stage, stage 0 included) — beside {slot, operator, tz},
 // with the code still reachable through errors.As.
 func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
@@ -299,7 +299,7 @@ func TestTimeZone_RefusalCarriesLocation(t *testing.T) {
 		check(t, err, "groups[0]", "GROUP_DATE", "request", 1)
 	})
 	t.Run("compose-parallel", func(t *testing.T) {
-		_, err := p.ComposeParallel(ctx, composed(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+		_, err := p.ComposeParallel(ctx, composed(), pulse.ComposeOptions{MaxWorkers: 2})
 		check(t, err, "groups[0]", "GROUP_DATE", "request", 1)
 	})
 	stage := func(tz string) *types.Request {

@@ -168,7 +168,7 @@ func TestFieldRefs_UnknownFieldLocatedInComposeAndChain(t *testing.T) {
 			sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), rerr)
 		})
 		t.Run(name+"/compose parallel fail-fast", func(t *testing.T) {
-			_, rerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, rerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2})
 			if ce := requireCode(t, rerr, c.code); ce.Details["request"] != 1 {
 				t.Fatalf("details = %v, want request=1", ce.Details)
 			}

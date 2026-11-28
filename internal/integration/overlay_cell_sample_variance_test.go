@@ -117,7 +117,7 @@ func TestComposeCellMoment_PopulationVarianceCellsMatchWelford(t *testing.T) {
 			return p.Compose(ctx, req)
 		}},
 		{"parallel", func(p *pulse.Pulse, req *pulse.ComposedRequest) (*pulse.ComposedResponse, error) {
-			return p.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			return p.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: 2})
 		}},
 	}
 	for _, fx := range fixtures {

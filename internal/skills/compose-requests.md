@@ -68,7 +68,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 ## Parallel execution
 
-`pulse.ComposeParallel` with `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}` runs slots on a bounded pool (`MaxWorkers` 0 ⇒ GOMAXPROCS; 1 ⇒ serial). CLI: `pulse api compose --parallel N` (default 1), `--no-fail-fast`. `FailFast` cancels in-flight siblings on the first error; without it every slot runs and failures fold into one `SERVICE_INTERNAL {failed_indices, first_error}`. Response order always matches request order.
+`pulse.ComposeParallel` with `ComposeOptions{MaxWorkers, PerRequestTimeout, CollectErrors}` runs slots on a bounded pool (`MaxWorkers` 0 ⇒ GOMAXPROCS; 1 ⇒ serial). CLI: `pulse api compose --parallel N` (default 1), `--no-fail-fast`. Zero value fails fast (first error cancels siblings). `CollectErrors` (`--no-fail-fast`) runs every slot, folding failures into one `SERVICE_INTERNAL {failed_indices, first_error}`; never partial slots. Response order always matches request order.
 
 **Located refusals.** A slot's own refusal (an unsupported zone, more than one join) keeps its code and gains `details.request` — the 0-based slot index — serial and parallel alike.
 

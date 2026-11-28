@@ -182,7 +182,7 @@ func TestComposeBanner_SectionOverlaysReplace(t *testing.T) {
 // TestComposeBanner_SectionOverlayRefusalMatchesPredict: a section
 // overlay is judged on the expanded slot, so predict and both
 // orchestrators refuse a bad one with the same code (ComposeParallel
-// under FailFast, which surfaces the slot's own coded error).
+// under fail-fast, which surfaces the slot's own coded error).
 func TestComposeBanner_SectionOverlayRefusalMatchesPredict(t *testing.T) {
 	t.Parallel()
 
@@ -202,7 +202,7 @@ func TestComposeBanner_SectionOverlayRefusalMatchesPredict(t *testing.T) {
 	runs := map[string]func() error{
 		"Compose": func() error { _, err := p.Compose(ctx, c); return err },
 		"ComposeParallel": func() error {
-			_, err := p.ComposeParallel(ctx, c, pulse.ComposeOptions{MaxWorkers: 3, FailFast: true})
+			_, err := p.ComposeParallel(ctx, c, pulse.ComposeOptions{MaxWorkers: 3})
 			return err
 		},
 	}

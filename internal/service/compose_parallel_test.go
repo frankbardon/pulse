@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,10 +160,40 @@ func TestComposeParallel_FailFastCancelsSiblings(t *testing.T) {
 
 	_, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
 		MaxWorkers: 2,
-		FailFast:   true,
 	})
 	if err == nil {
 		t.Fatal("expected error from fail-fast")
+	}
+}
+
+// TestComposeParallel_ZeroValueFailsFast: the zero ComposeOptions fails
+// fast (#772) — the first failure comes back as the slot's own located
+// error, never the SERVICE_INTERNAL aggregate CollectErrors builds — and
+// returns no partial slots.
+func TestComposeParallel_ZeroValueFailsFast(t *testing.T) {
+	t.Parallel()
+
+	svc := New(setupTestFS(t, "test.pulse", testSchema(), testRecords()))
+	composed := &types.ComposedRequest{
+		Requests: []*types.Request{
+			{Cohort: &types.Cohort{Filename: "test.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "score", Label: "ok"}}},
+			{Cohort: &types.Cohort{Filename: "missing.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "score", Label: "broken"}}},
+		},
+	}
+	resp, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{})
+	if resp != nil || err == nil {
+		t.Fatalf("resp %v, err %v; want (nil, error)", resp, err)
+	}
+	if pulseerrors.HasCode(err, pulseerrors.SERVICE_INTERNAL) {
+		t.Fatalf("zero value aggregated like CollectErrors: %v", err)
+	}
+	if !pulseerrors.HasCode(err, pulseerrors.SERVICE_RESOURCE) || !strings.Contains(err.Error(), "request 1:") {
+		t.Fatalf("err %v; want slot 1's own located SERVICE_RESOURCE", err)
+	}
+	// The same batch under CollectErrors aggregates, still without slots.
+	resp, err = svc.ComposeParallel(context.Background(), composed, ComposeOptions{CollectErrors: true})
+	if resp != nil || !pulseerrors.HasCode(err, pulseerrors.SERVICE_INTERNAL) {
+		t.Fatalf("CollectErrors: resp %v, err %v; want (nil, SERVICE_INTERNAL)", resp, err)
 	}
 }
 
@@ -196,8 +227,8 @@ func TestComposeParallel_NoFailFastAggregatesErrors(t *testing.T) {
 	}
 
 	_, err := svc.ComposeParallel(context.Background(), composed, ComposeOptions{
-		MaxWorkers: 3,
-		FailFast:   false,
+		MaxWorkers:    3,
+		CollectErrors: true,
 	})
 	if err == nil {
 		t.Fatal("expected aggregated error for failed requests")
