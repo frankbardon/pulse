@@ -8,12 +8,12 @@
 package regorder
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -136,7 +136,7 @@ func modelJudgesPartition(spec *types.RegressionSpec) bool {
 	var p struct {
 		Geo string `json:"geo"`
 	}
-	return json.Unmarshal(spec.Params, &p) == nil && p.Geo != "" && p.Geo == spec.Order.Partition
+	return paramread.Probe(spec.Params, &p) == nil && p.Geo != "" && p.Geo == spec.Order.Partition
 }
 
 // RequiredRefusal is the refusal of a slot whose model requires an
