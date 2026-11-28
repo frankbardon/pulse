@@ -750,6 +750,15 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		addCodedError(env, cerr)
 		return
 	}
+	// Gate 0d: OVERLAY_CHISQ_VS_REF's params.reference_kind is "fixed"
+	// or "sample" (#791) — the shared overlayhost rule the runtime
+	// dispatcher raises at the same point, same code and details.
+	if opts.overlayRoute(spec.Kind) == types.OverlayKindChiSqVsRef {
+		if _, cerr := overlayhost.ChiSqVsRefReferenceKind(spec, specIdx); cerr != nil {
+			addCodedError(env, cerr)
+			return
+		}
+	}
 
 	// Gates 1 + 2: reference, then target, label resolution — the
 	// shared rule (overlayhost.ComposeSlotRefusals) the runtime

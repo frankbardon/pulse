@@ -338,7 +338,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"count outside C warns PULSE_OVERLAY_REF_ZERO once per cell. payload.scalar is the p-value; the layer " +
 				"summary carries statistic, parameters.df and p_value. target_N 0, ref_N 0 or every expected 0 leaves " +
 				"both null with one PULSE_OVERLAY_REF_ZERO; any expected count below 5 warns " +
-				"PULSE_OVERLAY_EXPECTED_LOW once. " + composeFanOutNote,
+				"PULSE_OVERLAY_EXPECTED_LOW once. params.reference_kind sample treats the reference as a second " +
+				"sample: the 2 x |C| homogeneity test, R's chisq.test(rbind(target[C], ref[C])), over C, the cells " +
+				"with target + ref > 0, df = |C| − 1; a probability-weighted slot is scaled to its own Kish n_eff. " +
+				composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsBaseline:
 		return descriptor.OverlayCapability{

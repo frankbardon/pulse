@@ -17073,7 +17073,7 @@
         ],
         "ref_kinds": [],
         "buffered": true,
-        "description": "Compose overlay: whole-matrix χ² test of each target slot's crosstab against the reference slot's, as two independent tables. Over C, the cells the reference shows (ref_cell \u003e 0): expected = ref_cell · target_N / ref_N (both totals over C), χ² = Σ_C (target_cell − expected)² / expected, df = |C| − 1 — R's chisq.test(target[C], p = ref[C], rescale.p = TRUE), the same p-values as TEST_CHISQ. A target count outside C warns PULSE_OVERLAY_REF_ZERO once per cell. payload.scalar is the p-value; the layer summary carries statistic, parameters.df and p_value. target_N 0, ref_N 0 or every expected 0 leaves both null with one PULSE_OVERLAY_REF_ZERO; any expected count below 5 warns PULSE_OVERLAY_EXPECTED_LOW once. Several targets fan out: one layer per target in targets order, each the single-target layer for its (reference, target) pair, named `\u003cname\u003e__\u003ctarget\u003e` (one target keeps the spec's name), capped by options.max_panel_targets (default 16; PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP); a multiplicity block maps onto every layer.",
+        "description": "Compose overlay: whole-matrix χ² test of each target slot's crosstab against the reference slot's, as two independent tables. Over C, the cells the reference shows (ref_cell \u003e 0): expected = ref_cell · target_N / ref_N (both totals over C), χ² = Σ_C (target_cell − expected)² / expected, df = |C| − 1 — R's chisq.test(target[C], p = ref[C], rescale.p = TRUE), the same p-values as TEST_CHISQ. A target count outside C warns PULSE_OVERLAY_REF_ZERO once per cell. payload.scalar is the p-value; the layer summary carries statistic, parameters.df and p_value. target_N 0, ref_N 0 or every expected 0 leaves both null with one PULSE_OVERLAY_REF_ZERO; any expected count below 5 warns PULSE_OVERLAY_EXPECTED_LOW once. params.reference_kind sample treats the reference as a second sample: the 2 x |C| homogeneity test, R's chisq.test(rbind(target[C], ref[C])), over C, the cells with target + ref \u003e 0, df = |C| − 1; a probability-weighted slot is scaled to its own Kish n_eff. Several targets fan out: one layer per target in targets order, each the single-target layer for its (reference, target) pair, named `\u003cname\u003e__\u003ctarget\u003e` (one target keeps the spec's name), capped by options.max_panel_targets (default 16; PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP); a multiplicity block maps onto every layer.",
         "intents": [
           "compare_groups"
         ],
@@ -17081,6 +17081,19 @@
         "weight_kinds": [
           "frequency",
           "probability"
+        ],
+        "params": [
+          {
+            "name": "reference_kind",
+            "type": "enum",
+            "required": false,
+            "default": "fixed",
+            "description": "What the reference slot is: fixed (a population or benchmark distribution; goodness of fit, R chisq.test(target[C], p = ref[C], rescale.p = TRUE)) or sample (a second sample; the 2 x |C| homogeneity test of the two tables, R chisq.test(rbind(target[C], ref[C])), which allows for the reference's own sampling error).",
+            "enum_values": [
+              "fixed",
+              "sample"
+            ]
+          }
         ]
       },
       {
@@ -22201,4 +22214,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b70544f8d27a55f9bbe0c671bb855f6045360ab6984cb36220b3e8977510abef
+// golden-hash: 118480a1b6946f4933f0a0b286462dd7da73c28adaac2f36adfe39f0fa26f799

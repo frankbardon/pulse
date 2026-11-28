@@ -26,8 +26,11 @@ Use something else:
 
 ## Params
 
-`scope` must be `matrix`. `reference` required — reference slot label. `targets` required — one or more target slot labels.
+`scope` must be `matrix`. `reference`, `targets` (slot labels) required.
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `reference_kind` | enum | `fixed` | `fixed` (goodness of fit) or `sample` (homogeneity); else `PULSE_OVERLAY_PARAM_MISSING`. |
 
 ## Host shape
 
@@ -51,12 +54,11 @@ SCALAR — `payload.scalar` carries the p-value (= `summary.p_value`), NOT χ²;
 
 ## Gotchas
 
-- Goodness of fit: the reference is a FIXED distribution (make it a population or benchmark slot). Between two samples (control vs variant) it ignores the reference's own sampling error and overstates the evidence; to ask whether two subsets differ, run the χ² independence test with the split on one axis ([`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md)).
-- Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `summary.parameters` adds the target's `sum_weights` (+ `n_eff`). A probability TARGET with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
-- Compared cells C = reference count > 0; reference scaled to the target's total over C: `expected = ref_cell × (target_N / ref_N)`, `df = |C| - 1` — R `chisq.test(target[C], p = ref[C], rescale.p = TRUE)`. A target count in a zero-reference cell is dropped from χ², N and `df` + one `PULSE_OVERLAY_REF_ZERO` per cell (the vs-population rule).
-- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).
-- `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.
-- Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `dict_prefix_fast`).
+- `fixed`: the reference is a KNOWN distribution (population / benchmark). C = reference count > 0, `expected = ref_cell × target_N / ref_N`, `df = |C| - 1` — R `chisq.test(target[C], p = ref[C], rescale.p = TRUE)`; a target count in a zero-reference cell is dropped + one `PULSE_OVERLAY_REF_ZERO` per cell. Between two samples it overstates the evidence (experiment.pulse variant vs control: χ² 37.3).
+- `sample`: the reference is a second sample — the 2 × |C| table R `chisq.test(rbind(target[C], ref[C]))`, C = cells with target + ref > 0, `df = |C| - 1` (same data: χ² 14.6).
+- Weights: cells are Σw; under probability a read slot's table is scaled to its Kish `n_eff` (target only under `fixed`, each slot under `sample`) — not Rao-Scott. `summary.parameters` adds `sum_weights` (+ `n_eff`) of the slots read. Such a slot with components disabled ⇒ `PROCESSING_CONFIG`.
+- Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW`; an empty side or table → NaN + `PULSE_OVERLAY_REF_ZERO`.
+- Dict-prefix drift → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `dict_prefix_fast`).
 - A code cell (`AGG_MODE` over `categorical_*` / `packed_bool`) on either slot → `PROCESSING_CONFIG`, reason `categorical_code`; use a count cell.
 
 ## See

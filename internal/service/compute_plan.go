@@ -143,6 +143,8 @@ var composeOverlaySlotVetoRule = composeOverlaySlotVeto
 //
 //	kind                 reads host floors?            Welford triples?        rule
 //	CHISQ_VS_REF         target cells, weighted only   no                      target: crosstab iff weighted; reference: none
+//	                     (+ reference cells under                              (reference_kind sample: crosstab iff weighted)
+//	                     reference_kind sample)
 //	PROP_Z_CELL          row bases, weighted only      no                      crosstab iff weighted
 //	PROP_Z_PANEL         row bases, weighted only;     no                      crosstab iff weighted, or always under
 //	                     cell n / distinct margins                             cell_n_unweighted / row_margin_distinct_within
@@ -163,7 +165,8 @@ var composeOverlaySlotVetoRule = composeOverlaySlotVeto
 // unweighted): an unweighted slot's skip changes no number, and a
 // weighted one keeps components.crosstab — never the other sub-parts,
 // which no Compose kind reads. CHISQ_VS_REF reads its reference as a
-// distribution only (descx.ComposeOverlayHiddenFloorRefusal's reads).
+// distribution only (descx.ComposeOverlayHiddenFloorRefusal's reads),
+// except under params.reference_kind "sample".
 // Every other kind keeps the full veto.
 func composeOverlaySlotVeto(spec *types.ComposeOverlaySpec, label string, basis func() weighting.Basis) componentsVeto {
 	weighted := func() componentsVeto {
@@ -174,7 +177,7 @@ func composeOverlaySlotVeto(spec *types.ComposeOverlaySpec, label string, basis 
 	}
 	switch spec.Kind {
 	case types.OverlayKindChiSqVsRef:
-		if label == spec.Reference {
+		if label == spec.Reference && !overlayhost.ChiSqVsRefReadsReference(spec) {
 			return vetoNone
 		}
 		return weighted()

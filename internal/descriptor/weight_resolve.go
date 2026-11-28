@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -1020,7 +1021,8 @@ func composeOverlayWeightRefusal(i int, spec *types.ComposeOverlaySpec, requests
 // the slot reads as unweighted and its Σw as the sample size. The
 // proportion kinds test every slot they read (reference and targets);
 // OVERLAY_CHISQ_VS_REF reads the reference only as a distribution, so
-// only its targets count. requests and labels are parallel (labels
+// only its targets count — unless params.reference_kind is "sample"
+// (#791), which scales the reference by its own floor too. requests and labels are parallel (labels
 // defaulted); the runtime (Service.applyComposeOverlays) and
 // ValidateComposeWithOptions both call it with the raw slots.
 func ComposeOverlayHiddenFloorRefusal(overlays []types.ComposeOverlaySpec, requests []*types.Request, labels []string, defaultWeight *types.WeightSpec, inst *InstanceSnapshot, disabled func(*types.Request) bool) error {
@@ -1036,7 +1038,7 @@ func composeOverlayHiddenFloorRefusal(i int, spec *types.ComposeOverlaySpec, req
 	if !weighting.ScalesByHostFloor(spec.Kind) || inst.Hidden(string(spec.Kind)) {
 		return nil
 	}
-	readsRef := spec.Kind != types.OverlayKindChiSqVsRef
+	readsRef := spec.Kind != types.OverlayKindChiSqVsRef || overlayhost.ChiSqVsRefReadsReference(spec)
 	reads := func(label string) bool {
 		if label == spec.Reference {
 			return readsRef

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/twosample"
@@ -1070,6 +1071,10 @@ func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 // `OverlayPayload.Scalar` plus `OverlaySummary{Statistic, PValue,
 // Parameters{"df"}}`. Reuses the chiSquareSurvival helper backing
 // TEST_CHISQ + the MATRIX-host CHISQ family.
+//
+// params.reference_kind "sample" switches to the two-sample homogeneity
+// test (applyChiSqHomogeneity); absent or "fixed" is the goodness of
+// fit above, byte-identical to before.
 func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, targets []*types.Response, refIdx int, targetIdxs []int) (types.OverlayLayer, []types.OverlayWarning, error) {
 	refMx := readMatrix(reference)
 	target, targetIdx := composeFirstTarget(targets, targetIdxs)
@@ -1083,6 +1088,17 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 				"ref_index":    refIdx,
 				"target_index": targetIdx,
 			})
+	}
+
+	// params.reference_kind "sample" (#791): the reference is a second
+	// sample, so the two tables are tested for homogeneity instead. The
+	// dispatcher refused a bad value already; this guards a direct call.
+	refKind, cerr := overlayhost.ChiSqVsRefReferenceKind(spec, -1)
+	if cerr != nil {
+		return types.OverlayLayer{}, nil, cerr
+	}
+	if refKind == overlayhost.ChiSqVsRefSample {
+		return applyChiSqHomogeneity(spec, reference, refMx, target, targetMx)
 	}
 
 	refLookup := buildMatrixCellLookup(refMx)

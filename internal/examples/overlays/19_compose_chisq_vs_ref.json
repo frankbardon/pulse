@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Compose batch of two crosstab slots over region x segment on experiment.pulse, population (every row) and variant (the variant arm), decorated with an OVERLAY_CHISQ_VS_REF matrix overlay: a chi-square goodness-of-fit test of the variant's 12 cell counts against the population's cell shares, scaled to the variant's total (chi-square about 7.0 on 11 df, p about 0.80 here). The reference is taken as a known distribution, as R's chisq.test(x, p = ref, rescale.p = TRUE) does, so make it a population or benchmark slot: between two independent samples (control against variant) it overstates the evidence, and TEST_CHISQ with rows treatment is the test of whether the arms differ. payload.scalar is the p-value; the summary carries statistic, p_value and parameters.df. One layer per target. Buffered.",
+    "description": "Compose batch of two crosstab slots over region x segment on experiment.pulse, population (every row) and variant (the variant arm), decorated with an OVERLAY_CHISQ_VS_REF matrix overlay: a chi-square goodness-of-fit test of the variant's 12 cell counts against the population's cell shares, scaled to the variant's total (chi-square about 7.0 on 11 df, p about 0.80 here). The reference is taken as a known distribution, as R's chisq.test(x, p = ref, rescale.p = TRUE) does, so make it a population or benchmark slot: between two independent samples (control against variant) it overstates the evidence: set params.reference_kind to sample for the two-sample homogeneity test. payload.scalar is the p-value; the summary carries statistic, p_value and parameters.df. One layer per target. Buffered.",
     "intents": [
       "compare_groups",
       "relationship"

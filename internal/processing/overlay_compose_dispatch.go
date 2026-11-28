@@ -357,6 +357,15 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 				return nil, nil, nil, cerr
 			}
 		}
+		// OVERLAY_CHISQ_VS_REF's params.reference_kind is "fixed" or
+		// "sample" (#791), refused before reference resolution — the
+		// point predict-compose (validateComposeOverlaySpec, gate 0d)
+		// refuses it at, same code and details.
+		if route == types.OverlayKindChiSqVsRef {
+			if _, cerr := overlayhost.ChiSqVsRefReferenceKind(spec, i); cerr != nil {
+				return nil, nil, nil, cerr
+			}
+		}
 		// Reference, then targets, must name a slot — the shared label
 		// rule predict-compose raises (overlayhost.ComposeSlotRefusals),
 		// same code, message and details; a spec with no Targets is

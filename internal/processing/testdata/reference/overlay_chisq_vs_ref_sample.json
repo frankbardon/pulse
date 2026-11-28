@@ -1,0 +1,196 @@
+{
+  "generator": "scripts/reference/gen_overlays.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "OVERLAY_CHISQ_VS_REF",
+  "r_function": "chisq.test(rbind(target[C], ref[C]), correct = FALSE), cells read row by row",
+  "note": "params.reference_kind sample: C = the cells whose target + reference count is positive.",
+  "cases": [
+    {
+      "name": "experiment_region_segment",
+      "note": "experiment.pulse region x segment AGG_COUNT, variant (target) against control (reference): the #791 case (goodness of fit gives 37.3 on the same counts)",
+      "target": [
+        [
+          27,
+          16,
+          13
+        ],
+        [
+          17,
+          19,
+          17
+        ],
+        [
+          16,
+          16,
+          18
+        ],
+        [
+          16,
+          19,
+          13
+        ]
+      ],
+      "ref": [
+        [
+          13,
+          18,
+          13
+        ],
+        [
+          14,
+          11,
+          21
+        ],
+        [
+          20,
+          24,
+          8
+        ],
+        [
+          21,
+          15,
+          15
+        ]
+      ],
+      "statistic": 14.569923104609343,
+      "df": 11,
+      "p_value": 0.20304451621939862,
+      "expected_min": 12.545,
+      "excluded_cells": 0
+    },
+    {
+      "name": "mixed",
+      "note": "the goodness-of-fit mixed case read as two samples",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          18,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          25,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 7.7710897593812867,
+      "df": 8,
+      "p_value": 0.45614435305498618,
+      "expected_min": 5.8128654970760234,
+      "excluded_cells": 0
+    },
+    {
+      "name": "one_side_empty_cell",
+      "note": "a cell empty in the reference only: an ordinary observation, inside C",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          6,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          0,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 15.95221703079654,
+      "df": 8,
+      "p_value": 0.04306916171378735,
+      "expected_min": 2.557377049180328,
+      "excluded_cells": 0
+    },
+    {
+      "name": "both_empty_cell",
+      "note": "a cell empty on both sides: no evidence, left out of the statistic and df",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          0,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          0,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 7.7714098811567647,
+      "df": 7,
+      "p_value": 0.3531818063844796,
+      "expected_min": 5.8060200668896318,
+      "excluded_cells": 1
+    }
+  ]
+}
+// golden-hash: e0520b4d19fb30c598127be942b44016f19a3f8b63a34d814de966506143d189
