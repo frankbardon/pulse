@@ -292,7 +292,7 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- DATA ----------
 	DATA_FILE: {
-		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, a docs export directory) could not be read, or its layout is invalid.",
+		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, an export's overlay layers file, a docs export directory) could not be read, or its layout is invalid.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

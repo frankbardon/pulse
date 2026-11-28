@@ -40,7 +40,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
 | [CLI leaves](#cli-leaves) | 79 | 0 |
-| [CLI flags](#cli-flags) | 137 | 0 |
+| [CLI flags](#cli-flags) | 138 | 0 |
 | [MCP tools](#mcp-tools) | 28 | 0 |
 | [MCP prompts](#mcp-prompts) | 14 | 0 |
 | [MCP resources](#mcp-resources) | 3 | 0 |
@@ -3251,6 +3251,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `--no-skills` | yes |  | yes |
 | `--out` | yes | yes | yes |
 | `--output` | yes |  | yes |
+| `--overlays` | yes | yes | yes |
 | `--overwrite` | yes | yes | yes |
 | `--parallel` | yes | yes | yes |
 | `--percentile` | yes |  | yes |
@@ -3940,7 +3941,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `PULSE_OVERLAY_DICT_PREFIX_DRIFT` | yes |  |
 | `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` | yes | yes |
 | `PULSE_OVERLAY_EXPECTED_LOW` | yes | yes |
-| `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED` | yes |  |
+| `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED` | yes | yes |
 | `PULSE_OVERLAY_EXPORT_PARTS_DROPPED` | yes |  |
 | `PULSE_OVERLAY_FIELD_UNKNOWN` | yes | yes |
 | `PULSE_OVERLAY_FORMULA_INVALID_IDENT` | yes | yes |

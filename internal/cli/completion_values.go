@@ -302,6 +302,7 @@ var flagValues = map[string]valueSource{
 	"keep-pulse":      fileValue,
 	"data-dir":        fileValue,
 	"feature-profile": fileValue,
+	"overlays":        fileValue,
 
 	// cohorts
 	"input":  cohortValue,

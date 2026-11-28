@@ -668,6 +668,31 @@ convert's own code (the library spelling is `Pulse.PredictConvert`).
 PULSE_LABEL_TABLES_DIR=./labels pulse convert survey.csv survey.sav --labels region=regions
 ```
 
+### `--overlays` (export)
+
+`--overlays FILE` embeds executed overlay layers in the export — the CLI
+route to `io.ExportJob.Overlays`. An export reads a cohort, not a
+request, so it runs no overlay itself: `FILE` is a saved result whose
+request ran overlays. It may hold the `--json` envelope of `pulse api
+process` / `compose` (unwrapped to `data`), a result object with an
+`overlays` array, or the bare array. Each layer lands where its format
+carries layers: NDJSON adds one trailing `{"_overlays": [...]}` line,
+Arrow and Parquet a top-level `overlays` column group, Excel one sheet
+per layer. CSV, TSV and SPSS write their usual body and warn
+`PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED`. A null figure reads back as
+undefined, never 0.
+
+The file must hold layers, not specs. A request's `overlays` (keys such
+as `reference`, `targets` or `params`, or no `payload`) is refused
+`DATA_FILE` (`details.path`), as is an unreadable file or one with no
+`overlays` array. A refused file writes no output. Without the flag the
+export is byte-identical.
+
+```bash
+pulse api process -r crosstab.json --json > result.json
+pulse export ndjson -i survey.pulse -o survey.ndjson --overlays result.json
+```
+
 ### Vector fields (export)
 
 Not a flag — how every `export <format>` leaf writes a `vec_f32` /

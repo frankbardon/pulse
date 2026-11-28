@@ -8,6 +8,7 @@ import (
 	perrors "github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -23,6 +24,7 @@ func exportFlags() []cli.Flag {
 		&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
 		&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: " + labelBindingGrammar + ". Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 		&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
+		&cli.StringFlag{Name: "overlays", Usage: exportOverlaysFlagUsage},
 		&cli.BoolFlag{Name: "json", Usage: "Output the result as a JSON envelope"},
 	}
 }
@@ -134,6 +136,20 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 
 	fs := afero.NewOsFs()
 
+	// --overlays: executed layers from a saved result, read before the
+	// target opens so a bad file writes nothing.
+	var overlays []*types.OverlayLayer
+	if path := cmd.String("overlays"); path != "" {
+		layers, err := loadOverlayLayers(fs, path)
+		if err != nil {
+			if jsonOut {
+				return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
+			}
+			return err
+		}
+		overlays = layers
+	}
+
 	writer, err := pio.NewWriter(pio.Format(format), fs, output, writerOptionsFrom(cmd))
 	if err != nil {
 		if jsonOut {
@@ -164,6 +180,7 @@ func runExport(ctx context.Context, cmd *cli.Command, format string) error {
 	job.FS = fs
 	job.Includes = includes
 	job.TimeZone = cmd.String("tz")
+	job.Overlays = overlays
 	// Only the spss leaf declares --strict; every other leaf reads false.
 	job.Strict = cmd.Bool("strict")
 
