@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse"
-	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/internal/processing"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
 
