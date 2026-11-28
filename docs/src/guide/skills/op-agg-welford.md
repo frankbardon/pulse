@@ -33,7 +33,7 @@ Weighted: the variance is the sample m2_w / (Σw − 1); `N` stays the contribut
 
 ## Output
 
-Row value: the JSON object `{mean, variance, n}`; scalar fallback the running mean (NaN, `null` in JSON, with no rows). A window formula reads `w.Mean`, `w.Variance`, `w.N`.
+Row value: the JSON object `{mean, variance, n}`; scalar fallback the running mean (NaN, `null` in JSON, with no rows). A window formula reads `w.mean`, `w.variance`, `w.n`.
 
 ## Reading the output
 

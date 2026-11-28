@@ -49,7 +49,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [x] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it *Done in pre-v1 E3-S3: `field` optional and unchecked (`fieldaccept.IgnoresField`: no existence check, no decimal rule); params `field_filter` tightened to `numeric`; pinned by `TestAggRatio_FieldOptionalAndUnchecked`.*
 - [x] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`) *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
-- [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
+- [x] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`) *Done in pre-v1 E4-S1: `w.mean` / `w.variance` / `w.n` (expr tags on `winformula.WelfordCell`, the engine triple's alias); the Go casing is refused `PULSE_FORMULA_COMPILE_ERROR` on both sides, pinned by `TestCompile_OutputColumns` / `TestWinFormula_OutputCellReads`.*
 - [x] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys) *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
 - [ ] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type
@@ -57,7 +57,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#787** (11. Documentation audit) `REG_MMM_BAYES` diagnostics in a named Compose fit name the fit and count its parameters right
 - [ ] **#788** (11. Documentation audit) Decide whether `ATTR_DATE_PART` hour / weekday keys sort numerically
 - [ ] **#789** (11. Documentation audit) A facet overlay's `ref.population.cohort` resolves through `data_dir` / `PULSE_DATA_DIR`
-- [ ] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null
+- [x] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null *Done in pre-v1 E4-S1: `cellFloat` reads a decimal cell (SortValuer) as its float64 value for every value-reading window, pinned by `TestValueWindows_DecimalCellsReadAsFloat64` / `TestWindows_ReadDecimalAggregation`.*
 - [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
 - [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
 - [x] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*
@@ -283,7 +283,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [x] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it. *Done in pre-v1 E3-S3: `field` optional and unchecked (`fieldaccept.IgnoresField`: no existence check, no decimal rule); params `field_filter` tightened to `numeric`; pinned by `TestAggRatio_FieldOptionalAndUnchecked`.*
 - [x] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test. *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests. *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
-- [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
+- [x] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`. *Done in pre-v1 E4-S1: `w.mean` / `w.variance` / `w.n` (expr tags on `winformula.WelfordCell`, the engine triple's alias); the Go casing is refused `PULSE_FORMULA_COMPILE_ERROR` on both sides, pinned by `TestCompile_OutputColumns` / `TestWinFormula_OutputCellReads`.*
 - [x] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling. *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.
 - [ ] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type.
@@ -291,7 +291,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#787** — **Bayesian MMM diagnostics in a named fit name `""` and miscount parameters**; fall back to the fit name, match the list.
 - [ ] **#788** — **Date-part hour / weekday keys sort as strings**; decide numeric order.
 - [ ] **#789** — **Facet overlay population cohort ignores `data_dir`**; resolve it as the host cohort.
-- [ ] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse.
+- [x] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse. *Done in pre-v1 E4-S1: `cellFloat` reads a decimal cell (SortValuer) as its float64 value for every value-reading window, pinned by `TestValueWindows_DecimalCellsReadAsFloat64` / `TestWindows_ReadDecimalAggregation`.*
 - [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
 - [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
 - [x] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does. *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*

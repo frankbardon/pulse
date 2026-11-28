@@ -99,9 +99,9 @@ func TestWinFormula_NonNumberOutputCellRefusedAtPredict(t *testing.T) {
 		},
 	}
 	cases := map[string][]string{
-		"one_grouper":    {"region * 2", "n + region", "u * 2", "fr * n", "w * 2", "tier + 1", "region"},
+		"one_grouper":    {"region * 2", "n + region", "u * 2", "fr * n", "w * 2", "tier + 1", "region", "w.Mean * 2"},
 		"two_groupers":   {"x * 2", "region + x"},
-		"aggregated_row": {"u * n", "w - 1", "fr / 2", "tier * n"},
+		"aggregated_row": {"u * n", "w - 1", "fr / 2", "tier * n", "w.N + w.Variance"},
 	}
 	for shape, srcs := range cases {
 		for _, src := range srcs {
@@ -144,7 +144,8 @@ func TestWinFormula_NonNumberOutputCellRefusedAtPredict(t *testing.T) {
 
 // TestWinFormula_OutputCellReads: typed output cells still read where
 // the expression does no arithmetic on a non-number — a key comparison,
-// a label list's length, a map lookup, the Welford mean — and a decimal
+// a label list's length, a map lookup, the Welford figures by their
+// wire names (w.mean, w.n, w.variance) — and a decimal
 // aggregate (and a decimal record column) reads as its float64 value;
 // predict accepts what the run computes, Process and ProcessStream
 // alike.
@@ -161,7 +162,9 @@ func TestWinFormula_OutputCellReads(t *testing.T) {
 				{"type": "WIN_FORMULA", "label": "north_n", "params": {"expression": "region == \"north\" ? n : 0"}},
 				{"type": "WIN_FORMULA", "label": "lines", "params": {"expression": "len(u) * 1.0"}},
 				{"type": "WIN_FORMULA", "label": "loans", "params": {"expression": "fr[\"loan\"] / n"}},
-				{"type": "WIN_FORMULA", "label": "mean2", "params": {"expression": "w.Mean * 2"}},
+				{"type": "WIN_FORMULA", "label": "mean2", "params": {"expression": "w.mean * 2"}},
+				{"type": "WIN_FORMULA", "label": "wn", "params": {"expression": "w.n * 1.0"}},
+				{"type": "WIN_FORMULA", "label": "wvar", "params": {"expression": "w.variance"}},
 				{"type": "WIN_FORMULA", "label": "fees2", "params": {"expression": "fees * 2"}},
 				{"type": "WIN_FORMULA", "label": "gold", "params": {"expression": "tier == \"gold\" ? 1 : 0"}}
 			]`),
@@ -185,11 +188,16 @@ func TestWinFormula_OutputCellReads(t *testing.T) {
 		if region == "north" {
 			wantNorth = n
 		}
-		checks := map[string]float64{"north_n": wantNorth, "lines": 2, "loans": 0.5, "gold": 1}
+		// The wire spellings of the Welford figures read (#782): w.n is
+		// the count n, w.variance the cell's own variance.
+		checks := map[string]float64{"north_n": wantNorth, "lines": 2, "loans": 0.5, "gold": 1, "wn": n}
 		for k, want := range checks {
 			if got := cellNumber(t, row, k); got != want {
 				t.Errorf("region %s: %s = %v, want %v", region, k, got, want)
 			}
+		}
+		if got := cellNumber(t, row, "wvar"); math.IsNaN(got) || got <= 0 {
+			t.Errorf("region %s: wvar = %v, want a positive variance", region, got)
 		}
 		if got := cellNumber(t, row, "mean2"); math.IsNaN(got) || got <= 0 {
 			t.Errorf("region %s: mean2 = %v, want twice a positive mean", region, got)
@@ -198,7 +206,7 @@ func TestWinFormula_OutputCellReads(t *testing.T) {
 		if got := cellNumber(t, row, "fees2"); got != 2*3*(1.25+2.5+3.75+5) {
 			t.Errorf("region %s: fees2 = %v, want %v", region, got, 2*3*(1.25+2.5+3.75+5))
 		}
-		for _, k := range []string{"north_n", "lines", "loans", "mean2", "fees2", "gold"} {
+		for _, k := range []string{"north_n", "lines", "loans", "mean2", "wn", "wvar", "fees2", "gold"} {
 			if stream[i][k] != row[k] {
 				t.Errorf("region %s: %s ProcessStream %v, Process %v", region, k, stream[i][k], row[k])
 			}

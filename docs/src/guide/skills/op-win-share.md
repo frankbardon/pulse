@@ -34,7 +34,7 @@ Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: tr
 
 ## Inputs
 
-`field`: numeric (types in `## Contract`). Usually an aggregation label on grouped rows.
+`field`: numeric (types in `## Contract`). Usually an aggregation label on grouped rows; a `decimal128` sum reads as its value.
 
 ## Output
 
