@@ -90,9 +90,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   entries, the `Response.warnings` shape),
   `LookupResult`, `RecommendResult` (its draft `request`
   is an open object: a `"<placeholder>"` may sit where `Request` takes a
-  number; `steps` — the `RecommendStep` plan `{tool, request,
-  placeholders, why}` — is deprecated, marked `deprecated: true`, and
-  always absent: recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
+  number; recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings; operator mode adds `validation`, the `OperatorValidation`
   record `{references, gap, weight_refusal, certification}`), `MaterializePredictResult` (`Pulse.PredictMaterialize`

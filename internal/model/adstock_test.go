@@ -130,7 +130,7 @@ func TestAdstockLineage_Bayes(t *testing.T) {
 
 	decay := 0.41999999999999993
 	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv", "radio", "price"},
-		Params: json.RawMessage(`{"channels": ["tv", "radio"], "time": "week"}`)}
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels": ["tv", "radio"]}`)}
 	res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: map[string]float64{
 		InterceptKey: 1, "tv": 2, "radio": 3, "price": -1, "decay:tv": decay, "decay:radio": math.NaN(),
 		"k:tv": 1, "k:radio": 1, "s:tv": 1, "s:radio": 1, "sigma": 0.5}}
@@ -139,7 +139,8 @@ func TestAdstockLineage_Bayes(t *testing.T) {
 	if !reflect.DeepEqual(got, want) || math.Float64bits(*got["tv"].Decay) != math.Float64bits(decay) {
 		t.Fatalf("lineage %s, want %s", mustJSONModel(t, got), mustJSONModel(t, want))
 	}
-	spec.Params = json.RawMessage(`{"channels": ["tv", "radio"], "time": "week", "max_lag": 8}`)
+	spec.Params = json.RawMessage(`{"channels": ["tv", "radio"], "max_lag": 8}`)
+	spec.Order = &types.RegressionOrder{Field: "week"}
 	if got := AdstockLineage(nil, spec, res); got["tv"].MaxLag != 8 {
 		t.Fatalf("max_lag 8 recorded %+v", got["tv"])
 	}
@@ -175,7 +176,7 @@ func TestAdstockLineage_BayesKernels(t *testing.T) {
 			`{"kernel":"weibull_pdf","shape":1.4,"scale":2.6,"max_lag":6,"normalize":false}`, "shape:tv"},
 	} {
 		spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
-			Params: json.RawMessage(`{"channels":["tv"],"time":"week","max_lag":6,"adstock":"` + tc.kernel + `"}`)}
+			Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["tv"],"max_lag":6,"adstock":"` + tc.kernel + `"}`)}
 		res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: maps.Clone(coefs)}
 		got := AdstockLineage(nil, spec, res)
 		if !reflect.DeepEqual(got, map[string]Adstock{"tv": tc.want}) {
@@ -204,7 +205,7 @@ func TestAdstockLineage_BayesKernels(t *testing.T) {
 		}
 	}
 	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"},
-		Params: json.RawMessage(`{"channels":["tv"],"time":"week","adstock":"hyperbolic"}`)}
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["tv"],"adstock":"hyperbolic"}`)}
 	if got := AdstockLineage(nil, spec, &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: coefs}); got != nil {
 		t.Errorf("an unknown kernel recorded %v", got)
 	}

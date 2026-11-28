@@ -20,9 +20,9 @@ func bayesFits() []types.FitSpec {
 			Type: typ, Target: "sales", Predictors: []string{"tv", "price"}, Params: json.RawMessage(params)}}}}
 	}
 	return []types.FitSpec{
-		fit("draws", types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week","return_draws":true}`),
-		fit("nodraws", types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week"}`),
-		fit("geo", types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week","geo":"market","return_draws":true}`),
+		fit("draws", types.REG_MMM_BAYES, `{"channels":["tv"],"return_draws":true}`),
+		fit("nodraws", types.REG_MMM_BAYES, `{"channels":["tv"]}`),
+		fit("geo", types.REG_MMM_BAYES, `{"channels":["tv"],"geo":"market","return_draws":true}`),
 		fit("hill", types.REG_MMM_HILL, `{"channels":["tv"]}`),
 	}
 }

@@ -21,9 +21,9 @@ func posteriorEnv() optblock.Env {
 			Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Target: "sales", Predictors: []string{"tv"}, Params: json.RawMessage(params)}}}}
 	}
 	env.Fits = model.CatalogFromFits(append(demandFits(),
-		mmm("bayes", `{"channels":["tv"],"time":"week","return_draws":true}`),
-		mmm("bare", `{"channels":["tv"],"time":"week"}`),
-		mmm("other", `{"channels":["tv"],"time":"week","return_draws":true}`)))
+		mmm("bayes", `{"channels":["tv"],"return_draws":true}`),
+		mmm("bare", `{"channels":["tv"]}`),
+		mmm("other", `{"channels":["tv"],"return_draws":true}`)))
 	return env
 }
 

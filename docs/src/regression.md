@@ -217,9 +217,9 @@ period index. An order forces the buffered path; a `holdout` fits the
 ordered (gap-checked) train rows and scores the held-out rows in order.
 A model that carries state across rows requires an order and refuses a
 spec without one (`PROCESSING_CONFIG`, `reason: order_required`).
-`REG_MMM_BAYES` reads `order.field` as its time field — `params.time`
-is its deprecated alias (the same fit and seed; both set must agree,
-`time_alias_conflict`) — and on a geo panel needs `partition` =
+`REG_MMM_BAYES` reads `order.field` as its time field (required;
+`params.time` was removed and is refused `reason: params_time_removed`,
+naming `order.field`) and on a geo panel needs `partition` =
 `params.geo`. Rides `capability:regression_order`.
 
 ### Panel-robust covariance

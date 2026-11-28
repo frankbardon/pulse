@@ -38,7 +38,7 @@ func TestMMMBayes_GeoComposeReads(t *testing.T) {
 	ctx := context.Background()
 	p := bayesInstance(t, nil)
 	writeBayesCohort(t, p, "panel.pulse", encoding.FieldTypeU16, panelRows())
-	one := regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":10,"draws":5}`)
+	one := regmmm.BayesSpec(`{"channels":["tv"],"chains":1,"warmup":10,"draws":5}`)
 	fits := []types.FitSpec{
 		{Name: "geo", Request: bayesRequest("panel.pulse", geoBayesSpec("geo"))},
 		{Name: "one", Request: bayesRequest(regmmm.BayesCohort, one)},

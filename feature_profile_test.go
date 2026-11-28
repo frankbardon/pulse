@@ -195,8 +195,6 @@ func TestFeatureProfile_BehaviourOR(t *testing.T) {
 		{"profile turns every switch on", Options{}, on, true, true, false},
 		{"options on, profile off stays on", Options{DisableDefaults: true, DisableComponents: true, DisableProjection: true},
 			&FeatureProfileBehaviour{}, true, true, false},
-		{"deprecated ProjectBufferedFields cannot re-enable projection", Options{ProjectBufferedFields: true},
-			&FeatureProfileBehaviour{DisableProjection: true}, false, false, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

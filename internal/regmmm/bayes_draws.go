@@ -97,13 +97,15 @@ func withoutOutputOnlyParams(raw json.RawMessage) json.RawMessage {
 	return out
 }
 
-// orderAsTimeAlias folds an order the model reads exactly as the
-// deprecated params.time alias — order.field, the default gap policy,
-// no partition or the geo field — into params.time and clears it, so
-// `order: {field: "week"}` and `params: {time: "week"}` derive the same
-// seed (the same draws, bit for bit). Any other order, a params object
-// that does not decode, or none is returned unchanged.
-func orderAsTimeAlias(raw json.RawMessage, o *types.RegressionOrder) (json.RawMessage, *types.RegressionOrder) {
+// orderAsSeedTime is the seed's canonical form of the order: an order
+// the model reads plainly — order.field, the default gap policy, no
+// partition or the geo field — is folded into a "time" params key and
+// cleared, so the derived seed (and so every draw) is the one the
+// removed params.time alias derived before v1, bit for bit. The key is
+// seed input only: params.time itself is refused at the factory
+// (bayesRemovedTimeRefusal). Any other order, a params object that does
+// not decode, or none is returned unchanged.
+func orderAsSeedTime(raw json.RawMessage, o *types.RegressionOrder) (json.RawMessage, *types.RegressionOrder) {
 	if o == nil || o.Field == "" || (o.Gaps != "" && o.Gaps != types.OrderGapsRefuse) {
 		return raw, o
 	}

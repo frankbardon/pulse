@@ -105,9 +105,14 @@ type OneOfGroup struct {
 //   - a pairwise overlay's mode selector the kind does not take
 //     (PULSE_OVERLAY_PARAM_MISSING): n_source / p_source on the Welford
 //     and weighted-moments kinds, n_basis on every kind but the
-//     weighted one.
+//     weighted one;
+//   - REG_MMM_BAYES params.time: the removed alias of the slot's
+//     order.field (PROCESSING_CONFIG reason params_time_removed, naming
+//     order.field — regmmm.bayesRemovedTimeRefusal).
 func paramsOwnRefusals(k paramread.Key) []string {
 	switch {
+	case k == paramread.Key{Category: paramread.Regression, Op: string(types.REG_MMM_BAYES)}:
+		return []string{"time"}
 	case k == paramread.Key{Category: paramread.Matrix, Op: string(types.MAT_COVARIANCE)}:
 		return []string{"summary"}
 	case k == paramread.Key{Category: paramread.Matrix, Op: string(types.MAT_DISTANCE)}:

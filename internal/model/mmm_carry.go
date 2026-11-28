@@ -120,8 +120,9 @@ func MMMCarryover(spec *types.RegressionSpec) bool {
 }
 
 // MMMOrder is the field (and series partition, "" for one series) an
-// in-model adstocked spec orders its rows by: spec.Order's, or a
-// REG_MMM_BAYES spec's params.time / params.geo (the deprecated alias).
+// in-model adstocked spec orders its rows by: spec.Order's; a
+// REG_MMM_BAYES geo panel's series partition is params.geo when the
+// order names none.
 func MMMOrder(spec *types.RegressionSpec) (field, partition string) {
 	if spec == nil {
 		return "", ""
@@ -129,17 +130,8 @@ func MMMOrder(spec *types.RegressionSpec) (field, partition string) {
 	if spec.Order != nil {
 		field, partition = spec.Order.Field, spec.Order.Partition
 	}
-	if spec.Type == types.REG_MMM_BAYES {
-		var p struct {
-			Time string `json:"time"`
-		}
-		_ = paramread.Probe(spec.Params, &p)
-		if field == "" {
-			field = p.Time
-		}
-		if partition == "" {
-			partition = MMMBayesGeoField(spec)
-		}
+	if spec.Type == types.REG_MMM_BAYES && partition == "" {
+		partition = MMMBayesGeoField(spec)
 	}
 	return field, partition
 }

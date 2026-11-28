@@ -646,7 +646,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
 		// A model regression's declared reads beyond its target and
-		// predictors (REG_MMM_BAYES's params.time), which the runtime
+		// predictors (REG_MMM_BAYES's params.geo), which the runtime
 		// projection decodes from the same source.
 		for _, f := range model.ModelRegressionFieldInputs(reg) {
 			w.checkRegression(req, reg, f, func() *errors.CodedError {

@@ -74,7 +74,7 @@ func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
 	t.Parallel()
 
 	for _, x := range []string{"(intercept)", "sigma", "decay:x", "k:x", "s:x", "tv"} {
-		s := BayesSpec(`{"channels":["tv"],"time":"week"}`)
+		s := BayesSpec(`{"channels":["tv"]}`)
 		s.Predictors = []string{"tv", x}
 		var ce *perr.CodedError
 		if _, err := BayesFactory(s, nil); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG || ce.Details["slot"] != "predictors" {
@@ -82,7 +82,7 @@ func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
 		}
 	}
 	if _, err := BayesFactory(&types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv", "kx"},
-		Params: json.RawMessage(`{"channels":["tv"],"time":"week"}`)}, nil); err != nil {
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["tv"]}`)}, nil); err != nil {
 		t.Errorf("a predictor merely starting with k: %v", err)
 	}
 }
@@ -97,7 +97,7 @@ func TestMMMBayes_ShortInputNeverSamples(t *testing.T) {
 	runs := 0
 	SetBayesSampler(t, func(float64) mcmc.Sampler { runs++; return mcmc.NUTS{} })
 	s := &types.RegressionSpec{Type: BayesName, Target: "probe_y", Predictors: []string{"probe_x1", "probe_x2"},
-		Params: json.RawMessage(`{"channels":["probe_x1","probe_x2"],"time":"week"}`)}
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["probe_x1","probe_x2"]}`)}
 	model, err := BayesFactory(s, nil)
 	if err != nil {
 		t.Fatal(err)

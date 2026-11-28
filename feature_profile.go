@@ -400,13 +400,7 @@ func applyFeatureProfileBehaviour(opts *Options, fp *FeatureProfile) {
 	b := fp.Behaviour
 	opts.DisableDefaults = opts.DisableDefaults || b.DisableDefaults
 	opts.DisableComponents = opts.DisableComponents || b.DisableComponents
-	if b.DisableProjection {
-		// The deprecated ProjectBufferedFields knob would otherwise
-		// turn projection back on (New ORs it against
-		// !DisableProjection), letting Options override the profile.
-		opts.DisableProjection = true
-		opts.ProjectBufferedFields = false
-	}
+	opts.DisableProjection = opts.DisableProjection || b.DisableProjection
 }
 
 func featureProfileInvalid(reason, msg string, details map[string]any) error {

@@ -2164,8 +2164,7 @@ type FieldInputsFunc func(raw json.RawMessage) []string
 Buffered-decode projection is **default-on** (output-transparent —
 same result, only faster; opt out with `pulse.Options{DisableProjection: true}`
 or the `--no-project` CLI flag on `pulse api process` only —
-`process-chain` / `compose` do not expose it in v1). `pulse.Options.ProjectBufferedFields`
-is retained but deprecated (a harmless no-op). While projection is
+`process-chain` / `compose` do not expose it in v1). While projection is
 active, the runtime walks each request before opening the streaming
 iterator and calls
 the engine's field-needs extractor (`internal/processing`, not

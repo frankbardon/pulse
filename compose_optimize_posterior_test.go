@@ -192,8 +192,12 @@ func TestOptimize_PosteriorRefusalParity(t *testing.T) {
 	}
 	ctx := context.Background()
 	fit := func(name, typ, params string) types.FitSpec {
+		var order *types.RegressionOrder
+		if typ == string(types.REG_MMM_BAYES) {
+			order = &types.RegressionOrder{Field: "week"}
+		}
 		return types.FitSpec{Name: name, Request: &types.Request{Cohort: &types.Cohort{Filename: optfixture.CohortFile},
-			Regressions: []*types.RegressionSpec{{Type: types.RegressionType(typ), Target: "units", Predictors: []string{"price"}, Params: json.RawMessage(params)}}}}
+			Regressions: []*types.RegressionSpec{{Type: types.RegressionType(typ), Target: "units", Predictors: []string{"price"}, Order: order, Params: json.RawMessage(params)}}}}
 	}
 	cases := []struct {
 		name   string
@@ -216,7 +220,7 @@ func TestOptimize_PosteriorRefusalParity(t *testing.T) {
 			c.Optimize[0].Objective += ` + coef("demand", "price") * tv`
 		}, optblock.ReasonPosteriorFitsMultiple},
 		{"Compose fit without draws", func(c *ComposedRequest) {
-			c.Fits = []types.FitSpec{fit("mmm", "REG_MMM_BAYES", `{"channels":["price"],"time":"week"}`)}
+			c.Fits = []types.FitSpec{fit("mmm", "REG_MMM_BAYES", `{"channels":["price"]}`)}
 			c.Optimize[0].Models = nil
 			c.Optimize[0].Objective = `response("mmm", "price", tv) + search`
 		}, model.ReasonDrawsRequired},

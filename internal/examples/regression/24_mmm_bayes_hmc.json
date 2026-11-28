@@ -34,9 +34,9 @@
       "target": "sales",
       "predictors": ["tv", "price"],
       "rng_seed": 1,
+      "order": {"field": "week"},
       "params": {
         "channels": ["tv"],
-        "time": "week",
         "max_lag": 8,
         "chains": 2,
         "warmup": 150,

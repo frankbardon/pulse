@@ -294,7 +294,6 @@ the full reference.
 | `Logger`, `Hooks`, `Metrics` | structured logs, operation callbacks, metric instruments; nil records nothing | [Observability](observability.md) |
 | `DisableComponents` | omits `Response.Components` (a request's `disable_components` overrides) | [Response Shaping](response-shaping.md) |
 | `DisableProjection` | decodes every field instead of only the fields the request reads; output is identical | |
-| `ProjectBufferedFields` | deprecated no-op (projection is on by default) | |
 | `ShardWorkers`, `DecodeWorkers` | worker caps for the per-shard and parallel-decode arms; `0` = one per CPU, `1` = serial | [Tuning Limits → Worker counts](tuning-limits.md#worker-counts) |
 | `Strict` | promotes request-validation warnings to errors and refuses a partial import (`PULSE_IMPORT_ROWS_DROPPED`) | |
 | `EchoRequest` | fills `Envelope.Request` with the normalised request that ran | |

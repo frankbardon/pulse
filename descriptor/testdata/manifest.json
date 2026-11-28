@@ -9361,14 +9361,6 @@
             "names_column": true
           },
           {
-            "name": "time",
-            "type": "string",
-            "required": false,
-            "description": "Deprecated alias of the slot's order.field (order {field, partition: \u003cgeo\u003e}): the integer time field (one row per period — per geo under geo —, contiguous); the rows are sorted by it, and a gap or a repeat is refused. One of the two is required; both set must name the same field.",
-            "example": "week",
-            "names_column": true
-          },
-          {
             "name": "max_lag",
             "type": "float",
             "required": false,
@@ -9494,7 +9486,7 @@
             "name": "lift_tests",
             "type": "list",
             "required": false,
-            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (params.time, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
+            "description": "Experiments as data: [{channel, start, end, spend_delta, lift, se}], each adding lift ~ Normal(Δ, se) with Δ the model's change in the outcome summed over periods start..end (order.field values, inclusive, inside the fitted rows; carry-over past end excluded) when the channel's spend there changes by spend_delta in total (spread in proportion to its spend; minus the window spend switches it off). lift and se (\u003e 0) are in outcome units. On a geo panel each test names its geo (required there, refused on one market; an unknown geo is lift_geo_unknown at run time) and Δ is that geo's own (its spend, β, adstock and curve). A channel with an roi prior too warns PULSE_MMM_LIFT_PRIOR_OVERLAP."
           },
           {
             "name": "return_draws",
@@ -15674,7 +15666,7 @@
       },
       {
         "name": "regression-order",
-        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
+        "description": "Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's order (params.time removed), and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-panel-covariance",
@@ -22223,4 +22215,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2435db6a7f2a00d0d0d876c8774cf7134e5d2699c83f8273196a885695cb826c
+// golden-hash: b312796dd070a7356f754ddd31b124c1293ae0dbb1ceb013c0a87f89c083bf2f

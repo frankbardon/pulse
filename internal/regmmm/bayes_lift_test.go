@@ -246,7 +246,7 @@ func TestMMMBayes_LiftGradientMatchesFiniteDifferences(t *testing.T) {
 
 // liftParams is the digest slot's params with a lift_tests list.
 func liftParams(tests string) string {
-	return `{"channels":["tv"],"time":"week","chains":1,"warmup":20,"draws":10,"lift_tests":` + tests + `}`
+	return `{"channels":["tv"],"chains":1,"warmup":20,"draws":10,"lift_tests":` + tests + `}`
 }
 
 // TestMMMBayes_LiftFactoryRefusals: every spec refusal of a lift test is
@@ -309,7 +309,7 @@ func TestMMMBayes_LiftFactoryRefusals(t *testing.T) {
 func TestMMMBayes_LiftPriorOverlap(t *testing.T) {
 	t.Parallel()
 
-	spec := BayesSpec(`{"channels":["tv","radio"],"time":"week","lift_tests":[` +
+	spec := BayesSpec(`{"channels":["tv","radio"],"lift_tests":[` +
 		`{"channel":"tv","start":1,"end":2,"spend_delta":1,"lift":1,"se":1},` +
 		`{"channel":"radio","start":1,"end":2,"spend_delta":1,"lift":1,"se":1}],` +
 		`"priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1}},"radio":{"decay":{"family":"beta","alpha":2,"beta":2}}}}`)
@@ -348,7 +348,7 @@ func TestMMMBayes_LiftDataRefusals(t *testing.T) {
 	}{
 		{liftParams(`[{"channel":"tv","start":0,"end":4,"spend_delta":-1,"lift":-3,"se":1}]`), reasonLiftWindowRange, "outside the fitted periods [1, 60]"},
 		{liftParams(`[{"channel":"tv","start":58,"end":61,"spend_delta":-1,"lift":-3,"se":1}]`), reasonLiftWindowRange, "[58, 61]"},
-		{strings.Replace(liftParams(`[{"channel":"tv","start":48,"end":52,"spend_delta":-1,"lift":-3,"se":1}]`), `"time":"week"`, `"time":"week","holdout_from":50`, 1),
+		{strings.Replace(liftParams(`[{"channel":"tv","start":48,"end":52,"spend_delta":-1,"lift":-3,"se":1}]`), `"channels":["tv"]`, `"channels":["tv"],"holdout_from":50`, 1),
 			reasonLiftWindowRange, "fitted periods [1, 49]"},
 		{liftParams(`[{"channel":"tv","start":10,"end":14,"spend_delta":` + formatFloat(-2*winSpend) + `,"lift":-3,"se":1}]`), reasonLiftSpendNegative, "more than the window's spend"},
 	} {
@@ -382,7 +382,7 @@ func TestMMMBayes_LiftPriorOverlapWarns(t *testing.T) {
 	t.Parallel()
 
 	const lift = `[{"channel":"tv","start":10,"end":14,"spend_delta":50,"lift":4,"se":3}]`
-	withPrior := strings.Replace(liftParams(lift), `"time":"week"`, `"time":"week","priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1}}}`, 1)
+	withPrior := strings.Replace(liftParams(lift), `"channels":["tv"]`, `"channels":["tv"],"priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1}}}`, 1)
 	for _, tc := range []struct {
 		params string
 		warn   bool

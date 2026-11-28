@@ -64,7 +64,7 @@ func TestAdstockStateOf_SeriesByLabel(t *testing.T) {
 	t.Parallel()
 
 	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "y", Predictors: []string{"tv"},
-		Params: json.RawMessage(`{"channels":["tv"],"time":"day","geo":"mkt","max_lag":2}`)}
+		Order: &types.RegressionOrder{Field: "day", Partition: "mkt"}, Params: json.RawMessage(`{"channels":["tv"],"geo":"mkt","max_lag":2}`)}
 	var recs []Record
 	for i, mkt := range []string{"west", "east", "west", "east"} {
 		recs = append(recs, labeledRecord{mockRecord: mockRecord{values: map[string]float64{"day": float64(7 * (i / 2)), "tv": float64(i), "y": 1}},

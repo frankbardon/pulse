@@ -37,7 +37,7 @@ Read `.claude/reference/agent-practices.md` FIRST — the cross-role rules (cont
 
 - New field type → `skills/type-<kebab>.md` + `skills/cohort-schema-design.md` + `byte-layout.md` (`TestSkillsCoverAllFieldTypes`).
 - Shard layout change → `byte-layout.md` + `skills/cohort-schema-design.md` (Sharded section) + `docs/src/internals/managing-shard-archives.md`.
-- Projection (`ProjectBufferedFields`, `internal/processing` `NeededFields`) → `byte-layout.md` + `docs/src/internals/extension-points.md`.
+- Projection (`DisableProjection`, `internal/processing` `NeededFields`) → `byte-layout.md` + `docs/src/internals/extension-points.md`.
 - Sidecar shape (`imports.Sidecar`) → `skills/session-bootstrap.md`.
 - Inference knob / export-convert projection → tests + skill (+ `docs/src/library/options.md` if an env var; error-code metadata if a new code).
 

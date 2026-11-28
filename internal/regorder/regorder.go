@@ -8,6 +8,7 @@
 package regorder
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -112,13 +113,30 @@ func Check(spec *types.RegressionSpec, schema *encoding.Schema) *errors.CodedErr
 		return config(spec, ReasonFieldType, "order.field "+o.Field+" is a "+f.Type.String()+" field; order the rows by an unsigned integer period index, a date or a datetime",
 			map[string]any{"field": o.Field, "field_type": f.Type.String()})
 	}
-	if o.Partition != "" {
+	if o.Partition != "" && !modelJudgesPartition(spec) {
 		if f := schema.Field(o.Partition); f != nil && !PartitionFieldType(f.Type) {
 			return config(spec, ReasonPartitionType, "order.partition "+o.Partition+" is a "+f.Type.String()+" field; key the series by a categorical, unsigned integer, date, datetime or packed_bool field",
 				map[string]any{"field": o.Partition, "field_type": f.Type.String()})
 		}
 	}
 	return nil
+}
+
+// modelJudgesPartition reports whether spec's model judges the
+// partition field's type itself, with a stricter rule: a REG_MMM_BAYES
+// geo panel's partition must be its params.geo (regmmm's panel rule),
+// whose accepted types (a categorical or an unsigned integer code,
+// fieldaccept SlotGeo, PULSE_FIELD_TYPE_UNSUPPORTED) are a subset of a
+// partition's. Judging it here too would refuse one field twice under
+// two codes (predict listing both, the runtime raising this one first).
+func modelJudgesPartition(spec *types.RegressionSpec) bool {
+	if spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
+		return false
+	}
+	var p struct {
+		Geo string `json:"geo"`
+	}
+	return json.Unmarshal(spec.Params, &p) == nil && p.Geo != "" && p.Geo == spec.Order.Partition
 }
 
 // RequiredRefusal is the refusal of a slot whose model requires an

@@ -375,12 +375,9 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	// draw is Bernoulli(mean) rather than Normal(mean, std). Derived here
 	// from the compiled field specs for the reason above — it used to
 	// ride the pair spec as a wire flag, and a flag can disagree with the
-	// marginal it is overwriting. Pairs still carrying the retired flag
-	// over a non-bernoulli target are reported rather than silently
-	// ignored.
+	// marginal it is overwriting (the flag is removed; a document still
+	// carrying it is refused at decode).
 	bernoulliTargets := buildBernoulliConditionals(wfs)
-	warnings = append(warnings,
-		bernoulliFlagWarnings(conflicts.catNumPairs, conflicts.setNumPairs, bernoulliTargets)...)
 
 	stages := &rowStages{
 		catPairs:       buildCategoricalPairSamplers(conflicts.catPairs),

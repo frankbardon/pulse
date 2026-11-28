@@ -53,7 +53,7 @@ The model pools each channel's effect (ROI, or β) and every kernel parameter ac
 
 ## Lift tests (`params.lift_tests`)
 
-Each `{channel, start, end, spend_delta, lift, se}` adds `lift ~ Normal(Δ, se)` to the likelihood. Δ re-runs the channel's adstock and curve (at every draw's parameters) with its spend changed over periods `start..end` (`params.time`, inclusive) and sums the change in its contribution over those periods only: carry-over past `end` is excluded, as an experiment's readout window excludes it.
+Each `{channel, start, end, spend_delta, lift, se}` adds `lift ~ Normal(Δ, se)` to the likelihood. Δ re-runs the channel's adstock and curve (at every draw's parameters) with its spend changed over periods `start..end` (`order.field` values, inclusive) and sums the change in its contribution over those periods only: carry-over past `end` is excluded, as an experiment's readout window excludes it.
 
 - `spend_delta` is the total spend change over the window, spread in proportion to the channel's spend there (evenly if it spent nothing); minus the window spend switches the channel off. Required, never 0; a cut past zero spend is refused.
 - `lift` (outcome with the change minus without: a switch-off lift is negative) and `se > 0` are in outcome units; convert an iROAS yourself (`lift = iROAS × spend_delta`).

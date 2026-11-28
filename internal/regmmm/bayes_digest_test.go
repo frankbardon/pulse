@@ -56,7 +56,7 @@ func fitDigest(t *testing.T, params string, seed int64) string {
 func TestMMMBayes_GeometricDefaultDigest(t *testing.T) {
 	t.Parallel()
 
-	const base = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30`
+	const base = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30`
 	for _, tc := range []struct {
 		params string
 		seed   int64

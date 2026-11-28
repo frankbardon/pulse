@@ -48,9 +48,7 @@ func effectiveFeatureBehaviour(opts Options, fp *FeatureProfile) descx.FeatureBe
 	return descx.FeatureBehaviour{
 		DisableDefaults:   opts.DisableDefaults,
 		DisableComponents: opts.DisableComponents,
-		// Mirrors the projection wiring in New: the deprecated
-		// ProjectBufferedFields knob re-enables projection.
-		DisableProjection: !(opts.ProjectBufferedFields || !opts.DisableProjection),
+		DisableProjection: opts.DisableProjection,
 		DisableCohortScan: fp != nil && fp.Behaviour != nil && fp.Behaviour.DisableCohortScan,
 	}
 }

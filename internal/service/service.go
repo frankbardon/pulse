@@ -212,8 +212,8 @@ func (s *Service) DisableComponents() bool {
 // When enabled the streaming iterator computes the set of fields a
 // request actually reads (NeededFields) and skips map writes for
 // fields outside that set. Per-record memory drops proportional to
-// the projection ratio; decode CPU is unchanged. Default is false;
-// pulse.Options{ProjectBufferedFields: true} opts in.
+// the projection ratio; decode CPU is unchanged. Default is false at
+// the engine; pulse.New turns it on unless Options.DisableProjection.
 //
 // Extension operators without a registered FieldInputs hook widen
 // the projection to "every field" automatically — projection is
@@ -1292,7 +1292,7 @@ func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *t
 }
 
 // applyCrosstabProjection is the crosstab-specific variant of
-// applyProjection that ignores the opts.ProjectBufferedFields gate.
+// applyProjection that ignores the SetProjectBufferedFields gate.
 // Crosstab always materializes the filter-passing record set; on wide
 // cohorts the projection win is the difference between a working query
 // and an out-of-memory event, so the optimisation is mandatory for the

@@ -28,7 +28,7 @@ import (
 func TestMMMBayes_DrawsSpecRefusals(t *testing.T) {
 	t.Parallel()
 
-	const base = `{"channels":["tv"],"time":"week"`
+	const base = `{"channels":["tv"]`
 	for name, tc := range map[string]struct {
 		params, reason string
 	}{
@@ -67,11 +67,11 @@ func TestMMMBayes_DrawsSpecRefusals(t *testing.T) {
 func TestMMMBayes_DrawsNeverMoveSeed(t *testing.T) {
 	t.Parallel()
 
-	plain := bayesEffectiveSeed(BayesSpec(`{"channels":["tv"],"time":"week","draws":30}`))
+	plain := bayesEffectiveSeed(BayesSpec(`{"channels":["tv"],"draws":30}`))
 	for _, params := range []string{
-		`{"channels":["tv"],"time":"week","draws":30,"return_draws":true}`,
-		`{"return_draws":true,"draws_thin":3,"channels":["tv"],"time":"week","draws":30}`,
-		`{"channels":["tv"],"time":"week","draws":30,"return_draws":false}`,
+		`{"channels":["tv"],"draws":30,"return_draws":true}`,
+		`{"return_draws":true,"draws_thin":3,"channels":["tv"],"draws":30}`,
+		`{"channels":["tv"],"draws":30,"return_draws":false}`,
 	} {
 		if got := bayesEffectiveSeed(BayesSpec(params)); got != plain {
 			t.Errorf("%s: seed %d, want the draws-free %d", params, got, plain)
@@ -97,7 +97,7 @@ func TestMMMBayes_DrawValuesCountTables(t *testing.T) {
 		`,"saturation":"michaelis_menten"}`,
 	} {
 		for _, params := range []string{
-			`{"channels":["tv","search"],"time":"week","chains":3,"draws":10,"return_draws":true,"draws_thin":4` + tail,
+			`{"channels":["tv","search"],"chains":3,"draws":10,"return_draws":true,"draws_thin":4` + tail,
 			geoParams + `,"chains":3,"draws":10,"return_draws":true,"draws_thin":4` + tail,
 			geoParams + `,"per_geo_curves":true,"chains":3,"draws":10,"return_draws":true,"draws_thin":4` + tail,
 		} {
@@ -125,10 +125,10 @@ func TestMMMBayes_DrawValuesCountTables(t *testing.T) {
 			}
 		}
 	}
-	if _, _, ok := BayesDrawValues(BayesSpec(`{"channels":["tv"],"time":"week"}`), 0); ok {
+	if _, _, ok := BayesDrawValues(BayesSpec(`{"channels":["tv"]}`), 0); ok {
 		t.Error("a spec without return_draws reports a draws payload")
 	}
-	if _, _, ok := BayesDrawValues(BayesSpec(`{"channels":["tv"],"time":"week","return_draws":true,"draws_thin":0}`), 0); ok {
+	if _, _, ok := BayesDrawValues(BayesSpec(`{"channels":["tv"],"return_draws":true,"draws_thin":0}`), 0); ok {
 		t.Error("a refused spec reports a draws payload")
 	}
 }
@@ -155,7 +155,7 @@ func TestMMMBayes_DrawLimitRefusesBeforeReading(t *testing.T) {
 		return limits.WithContext(context.Background(), l)
 	}
 
-	const one = `{"channels":["tv"],"time":"week","chains":1,"warmup":10,"draws":5,"return_draws":true,"draws_thin":2}`
+	const one = `{"channels":["tv"],"chains":1,"warmup":10,"draws":5,"return_draws":true,"draws_thin":2}`
 	n, _, _ := BayesDrawValues(BayesSpec(one), 0)
 	if n != 1*3*(7+1) {
 		t.Fatalf("one-market payload %d, want 24", n)

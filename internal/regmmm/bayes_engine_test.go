@@ -145,39 +145,39 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 	for _, tc := range []struct {
 		name, params, slot string
 	}{
-		{"no channels", `{"channels":[],"time":"week"}`, "params.channels"},
-		{"channel not a predictor", `{"channels":["radio"],"time":"week"}`, "params.channels"},
-		{"channel twice", `{"channels":["tv","tv"],"time":"week"}`, "params.channels"},
-		{"empty time", `{"channels":["tv"],"time":""}`, "params.time"},
-		{"max_lag 0", `{"channels":["tv"],"time":"week","max_lag":0}`, "params.max_lag"},
-		{"max_lag fractional", `{"channels":["tv"],"time":"week","max_lag":1.5}`, "params"},
-		{"adstock weibull", `{"channels":["tv"],"time":"week","adstock":"weibull"}`, "params.adstock"},
-		{"delayed without max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed"}`, "params.max_lag"},
-		{"kernel prior of another kernel", `{"channels":["tv"],"time":"week","adstock":"weibull_cdf","max_lag":6,"priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors"},
-		{"peak prior past max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"truncnormal","mu":1,"sigma":1,"lower":0,"upper":7}}}}`, "params.priors"},
-		{"sampler unknown", `{"channels":["tv"],"time":"week","sampler":"gibbs"}`, "params.sampler"},
-		{"hmc without path_length", `{"channels":["tv"],"time":"week","sampler":"hmc"}`, "params.path_length"},
-		{"path_length under nuts", `{"channels":["tv"],"time":"week","path_length":1.5}`, "params.path_length"},
-		{"step_size under explicit nuts", `{"channels":["tv"],"time":"week","sampler":"nuts","step_size":0.1}`, "params.step_size"},
-		{"path_length 0", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":0}`, "params.path_length"},
-		{"step_size negative", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":-0.1}`, "params.step_size"},
-		{"path over the step cap", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":65536.5,"step_size":1}`, "params.step_size"},
-		{"target_accept beside a fixed step_size", `{"channels":["tv"],"time":"week","sampler":"hmc","path_length":1.5,"step_size":0.1,"target_accept":0.9}`, "params.target_accept"},
-		{"chains 0", `{"channels":["tv"],"time":"week","chains":0}`, "params.chains"},
-		{"chains over cap", `{"channels":["tv"],"time":"week","chains":17}`, "params.chains"},
-		{"warmup over cap", `{"channels":["tv"],"time":"week","warmup":20001}`, "params.warmup"},
-		{"draws over cap", `{"channels":["tv"],"time":"week","draws":20001}`, "params.draws"},
-		{"credible_level 1", `{"channels":["tv"],"time":"week","credible_level":1}`, "params.credible_level"},
-		{"target_accept 0", `{"channels":["tv"],"time":"week","target_accept":0}`, "params.target_accept"},
-		{"unknown prior family", `{"channels":["tv"],"time":"week","sigma_prior":{"family":"cauchy","sigma":1}}`, "params.sigma_prior"},
-		{"prior key unknown", `{"channels":["tv"],"time":"week","control_prior":{"family":"normal","mu":0,"sigma":1,"nu":3}}`, "params"},
-		{"prior key of another family", `{"channels":["tv"],"time":"week","control_prior":{"family":"normal","mu":0,"sigma":1,"alpha":3}}`, "params.control_prior"},
-		{"prior key missing", `{"channels":["tv"],"time":"week","intercept_prior":{"family":"normal","mu":0}}`, "params.intercept_prior"},
-		{"prior value invalid", `{"channels":["tv"],"time":"week","sigma_prior":{"family":"halfnormal","sigma":-1}}`, "params.sigma_prior"},
-		{"prior support", `{"channels":["tv"],"time":"week","priors":{"tv":{"decay":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors"},
-		{"priors on a control", `{"channels":["tv"],"time":"week","priors":{"price":{"k":{"family":"halfnormal","sigma":1}}}}`, "params.priors"},
-		{"roi and beta", `{"channels":["tv"],"time":"week","priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1},"beta":{"family":"halfnormal","sigma":1}}}}`, "params.priors"},
-		{"channel prior key unknown", `{"channels":["tv"],"time":"week","priors":{"tv":{"effect":{"family":"halfnormal","sigma":1}}}}`, "params"},
+		{"no channels", `{"channels":[]}`, "params.channels"},
+		{"channel not a predictor", `{"channels":["radio"]}`, "params.channels"},
+		{"channel twice", `{"channels":["tv","tv"]}`, "params.channels"},
+		{"removed time key", `{"channels":["tv"],"time":""}`, "params.time"},
+		{"max_lag 0", `{"channels":["tv"],"max_lag":0}`, "params.max_lag"},
+		{"max_lag fractional", `{"channels":["tv"],"max_lag":1.5}`, "params"},
+		{"adstock weibull", `{"channels":["tv"],"adstock":"weibull"}`, "params.adstock"},
+		{"delayed without max_lag", `{"channels":["tv"],"adstock":"delayed"}`, "params.max_lag"},
+		{"kernel prior of another kernel", `{"channels":["tv"],"adstock":"weibull_cdf","max_lag":6,"priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors"},
+		{"peak prior past max_lag", `{"channels":["tv"],"adstock":"delayed","max_lag":6,"priors":{"tv":{"peak":{"family":"truncnormal","mu":1,"sigma":1,"lower":0,"upper":7}}}}`, "params.priors"},
+		{"sampler unknown", `{"channels":["tv"],"sampler":"gibbs"}`, "params.sampler"},
+		{"hmc without path_length", `{"channels":["tv"],"sampler":"hmc"}`, "params.path_length"},
+		{"path_length under nuts", `{"channels":["tv"],"path_length":1.5}`, "params.path_length"},
+		{"step_size under explicit nuts", `{"channels":["tv"],"sampler":"nuts","step_size":0.1}`, "params.step_size"},
+		{"path_length 0", `{"channels":["tv"],"sampler":"hmc","path_length":0}`, "params.path_length"},
+		{"step_size negative", `{"channels":["tv"],"sampler":"hmc","path_length":1.5,"step_size":-0.1}`, "params.step_size"},
+		{"path over the step cap", `{"channels":["tv"],"sampler":"hmc","path_length":65536.5,"step_size":1}`, "params.step_size"},
+		{"target_accept beside a fixed step_size", `{"channels":["tv"],"sampler":"hmc","path_length":1.5,"step_size":0.1,"target_accept":0.9}`, "params.target_accept"},
+		{"chains 0", `{"channels":["tv"],"chains":0}`, "params.chains"},
+		{"chains over cap", `{"channels":["tv"],"chains":17}`, "params.chains"},
+		{"warmup over cap", `{"channels":["tv"],"warmup":20001}`, "params.warmup"},
+		{"draws over cap", `{"channels":["tv"],"draws":20001}`, "params.draws"},
+		{"credible_level 1", `{"channels":["tv"],"credible_level":1}`, "params.credible_level"},
+		{"target_accept 0", `{"channels":["tv"],"target_accept":0}`, "params.target_accept"},
+		{"unknown prior family", `{"channels":["tv"],"sigma_prior":{"family":"cauchy","sigma":1}}`, "params.sigma_prior"},
+		{"prior key unknown", `{"channels":["tv"],"control_prior":{"family":"normal","mu":0,"sigma":1,"nu":3}}`, "params"},
+		{"prior key of another family", `{"channels":["tv"],"control_prior":{"family":"normal","mu":0,"sigma":1,"alpha":3}}`, "params.control_prior"},
+		{"prior key missing", `{"channels":["tv"],"intercept_prior":{"family":"normal","mu":0}}`, "params.intercept_prior"},
+		{"prior value invalid", `{"channels":["tv"],"sigma_prior":{"family":"halfnormal","sigma":-1}}`, "params.sigma_prior"},
+		{"prior support", `{"channels":["tv"],"priors":{"tv":{"decay":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors"},
+		{"priors on a control", `{"channels":["tv"],"priors":{"price":{"k":{"family":"halfnormal","sigma":1}}}}`, "params.priors"},
+		{"roi and beta", `{"channels":["tv"],"priors":{"tv":{"roi":{"family":"lognormal","mu":0,"sigma":1},"beta":{"family":"halfnormal","sigma":1}}}}`, "params.priors"},
+		{"channel prior key unknown", `{"channels":["tv"],"priors":{"tv":{"effect":{"family":"halfnormal","sigma":1}}}}`, "params"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := regmmm.BayesSpec(tc.params)
@@ -196,17 +196,23 @@ func TestMMMBayes_ParamsRefused(t *testing.T) {
 	}
 
 	// An undeclared key is the engine's own allowlist refusal; a missing
-	// time is the factory's (a built-in's Required is its factory's to
-	// enforce), which predict raises too (BayesSpecRefusal). Both are
-	// refused identically in predict.
+	// order and the removed params.time are the factory's (a built-in's
+	// Required is its factory's to enforce), which predict raises too
+	// (BayesSpecRefusal). Each is refused identically in predict.
 	for _, tc := range []struct {
-		params string
-		code   perr.Code
+		params  string
+		noOrder bool
+		code    perr.Code
 	}{
-		{`{"channels":["tv"],"time":"week","chain":2}`, perr.PULSE_REQUEST_UNKNOWN_FIELD},
-		{`{"channels":["tv"]}`, perr.PROCESSING_CONFIG},
+		{`{"channels":["tv"],"chain":2}`, false, perr.PULSE_REQUEST_UNKNOWN_FIELD},
+		{`{"channels":["tv"]}`, true, perr.PROCESSING_CONFIG},
+		{`{"channels":["tv"],"time":"week"}`, false, perr.PROCESSING_CONFIG},
 	} {
-		req := bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(tc.params))
+		s := regmmm.BayesSpec(tc.params)
+		if tc.noOrder {
+			s.Order = nil
+		}
+		req := bayesRequest(regmmm.BayesCohort, s)
 		_, err := p.Process(context.Background(), req)
 		if !perr.HasCode(err, tc.code) {
 			t.Errorf("%s: run err = %v, want %s", tc.params, err, tc.code)
@@ -361,7 +367,7 @@ func TestMMMBayes_RequestTimeoutStopsSampling(t *testing.T) {
 	p := bayesInstance(t, func(o *pulse.Options) { o.Limits.RequestTimeout = d })
 	start := time.Now()
 	_, err := p.Process(context.Background(), bayesRequest(regmmm.BayesCohort,
-		regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":4,"warmup":20000,"draws":20000}`)))
+		regmmm.BayesSpec(`{"channels":["tv"],"chains":4,"warmup":20000,"draws":20000}`)))
 	elapsed := time.Since(start)
 	var ce *perr.CodedError
 	if !perr.HasCode(err, perr.PULSE_LIMIT_EXCEEDED) || !errorsAs(err, &ce) || ce.Details["limit"] != "request_timeout" {

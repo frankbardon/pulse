@@ -33,7 +33,6 @@ Use something else:
 | `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | Channels and controls. |
 | `channels` | list | (required) | Raw spend (≥ 0). |
-| `time` | string | — | Deprecated: `order.field`. |
 | `max_lag` | float | 13 | Adstock window. |
 | `adstock` | string | `geometric` | geometric, delayed, weibull_cdf, weibull_pdf. |
 | `saturation` | string | `hill` | hill (`k`, `s`), logistic (`lam`), michaelis_menten (`k`). |

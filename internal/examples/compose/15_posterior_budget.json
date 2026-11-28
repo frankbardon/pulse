@@ -37,7 +37,8 @@
             "target": "sales",
             "predictors": ["tv", "search"],
             "rng_seed": 1,
-            "params": {"channels": ["tv", "search"], "time": "week", "max_lag": 8, "chains": 1, "warmup": 25, "draws": 20, "return_draws": true}
+            "order": {"field": "week"},
+            "params": {"channels": ["tv", "search"], "max_lag": 8, "chains": 1, "warmup": 25, "draws": 20, "return_draws": true}
           }
         ]
       }

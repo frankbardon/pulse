@@ -20,10 +20,10 @@ import (
 )
 
 // TestMMMBayes_InputsRefused: a gap, a repeat (a panel of two markets,
-// grouped request or not), a non-integer or null time and a negative
-// spend are PROCESSING_CONFIG naming params.time / the channel, before
-// any sampling; rows written out of time order fit exactly as the
-// sorted rows do.
+// grouped request or not) and a null time fail the slot on the engine's
+// order check (order.field); a float time field and a negative spend are
+// PROCESSING_CONFIG — all before any sampling; rows written out of time
+// order fit exactly as the sorted rows do.
 func TestMMMBayes_InputsRefused(t *testing.T) {
 	// serial: swaps the package-level MMM sampler hook (bayesSampler)
 
@@ -32,31 +32,37 @@ func TestMMMBayes_InputsRefused(t *testing.T) {
 	p := bayesInstance(t, nil)
 	base := regmmm.BayesRows(11)
 	mutate := func(f func([]regmmm.BayesRow) []regmmm.BayesRow) []regmmm.BayesRow { return f(slices.Clone(base)) }
+	// slot: the engine's order check fails the slot alone
+	// (PROCESSING_REGRESSION_ORDER, a data refusal); otherwise the run is
+	// refused PROCESSING_CONFIG.
 	for _, tc := range []struct {
 		name, reason string
+		slot         bool
 		weekType     encoding.FieldType
 		rows         []regmmm.BayesRow
 		groups       bool
 	}{
-		{"gap", "time_gap", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { return slices.Delete(r, 20, 21) }), false},
-		{"duplicate", "duplicate_time", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[5].Week = r[4].Week; return r }), false},
-		{"panel", "duplicate_time", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow {
+		{"gap", "gap", true, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { return slices.Delete(r, 20, 21) }), false},
+		{"duplicate", "duplicate", true, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[5].Week = r[4].Week; return r }), false},
+		{"panel", "duplicate", true, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow {
 			for _, row := range base {
 				row.Geo = "west"
 				r = append(r, row)
 			}
 			return r
 		}), false},
-		{"grouped panel", "duplicate_time", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow {
+		{"grouped panel", "duplicate", true, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow {
 			for _, row := range base {
 				row.Geo = "west"
 				r = append(r, row)
 			}
 			return r
 		}), true},
-		{"fractional time", "time_not_integer", encoding.FieldTypeF64, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[3].Week = 3.5; return r }), false},
-		{"null time", "time_missing", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[3].Week = -1; return r }), false},
-		{"negative spend", "negative_spend", encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[7].TV = -1; return r }), false},
+		// A null order.field drops its row listwise, leaving a gap.
+		{"null time", "gap", true, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[3].Week = -1; return r }), false},
+		// A float time field is not an order field (regorder).
+		{"fractional time", "field_type", false, encoding.FieldTypeF64, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[3].Week = 3.5; return r }), false},
+		{"negative spend", "negative_spend", false, encoding.FieldTypeU16, mutate(func(r []regmmm.BayesRow) []regmmm.BayesRow { r[7].TV = -1; return r }), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			file := strings.ReplaceAll(tc.name, " ", "_") + ".pulse"
@@ -65,7 +71,16 @@ func TestMMMBayes_InputsRefused(t *testing.T) {
 			if tc.groups {
 				req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "geo"}}
 			}
-			_, err := p.Process(context.Background(), req)
+			resp, err := p.Process(context.Background(), req)
+			if tc.slot {
+				if err != nil || resp == nil || len(resp.Regressions) == 0 || resp.Regressions[0].Error == nil {
+					t.Fatalf("err = %v, want a failed slot", err)
+				}
+				if e := resp.Regressions[0].Error; e.Code != string(perr.PROCESSING_REGRESSION_ORDER) || e.Details["reason"] != tc.reason {
+					t.Errorf("slot error = %+v, want PROCESSING_REGRESSION_ORDER reason %s", e, tc.reason)
+				}
+				return
+			}
 			var ce *perr.CodedError
 			if !perr.HasCode(err, perr.PROCESSING_CONFIG) || !errorsAs(err, &ce) {
 				t.Fatalf("err = %v, want PROCESSING_CONFIG", err)
@@ -243,7 +258,7 @@ func TestMMMBayes_FitOutputs(t *testing.T) {
 func TestMMMBayes_HealthWarnings(t *testing.T) {
 	// serial: swaps the package-level MMM sampler hook (bayesSampler)
 
-	const tiny = `{"channels":["tv"],"time":"week","chains":2,"warmup":10,"draws":30}`
+	const tiny = `{"channels":["tv"],"chains":2,"warmup":10,"draws":30}`
 	p := bayesInstance(t, nil)
 	resp := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(tiny)))
 	r := resp.Regressions[0]
@@ -273,7 +288,7 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 
 	// One chain: R̂ is undefined, so it cannot certify the fit — a
 	// rhat_high warning with a NaN max_rhat, null on the wire.
-	one := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":100,"draws":60}`))).Regressions[0]
+	one := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(`{"channels":["tv"],"chains":1,"warmup":100,"draws":60}`))).Regressions[0]
 	if got := warningReasons(t, one.Warnings); !slices.Contains(got, regmmm.ReasonRHatHigh) {
 		t.Errorf("one chain: reasons %v, want %s", got, regmmm.ReasonRHatHigh)
 	}
@@ -284,7 +299,7 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 	// The sampler-run diagnostics, doctored: constructed draws whose
 	// figures the test sets, so each reason appears exactly when its
 	// figure crosses, and a healthy run reports none.
-	const doctored = `{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":1000}`
+	const doctored = `{"channels":["tv"],"chains":2,"warmup":150,"draws":1000}`
 	flagged := func(r *types.RegressionResult, reason string) []string {
 		for _, w := range r.Warnings {
 			if w.Details["reason"] == reason {
@@ -381,7 +396,7 @@ func TestMMMBayes_Holdout(t *testing.T) {
 	c := &countingSampler{}
 	withSampler(t, c)
 	p := bayesInstance(t, nil)
-	const holdout = `{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":100,"holdout_from":51}`
+	const holdout = `{"channels":["tv"],"chains":2,"warmup":150,"draws":100,"holdout_from":51}`
 	seeded := func(params string) *types.RegressionSpec {
 		s := regmmm.BayesSpec(params)
 		s.RNGSeed = 17
@@ -434,7 +449,7 @@ func TestMMMBayes_Holdout(t *testing.T) {
 	runs := c.runs.Load()
 	for _, from := range []string{"1", "0", "61", "-3"} {
 		_, err := p.Process(context.Background(), bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(
-			`{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":100,"holdout_from":`+from+`}`)))
+			`{"channels":["tv"],"chains":2,"warmup":150,"draws":100,"holdout_from":`+from+`}`)))
 		var ce *perr.CodedError
 		if !perr.HasCode(err, perr.PROCESSING_CONFIG) || !errorsAs(err, &ce) ||
 			ce.Details["slot"] != "params.holdout_from" || ce.Details["reason"] != "holdout_out_of_range" {
@@ -442,7 +457,7 @@ func TestMMMBayes_Holdout(t *testing.T) {
 		}
 	}
 	_, err := p.Process(context.Background(), bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(
-		`{"channels":["tv"],"time":"week","holdout_from":50.5}`)))
+		`{"channels":["tv"],"holdout_from":50.5}`)))
 	if !perr.HasCode(err, perr.PROCESSING_CONFIG) {
 		t.Errorf("fractional holdout_from: %v, want PROCESSING_CONFIG", err)
 	}

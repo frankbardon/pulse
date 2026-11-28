@@ -389,7 +389,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addKnown(r.Target)
 		addAllKnown(r.Predictors)
 		// A model regression's declared reads beyond them (REG_MMM_BAYES's
-		// params.time): a built-in's twin of an extension's FieldInputs.
+		// params.geo): a built-in's twin of an extension's FieldInputs.
 		addAllKnown(model.ModelRegressionFieldInputs(r))
 		if c := r.Covariance; c != nil {
 			addKnown(c.Cluster)

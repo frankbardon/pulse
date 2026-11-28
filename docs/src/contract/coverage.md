@@ -35,8 +35,8 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2867 | 0 |
-| [Options fields](#options-fields) | 37 | 0 |
+| [Go API symbols](#go-api-symbols) | 2866 | 0 |
+| [Options fields](#options-fields) | 36 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
 | [CLI leaves](#cli-leaves) | 79 | 0 |
@@ -629,7 +629,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `descriptor.RecommendNeed` |  |  | yes |
 | `descriptor.RecommendRequest` | yes |  | yes |
 | `descriptor.RecommendResult` |  |  | yes |
-| `descriptor.RecommendStep` |  |  | yes |
 | `descriptor.Recommendation` |  |  | yes |
 | `descriptor.ReferenceVectorMeta` |  |  | yes |
 | `descriptor.RegressionMeta` |  |  | yes |
@@ -3041,7 +3040,6 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `LookupTablesDir` | yes | yes | yes |
 | `Metrics` | yes |  | yes |
 | `PopulationsDir` | yes |  | yes |
-| `ProjectBufferedFields` | yes |  | yes |
 | `RangeTablesDir` | yes |  | yes |
 | `SetInferenceMinPct` | yes | yes | yes |
 | `ShardDistinctLimit` | yes |  | yes |

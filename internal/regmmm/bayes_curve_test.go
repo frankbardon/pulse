@@ -149,12 +149,12 @@ func TestMMMBayes_CurveFactory(t *testing.T) {
 	t.Parallel()
 
 	for _, params := range []string{
-		`{"channels":["tv"],"time":"week","saturation":"hill"}`,
-		`{"channels":["tv"],"time":"week","saturation":"logistic"}`,
-		`{"channels":["tv"],"time":"week","saturation":"michaelis_menten"}`,
-		`{"channels":["tv"],"time":"week","saturation":"logistic","priors":{"tv":{"lam":{"family":"lognormal","mu":1,"sigma":0.5}}}}`,
-		`{"channels":["tv"],"time":"week","saturation":"michaelis_menten","priors":{"tv":{"k":{"family":"halfnormal","sigma":2}}}}`,
-		`{"channels":["tv"],"time":"week","adstock":"weibull_pdf","max_lag":8,"saturation":"logistic","priors":{"tv":{"scale":{"family":"halfnormal","sigma":4},"lam":{"family":"halfnormal","sigma":3}}}}`,
+		`{"channels":["tv"],"saturation":"hill"}`,
+		`{"channels":["tv"],"saturation":"logistic"}`,
+		`{"channels":["tv"],"saturation":"michaelis_menten"}`,
+		`{"channels":["tv"],"saturation":"logistic","priors":{"tv":{"lam":{"family":"lognormal","mu":1,"sigma":0.5}}}}`,
+		`{"channels":["tv"],"saturation":"michaelis_menten","priors":{"tv":{"k":{"family":"halfnormal","sigma":2}}}}`,
+		`{"channels":["tv"],"adstock":"weibull_pdf","max_lag":8,"saturation":"logistic","priors":{"tv":{"scale":{"family":"halfnormal","sigma":4},"lam":{"family":"halfnormal","sigma":3}}}}`,
 	} {
 		if ce := BayesSpecRefusal(BayesSpec(params)); ce != nil {
 			t.Errorf("%s: refused %v", params, ce)
@@ -163,11 +163,11 @@ func TestMMMBayes_CurveFactory(t *testing.T) {
 	for _, tc := range []struct {
 		name, params, slot, msg, reason string
 	}{
-		{"unknown curve", `{"channels":["tv"],"time":"week","saturation":"gompertz"}`, "params.saturation", "not one of: hill, logistic, michaelis_menten", ""},
-		{"lam on hill", `{"channels":["tv"],"time":"week","priors":{"tv":{"lam":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "the hill saturation curve has no lam parameter", "prior_not_in_curve"},
-		{"k on logistic", `{"channels":["tv"],"time":"week","saturation":"logistic","priors":{"tv":{"k":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "the logistic saturation curve has no k parameter", "prior_not_in_curve"},
-		{"s on michaelis_menten", `{"channels":["tv"],"time":"week","saturation":"michaelis_menten","priors":{"tv":{"s":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "has no s parameter", "prior_not_in_curve"},
-		{"lam on the real line", `{"channels":["tv"],"time":"week","saturation":"logistic","priors":{"tv":{"lam":{"family":"normal","mu":1,"sigma":1}}}}`, "params.priors", "not inside", ""},
+		{"unknown curve", `{"channels":["tv"],"saturation":"gompertz"}`, "params.saturation", "not one of: hill, logistic, michaelis_menten", ""},
+		{"lam on hill", `{"channels":["tv"],"priors":{"tv":{"lam":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "the hill saturation curve has no lam parameter", "prior_not_in_curve"},
+		{"k on logistic", `{"channels":["tv"],"saturation":"logistic","priors":{"tv":{"k":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "the logistic saturation curve has no k parameter", "prior_not_in_curve"},
+		{"s on michaelis_menten", `{"channels":["tv"],"saturation":"michaelis_menten","priors":{"tv":{"s":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "has no s parameter", "prior_not_in_curve"},
+		{"lam on the real line", `{"channels":["tv"],"saturation":"logistic","priors":{"tv":{"lam":{"family":"normal","mu":1,"sigma":1}}}}`, "params.priors", "not inside", ""},
 	} {
 		ce := BayesSpecRefusal(BayesSpec(tc.params))
 		if ce == nil {
@@ -195,9 +195,9 @@ func TestMMMBayes_CurveFactory(t *testing.T) {
 		{"michaelis_menten", "s:x", false},
 		{"gompertz", "k:x", true},
 	} {
-		params := `{"channels":["tv"],"time":"week"}`
+		params := `{"channels":["tv"]}`
 		if tc.curve != "" {
-			params = `{"channels":["tv"],"time":"week","saturation":"` + tc.curve + `"}`
+			params = `{"channels":["tv"],"saturation":"` + tc.curve + `"}`
 		}
 		s := BayesSpec(params)
 		s.Predictors = []string{"tv", tc.predictor}
@@ -209,7 +209,7 @@ func TestMMMBayes_CurveFactory(t *testing.T) {
 		}
 	}
 	// The Hill default's collision message is unchanged.
-	s := BayesSpec(`{"channels":["tv"],"time":"week"}`)
+	s := BayesSpec(`{"channels":["tv"]}`)
 	s.Predictors = []string{"tv", "s:x"}
 	if _, err := BayesFactory(s, nil); err == nil || !strings.Contains(err.Error(), "collides with a coefficient name ((intercept), sigma, decay:/k:/s:)") {
 		t.Errorf("hill collision: %v", err)
@@ -225,7 +225,7 @@ func TestMMMBayes_CurveCoefficientNames(t *testing.T) {
 
 	for _, kernel := range kernelNames() {
 		for _, curve := range curveNames() {
-			s := BayesSpec(fmt.Sprintf(`{"channels":["tv","radio"],"time":"week","max_lag":8,"adstock":%q,"saturation":%q}`, kernel, curve))
+			s := BayesSpec(fmt.Sprintf(`{"channels":["tv","radio"],"max_lag":8,"adstock":%q,"saturation":%q}`, kernel, curve))
 			s.Predictors = []string{"tv", "radio", "price"}
 			reg, err := BayesFactory(s, nil)
 			if err != nil {
@@ -326,7 +326,7 @@ func TestMMMBayes_CurveBackTransforms(t *testing.T) {
 func TestMMMBayes_CurveFitsItsCurve(t *testing.T) {
 	t.Parallel()
 
-	const base = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30`
+	const base = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30`
 	for _, curve := range []string{"logistic", "michaelis_menten"} {
 		spec := BayesSpec(base + `,"saturation":"` + curve + `"}`)
 		spec.RNGSeed = 5

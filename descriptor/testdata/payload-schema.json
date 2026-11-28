@@ -5576,36 +5576,6 @@
       ],
       "type": "object"
     },
-    "RecommendStep": {
-      "additionalProperties": false,
-      "properties": {
-        "placeholders": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "request": {
-          "description": "The step tool's input as wire JSON: a {request, out} pair (request in the #/$defs/Request shape) for a step that writes a cohort, else a #/$defs/Request. Every value the caller must supply is a \"\u003cplaceholder\u003e\" string, listed in placeholders.",
-          "type": "object"
-        },
-        "tool": {
-          "type": "string"
-        },
-        "why": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "request",
-        "tool",
-        "why"
-      ],
-      "type": "object"
-    },
     "Recommendation": {
       "additionalProperties": false,
       "properties": {
@@ -5669,17 +5639,6 @@
         "request": {
           "description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"\u003cplaceholder\u003e\" string named after its wire key, listed in placeholders.",
           "type": "object"
-        },
-        "steps": {
-          "deprecated": true,
-          "description": "Deprecated: always absent. Recommend drafts no multi-request plan; a model reads a label its own request derives.",
-          "items": {
-            "$ref": "#/$defs/RecommendStep"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
         },
         "why": {
           "type": "string"
@@ -8687,4 +8646,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f6155b1422d0a5a2500533bdcfc161d80e5edd1412f1378483f54466f4f3df9c
+// golden-hash: 9c4926b25a047de6a8b53c4314aeb4fe4984875c27ec0394e802ef5f0cdbff20

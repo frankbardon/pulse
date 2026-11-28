@@ -3162,12 +3162,10 @@ func SpecFromProfile(p *Profile, rowCount int) (*Spec, []string) {
 			for i, c := range cnp.Categories {
 				cats[i] = CategoricalNumericCategorySpec(c)
 			}
-			// No `bernoulli` key: the flag is RETIRED and the
+			// No `bernoulli` key (the slot is removed): the
 			// conditional draw resolves the target's own marginal from
 			// its FieldSpec (buildBernoulliConditionals), exactly as the
-			// `discrete` staircase always did. Emitting an inert key
-			// would tell a reader of `--emit-spec` output that it is what
-			// makes the cell draw a step, which is no longer true.
+			// `discrete` staircase always did.
 			s.CategoricalNumericPairs = append(s.CategoricalNumericPairs, CategoricalNumericPairSpec{
 				A: cnp.A, B: cnp.B, Categories: cats,
 				Min: num.Min, Max: num.Max, HasClamp: true,

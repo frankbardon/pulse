@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -12,10 +13,10 @@ import (
 )
 
 // bayes_order_test.go: REG_MMM_BAYES reads the shared
-// RegressionSpec.Order as its time field, params.time staying its
-// deprecated alias. The order spelling fits — output and derived seed —
-// exactly what the alias fits (the digest the alias pinned in
-// bayes_digest_test.go), and the alias / panel conflicts are the
+// RegressionSpec.Order as its time field; the deprecated params.time
+// alias is removed (refused, naming order.field). The order spelling
+// fits — output and derived seed — exactly what the alias fitted (the
+// digest it pinned), and the removed key / panel conflicts are the
 // factory's spec refusals (predict raises them through
 // BayesSpecRefusal).
 
@@ -37,9 +38,9 @@ func orderDigest(t *testing.T, spec *types.RegressionSpec) string {
 	return fmt.Sprintf("%x", sha256.Sum256(body))
 }
 
-// TestMMMBayes_OrderIsTheTimeAlias: order {field: week} without
-// params.time, and with the same params.time beside it, give the alias
-// fit's pinned digest under the derived seed and under an explicit one.
+// TestMMMBayes_OrderIsTheTimeAlias: order {field: week} gives the
+// removed alias's pinned digest under the derived seed (orderAsSeedTime)
+// and under an explicit one.
 func TestMMMBayes_OrderIsTheTimeAlias(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +52,6 @@ func TestMMMBayes_OrderIsTheTimeAlias(t *testing.T) {
 		want   string
 	}{
 		{"order_only_derived_seed", `{"channels":["tv"],` + tail, 0, "c5253d29b46fd7911b0cb3de70c061ab0f69138ea7449736e77c2f74b21fcab3"},
-		{"order_and_alias_derived_seed", `{"channels":["tv"],"time":"week",` + tail, 0, "c5253d29b46fd7911b0cb3de70c061ab0f69138ea7449736e77c2f74b21fcab3"},
 		{"order_only_explicit_seed", `{"channels":["tv"],` + tail, 99, "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,10 +66,10 @@ func TestMMMBayes_OrderIsTheTimeAlias(t *testing.T) {
 	}
 }
 
-// TestMMMBayes_OrderSpecRefusals: the alias conflict and the panel rule
-// are PROCESSING_CONFIG {slot: order, reason}, raised by the factory and
-// by BayesSpecRefusal (predict's call) alike; an absent time in both
-// spellings keeps the params.time refusal.
+// TestMMMBayes_OrderSpecRefusals: the removed params.time key (slot
+// params.time, naming order.field), the panel rule (slot order) and an
+// absent order (slot order) are PROCESSING_CONFIG, raised by the factory
+// and by BayesSpecRefusal (predict's call) alike.
 func TestMMMBayes_OrderSpecRefusals(t *testing.T) {
 	t.Parallel()
 
@@ -80,11 +80,12 @@ func TestMMMBayes_OrderSpecRefusals(t *testing.T) {
 		slot   string
 		reason string
 	}{
-		{"alias_conflict", `{"channels":["tv"],"time":"day"}`, &types.RegressionOrder{Field: "week"}, "order", reasonTimeAliasConflict},
+		{"params_time_removed", `{"channels":["tv"],"time":"week"}`, nil, "params.time", reasonParamsTimeRemoved},
+		{"params_time_removed_beside_order", `{"channels":["tv"],"time":"week"}`, &types.RegressionOrder{Field: "week"}, "params.time", reasonParamsTimeRemoved},
 		{"partition_without_geo", `{"channels":["tv"]}`, &types.RegressionOrder{Field: "week", Partition: "market"}, "order", reasonOrderPartitionGeo},
 		{"geo_without_partition", `{"channels":["tv"],"geo":"market"}`, &types.RegressionOrder{Field: "week"}, "order", reasonOrderPartitionGeo},
 		{"geo_other_partition", `{"channels":["tv"],"geo":"market"}`, &types.RegressionOrder{Field: "week", Partition: "region"}, "order", reasonOrderPartitionGeo},
-		{"no_time_at_all", `{"channels":["tv"]}`, nil, "params.time", ""},
+		{"no_time_at_all", `{"channels":["tv"]}`, nil, "order", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -103,6 +104,9 @@ func TestMMMBayes_OrderSpecRefusals(t *testing.T) {
 			}
 			if tc.reason != "" && ce.Details["reason"] != tc.reason {
 				t.Errorf("reason %v, want %s", ce.Details["reason"], tc.reason)
+			}
+			if tc.reason == reasonParamsTimeRemoved && (ce.Details["replacement"] != "order.field" || !strings.Contains(ce.Message, "order.field")) {
+				t.Errorf("the removed-key refusal must name order.field: %s %v", ce.Message, ce.Details)
 			}
 		})
 	}

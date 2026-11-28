@@ -480,15 +480,6 @@ type Options struct {
 	// error and nothing is written.
 	Strict bool
 
-	// ProjectBufferedFields enables buffered-decode field projection.
-	//
-	// Deprecated: projection is on by default; retained for compat.
-	// Setting true keeps projection on even when DisableProjection is
-	// also true (the two are ORed: projection runs when this is true or
-	// DisableProjection is false). Leave it false and set
-	// DisableProjection to opt out.
-	ProjectBufferedFields bool
-
 	// LabelTablesDir points at a directory of JSON files that the
 	// engine auto-registers as LabelTables at pulse.New time. Empty
 	// disables the loader (the only source of LabelTables is then
@@ -851,7 +842,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableComponents(opts.DisableComponents)
 	// The engine's worker-pool recovers honour the knob per instance.
 	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
-	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
+	svc.SetProjectBufferedFields(!opts.DisableProjection)
 	runtimeExt := buildRuntimeExtensions(visibleExt)
 	svc.SetExtensions(runtimeExt)
 	// Built eagerly: a malformed template must fail startup with its path

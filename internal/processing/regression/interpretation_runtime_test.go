@@ -76,7 +76,7 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	},
 	types.REG_MMM_BAYES: {
 		{Type: types.REG_MMM_BAYES, Target: "m", Predictors: []string{"c", "x2"}, RNGSeed: 1,
-			Params: json.RawMessage(`{"channels":["c"],"time":"t","chains":2,"warmup":100,"draws":50}`)},
+			Order: &types.RegressionOrder{Field: "t"}, Params: json.RawMessage(`{"channels":["c"],"chains":2,"warmup":100,"draws":50}`)},
 	},
 	// The ordinal model over o, y cut into three levels.
 	types.REG_ORDINAL: {

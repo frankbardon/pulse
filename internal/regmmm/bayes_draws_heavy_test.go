@@ -22,7 +22,7 @@ import (
 func TestMMMBayes_DrawsAbsentDigest(t *testing.T) {
 	t.Parallel()
 
-	const one = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30,"return_draws":false}`
+	const one = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30,"return_draws":false}`
 	if got, want := fitDigest(t, one, 99), "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"; got != want {
 		t.Errorf("one market: digest %s, want %s", got, want)
 	}
@@ -46,7 +46,7 @@ func TestMMMBayes_DrawsReproduceSummaries(t *testing.T) {
 		rows   extend.Rows
 		digest string
 	}{
-		{"one market", BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30,"return_draws":true}`), digestRows(),
+		{"one market", BayesSpec(`{"channels":["tv"],"chains":1,"warmup":40,"draws":30,"return_draws":true}`), digestRows(),
 			"e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"},
 		{"geo panel", geoSpec(geoParams + `,"chains":1,"warmup":20,"draws":10,"return_draws":true}`), geoShortRows(),
 			"7a82326b26438942325ab970a912ba1e2be6487a91b55c6a121656eb5a43acc1"},

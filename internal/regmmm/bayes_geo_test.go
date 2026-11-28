@@ -23,10 +23,10 @@ import (
 // geoSpec is a REG_MMM_BAYES geo-panel slot over the simulated panel.
 func geoSpec(params string) *types.RegressionSpec {
 	return &types.RegressionSpec{Type: BayesName, Name: "geo", Target: "sales", Predictors: []string{"tv", "search"},
-		Params: []byte(params)}
+		Order: BayesOrder(params), Params: []byte(params)}
 }
 
-const geoParams = `{"channels":["tv","search"],"time":"week","geo":"geo"`
+const geoParams = `{"channels":["tv","search"],"geo":"geo"`
 
 func geoRegression(t *testing.T, params string) *bayesRegression {
 	t.Helper()
@@ -61,18 +61,18 @@ func TestMMMBayes_GeoSpecRefusals(t *testing.T) {
 		params, slot, reason string
 		predictors           []string
 	}{
-		"empty geo":          {`{"channels":["tv","search"],"time":"week","geo":""}`, "params.geo", "", nil},
-		"geo is target":      {`{"channels":["tv","search"],"time":"week","geo":"sales"}`, "params.geo", reasonGeoConflict, nil},
-		"geo is time":        {`{"channels":["tv","search"],"time":"week","geo":"week"}`, "params.geo", reasonGeoConflict, nil},
-		"geo is a predictor": {`{"channels":["tv","search"],"time":"week","geo":"search"}`, "params.geo", reasonGeoConflict, nil},
+		"empty geo":          {`{"channels":["tv","search"],"geo":""}`, "params.geo", "", nil},
+		"geo is target":      {`{"channels":["tv","search"],"geo":"sales"}`, "params.geo", reasonGeoConflict, nil},
+		"geo is time":        {`{"channels":["tv","search"],"geo":"week"}`, "params.geo", reasonGeoConflict, nil},
+		"geo is a predictor": {`{"channels":["tv","search"],"geo":"search"}`, "params.geo", reasonGeoConflict, nil},
 		"lift without geo on a panel": {geoParams + `,"lift_tests":[{"channel":"tv","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
 			"params.lift_tests", reasonLiftGeoMissing, nil},
-		"lift geo on one market": {`{"channels":["tv","search"],"time":"week","lift_tests":[{"channel":"tv","geo":"1","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
+		"lift geo on one market": {`{"channels":["tv","search"],"lift_tests":[{"channel":"tv","geo":"1","start":5,"end":8,"spend_delta":-10,"lift":-2,"se":1}]}`,
 			"params.lift_tests", reasonLiftGeo, nil},
-		"per_geo_curves on one market": {`{"channels":["tv","search"],"time":"week","per_geo_curves":true}`,
+		"per_geo_curves on one market": {`{"channels":["tv","search"],"per_geo_curves":true}`,
 			"params.per_geo_curves", reasonPerGeoCurvesNoGeo, nil},
 		"bracket predictor":  {geoParams + `}`, "predictors", reasonBracketReserved, []string{"tv", "search", "x[2]"}},
-		"bracket one market": {`{"channels":["tv","search"],"time":"week"}`, "predictors", reasonBracketReserved, []string{"tv", "search", "x]"}},
+		"bracket one market": {`{"channels":["tv","search"]}`, "predictors", reasonBracketReserved, []string{"tv", "search", "x]"}},
 		"tau predictor":      {geoParams + `}`, "predictors", "", []string{"tv", "search", "tau:x"}},
 	} {
 		s := geoSpec(tc.params)
@@ -90,7 +90,7 @@ func TestMMMBayes_GeoSpecRefusals(t *testing.T) {
 		}
 	}
 	// tau: is a geo panel's prefix only: one market keeps the name.
-	s := geoSpec(`{"channels":["tv","search"],"time":"week"}`)
+	s := geoSpec(`{"channels":["tv","search"]}`)
 	s.Predictors = []string{"tv", "search", "tau:x"}
 	if _, err := BayesFactory(s, nil); err != nil {
 		t.Errorf("a tau: predictor on one market: %v", err)
@@ -102,7 +102,7 @@ func TestMMMBayes_GeoSpecRefusals(t *testing.T) {
 		t.Error("per_geo_curves true on a panel did not set perGeoCurves")
 	}
 	// false is the default, accepted with or without a panel.
-	if _, err := BayesFactory(geoSpec(`{"channels":["tv","search"],"time":"week","per_geo_curves":false}`), nil); err != nil {
+	if _, err := BayesFactory(geoSpec(`{"channels":["tv","search"],"per_geo_curves":false}`), nil); err != nil {
 		t.Errorf("per_geo_curves false on one market: %v", err)
 	}
 	// A panel lift test names its geo; whether the geo exists is the
@@ -473,7 +473,7 @@ func TestMMMBayes_GeoDefaultTargetAccept(t *testing.T) {
 		{geoParams + `,"per_geo_curves":true}`, 0.95},
 		{geoParams + `,"target_accept":0.8}`, 0.8},
 		{geoParams + `,"target_accept":0.99}`, 0.99},
-		{`{"channels":["tv","search"],"time":"week"}`, 0.8},
+		{`{"channels":["tv","search"]}`, 0.8},
 	} {
 		if got := geoRegression(t, c.params).cfg.targetAccept; got != c.want {
 			t.Errorf("%s: target_accept %v, want %v", c.params, got, c.want)

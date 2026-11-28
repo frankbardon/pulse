@@ -19,7 +19,7 @@ import (
 // divergences are reported with an HMC remedy.
 
 // hmcFastParams is a small HMC fit.
-const hmcFastParams = `{"channels":["tv"],"time":"week","chains":1,"warmup":30,"draws":30,"sampler":"hmc","path_length":1.5`
+const hmcFastParams = `{"channels":["tv"],"chains":1,"warmup":30,"draws":30,"sampler":"hmc","path_length":1.5`
 
 // cheapHMC is what the fast tests run in place of the sampler a fit
 // builds: a two-step HMC at a fixed step, so a fit costs milliseconds
@@ -53,7 +53,7 @@ func TestMMMBayes_HMCDispatch(t *testing.T) {
 		{hmcFastParams + `}`, mcmc.HMC{PathLength: 1.5, TargetAccept: regmmm.BayesDefaultTargetAccept}},
 		{hmcFastParams + `,"target_accept":0.9}`, mcmc.HMC{PathLength: 1.5, TargetAccept: 0.9}},
 		{hmcFastParams + `,"step_size":0.25}`, mcmc.HMC{PathLength: 1.5, StepSize: 0.25, TargetAccept: regmmm.BayesDefaultTargetAccept}},
-		{`{"channels":["tv"],"time":"week","chains":1,"warmup":20,"draws":20}`, mcmc.NUTS{TargetAccept: regmmm.BayesDefaultTargetAccept}},
+		{`{"channels":["tv"],"chains":1,"warmup":20,"draws":20}`, mcmc.NUTS{TargetAccept: regmmm.BayesDefaultTargetAccept}},
 	} {
 		got = got[:0]
 		r := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(tc.params))).Regressions[0]
@@ -128,7 +128,7 @@ func TestMMMBayes_HMCDiagnostics(t *testing.T) {
 	}
 
 	nuts := process(t, p, bayesRequest(regmmm.BayesCohort,
-		regmmm.BayesSpec(`{"channels":["tv"],"time":"week","chains":1,"warmup":20,"draws":20}`))).Regressions[0]
+		regmmm.BayesSpec(`{"channels":["tv"],"chains":1,"warmup":20,"draws":20}`))).Regressions[0]
 	if nuts.Error != nil {
 		t.Fatalf("nuts fit = %s", mustJSON(t, nuts.Error))
 	}

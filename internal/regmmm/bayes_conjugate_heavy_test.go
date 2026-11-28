@@ -213,7 +213,7 @@ func conjugateLimit(t *testing.T, ck conjugateKernel, cc conjugateCurve) {
 		tv[key] = pinned(v)
 	}
 	body := map[string]any{
-		"channels": []string{"tv"}, "time": "week",
+		"channels":        []string{"tv"},
 		"priors":          map[string]any{"tv": tv},
 		"intercept_prior": map[string]any{"family": "normal", "mu": 0, "sigma": 100},
 		"control_prior":   map[string]any{"family": "normal", "mu": 0, "sigma": 100},
@@ -228,7 +228,7 @@ func conjugateLimit(t *testing.T, ck conjugateKernel, cc conjugateCurve) {
 	}
 	params, _ := json.Marshal(body)
 	mmm := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Name: "mmm", Target: "sales",
-		Predictors: []string{"tv", "price"}, Params: params, RNGSeed: 20261102}
+		Predictors: []string{"tv", "price"}, Order: &types.RegressionOrder{Field: "week"}, Params: params, RNGSeed: 20261102}
 	conj := &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Name: "conj", Target: "sales",
 		Predictors: []string{"h", "price"}, PriorPrecision: types.PrecisionVector([]float64{0, 0, 0}),
 		PriorShape: 1e-12, PriorRate: 1e-12}

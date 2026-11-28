@@ -205,7 +205,10 @@ func TestRegressionCI_ConfLevelRefusedByPredictAndRuntime(t *testing.T) {
 			case types.REG_MMM_HILL:
 				spec.Params = json.RawMessage(`{"channels":["wt"]}`)
 			case types.REG_MMM_BAYES:
-				spec.Params = json.RawMessage(`{"channels":["wt"],"time":"gear"}`)
+				// No order: mtcars has no integer period field, and the
+				// shared conf_level rule runs before the model's own
+				// order refusal on both sides.
+				spec.Params = json.RawMessage(`{"channels":["wt"]}`)
 			}
 			req := &types.Request{
 				Cohort:      &types.Cohort{Filename: filepath.Join(dir, "mtcars.pulse")},

@@ -18,7 +18,8 @@ import (
 // TestMMMCarryover_Specs: REG_MMM_BAYES always adstocks in-model, a
 // REG_MMM_HILL only under params.adstock; carryover is on unless
 // params.carryover is false; the order is spec.Order, a REG_MMM_BAYES
-// falling back to params.time / params.geo.
+// geo panel's series falling back to params.geo (params.time is
+// removed: it is no order).
 func TestMMMCarryover_Specs(t *testing.T) {
 	t.Parallel()
 
@@ -31,9 +32,10 @@ func TestMMMCarryover_Specs(t *testing.T) {
 		inModel, on   bool
 		field, series string
 	}{
-		{"bayes_alias", bayes(`{"channels":["tv"],"time":"week","geo":"mkt"}`, nil), true, true, "week", "mkt"},
+		{"bayes_geo_partition", bayes(`{"channels":["tv"],"geo":"mkt"}`, &types.RegressionOrder{Field: "week"}), true, true, "week", "mkt"},
+		{"bayes_removed_time_is_no_order", bayes(`{"channels":["tv"],"time":"week"}`, nil), true, true, "", ""},
 		{"bayes_order", bayes(`{"channels":["tv"]}`, &types.RegressionOrder{Field: "wk", Partition: "geo"}), true, true, "wk", "geo"},
-		{"bayes_off", bayes(`{"channels":["tv"],"time":"week","carryover":false}`, nil), true, false, "week", ""},
+		{"bayes_off", bayes(`{"channels":["tv"],"carryover":false}`, &types.RegressionOrder{Field: "week"}), true, false, "week", ""},
 		{"hill_adstock", hillAdstockSpec(`, "adstock": "geometric"`), true, true, "", ""},
 		{"hill_off", hillAdstockSpec(`, "adstock": "geometric", "carryover": false`), true, false, "", ""},
 		{"hill_plain", hillSpec(), false, false, "", ""},

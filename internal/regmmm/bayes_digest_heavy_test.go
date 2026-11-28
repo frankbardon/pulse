@@ -20,7 +20,7 @@ import (
 func TestMMMBayes_LiftAbsentDigest(t *testing.T) {
 	t.Parallel()
 
-	const base = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30`
+	const base = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30`
 	const want = "e1b68270343c09c00e6ceafdfd4c76aa2af90875bb6a6c648a4a7e05607662b0"
 	for _, params := range []string{base + `,"lift_tests":[]}`, base + `,"lift_tests":null}`} {
 		if got := fitDigest(t, params, 99); got != want {
@@ -79,7 +79,7 @@ func TestMMMBayes_GeoPerCurvesAbsentDigest(t *testing.T) {
 func TestMMMBayes_LiftDigest(t *testing.T) {
 	t.Parallel()
 
-	const params = `{"channels":["tv"],"time":"week","chains":1,"warmup":40,"draws":30,"lift_tests":[{"channel":"tv","start":10,"end":20,"spend_delta":-300,"lift":-150,"se":20}]}`
+	const params = `{"channels":["tv"],"chains":1,"warmup":40,"draws":30,"lift_tests":[{"channel":"tv","start":10,"end":20,"spend_delta":-300,"lift":-150,"se":20}]}`
 	if got, want := fitDigest(t, params, 99), "ad3550f6aee9904b7d95a34c17b8e27045fbdc5ecca02785aee39c0b2dbc01ee"; got != want {
 		t.Errorf("digest %s, want %s", got, want)
 	}

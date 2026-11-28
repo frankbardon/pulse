@@ -28,7 +28,7 @@ Per-topic slice of the execution-modes reference. Index (Mode index + section ma
 
 ## Projected buffered decode
 
-Per-request field projection on the decode iterator is **default-on** and output-transparent (byte-identical result, only faster and lighter per record). Opt out with `pulse.Options{DisableProjection: true}` or `--no-project` on `pulse api process` (the only CLI leaf exposing it). `pulse.Options.ProjectBufferedFields` is deprecated: a no-op alone, but set beside `DisableProjection` it turns projection back on (`pulse.go`, `feature_set.go`).
+Per-request field projection on the decode iterator is **default-on** and output-transparent (byte-identical result, only faster and lighter per record). Opt out with `pulse.Options{DisableProjection: true}` or `--no-project` on `pulse api process` (the only CLI leaf exposing it).
 
 **`processing.NeededFields(req, schema, ext)` must name every field the request reads.** It walks every request slot — aggregations, attributes (incl. expression identifiers for `ATTR_FORMULA` / `FILTER_EXPRESSION`), filterers, groups, windows, features, tests, regressions, sort, the whole crosstab block including margin aggregations, zone fields — and the built-in `Params` that NAME a field (`addAggParamFields`, plus `stratify` / `target` on the two feature ops). **A missed slot or param is SILENT:** the field is decoded onto no `Record`, `NumericValue` answers `ok=false` on every row, and the operator publishes a confident zero with `n_null` equal to the full admitted count. Extension operators without `FieldInputs` widen the retained set to every field. When you add a slot or a field-naming param, extend `NeededFields` in the same change.
 
