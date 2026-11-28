@@ -83,7 +83,7 @@ func DedupCommand() *cli.Command {
 				return cliCodedError(cmd, jsonOut, "CLI_ERROR", err)
 			}
 			if jsonOut {
-				return writeEnvelopeWithWarnings(cmd.Writer, res, res.Warnings())
+				return writeEnvelopeWithWarnings(cmd.Writer, res, res.AllWarnings())
 			}
 			writeDedupText(cmd, res)
 			return nil
@@ -110,7 +110,7 @@ func writeDedupText(cmd *cli.Command, res *pulse.DedupResult) {
 	if len(res.ElidedConstants) > 0 {
 		writeText(w, "Elided constant fields: %s\n", strings.Join(res.ElidedConstants, ", "))
 	}
-	writeSourceWarnings(w, res.Warnings())
+	writeSourceWarnings(w, res.AllWarnings())
 	writeGroupCandidates(w, res.GroupCandidates)
 	if len(res.InvalidatedSidecars) > 0 {
 		writeText(w, "Invalidated sidecars (not rebuilt — rebuilding is yours to schedule):\n")

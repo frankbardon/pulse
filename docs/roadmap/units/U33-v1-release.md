@@ -41,7 +41,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table)
 - [x] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
 - [x] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row. **Done (pre-v1 E1-S1): replaced by `ComposeOptions.CollectErrors`; the zero value fails fast; `--no-fail-fast` sets `CollectErrors`.**
-- [ ] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
+- [x] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
 - [ ] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines
 - [ ] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders
 - [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
@@ -273,7 +273,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.
 - [x] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry. *Done in U32b (E8-S4): both registered; `TestEmittedCodeLiteralsRegistered` gates emitted literals.*
 - [x] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it). *Resolved by pre-v1 E1-S1:* `CollectErrors` is the opt-out; the zero value fails fast.
-- [ ] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`.
+- [x] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`. *Done in pre-v1 E1-S2:* `WatchOptions.AllFiles`.
 - [ ] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767).
 - [ ] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not.
 - [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.

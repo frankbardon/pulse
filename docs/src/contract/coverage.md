@@ -121,7 +121,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.DateRangeSpec` |  |  | yes |
 | `pulse.DedupOptions` |  |  | yes |
 | `pulse.DedupResult` |  |  | yes |
-| `pulse.DedupResult.Warnings` |  |  | yes |
+| `pulse.DedupResult.AllWarnings` |  |  | yes |
 | `pulse.DefaultMaxChainStages` |  |  | yes |
 | `pulse.DefaultMaxComposeSlots` |  |  | yes |
 | `pulse.DefaultMaxCrosstabCells` | yes |  | yes |

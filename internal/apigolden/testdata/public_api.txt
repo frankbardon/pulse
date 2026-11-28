@@ -277,8 +277,8 @@ pulse: type DedupResult field DedupReport.StrideAfter int "json:\"stride_after\"
 pulse: type DedupResult field DedupReport.StrideBefore int "json:\"stride_before\""
 pulse: type DedupResult field DedupReport.Target string "json:\"target\""
 pulse: type DedupResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
-pulse: type DedupResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
-pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedError
+pulse: type DedupResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type DedupResult method (*DedupResult) AllWarnings() []*pulse/errors.CodedError
 pulse: const DefaultMaxChainStages int64 = 1000
 pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
@@ -557,6 +557,7 @@ pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
 pulse: type FilterToFileResult field OutputPath string "json:\"output_path\""
 pulse: type FilterToFileResult field Reused bool "json:\"reused\""
 pulse: type FilterToFileResult field RowCount int64 "json:\"row_count\""
+pulse: type FilterToFileResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type FiltererComponentsFunc func(instance pulse/extend.FiltererBuilder) (map[string]any, error)
 pulse: type FiltererRegistration struct
 pulse: type FiltererRegistration field Accepts []pulse/encoding.FieldType
@@ -1473,6 +1474,7 @@ pulse: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroo
 pulse: type VerifyResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: func Version() string
 pulse: type WatchOptions struct
+pulse: type WatchOptions field AllFiles bool
 pulse: type WatchOptions field CoalesceWindow time.Duration
 pulse: type WatchOptions field HashPrefixBytes int
 pulse: type WatchOptions field PollInterval time.Duration
@@ -7252,4 +7254,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 13acfefaedf61cf902336fc36b5455d0c02afa0d80708002c2a35876d4071f66
+// golden-hash: 07d57e8e65b45c4c651a8d83a11db72b00137dc1f88e96e4c8b68cc8e3e9e286

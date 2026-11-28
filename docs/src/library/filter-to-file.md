@@ -37,6 +37,7 @@ type FilterToFileResult struct {
     ElapsedMs  int64
     Reused     bool   // true when a pre-existing output was returned
     InvalidatedSidecars []pulse.StaleSidecar // sidecars a replaced output invalidated
+    Warnings   []*errors.CodedError // sidecar enumeration failure (the write stands)
 }
 ```
 
@@ -284,7 +285,10 @@ predicate running embedder code. When the replaced output had a
 point-lookup index or an SPSS metadata sidecar, `InvalidatedSidecars`
 names each one (one entry per shard sidecar for an archive index) with
 the command that rebuilds it, as `Pulse.InvalidatedSidecars` reports
-them. Nothing is rebuilt.
+them. Nothing is rebuilt. If that enumeration itself fails, the write
+still stands and `Warnings` carries the failure (its own code, else
+`SERVICE_RESOURCE`, with `details.cohort` and `details.error`); treat
+every sidecar beside the output as stale.
 
 A shard-archive source is filtered one shard at a time. The surviving
 shards are spooled beside the output (`<name>.pulse.tmp-spool`) and

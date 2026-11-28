@@ -51,7 +51,8 @@ func (k ChangeKind) String() string {
 }
 
 // ChangeEvent is one observed mutation against a watched .pulse path
-// (or any file, when WatchDir is rooted at a non-.pulse directory).
+// (or any file, under a directory watch with WatchOptions.AllFiles or
+// another Suffix).
 type ChangeEvent struct {
 	Path      string
 	Kind      ChangeKind
@@ -85,9 +86,15 @@ type WatchOptions struct {
 
 	// Suffix narrows the watched fileset by suffix (case-sensitive).
 	// WatchDir and WatchDirWithOptions treat an empty Suffix as
-	// ".pulse", so a directory watch always filters by suffix; there is
-	// no value that watches every file. Ignored by Watch.
+	// ".pulse"; set AllFiles to watch every file instead. Ignored by
+	// Watch.
 	Suffix string
+
+	// AllFiles disables the suffix filter: a directory watch reports
+	// every file under the directory, whatever its name, and Suffix is
+	// ignored. The zero value keeps the Suffix filter (".pulse" when
+	// Suffix is empty). Ignored by Watch.
+	AllFiles bool
 }
 
 // defaultPollInterval is the watch loop cadence when WatchOptions
@@ -123,15 +130,18 @@ func (p *Pulse) WatchWithOptions(ctx context.Context, target string, opts WatchO
 
 // WatchDir observes every file under dir (and subdirectories when
 // recursive=true) for change events, filtered to WatchOptions.Suffix
-// (defaults to ".pulse"). Closing the context drains and closes the
-// channel.
+// (defaults to ".pulse"; WatchOptions.AllFiles watches every file).
+// Closing the context drains and closes the channel.
 func (p *Pulse) WatchDir(ctx context.Context, dir string, recursive bool) <-chan ChangeEvent {
 	return p.WatchDirWithOptions(ctx, dir, WatchOptions{Recursive: recursive})
 }
 
 // WatchDirWithOptions is the configurable variant of WatchDir.
 func (p *Pulse) WatchDirWithOptions(ctx context.Context, dir string, opts WatchOptions) <-chan ChangeEvent {
-	if opts.Suffix == "" {
+	switch {
+	case opts.AllFiles:
+		opts.Suffix = ""
+	case opts.Suffix == "":
 		opts.Suffix = ".pulse"
 	}
 	out := make(chan ChangeEvent, 8)

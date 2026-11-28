@@ -2,7 +2,15 @@ package pulse
 
 import (
 	"context"
+	stderrors "errors"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/spf13/afero"
+
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/spsssidecar"
 )
 
 // U51 E4-S3: a filter-to-file output that REPLACES a cohort reports the
@@ -88,4 +96,51 @@ func TestFilterToFile_ReplacingAnIndexedArchiveReportsSidecars(t *testing.T) {
 			t.Errorf("InvalidatedSidecars = %s\nwant %s", sidecarJSON(t, res.InvalidatedSidecars), sidecarJSON(t, want))
 		}
 	})
+}
+
+// sidecarStatFailFs fails Stat on one path with a non-NotExist error, so
+// the advisory sidecar enumeration after a write cannot complete.
+type sidecarStatFailFs struct {
+	afero.Fs
+	fail string
+}
+
+func (f sidecarStatFailFs) Stat(name string) (os.FileInfo, error) {
+	if filepath.Clean(name) == filepath.Clean(f.fail) {
+		return nil, stderrors.New("injected stat failure")
+	}
+	return f.Fs.Stat(name)
+}
+
+// TestFilterToFileWithRequest_SidecarScanFailureIsAWarning (#497): when
+// the sidecar enumeration after a replacing write fails, the write
+// stands and FilterToFileResult.Warnings carries the failure (it used to
+// be dropped silently).
+func TestFilterToFileWithRequest_SidecarScanFailureIsAWarning(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	base, _ := filterSidecarFixture(t, Extensions{})
+	p, err := New(Options{
+		FS: sidecarStatFailFs{Fs: base.fsys, fail: spsssidecar.Path("sets.pulse")},
+		Extensions: Extensions{ExprFunctions: []ExprFunction{{
+			Name: "ftf_min", Fn: func() float64 { return 2 },
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.FilterToFileWithRequest(ctx, &FilterToFileRequest{
+		SourcePath: "src.pulse", Expression: "id >= ftf_min()", OutputDir: ".", OutputName: "sets.pulse",
+	})
+	if err != nil {
+		t.Fatalf("the write must stand: %v", err)
+	}
+	if res.RowCount != 6 || len(res.InvalidatedSidecars) != 0 {
+		t.Fatalf("result = %+v, want 6 rows and no enumerated sidecars", res)
+	}
+	if len(res.Warnings) != 1 || res.Warnings[0].Code != errors.SERVICE_RESOURCE ||
+		res.Warnings[0].Details["cohort"] != res.OutputPath {
+		t.Fatalf("warnings = %+v, want one SERVICE_RESOURCE naming %s", res.Warnings, res.OutputPath)
+	}
 }

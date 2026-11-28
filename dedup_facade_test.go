@@ -150,8 +150,8 @@ func TestDedup_ReportsInvalidatedSidecars(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(res.InvalidatedSidecars) != 1 || res.InvalidatedSidecars[0].Kind != SidecarKindPointLookupIndex ||
-		res.InvalidatedSidecars[0].Rebuild == "" || len(res.Warnings()) != 0 {
-		t.Fatalf("sidecars = %+v, warnings %v", res.InvalidatedSidecars, res.Warnings())
+		res.InvalidatedSidecars[0].Rebuild == "" || len(res.AllWarnings()) != 0 {
+		t.Fatalf("sidecars = %+v, warnings %v", res.InvalidatedSidecars, res.AllWarnings())
 	}
 	v, err := p.VerifyIndex(ctx, "cohort.pulse", []string{"id"})
 	if err != nil {

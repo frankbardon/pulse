@@ -299,7 +299,11 @@ func resultWarningCodes(out any) []string {
 		}
 	case *DedupResult:
 		if v != nil {
-			addCoded(v.SidecarWarnings)
+			addCoded(v.Warnings)
+		}
+	case *FilterToFileResult:
+		if v != nil {
+			addCoded(v.Warnings)
 		}
 	case *MaterializeResult:
 		if v != nil {

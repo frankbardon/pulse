@@ -54,18 +54,19 @@ type DedupResult struct {
 	// for an --out rewrite (the source's sidecars still describe the
 	// untouched source) and when nothing was written.
 	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
-	// SidecarWarnings carries a failure to ENUMERATE those sidecars.
-	// The rewrite has already succeeded when this is set, so it is a
-	// warning, never an error: any sidecar beside the cohort must be
-	// assumed stale.
-	SidecarWarnings []*errors.CodedError `json:"sidecar_warnings,omitempty"`
+	// Warnings carries a failure to ENUMERATE those sidecars (the
+	// viability gate's findings are GroupWarnings). The rewrite has
+	// already succeeded when this is set, so it is a warning, never an
+	// error: any sidecar beside the cohort must be assumed stale.
+	Warnings []*errors.CodedError `json:"warnings,omitempty"`
 }
 
-// Warnings returns every non-fatal coded finding of the run in report
-// order: the viability gate's, then the sidecar scan's.
-func (r *DedupResult) Warnings() []*errors.CodedError {
+// AllWarnings returns every non-fatal coded finding of the run in
+// report order: the viability gate's (GroupWarnings), then the sidecar
+// scan's (Warnings).
+func (r *DedupResult) AllWarnings() []*errors.CodedError {
 	out := append([]*errors.CodedError(nil), r.GroupWarnings...)
-	return append(out, r.SidecarWarnings...)
+	return append(out, r.Warnings...)
 }
 
 // Dedup converts an existing single-file cohort to a deduplicated
@@ -119,7 +120,7 @@ func (p *Pulse) dedup(ctx context.Context, path string, opts DedupOptions) (*Ded
 		sidecars, scanErr := p.InvalidatedSidecars(ctx, path)
 		res.InvalidatedSidecars = sidecars
 		if scanErr != nil {
-			res.SidecarWarnings = append(res.SidecarWarnings, sidecarScanWarning(path, scanErr))
+			res.Warnings = append(res.Warnings, sidecarScanWarning(path, scanErr))
 		}
 	}
 	return res, nil
