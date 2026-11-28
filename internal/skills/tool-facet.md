@@ -18,7 +18,7 @@ Diagnostic / discovery — before authoring a value filter, to know which catego
 
 ## Output
 
-`{values: [...]}` (no envelope), every value a STRING. A categorical field returns its whole dictionary in dictionary order (no truncation, nulls never listed). Any other field streams every record and returns each distinct numeric value in first-seen order, formatted as a plain number: a `date` is its epoch-day count (`"20210"`), a `datetime` its epoch seconds, a `decimal128` drops trailing zeros (`"87.5"`), a `u64` past 2^53 rounds.
+`{values: [...]}` (no envelope), every value a STRING. A categorical field returns its whole dictionary in dictionary order (no truncation, nulls never listed). Any other field streams every record and returns each distinct value in first-seen order, spelled as a sampled row spells it: a `date` `"2025-04-30"`, a `datetime` RFC 3339 UTC (`"2025-04-30T12:00:00Z"`), a `decimal128` at its column scale (`"87.50"`), a `u64` its exact integer (past 2^53 too), a `packed_bool` `"1"` / `"0"`, any other number a plain number (`"2.5"`). A `set_*` field returns its dictionary (its members, dictionary order); a `vec_*` field is refused `SERVICE_VALIDATION` (`facet does not support field type vec_f32`).
 
 ## Gotchas
 
@@ -30,4 +30,4 @@ Diagnostic / discovery — before authoring a value filter, to know which catego
 
 - `facet-design` — facet endpoint contract.
 - `tool-facet-schema` — rich multi-field variant.
-- `tool-sample` — rows with typed values (`YYYY-MM-DD` dates).
+- `tool-sample` — whole rows, the same typed spellings.

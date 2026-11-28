@@ -4,6 +4,8 @@
 `SERVICE_*` / `ENCODING_*` / `PROCESSING_*` / `DATA_*` / `CLI_*` error
 code, or renaming / removing one.
 
+> **Run the site checklist first.** `make sites ARGS="error-code <CODE>"` prints, for an existing code or a new one, every table that registers codes (`codeMetadata`, `errorOwners`, `allCodes`, …), the code-family tables of its `DOMAIN_CATEGORY` head, its emitters and the gates below. See [Finding Change Sites](finding-change-sites.md).
+
 The Pulse error system runs under six domains. Every code carries a
 typed `CodedError`, a human-readable `Message`, and at least one
 `Fixup` template explaining how to recover. `pulse errors list` prints
@@ -33,6 +35,16 @@ Every code MUST have either:
 - `FixupNotApplicable: true` when there is truly no remediation the
   caller can apply (rare — most error codes are recoverable in
   principle).
+
+A message that names a filesystem path quotes it with
+`pathq.Quote(path)` (`internal/pathq`) and formats it with `%s`, never
+`%q` or `strconv.Quote`: those escape every backslash, so a Windows path
+would read `"C:\\Users\\…"`. `pathq.Quote` writes `"C:\Users\…"` and
+leaves a Unix path byte-identical to `%q`. `details.path` (or whichever
+details key names the path) carries the raw path. `TestNoQuotedPathVerbs`
+refuses a `%q` of an operand named like a path (`dir`, `opts.SourcePath`)
+or after a path noun (`"source file %q"`); its allowlist names the
+look-alikes that are not filesystem paths (a JSON path, a Go import path).
 
 `TestCodesHaveFixups` enforces that every code has either fixups or
 the explicit `FixupNotApplicable: true` flag. The fixup templates are

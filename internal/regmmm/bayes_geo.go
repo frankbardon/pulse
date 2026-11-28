@@ -27,7 +27,7 @@ import (
 //
 // params.geo names the market field — a categorical (its labels) or an
 // unsigned integer code (its decimal values). The rows are then one
-// series per geo: each geo's params.time contiguous with step 1 (ragged
+// series per geo: each geo's order.field contiguous with step 1 (ragged
 // starts and ends allowed; a repeat within a geo is duplicate_time, an
 // interior jump geo_time_gap), and a geo whose value is null is
 // geo_missing. The geos are ordered by label (byte order) or by code
@@ -214,11 +214,11 @@ func (r *bayesRegression) readSeries(rows extend.Rows, geo string) (*bayesData, 
 	for i := 1; i < len(d.time); i++ {
 		switch step := d.time[i] - d.time[i-1]; {
 		case step == 0:
-			return nil, r.configError(fmt.Sprintf("params.time %q repeats %d in geo %s: a geo panel has one row per geo and period", cfg.time, d.time[i], geo),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "duplicate_time", "time": d.time[i], "geo": geo})
+			return nil, r.configError(fmt.Sprintf("order.field %q repeats %d in geo %s: a geo panel has one row per geo and period", cfg.time, d.time[i], geo),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": "duplicate_time", "time": d.time[i], "geo": geo})
 		case step != 1:
-			return nil, r.configError(fmt.Sprintf("params.time %q jumps from %d to %d in geo %s: each geo's periods must be contiguous between its first and last (a ragged start or end is fine; a hole inside is not, the adstock would carry across it)", cfg.time, d.time[i-1], d.time[i], geo),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": reasonGeoTimeGap, "from": d.time[i-1], "to": d.time[i], "geo": geo})
+			return nil, r.configError(fmt.Sprintf("order.field %q jumps from %d to %d in geo %s: each geo's periods must be contiguous between its first and last (a ragged start or end is fine; a hole inside is not, the adstock would carry across it)", cfg.time, d.time[i-1], d.time[i], geo),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": reasonGeoTimeGap, "from": d.time[i-1], "to": d.time[i], "geo": geo})
 		}
 	}
 	return d, nil
@@ -294,7 +294,7 @@ func (r *bayesRegression) fitGeo(ctx context.Context, rows extend.Rows) (extend.
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	return r.output(post), nil
+	return r.output(ctx, post), nil
 }
 
 // addGeoLiftTests resolves params.lift_tests onto the panel: each test's

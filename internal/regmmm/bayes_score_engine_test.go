@@ -36,7 +36,7 @@ import (
 // population with a PULSE_MMM_GEO_UNSEEN warning.
 
 // scoreParams is a tiny one-market fit that returns its draws, thinned.
-const scoreParams = `{"channels":["tv"],"time":"week","chains":2,"warmup":30,"draws":12,"return_draws":true,"draws_thin":3}`
+const scoreParams = `{"channels":["tv"],"chains":2,"warmup":30,"draws":12,"return_draws":true,"draws_thin":3}`
 
 // fileDraws is a model file's outputs.draws, read back.
 type fileDraws struct {
@@ -421,7 +421,7 @@ func TestMMMBayes_GeoScoreUnseenGeo(t *testing.T) {
 	p := instance(t, fsys, nil)
 	writeBayesCohort(t, p, "panel.pulse", encoding.FieldTypeU16, panelRows())
 	const path = "geo.pulse-model.json"
-	s := regmmm.BayesSpec(`{"channels":["tv"],"time":"week","geo":"geo","chains":1,"warmup":20,"draws":8,"return_draws":true}`)
+	s := regmmm.BayesSpec(`{"channels":["tv"],"geo":"geo","chains":1,"warmup":20,"draws":8,"return_draws":true}`)
 	s.Save = path
 	if r := process(t, p, bayesRequest("panel.pulse", s)).Regressions[0]; r.Error != nil {
 		t.Fatalf("panel fit = %s", mustJSON(t, r))

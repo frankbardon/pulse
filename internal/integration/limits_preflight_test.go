@@ -161,8 +161,8 @@ func composeOf(cohort string, n int) *types.ComposedRequest {
 }
 
 // TestLimits_ComposeSlots: N+1 slots under MaxComposeSlots=N are
-// refused whole on the serial and the parallel path (FailFast off and
-// on); N slots run.
+// refused whole on the serial and the parallel path (CollectErrors on and
+// off); N slots run.
 func TestLimits_ComposeSlots(t *testing.T) {
 	t.Parallel()
 
@@ -182,10 +182,10 @@ func TestLimits_ComposeSlots(t *testing.T) {
 	if d["observed"] != int64(3) {
 		t.Fatalf("serial observed = %v, want 3", d["observed"])
 	}
-	for _, failFast := range []bool{false, true} {
-		resp, err := p.ComposeParallel(ctx, composeOf(cohort, 3), pulse.ComposeOptions{FailFast: failFast})
+	for _, collect := range []bool{true, false} {
+		resp, err := p.ComposeParallel(ctx, composeOf(cohort, 3), pulse.ComposeOptions{CollectErrors: collect})
 		if resp != nil {
-			t.Fatalf("parallel (FailFast=%v) returned a response; the whole call is refused", failFast)
+			t.Fatalf("parallel (CollectErrors=%v) returned a response; the whole call is refused", collect)
 		}
 		d := requireLimitExceeded(t, err, "max_compose_slots", 2, "Options.Limits.MaxComposeSlots")
 		if d["observed"] != int64(3) {

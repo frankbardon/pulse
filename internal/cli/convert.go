@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse"
 	perrors "github.com/frankbardon/pulse/errors"
 	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/pathq"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
@@ -66,14 +67,14 @@ func ConvertCommand() *cli.Command {
 				toFmt = pio.FormatFromPath(output).String()
 			}
 			if fromFmt == "" {
-				msg := fmt.Sprintf("cannot detect source format from %q; use --from", input)
+				msg := fmt.Sprintf("cannot detect source format from %s; use --from", pathq.Quote(input))
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", msg)
 				}
 				return fmt.Errorf("%s", msg)
 			}
 			if toFmt == "" {
-				msg := fmt.Sprintf("cannot detect target format from %q; use --to", output)
+				msg := fmt.Sprintf("cannot detect target format from %s; use --to", pathq.Quote(output))
 				if jsonOut {
 					return writeErrorEnvelope(cmd.Writer, "CLI_ERROR", msg)
 				}
@@ -233,10 +234,10 @@ func convertPredictCmd() *cli.Command {
 				toFmt = pio.FormatFromPath(output).String()
 			}
 			if fromFmt == "" {
-				return fmt.Errorf("cannot detect source format from %q; use --from", input)
+				return fmt.Errorf("cannot detect source format from %s; use --from", pathq.Quote(input))
 			}
 			if toFmt == "" {
-				return fmt.Errorf("cannot detect target format from %q; use --to", output)
+				return fmt.Errorf("cannot detect target format from %s; use --to", pathq.Quote(output))
 			}
 
 			fs := afero.NewOsFs()

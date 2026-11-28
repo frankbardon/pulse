@@ -761,6 +761,11 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// dictionary — the runtime constructor's rule (valuematch).
 	validateFilterValues(env, req.Filterers, schema, opts.instance())
 
+	// The operator config faults the runtime constructors refuse
+	// (internal/opconfig): params and values lists judged without a
+	// record.
+	validateOperatorConfig(env, req, schema, opts.instance())
+
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 
@@ -2010,6 +2015,16 @@ func validateRegisteredOperators(env *descriptor.Envelope, req *types.Request, o
 		}
 		if !registered(string(a.Type), builtinAttributes[a.Type], snapAttrs) {
 			report("unknown attribute type: ", "attributes", i, string(a.Type))
+			continue
+		}
+		// A fitted attribute's params.fit_on filterers are built by the
+		// one filter build (the runtime's fitOnBinder), where a type the
+		// instance hides is unknown exactly as in Request.Filterers
+		// (#745).
+		for j, f := range vectors.AttributeFitOn(opRoute(opts.instance(), a.Type), a) {
+			if f != nil && !registered(string(f.Type), builtinFilterers[f.Type], snapFilters) {
+				report("unknown filter type: ", "attributes["+strconv.Itoa(i)+"].params.fit_on", j, string(f.Type))
+			}
 		}
 	}
 	if ct := req.Crosstab; ct != nil {

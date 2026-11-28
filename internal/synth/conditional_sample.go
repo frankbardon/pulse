@@ -1,7 +1,6 @@
 package synth
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"sort"
 
@@ -257,9 +256,9 @@ func (c *categoricalNumericPairSampler) transform(rng *rand.Rand, row map[string
 // Both arms consume exactly one RNG value, but NOT the same one — a
 // Float64 is one uint64 pull where a NormFloat64 may take several. That
 // is fine and is the ordinary rule for this package: the per-row draw
-// sequence must be a function of the SPEC, which the bernoulli flag is
-// part of, not a function of the data. Two specs differing in the flag
-// produce different streams by design.
+// sequence must be a function of the SPEC (the target field's
+// distribution decides the arm), not a function of the data. Two specs
+// differing in that distribution produce different streams by design.
 func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool) float64 {
 	if bernoulli {
 		if rng.Float64() < mom.mean {
@@ -284,9 +283,9 @@ func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool)
 // conditional draw with no extra key to remember.
 //
 // The boolean arm beside it was ASYMMETRIC when this was written —
-// CategoricalNumericPairSpec.Bernoulli / SetNumericPairSpec.Bernoulli
-// were wire flags — and it no longer is: buildBernoulliConditionals
-// derives the same fact the same way. Keep them symmetric. A reader who
+// the categorical-numeric and set-numeric pair specs carried a
+// `bernoulli` wire flag, since removed — and it no longer is:
+// buildBernoulliConditionals derives the same fact the same way. Keep them symmetric. A reader who
 // finds one derived and one carried should suspect the carried one.
 type discreteConditional struct {
 	mean   float64
@@ -301,9 +300,8 @@ type discreteConditional struct {
 //
 // It is DERIVED from the compiled field specs, exactly as
 // buildDiscreteConditionals is, and that is the whole point rather than
-// a tidy-up. The fact used to ride the wire, on
-// CategoricalNumericPairSpec.Bernoulli / SetNumericPairSpec.Bernoulli,
-// and a wire flag can DISAGREE with the field's own reconstruction — a
+// a tidy-up. The fact used to ride the wire, on a pair spec's
+// `bernoulli` flag (since removed), and a wire flag can DISAGREE with the field's own reconstruction — a
 // marginal disagreeing with the draw that overwrites it is the failure
 // class the boolean and small-integer work exists to remove, and the
 // disagreement is invisible: every cell still renders a plausible
@@ -332,41 +330,6 @@ func buildBernoulliConditionals(wfs []*writerField) map[string]bool {
 			out = make(map[string]bool, 4)
 		}
 		out[wf.spec.Name] = true
-	}
-	return out
-}
-
-// bernoulliFlagWarnings reports every pair still carrying the retired
-// `bernoulli` wire flag over a target whose own marginal is NOT a
-// bernoulli step.
-//
-// The flag is no longer read (see buildBernoulliConditionals), and a
-// declaration that silently does nothing is the same class of fault as
-// the omission that motivated retiring it — so the one shape where
-// ignoring it CHANGES the draw is said out loud. The other shape (flag
-// set, target bernoulli) is silent on purpose: the flag and the
-// derivation agree, so there is nothing to report and every
-// profile-derived spec written before the retirement stays quiet.
-//
-// Walks the two slices in order and never a map, so the lines are
-// deterministic.
-func bernoulliFlagWarnings(catNum []CategoricalNumericPairSpec, setNum []SetNumericPairSpec, bern map[string]bool) []string {
-	var out []string
-	line := func(kind, axis, target string) string {
-		return fmt.Sprintf("conditional pair %s (%s -> %s) declares the retired `bernoulli` flag, "+
-			"but %q does not reconstruct as a bernoulli marginal; the flag is ignored and the cell draw "+
-			"follows the field's own marginal. Declare the field `bernoulli` if that is what it is",
-			kind, axis, target, target)
-	}
-	for _, p := range catNum {
-		if p.Bernoulli && !bern[p.B] {
-			out = append(out, line("categorical-numeric", p.A, p.B))
-		}
-	}
-	for _, p := range setNum {
-		if p.Bernoulli && !bern[p.Numeric] {
-			out = append(out, line("set-numeric", p.Set+"."+p.Option, p.Numeric))
-		}
 	}
 	return out
 }

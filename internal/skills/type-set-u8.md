@@ -12,7 +12,7 @@ Fixed-width: 1 byte per record, read as one bitmask (not bit-packed). Bit `i` se
 
 ## Range
 
-Up to `8` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference reads a source column as a set when at least 30% of its sampled non-null cells hold a `|` (else `;`) delimiter and average more than one token, and picks the smallest rung that holds the sampled tokens. Import never promotes a set rung: a cell past it drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`). Declare a wider rung in the schema, or raise `--sample-rows`.
+Up to `8` dictionary entries (`MaxSetEntries()`). **The empty mask is a value — "nothing selected" — never null.** Inference reads a source column as a set when at least 30% of its sampled non-null cells hold a `|` (else `;`) delimiter and average more than one token, and picks the smallest rung that holds the sampled tokens. An INFERRED rung a later cell outgrows is promoted up the set ladder (to `set_u256` at most) and the row imports (`PULSE_IMPORT_WIDTH_PROMOTED`); a DECLARED rung (`--schema`, an override, a source schema) is a ceiling — a cell past it drops its row (`PULSE_IMPORT_ROW_ERROR`, reason `PULSE_IMPORT_SET_OVERFLOW`).
 
 ## Null
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/spf13/afero"
 )
 
 // TestParseLookupTableFile_Axes: a wrapped file's `keys` (inline values
@@ -203,7 +204,7 @@ func TestNew_LookupAxisReferencesDirectoryRangeTable(t *testing.T) {
 		[]byte(`[{"label": "low", "start": 0, "end": 600}, {"label": "high", "start": 600, "end": 900}]`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	writeLookupFile(t, lookupDir, "grid.json", `{
+	writeLookupFile(t, afero.NewOsFs(), lookupDir, "grid.json", `{
 	  "keys": [{"name": "region", "values": ["e", "w"]}, {"name": "score", "range_table": "bands"}],
 	  "complete": true,
 	  "rows": {"e|low": 1, "e|high": 2, "w|low": 3, "w|high": 4}
@@ -223,7 +224,7 @@ func TestNew_LookupAxisReferencesDirectoryRangeTable(t *testing.T) {
 		t.Fatalf("manifest meta = %+v", got)
 	}
 
-	writeLookupFile(t, lookupDir, "grid.json", `{
+	writeLookupFile(t, afero.NewOsFs(), lookupDir, "grid.json", `{
 	  "keys": [{"name": "region", "values": ["e", "w"]}, {"name": "score", "range_table": "bands"}],
 	  "rows": {"e|medium": 1}
 	}`)

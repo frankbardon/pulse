@@ -43,7 +43,7 @@ The primary stays RAW p-values; direction and significance ride `letters` only w
 The proportion kinds (pooled z, probit t) read a share and an n per leg.
 
 - **`p_source` mismatch empties the layer.** A leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips EVERY pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. A count cell needs `normalize` first (`row` for row scope).
-- The distinct-KEY n modes are admitted only on a distinct-key cell aggregator and carry the slab partition refusal (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): `pairwise-n-sources`.
+- The distinct-KEY n modes are admitted only on a distinct-key cell aggregator (an extension one by EXACT key set: `{cardinality}` or `{sum, distinct_count}`; an extra key refuses) and carry the slab partition refusal (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): `pairwise-n-sources`.
 - A code cell<!-- feature: AGG_MODE --> (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value)<!-- /feature --> → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 - Buffered as a layer, but the HOST crosstab still FUSES on a mergeable cell aggregator (a weighted mean included, even over a per-element set axis).
 
@@ -53,7 +53,7 @@ The two-means z and Welch t read the `{mean, variance, n}` triple per cell<!-- f
 
 - A cell type whose declared `ComponentSchema` (built-in or extension) lacks `mean` + `variance` (a sum or mode cell, …) → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`, predict and runtime alike.
 - The test reads the SAMPLE variance m2 / (n − 1): an unweighted population-variance cell<!-- feature: AGG_VARIANCE --> (`AGG_VARIANCE`<!-- /feature --><!-- feature: AGG_STDDEV -->, `AGG_STDDEV`<!-- /feature -->: m2 / n by default) is converted — from m2, so any `ddof` reads the same leg — so it scores as the Welford cell to the accumulators' last-bit rounding; an extension cell is read as is and must expose the sample variance.
-- `n_source` / `p_source` would be silent no-ops (n comes from the triple): predict refuses both for EVERY mode (`PULSE_OVERLAY_PARAM_MISSING`); runtime leaves them inert. `n_within_depth` stays accepted and inert.
+- `n_source` / `p_source` would be silent no-ops (n comes from the triple): predict refuses both for EVERY mode (`PULSE_OVERLAY_PARAM_MISSING`); runtime leaves them inert. A non-zero `n_within_depth` is refused (every kind; `pairwise-n-sources`).
 - Either leg with `n <= 1`, or an undefined (`null`) variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
 - The HOST is buffered too: the Welford cell is non-mergeable, so the fused-crosstab check rejects on the cell-aggregator arm.
 

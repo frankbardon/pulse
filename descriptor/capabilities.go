@@ -57,8 +57,8 @@ type ProcessChainCapability struct {
 	//   - Scopes      — the OverlayScope values the kind supports;
 	//                   whole-chain kinds decorate the entire chain
 	//                   result so Scopes == [total].
-	//   - RefKinds    — the OverlayRef union pointer-field names the kind
-	//                   consumes; the chain family consumes Stage.
+	//   - RefKinds    — the OverlayRef union arms (wire keys) the kind
+	//                   consumes; the chain family consumes stage.
 	//   - Buffered    — !types.OverlayStreamable(kind); whole-chain kinds
 	//                   stay buffered (the streamability flag is
 	//                   the inverse of the table in
@@ -486,11 +486,11 @@ type OverlayCapability struct {
 	// alphabetically for golden stability.
 	Scopes []types.OverlayScope `json:"scopes"`
 
-	// RefKinds lists the OverlayRef union pointer-field names this
-	// kind consumes (e.g. "Margin"). Sorted alphabetically for golden
-	// stability. These are Go field-name strings — the on-wire
-	// discriminator (MarginAxis, sibling field, etc.) lives one level
-	// deeper inside the chosen pointer.
+	// RefKinds lists the OverlayRef union arms this kind consumes, as
+	// their wire keys under a request's `ref` (e.g. "margin",
+	// "baseline_index"). Sorted alphabetically for golden stability.
+	// The arm's own discriminator (MarginAxis, sibling field, etc.)
+	// lives one level deeper inside the chosen arm.
 	RefKinds []string `json:"ref_kinds"`
 
 	// Buffered reports whether the orchestrator must materialise

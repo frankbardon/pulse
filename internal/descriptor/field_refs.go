@@ -388,7 +388,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if fil == nil {
 			continue
 		}
-		w.checkInputs("filterer", string(fil.Type), nil, "filter")
+		w.checkInputs("filterer", string(fil.Type), fil.Params, "filter")
 		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
 			before := len(w.out)
 			w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
@@ -646,7 +646,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
 		// A model regression's declared reads beyond its target and
-		// predictors (REG_MMM_BAYES's params.time), which the runtime
+		// predictors (REG_MMM_BAYES's params.geo), which the runtime
 		// projection decodes from the same source.
 		for _, f := range model.ModelRegressionFieldInputs(reg) {
 			w.checkRegression(req, reg, f, func() *errors.CodedError {
@@ -792,7 +792,10 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		// VectorInput) reads its members (step 11, source columns only),
 		// never a field. AGG_CONSTANT reads no column at all: a field it
 		// names is its own refusal (field_not_accepted), not this one.
-		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) && opRoute(inst, agg.Type) != types.AGG_CONSTANT {
+		// AGG_RATIO ignores its field (it sums its params columns), so
+		// the field is optional and never judged (#779).
+		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) && !fieldaccept.IgnoresField(string(opRoute(inst, agg.Type))) &&
+			opRoute(inst, agg.Type) != types.AGG_CONSTANT {
 			w.check(agg.Field, func() *errors.CodedError {
 				return refusal("aggregation references unknown field: "+agg.Field,
 					map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
@@ -816,9 +819,24 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			}
 			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
 		}
+		// A cell or margin aggregation reads its field like any
+		// aggregation, so one naming none is refused as the aggregations
+		// list refuses it — it once counted nothing and answered 0 in
+		// every cell (#793). A vector aggregator reads its members and
+		// AGG_CONSTANT no column, as there. An untyped entry naming no
+		// field is the crosstab validator's (PULSE_CROSSTAB_CELLS_INVALID:
+		// smart defaults could not type it).
 		agg := func(a *types.Aggregation, role string) {
-			if opRoute(inst, a.Type) != types.AGG_CONSTANT {
-				axis(a.Field, role)
+			if !aggregationKinds(inst, w.snap).IsVector(a.Type) && !fieldaccept.IgnoresField(string(opRoute(inst, a.Type))) &&
+				opRoute(inst, a.Type) != types.AGG_CONSTANT {
+				if a.Field == "" && a.Type != "" {
+					w.check("", func() *errors.CodedError {
+						return refusal("crosstab "+role+" "+string(a.Type)+" names no field",
+							map[string]any{"field": "", "role": role, "aggregation": string(a.Type)})
+					})
+				} else if a.Field != "" {
+					axis(a.Field, role)
+				}
 			}
 			w.checkAgg(a, "crosstab "+role+" "+string(a.Type), "role", role)
 		}
@@ -1232,7 +1250,7 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 // attribute by the Request filterer rule (step 2) against the columns
 // visible to the attribute.
 func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, models model.Catalog) {
-	w.checkInputs("filterer", string(fil.Type), nil, "filter")
+	w.checkInputs("filterer", string(fil.Type), fil.Params, "filter")
 	if opRoute(w.inst, fil.Type) == types.FILTER_EXPRESSION {
 		before := len(w.out)
 		w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))

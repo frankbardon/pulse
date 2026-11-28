@@ -130,7 +130,7 @@ func TestComposeSweep_HoldoutRankReachesWindow(t *testing.T) {
 		t.Fatalf("Compose: %v", err)
 	}
 	want := assertHoldoutRanking(t, serial)
-	parallel, err := p.ComposeParallel(ctx, holdoutRankSweep(t, ""), ComposeOptions{MaxWorkers: 4, FailFast: true})
+	parallel, err := p.ComposeParallel(ctx, holdoutRankSweep(t, ""), ComposeOptions{MaxWorkers: 4})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}

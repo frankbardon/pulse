@@ -21,12 +21,13 @@ import (
 //   - Kind        — the OverlayKind constant (SCREAMING_SNAKE on wire).
 //   - Shapes      — supported OverlayShape values (scalar/series/matrix).
 //   - Scopes      — supported OverlayScope values (cell/row/column/...).
-//   - RefKinds    — OverlayRef family pointers the kind consumes
-//                   (e.g. "Margin", "Sibling", "BaselineIndex"); these
-//                   are the Go field-name strings on OverlayRef, not
-//                   on-wire MarginAxis values. The on-wire union
-//                   discriminator lives one level deeper inside the
-//                   chosen pointer.
+//   - RefKinds    — OverlayRef family arms the kind consumes, as the
+//                   arm's wire key on OverlayRef (e.g. "margin",
+//                   "sibling", "baseline_index") — the key a request
+//                   writes under `ref`. TestManifestRefKindsAreWireKeys
+//                   holds every value to an OverlayRef JSON tag. The
+//                   arm's own discriminator (MarginAxis, …) lives one
+//                   level deeper inside the chosen arm.
 //   - Buffered    — whether the orchestrator must materialise records
 //                   before evaluating the kind. Derived from
 //                   types.OverlayStreamable(kind) — buffered is the
@@ -60,7 +61,7 @@ import (
 //   - Shapes:   [matrix]   (CELL-scoped overlay layered onto a crosstab)
 //   - Scopes:   [cell]     (CELL-only today; ROW/COLUMN/TOTAL land
 //     alongside the matching payload shapes)
-//   - RefKinds: [Margin]   (denominator is an axis-margin slot)
+//   - RefKinds: [margin]   (denominator is an axis-margin slot)
 //   - Buffered: true       (margins recompute from raw rows; the host
 //     crosstab path is always buffered)
 //
@@ -188,7 +189,7 @@ func priorTestCapability(kind types.OverlayKind, test, legs string) descriptor.O
 		Inferential: true,
 		Shapes:      []types.OverlayShape{types.OverlayShapeSeries},
 		Scopes:      []types.OverlayScope{types.OverlayScopeGroup},
-		RefKinds:    []string{"Prior"},
+		RefKinds:    []string{"prior"},
 		Description: "Tests each period against the present period before it: " + test + ". Hosts: a grouped process request (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) " +
 			"or a crosstab with no column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. " +
 			"Legs: " + legs + ". ref.prior (lag 0) or an empty ref; level / within 0. One series entry per period: statistic (current minus prior) and p_value, " +
@@ -301,7 +302,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// manifest clients see the kind requires Ref.Population to be
 			// populated; descriptor.validateOverlayChiSqVsPop gates the
 			// shape at predict time.
-			RefKinds: []string{"Population"},
+			RefKinds: []string{"population"},
 			Description: "χ² goodness-of-fit of a pulse_facet_schema field's subset distribution against a population's " +
 				"(ref.population, required; its cohort in ref.population.cohort). The layer summary carries " +
 				"statistic, parameters.df and p_value. The compared categories C are the subset's listed values the " +
@@ -337,7 +338,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"count outside C warns PULSE_OVERLAY_REF_ZERO once per cell. payload.scalar is the p-value; the layer " +
 				"summary carries statistic, parameters.df and p_value. target_N 0, ref_N 0 or every expected 0 leaves " +
 				"both null with one PULSE_OVERLAY_REF_ZERO; any expected count below 5 warns " +
-				"PULSE_OVERLAY_EXPECTED_LOW once. " + composeFanOutNote,
+				"PULSE_OVERLAY_EXPECTED_LOW once. params.reference_kind sample treats the reference as a second " +
+				"sample: the 2 x |C| homogeneity test, R's chisq.test(rbind(target[C], ref[C])), over C, the cells " +
+				"with target + ref > 0, df = |C| − 1; a probability-weighted slot is scaled to its own Kish n_eff. " +
+				composeFanOutNote,
 		}
 	case types.OverlayKindDeltaVsBaseline:
 		return descriptor.OverlayCapability{
@@ -354,7 +358,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// the kind requires Ref.BaselineIndex.Position to be populated;
 			// descriptor.validateOverlayDeltaVsBaseline gates the shape at
 			// predict time.
-			RefKinds: []string{"BaselineIndex"},
+			RefKinds: []string{"baseline_index"},
 			Description: "Per-point difference from one fixed baseline point of a SERIES host: point_value − " +
 				"baseline_value, on each entry's summary.statistic, in the host value's units. " +
 				"ref.baseline_index.position (required) is the 0-based baseline point; the baseline point itself " +
@@ -372,7 +376,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell difference from the matching crosstab margin (ref.margin.axis row, column or grand): cell − " +
 				"margin, in the cell's units. Never warns PULSE_OVERLAY_REF_ZERO; centred on 0. level / within " +
@@ -409,7 +413,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			RefKinds: []string{"Sibling"},
+			RefKinds: []string{"sibling"},
 			Description: "Per-group difference from one sibling group of a SERIES host: group_val − sibling_val, on " +
 				"each entry's summary.statistic, in the host value's units. ref.sibling {field, value} (both " +
 				"required) names a grouper field and the key value to compare against; the sibling itself scores 0. " +
@@ -439,7 +443,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// per StageRef value. The capability row declares the consumed
 			// Ref-arm so MCP / manifest clients see the kind addresses
 			// ChainRequest.Stages directly.
-			RefKinds: []string{"Stage"},
+			RefKinds: []string{"stage"},
 			Description: "Process-chain overlay: target − reference per coordinate between two stages' results, in the target " +
 				"stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; " +
 				"required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN " +
@@ -592,7 +596,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// the kind requires Ref.BaselineIndex.Position to be populated;
 			// descriptor.validateOverlayIndexVsBaseline gates the shape at
 			// predict time.
-			RefKinds: []string{"BaselineIndex"},
+			RefKinds: []string{"baseline_index"},
 			Description: "Per-point index against one fixed baseline point of a SERIES host: (point_value / " +
 				"baseline_value) · 100, on each entry's summary.statistic. ref.baseline_index.position (required) is " +
 				"the 0-based baseline point, which scores 100. A zero or missing baseline warns " +
@@ -610,7 +614,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell index against the matching crosstab margin (ref.margin.axis row, column or grand): 100 · " +
 				"cell / margin. level / within truncate the margin to a nested-axis prefix.",
@@ -630,7 +634,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// manifest clients see the kind requires Ref.Population to be
 			// populated; descriptor.validateOverlayIndexVsPop gates the
 			// shape at predict time.
-			RefKinds: []string{"Population"},
+			RefKinds: []string{"population"},
 			Description: "Per-value index of a pulse_facet_schema field's subset frequency against a population's " +
 				"(ref.population, required; its cohort in ref.population.cohort): subset_freq / pop_freq · 100, one " +
 				"series entry per facet value in the facet's order (count descending, ties by value) on " +
@@ -653,7 +657,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// capability surface so MCP / manifest clients see the kind
 			// consumes the Prior arm even though the v1 authoring shape
 			// can leave Ref entirely empty.
-			RefKinds: []string{"Prior"},
+			RefKinds: []string{"prior"},
 			Description: "Per-point index against the previous present point of a SERIES host: (point_value " +
 				"/ prior_value) · 100, on each entry's summary.statistic. ref.prior (lag 0) or an empty ref. The " +
 				"first present point is null (no warning); a zero prior warns PULSE_OVERLAY_REF_ZERO and that entry " +
@@ -671,7 +675,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			},
 			// Same Prior arm as the index twin above, and the same v1
 			// lag-1-only shape.
-			RefKinds: []string{"Prior"},
+			RefKinds: []string{"prior"},
 			Description: "Per-point difference from the previous present point of a SERIES host: point_value " +
 				"− prior_value, on each entry's summary.statistic — \"how much did this change\", where " +
 				"OVERLAY_INDEX_VS_PRIOR answers \"what proportion of the prior is this\". ref.prior (lag 0) or an " +
@@ -714,7 +718,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// marker struct tags the family — the v1 window value lives
 			// on OverlaySpec.Params["window"] per the WIN_* operator
 			// convention.
-			RefKinds: []string{"RollingMean"},
+			RefKinds: []string{"rolling_mean"},
 			Description: "Per-point index against the mean of the W previous present points of a SERIES host" +
 				":  point_value / mean(point[i-W] .. point[i-1]) · 100, on each entry's summary.statistic. " +
 				"ref.rolling_mean (required, an empty object) and params.window (W, a positive integer: missing is " +
@@ -732,7 +736,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeGroup,
 			},
-			RefKinds: []string{"Sibling"},
+			RefKinds: []string{"sibling"},
 			Description: "Per-group index against one sibling group of a SERIES host: (group_val / sibling_val) · " +
 				"100, on each entry's summary.statistic. ref.sibling {field, value} (both required) names a grouper " +
 				"field and the key value to compare against; the sibling itself scores 100. An unknown field or " +
@@ -762,7 +766,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// per StageRef value. The capability row declares the consumed
 			// Ref-arm so MCP / manifest clients see the kind addresses
 			// ChainRequest.Stages directly.
-			RefKinds: []string{"Stage"},
+			RefKinds: []string{"stage"},
 			Description: "Process-chain overlay: (target / reference) · 100 per coordinate between two stages' results, in the " +
 				"target stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; " +
 				"required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN " +
@@ -807,7 +811,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// manifest clients see the kind requires Ref.Population to be
 			// populated; descriptor.validateOverlayKSVsPop gates the shape
 			// at predict time.
-			RefKinds: []string{"Population"},
+			RefKinds: []string{"population"},
 			Description: "Two-sample Kolmogorov-Smirnov test of a numeric pulse_facet_schema field's subset distribution " +
 				"against a population's (ref.population, required; its cohort in ref.population.cohort): D = sup_x " +
 				"|F_subset(x) − F_pop(x)|. payload.scalar is D; the layer summary carries statistic, p_value and " +
@@ -936,7 +940,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell share of its column (ref.margin.axis column): cell / column margin. A column's cells sum to " +
 				"1 when none is missing. level / within truncate the margin to a nested-axis prefix.",
@@ -950,7 +954,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell share of its row (ref.margin.axis row): cell / row margin. A row's cells sum to 1 when none " +
 				"is missing. level / within truncate the margin to a nested-axis prefix.",
@@ -973,7 +977,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				// Process host.
 				types.OverlayScopeGroup,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Share of the grand total. On a crosstab host, per cell: cell / grand total (cell scope; ref.margin, " +
 				"its axis ignored; level / within accepted but inert). On a SERIES host, per group: " +
@@ -1077,7 +1081,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Inferential: false,
 			Shapes:      []types.OverlayShape{types.OverlayShapeMatrix},
 			Scopes:      []types.OverlayScope{types.OverlayScopeMatrix},
-			RefKinds:    []string{"Matrix"},
+			RefKinds:    []string{"matrix"},
 			Description: "Summary of a grouped matrix result across its group buckets: an overlay on a request (a process " +
 				"request or a compose slot) carrying matrices and groups and no crosstab. ref.matrix.name names the " +
 				"matrices entry by its effective name (name, else <TYPE>_<vector> / <TYPE>; unknown is " +
@@ -1233,7 +1237,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// falls back to the GROUP_DATE grouper's Params["frequency"]
 			// (wherever it sits in groups) per the WIN_* operator
 			// convention.
-			RefKinds: []string{"YoY"},
+			RefKinds: []string{"yoy"},
 			Description: "Per-point year-over-year index of a SERIES host against the same period one year " +
 				"earlier: point_value / prior_year_value · 100, on each entry's summary.statistic. ref.yoy (required, " +
 				"an empty object). The host must carry exactly one GROUP_DATE grouper, anywhere in groups; none or " +
@@ -1258,7 +1262,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			Scopes: []types.OverlayScope{
 				types.OverlayScopeCell,
 			},
-			RefKinds: []string{"Margin"},
+			RefKinds: []string{"margin"},
 			Fields:   []string{"level", "within"},
 			Description: "Per-cell z-score against the matching crosstab margin slice (ref.margin.axis: a row's cells, a " +
 				"column's cells, or every cell for grand): (cell − margin) / sd, sd the population SD of the slice's " +
@@ -1280,7 +1284,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// manifest clients see the kind requires Ref.Population to be
 			// populated; descriptor.validateOverlayZScoreVsPop gates the
 			// shape at predict time.
-			RefKinds: []string{"Population"},
+			RefKinds: []string{"population"},
 			Description: "Per-value z-score of a pulse_facet_schema field's subset against a population (ref.population, " +
 				"required; its cohort in ref.population.cohort), one series entry per facet value in the facet's " +
 				"order on summary.statistic. Categorical: (subset_freq − pop_freq) / sd_pop, sd_pop the population SD " +
@@ -1304,7 +1308,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// the family — the v1 window value lives on
 			// OverlaySpec.Params["window"] per the WIN_* operator
 			// convention.
-			RefKinds: []string{"RollingMean"},
+			RefKinds: []string{"rolling_mean"},
 			Description: "Per-point z-score against the W previous present points of a SERIES host: " +
 				"(point_value − rolling_mean) / rolling_sd, the SAMPLE SD (n − 1: a window is a sample of the series, " +
 				"where OVERLAY_ZSCORE_VS_TOTAL uses the population SD), on each entry's summary.statistic. " +

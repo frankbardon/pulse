@@ -31,6 +31,14 @@ import (
 func buildFacetOverlayCohort(t *testing.T) (*Service, string) {
 	t.Helper()
 	memFs := afero.NewMemMapFs()
+	afero.WriteFile(memFs, "fixture.pulse", facetOverlayFixture(t), 0644)
+	cfg, _ := fs.New(fs.WithFs(memFs), fs.WithDataDir("/"))
+	return New(cfg), "fixture.pulse"
+}
+
+// facetOverlayFixture is buildFacetOverlayCohort's cohort bytes.
+func facetOverlayFixture(t *testing.T) []byte {
+	t.Helper()
 
 	dict := encoding.NewDictionary()
 	cats := []string{"a", "b", "c", "d"}
@@ -77,9 +85,7 @@ func buildFacetOverlayCohort(t *testing.T) (*Service, string) {
 		encoding.WriteFieldValue(&buf, encoding.FieldTypeF64, math.Float64bits(r.score))
 	}
 
-	afero.WriteFile(memFs, "fixture.pulse", buf.Bytes(), 0644)
-	cfg, _ := fs.New(fs.WithFs(memFs), fs.WithDataDir("/"))
-	return New(cfg), "fixture.pulse"
+	return buf.Bytes()
 }
 
 func TestFacetWithOverlays_HostByteIdenticalToNoOverlays(t *testing.T) {

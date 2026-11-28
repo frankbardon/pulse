@@ -43,8 +43,8 @@ func lookupTableHost(t *testing.T, fsys afero.Fs, profile []string, tables strin
 			"north": 1, "south": 2, "east": 3, "west": 4,
 		}}}
 	case "dir":
-		dir := t.TempDir()
-		writeLookupFile(t, dir, "rates.json", `{"north": 1, "south": 2, "east": 3, "west": 4}`)
+		dir := memTableDirOn(t, fsys)
+		writeLookupFile(t, fsys, dir, "rates.json", `{"north": 1, "south": 2, "east": 3, "west": 4}`)
 		opts.LookupTablesDir = dir
 	}
 	if profile != nil {
@@ -216,9 +216,10 @@ func TestHiddenLookupTables_ManifestAndErrors(t *testing.T) {
 func TestHiddenLookupTables_FilesStillValidated(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeLookupFile(t, dir, "bad.json", `{"north": "one"}`)
-	_, err := New(Options{FS: afero.NewMemMapFs(), LookupTablesDir: dir,
+	fsys := afero.NewMemMapFs()
+	dir := memTableDirOn(t, fsys)
+	writeLookupFile(t, fsys, dir, "bad.json", `{"north": "one"}`)
+	_, err := New(Options{FS: fsys, LookupTablesDir: dir,
 		FeatureProfile: &FeatureProfile{Features: []string{"capability:process"}}})
 	if err == nil {
 		t.Fatal("New accepted a malformed lookup-table file on a hiding instance")

@@ -74,7 +74,7 @@ func TestCrosstabAxisDefaults_RunLikeExplicitOnCohortAndUnion(t *testing.T) {
 			if !res.Valid || len(res.Errors) > 0 {
 				t.Errorf("%s/%s: predict refused the typeless axes: %q", tc.name, root, predictCodes(res))
 			}
-			wantPaths := map[string]string{"Crosstab.Rows.0.Type": string(tc.rowType), "Crosstab.Columns.0.Type": string(types.GROUP_CATEGORY)}
+			wantPaths := map[string]string{"crosstab.rows.0.type": string(tc.rowType), "crosstab.columns.0.type": string(types.GROUP_CATEGORY)}
 			for _, d := range res.DefaultsApplied {
 				key := d.Path[0] + "." + d.Path[1] + "." + d.Path[2] + "." + d.Path[3]
 				if typ, ok := wantPaths[key]; ok && d.Type == typ && d.Category == "grouper" {

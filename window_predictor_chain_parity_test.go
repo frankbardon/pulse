@@ -279,7 +279,7 @@ func TestWindowPredictor_ParitySweepAdstockDecay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compose sweep: %v", err)
 	}
-	parallel, err := p.ComposeParallel(ctx, chainSweep(t), ComposeOptions{MaxWorkers: 3, FailFast: true})
+	parallel, err := p.ComposeParallel(ctx, chainSweep(t), ComposeOptions{MaxWorkers: 3})
 	if err != nil {
 		t.Fatalf("ComposeParallel sweep: %v", err)
 	}

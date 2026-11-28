@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -56,32 +57,10 @@ func buildSetQueryMask(filter *types.Filterer, schema *encoding.Schema) (encodin
 	if !f.Type.IsSet() {
 		return zero, setFieldRefusal(string(filter.Type), filter.Field, f.Type)
 	}
-	if f.Dictionary == nil {
-		return zero, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			string(filter.Type)+": field "+filter.Field+" has no dictionary")
-	}
-	capacity := int(f.Type.MaxSetEntries())
-	var mask encoding.SetMask
-	for _, label := range filter.Values {
-		id, ok := f.Dictionary.IDFor(label)
-		if !ok {
-			return zero, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("%s value %q not found in dictionary for field %q",
-					filter.Type, label, filter.Field))
-		}
-		if int(id) >= capacity {
-			return zero, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("%s value %q maps to bit %d, beyond the %d-member capacity of %s field %q",
-					filter.Type, label, id, capacity, f.Type, filter.Field),
-				map[string]any{
-					"field":    filter.Field,
-					"type":     f.Type.String(),
-					"capacity": capacity,
-					"bit":      int(id),
-					"value":    label,
-				})
-		}
-		mask = mask.WithBit(int(id))
+	// The labels rule is internal/opconfig's, the one predict calls.
+	mask, cerr := opconfig.SetQueryMask(filter.Type, filter.Field, f, filter.Values)
+	if cerr != nil {
+		return zero, cerr
 	}
 	return mask, nil
 }

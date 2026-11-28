@@ -930,9 +930,9 @@ type SlotPair struct {
 // Predict computes suggestions inline so callers can repair a request
 // without an additional inspect round-trip.
 //
-// Path points at the offending request location using JSON-style
-// segments — e.g. ["Aggregations", "0", "Field"] addresses the Field
-// of the first aggregation.
+// Path points at the offending request location in wire keys — e.g.
+// ["aggregations", "0", "field"] addresses the field of the first
+// aggregation.
 //
 // Proposed is a ranked list of candidate values. Empty when no
 // concrete proposal applies (e.g. ATTR_PERCENTILE has no streamable
@@ -970,7 +970,7 @@ type PredictSchemaInfo struct {
 // exactly which slots had their Type inferred from the schema. The shape
 // is JSON-serializable and lands on PredictResult.DefaultsApplied.
 //
-// Path uses JSON-style segments e.g. ["Aggregations", "0", "Type"] so the
+// Path uses wire keys e.g. ["aggregations", "0", "type"] so the
 // caller can address the slot in the original request. Field names the
 // schema column that drove inference; Type is the operator string that
 // was filled in; Category is "aggregation" or "grouper"; Reason carries a

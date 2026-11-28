@@ -114,8 +114,7 @@ the instance offers appear. CLI: `pulse recommend --intent ID`; MCP:
 A draft that derives a column — a component, factor or scale score, a
 log, square-root or frequency-encoded feature — needs no extra step for
 a model to use it: label the entry and add the regression that reads
-the label to the same request. `steps` is deprecated and always absent;
-recommend drafts no multi-request plan.
+the label to the same request; recommend drafts no multi-request plan.
 
 ## Explain: from a request or a result to plain language
 

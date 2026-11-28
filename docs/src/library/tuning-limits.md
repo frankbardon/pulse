@@ -174,8 +174,10 @@ three places to raise it (`Options.Limits.<Field>`, the profile key,
 
 `MaxEstimatedMemory` compares against an UPPER bound, never a measurement:
 no filter selectivity is assumed, and the model carries a x3 collector
-headroom. Calibration against measured peak heap lands the estimate at
-roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a
+headroom. Calibration against the live heap a run holds at its peak
+lands the estimate at roughly 1.3x to 4x on most arms, up to about 6x
+when field projection narrows the records and about 11x on a wide
+crosstab grid whose axes the header bounds loosely. Not modelled: a
 `GOGC` above 100. There is no `GOMEMLIMIT` coupling: the limit is
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.

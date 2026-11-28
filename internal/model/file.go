@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -963,7 +964,7 @@ func WriteFailed(p, name, stage string, cause error) *errors.CodedError {
 
 func saveInvalid(p, reason, what string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SAVE_INVALID,
-		fmt.Sprintf("save path %q %s", p, what),
+		fmt.Sprintf("save path %s %s", pathq.Quote(p), what),
 		map[string]any{"path": p, "reason": reason})
 }
 

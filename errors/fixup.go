@@ -40,10 +40,12 @@ type Fixup struct {
 	// Action is the repair category.
 	Action FixupAction `json:"action"`
 
-	// Path is the request path the fix applies to. First-cut templates
-	// use either an empty path (the caller resolves it) or a static
-	// wildcard path like ["Aggregations", "*", "Type"] that describes
-	// where the fix conceptually lives. Concrete index resolution is
+	// Path is the request path the fix applies to, in wire keys like
+	// every details.path. Templates use either an empty path (the
+	// caller resolves it, or the fix lives on a Go-only surface the
+	// Hint names) or a static wildcard path like
+	// ["aggregations", "*", "type"] that describes where the fix
+	// conceptually lives. Concrete index resolution is
 	// predict-suggestions' job.
 	Path []string `json:"path,omitempty"`
 

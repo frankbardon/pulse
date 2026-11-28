@@ -17,6 +17,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 )
@@ -147,7 +148,7 @@ func New(afs afero.Fs, opts Options) (*Manager, error) {
 		srcFs = afero.NewOsFs()
 		cleaned, err := filepath.Abs(filepath.Clean(opts.SourceJailRoot))
 		if err != nil {
-			return nil, fmt.Errorf("imports.New: normalising jail root %q: %w", opts.SourceJailRoot, err)
+			return nil, fmt.Errorf("imports.New: normalising jail root %s: %w", pathq.Quote(opts.SourceJailRoot), err)
 		}
 		jail = cleaned
 	default:
@@ -236,13 +237,13 @@ func (m *Manager) checkJail(p string) error {
 	cleaned, err := filepath.Abs(filepath.Clean(p))
 	if err != nil {
 		return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_FORBIDDEN,
-			fmt.Sprintf("cannot normalise source path %q: %v", p, err),
+			fmt.Sprintf("cannot normalise source path %s: %v", pathq.Quote(p), err),
 			map[string]any{"source_path": p, "jail_root": m.jailRoot})
 	}
 	rel, err := filepath.Rel(m.jailRoot, cleaned)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_FORBIDDEN,
-			fmt.Sprintf("source path %q resolves outside the import jail %q", cleaned, m.jailRoot),
+			fmt.Sprintf("source path %s resolves outside the import jail %s", pathq.Quote(cleaned), pathq.Quote(m.jailRoot)),
 			map[string]any{"source_path": cleaned, "jail_root": m.jailRoot})
 	}
 	return nil
@@ -280,7 +281,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 	}
 	if format == "" {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_FORMAT_UNKNOWN,
-			fmt.Sprintf("cannot detect import format from %q; pass an explicit format hint", spec.SourcePath),
+			fmt.Sprintf("cannot detect import format from %s; pass an explicit format hint", pathq.Quote(spec.SourcePath)),
 			map[string]any{"source_path": spec.SourcePath})
 	}
 
@@ -327,7 +328,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		}
 		if !exists {
 			return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
-				fmt.Sprintf("source file %q not found", spec.SourcePath),
+				fmt.Sprintf("source file %s not found", pathq.Quote(spec.SourcePath)),
 				map[string]any{"source_path": spec.SourcePath})
 		}
 		// Best-effort sweep on every Open keeps the pool tidy even
@@ -738,7 +739,7 @@ func (m *Manager) openReader(spec Spec, format string) (pio.Reader, error) {
 	}
 	if !exists {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
-			fmt.Sprintf("source file %q not found", spec.SourcePath),
+			fmt.Sprintf("source file %s not found", pathq.Quote(spec.SourcePath)),
 			map[string]any{"source_path": spec.SourcePath})
 	}
 	// SPSS MissingMode is left unset on purpose — Spec carries no
@@ -768,7 +769,7 @@ func (m *Manager) openPulseAbsoluteCopy(ctx context.Context, spec Spec) (*Result
 	}
 	if !exists {
 		return nil, perr.NewCodedErrorWithDetails(perr.PULSE_IMPORT_SOURCE_MISSING,
-			fmt.Sprintf("source file %q not found", spec.SourcePath),
+			fmt.Sprintf("source file %s not found", pathq.Quote(spec.SourcePath)),
 			map[string]any{"source_path": spec.SourcePath})
 	}
 	handle := deriveHandle(spec.Handle, spec.SourcePath)

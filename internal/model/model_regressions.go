@@ -311,25 +311,13 @@ func ordinalThresholds(spec *types.RegressionSpec) ([]string, bool) {
 // per record beyond its target and predictors, derived from the spec
 // alone — a built-in's twin of an extension's FieldInputs hook. The
 // runtime projection decodes them and predict's field-reference walk
-// refuses an unknown one. REG_MMM_BAYES reads params.time and, on a geo
-// panel, params.geo (in that order); every other type, and a spec whose
-// params do not decode, reads none (nil).
+// refuses an unknown one. REG_MMM_BAYES reads, on a geo panel,
+// params.geo (its time field is the order block's, which the walks read
+// as an order); every other type, and a spec whose params do not
+// decode, reads none (nil).
 func ModelRegressionFieldInputs(spec *types.RegressionSpec) []string {
-	if spec == nil || spec.Type != types.REG_MMM_BAYES || len(spec.Params) == 0 {
-		return nil
+	if geo := MMMBayesGeoField(spec); geo != "" {
+		return []string{geo}
 	}
-	var p struct {
-		Time string `json:"time"`
-		Geo  string `json:"geo"`
-	}
-	if paramread.Probe(spec.Params, &p) != nil {
-		return nil
-	}
-	var out []string
-	for _, f := range []string{p.Time, p.Geo} {
-		if f != "" {
-			out = append(out, f)
-		}
-	}
-	return out
+	return nil
 }

@@ -5,10 +5,13 @@ package errors
 // Codes with no mechanical repair carry FixupNotApplicable: true,
 // which is the honest signal (absence is a bug, not a feature).
 //
-// Path templates use abstract pointers (e.g. ["Aggregations", "*",
-// "Type"]) rather than concrete indices. Concrete-index resolution
-// against a specific Request lives in predict-suggestions; this table
-// stays request-agnostic.
+// Path templates use abstract pointers in wire keys (e.g.
+// ["aggregations", "*", "type"]) rather than concrete indices; a fix on
+// a Go-only surface (a pulse.Options field, a CLI flag, an extension
+// registration func) carries no Path and names the field in its Hint
+// (TestFixupPathsAreWireKeys). Concrete-index resolution against a
+// specific Request lives in predict-suggestions; this table stays
+// request-agnostic.
 var codeMetadata = map[Code]Metadata{
 	// ---------- ENCODING ----------
 	ENCODING_INVALID: {
@@ -33,7 +36,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort", "Filename"},
+				Path:   []string{"cohort", "filename"},
 				Hint:   "Verify the file path is reachable, the process has read/write permission, and the underlying filesystem has free space.",
 			},
 		},
@@ -62,21 +65,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PROCESSING_STATE: {
-		Message:            "Pipeline state-machine invariant violated mid-run (typically a streaming-pass ordering bug).",
-		FixupNotApplicable: true,
-	},
 	PROCESSING_RUNTIME: {
 		Message: "An operator failed during row processing (formula compile failure, divide-by-zero, etc.).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "Formula"},
+				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Guard the formula against the failing value, e.g. a zero denominator: `y == 0 ? nil : x / y`.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Or filter out the rows that trip it (FILTER_RANGE, FILTER_EXPRESSION) before the operator runs.",
 			},
 		},
@@ -86,12 +85,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Groups", "*", "Type"},
+				Path:   []string{"groups", "*", "type"},
 				Hint:   "Swap GROUP_QUANTILE for GROUP_RANGE on a near-constant field, or GROUP_CATEGORY on a high-cardinality numeric for GROUP_ROUNDED.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Groups", "*", "Type"},
+				Path:   []string{"groups", "*", "type"},
 				Hint:   "A grouper key containing a NUL byte (\\x00) cannot be combined with another grouper (details.reason key_contains_separator): fix the extension grouper to emit NUL-free keys, or run it as the only grouper.",
 			},
 		},
@@ -113,7 +112,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Options", "DisablePanicRecovery"},
 				Hint:   "To crash with the original panic instead of receiving this error (e.g. under a debugger or a test), set pulse.Options.DisablePanicRecovery to true.",
 			},
 		},
@@ -123,7 +121,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Regressions", "*", "Penalty"},
+				Path:     []string{"regressions", "*", "penalty"},
 				Hint:     "Add penalty: l2 (ridge, the conventional fix for collinearity) or drop the redundant predictor from predictors.",
 				Examples: []any{"l2", "elasticnet"},
 			},
@@ -134,7 +132,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Regressions", "*", "MaxIters"},
+				Path:   []string{"regressions", "*", "max_iters"},
 				Hint:   "Raise max_iters, loosen tol, rescale the predictors, or drop a near-collinear predictor; persistent non-convergence usually points to a separable or degenerate design.",
 			},
 		},
@@ -144,19 +142,9 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Regressions", "*", "Penalty"},
+				Path:     []string{"regressions", "*", "penalty"},
 				Hint:     "Add penalty: l2 (a ridge penalty keeps every coefficient finite), or drop the named predictor, merge its rare level, or check that it is not recorded after the outcome.",
 				Examples: []any{"l2"},
-			},
-		},
-	},
-	PROCESSING_REGRESSION_SINGULAR_GRAM: {
-		Message: "The Gram matrix XᵀX remained non-invertible even after regularization.",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Path:   []string{"Regressions", "*", "Alpha"},
-				Hint:   "Increase alpha to lift the conditioning, or drop the degenerate (all-zero or duplicated) predictor from predictors.",
 			},
 		},
 	},
@@ -165,7 +153,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "Family"},
+				Path:     []string{"regressions", "*", "family"},
 				Hint:     "Set family to binomial (logistic), poisson, gamma or negative_binomial (over-dispersed counts); the regression-modeling skill lists each family's links.",
 				Examples: []any{"binomial", "poisson", "gamma", "negative_binomial"},
 			},
@@ -176,7 +164,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "Link"},
+				Path:     []string{"regressions", "*", "link"},
 				Hint:     "Pick a Link from the family's own set (details.allowed): binomial logit / probit / cloglog, poisson log / identity / sqrt, gamma inverse / log / identity — or omit it for the family's canonical default (logit, log, inverse).",
 				Examples: []any{"logit", "probit", "identity"},
 			},
@@ -187,12 +175,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Loosen the filters so n ≥ p + 1 (one observation per predictor plus the intercept), or trim predictors.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Regressions", "*", "Resample"},
+				Path:   []string{"regressions", "*", "resample"},
 				Hint:   "On details.reason replicate_empty_level (a REG_ORDINAL or REG_MULTINOMIAL jackknife replicate lost a response level or category the full fit has, named by details.level), switch resample to bootstrap, which skips such replicates, or choose jackknife_by groups that each leave every level behind, or merge the sparse level.",
 			},
 		},
@@ -202,7 +190,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Regressions", "Order", "Field"},
+				Path:   []string{"regressions", "order", "field"},
 				Hint:   "Fill the missing periods, filter to one complete span, or set order.partition to the field that splits a panel into its series (a repeat across markets is not a duplicate within one).",
 			},
 		},
@@ -212,7 +200,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Regressions", "*", "Params"},
+				Path:   []string{"regressions", "*", "params"},
 				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears (a nominal_test failure: the predictor in details.term separates a step of the scale, or merge sparse levels); the regression's skill lists its thresholds and params.",
 			},
 		},
@@ -222,7 +210,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Regressions", "*", "Selection"},
+				Path:   []string{"regressions", "*", "selection"},
 				Hint:   "Drop selection and let the penalty choose (l1 / elasticnet zero coefficients), or drop penalty and keep the subset search; keep both only if the combination is intended.",
 			},
 		},
@@ -232,12 +220,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Regressions", "*", "Vcov"},
+				Path:   []string{"regressions", "*", "vcov"},
 				Hint:   "reason penalty with no covariance block: drop vcov from this regression, or fit it unpenalized or (REG_OLS / REG_GLM) with penalty \"l2\" (ridge); resample and selection keep vcov. details.penalty names the blocking penalty.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Regressions", "*", "Covariance"},
+				Path:   []string{"regressions", "*", "covariance"},
 				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR (REG_MULTINOMIAL computes the types details.supported lists: hc0, hc1, cluster); reason clusters: cluster (and cluster2) on fields with at least two levels in the filtered rows (details.cluster names the short one); reason type with details.cluster2: two-way clustering runs on REG_OLS, REG_GLM, REG_BAYES_LINEAR only — drop cluster2; reason order_by_ties: order_by a field unique per row (one series) — on a panel, set covariance.entity (hac: per-entity Newey–West) or use type driscoll_kraay, and keep one row per entity per period (details.entity_value names the repeating entity).",
 			},
 		},
@@ -247,12 +235,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Attributes", "*", "Expression"},
+				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Make both vector arguments list the same number of elements in the same order, e.g. dot([a, b, c], [1, 0, 0]); pad a missing position with nil (read as NaN and skipped pairwise) rather than dropping it.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Filterers", "*", "Expression"},
+				Path:   []string{"filterers", "*", "expression"},
 				Hint:   "The same rule applies in a FILTER_EXPRESSION or a total() argument: compare vectors of equal length only.",
 			},
 		},
@@ -262,12 +250,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Aggregations", "*", "Params", "outcome"},
+				Path:   []string{"aggregations", "*", "params", "outcome"},
 				Hint:   "Point params.outcome at a 0/1 column or a packed_bool, or derive one first: an ATTR_FORMULA such as `status == 2 ? 1 : 0` (or an ATTR_CODE_IN over a categorical) and score against its label.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "If only a few rows carry another code, drop them with a filter (FILTER_RANGE or FILTER_EXPRESSION on the outcome) before the slot reads them.",
 			},
 		},
@@ -288,21 +276,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort", "Filename"},
+				Path:   []string{"cohort", "filename"},
 				Hint:   "Check the path in the message (details.path when present) exists and is readable: the CLI resolves a relative path against the working directory, `pulse mcp` and a library instance against the data directory (PULSE_DATA_DIR, --data-dir or Options.DataDir).",
 			},
 			{
 				Action: FixupReplaceField,
 				Hint:   "For a failed write or rename, check the target directory is writable and has free space.",
-			},
-		},
-	},
-	SERVICE_REGISTRY: {
-		Message: "The request named an operator this instance does not register (a misspelt type, or one its feature profile hides).",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceOperator,
-				Hint:   "Check the name against the manifest (pulse_manifest, or pulse --json: its `components`); spelling and case must match exactly.",
 			},
 		},
 	},
@@ -313,44 +292,13 @@ var codeMetadata = map[Code]Metadata{
 
 	// ---------- DATA ----------
 	DATA_FILE: {
-		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, a docs export directory) could not be read, or its layout is invalid.",
+		Message: "A file other than a cohort (an import source, a template, a label / range / lookup table, a population, a synth spec or rules file, an export's overlay layers file, a docs export directory) could not be read, or its layout is invalid.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Check the path in the message (details.path when present) exists, is readable and is in the format its command expects; an import source must match its `pulse import <format>` leaf.",
 			},
 		},
-	},
-	DATA_PARSE: {
-		Message: "A tabular import source (CSV, TSV, NDJSON, JSON array, Parquet, Arrow, Excel) failed to parse.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Open the source at the row or offset the message names; common causes are an inconsistent column count, a stray quote or a file in another format than its import leaf.",
-			},
-		},
-	},
-	DATA_CONFIG: {
-		Message: "An I/O job's configuration is invalid (conflicting flags, unknown format, bad target path).",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Hint:   "Re-run the leaf with --help: the message names the conflicting flag, the unknown format or the bad target path.",
-			},
-		},
-	},
-	DATA_CALCULATION: {
-		Message: "A calculation over data values failed (e.g., reading a field that does not exist on the record).",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Hint:   "Verify every field reference in the request appears in pulse cohort inspect --json output for the cohort.",
-			},
-		},
-	},
-	DATA_INTERNAL: {
-		Message:            "Internal invariant violated inside the data layer; report with reproducer.",
-		FixupNotApplicable: true,
 	},
 
 	// ---------- CLI ----------
@@ -371,19 +319,6 @@ var codeMetadata = map[Code]Metadata{
 				Hint:   "Pick a writable output path with free disk space.",
 			},
 		},
-	},
-	CLI_COMMAND: {
-		Message: "A CLI command failed to dispatch or returned a non-zero status.",
-		Fixups: []Fixup{
-			{
-				Action: FixupSetDefault,
-				Hint:   "Read the message for the underlying failure; for a request, run predict on it first (pulse api predict --json).",
-			},
-		},
-	},
-	CLI_INTERNAL: {
-		Message:            "Internal invariant violated inside the CLI binary; report with reproducer.",
-		FixupNotApplicable: true,
 	},
 	CLI_ERROR: {
 		Message: "A CLI command failed with an error that carries no Pulse code of its own; the message is the underlying error (most often a file that cannot be read or written).",
@@ -433,7 +368,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_WIDTH_PROMOTED: {
-		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
+		Message: "Warning-class — an inferred import met a value, past the bounded inference sample, that the width inferred from the sample cannot hold, so the field was promoted to the narrowest type that holds it and the row imported instead of becoming a PULSE_IMPORT_ROW_ERROR. Ladders: categorical_u8 → categorical_u16 → categorical_u32 when the dictionary outgrows its rung; set_u8 → set_u16 → set_u32 → set_u64 → set_u128 → set_u256 when a cell's tokens outgrow the rung (a set past set_u256 stays a row error); u4 → u8 → u16 → u32 → u64 for a larger non-negative integer; u4..u32 → f64 for any other number; f32 → f64 for a value outside f32's range when f32 was inferred under the --float f32 opt-in (the default infers f64) (past MaxFloat32, or a non-zero magnitude f32 flushes to zero — a value f32 merely rounds never promotes). Every step is lossless — every value already imported is exact in f64. A non-boolean in a packed_bool stays a row error. ConvertJob.Run (`pulse convert`) promotes an inferred schema the same way, on ConvertReport.WidthWarnings. Details carry `field`, `from` (the inferred type), `to` (the written type) and `source_row` (the first 1-based source row that forced it). No value changes. Never fires for an explicit --schema or an authoritative source schema: their overflow stays a row error (on convert, a full categorical rung is the fatal PULSE_IMPORT_CATEGORICAL_OVERFLOW). Never fires for a column_type_overrides column either: its overflow refuses the import with PULSE_IMPORT_OVERRIDE_INVALID.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -446,7 +381,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"ColumnTypeOverrides", "*"},
+				Path:   []string{"column_type_overrides", "*"},
 				Hint:   "Correct the override's column name to the exact header spelling, or drop the entry. When a value does not fit, choose a type that holds every value (u16 for 300, f64 for a fraction, categorical_* for free text) or remove the override and let inference pick the width.",
 			},
 			{
@@ -460,7 +395,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Path:   []string{"schema", "fields", "*", "name"},
 				Hint:   "Rename the schema field to the exact column spelling listed in details.columns, or remove the field from the schema. `pulse import schema-template INPUT` emits a schema whose names are the source header verbatim.",
 			},
 			{
@@ -474,12 +409,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "Fields"},
+				Path:   []string{"schema", "fields"},
 				Hint:   "Add a field for the column to the schema (its name exactly as in details.column), or correct a schema field whose name was meant to match it.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"IgnoreExtra"},
+				Path:   []string{"ignore_extra"},
 				Hint:   "Pass --ignore-extra (IgnoreExtra: true) to import only the schema's fields and drop every other source column on purpose.",
 			},
 		},
@@ -489,7 +424,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "Fields", "*", "Name"},
+				Path:   []string{"schema", "fields", "*", "name"},
 				Hint:   "Remove or rename the repeated schema field so every field name is unique.",
 			},
 			{
@@ -507,7 +442,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"IgnoreExtra"},
+				Path:   []string{"ignore_extra"},
 				Hint:   "Pass --ignore-extra (IgnoreExtra: true) when the late key is not wanted in the cohort.",
 			},
 		},
@@ -526,12 +461,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "*"},
+				Path:   []string{"schema", "*"},
 				Hint:   "Write the schema as a JSON array of {\"name\", \"type\", \"nullable\", \"description\"} objects (precision / scale for decimal128 only), spelling each key exactly; `pulse import schema-template INPUT` emits a valid document to edit.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "For a .pulse source drop the schema: the cohort already carries its own. Omit the schema entirely to let inference type the columns.",
 			},
 		},
@@ -541,7 +476,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"FloatWidth"},
+				Path:   []string{"float"},
 				Hint:   "Pass --float f64 (FloatWidth \"f64\", or omit it) for exact decimals, or --float f32 to opt into the narrower width.",
 			},
 		},
@@ -551,7 +486,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"DSTPolicy"},
+				Path:   []string{"dst_policy"},
 				Hint:   "Choose how the repeated hour resolves: --dst-policy earlier (ImportJob.DSTPolicy \"earlier\") takes the first occurrence, at the pre-transition offset; later takes the second. Every resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning.",
 			},
 			{
@@ -565,7 +500,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"DSTPolicy"},
+				Path:   []string{"dst_policy"},
 				Hint:   "Choose how the skipped time resolves: --dst-policy earlier (ImportJob.DSTPolicy \"earlier\") reads it at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z); later at the post-transition offset (→ 00:30Z). Every resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning.",
 			},
 			{
@@ -606,7 +541,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Includes", "*"},
+				Path:   []string{"includes", "*"},
 				Hint:   "Run pulse cohort inspect on the source .pulse file to list valid field names, then correct or drop the offending --include entry. Pass no --include flags to export every field.",
 			},
 		},
@@ -616,7 +551,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Includes", "*"},
+				Path:   []string{"includes", "*"},
 				Hint:   "Drop the colliding scalar field (or the vector) from the export with --include, or export to a format with native list cells (ndjson, jsonarray, arrow, parquet), which keep the vector as one column.",
 			},
 		},
@@ -631,7 +566,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_IMPORT_SET_OVERFLOW: {
-		Message: "A multi-select column's observed dictionary exceeds the largest set width (set_u256 holds at most 256 entries).",
+		Message: "A multi-select column's observed dictionary exceeds its set width: a declared rung (--schema, column_type_overrides, a source schema), or set_u256 (at most 256 entries), the top of the ladder an inferred rung is promoted up (PULSE_IMPORT_WIDTH_PROMOTED). The cell's row is a PULSE_IMPORT_ROW_ERROR with this reason.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -711,17 +646,17 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Vectors"},
+				Path:   []string{"vectors"},
 				Hint:   "Write each vector as `--vector NAME[:f32|f64]:COL1,COL2,...` (members in element order) or `--vector NAME:/REGEX/` (members are the matching columns in source order; the first capture group becomes each element's label), folding 2..1024 columns, each column in at most one vector and in no `--group`. Give a kind with `--vector-kind NAME:measure|scale|composition|binary[:MIN:MAX]` naming a declared vector.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "*", "dim"},
+				Path:   []string{"schema", "*", "dim"},
 				Hint:   "With an explicit schema, type the vector field vec_f32 / vec_f64 with the dim its declaration folds, and declare it with --vector so the import knows which columns hold its elements.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Vectors"},
+				Path:   []string{"vectors"},
 				Hint:   "A native list column becomes a vector only when every non-null list has the same length (2..1024) and holds only numbers and nulls: pad or drop the ragged rows at the source, cast string elements to numbers, or leave the column undeclared to import it as a set_* field; on CSV / TSV / Excel name the element columns instead (`--vector NAME:COL1,COL2,...`).",
 			},
 		},
@@ -731,7 +666,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
+				Path:   []string{"groups"},
 				Hint:   "Write each group as `--group key1[,key2]:member1[,member2]` (key fields, a colon, then the fields the key determines), or `--group f1,f2` for a plain tuple group with no key check. Name every field once per group; field names containing ',' or ':' cannot be declared from the CLI — use io.ImportJob.Groups.",
 			},
 		},
@@ -741,7 +676,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Use the exact field name from the imported schema (`pulse import predict --json` lists it); names are case-sensitive and match the source column header.",
 			},
 		},
@@ -751,7 +686,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Remove the field from all but one of the groups named in details.group_labels. If the two groups share a key, declare them as one group.",
 			},
 		},
@@ -761,7 +696,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Move the field named in details.field out of the group (it varies within the parent), or add it to the group's key if it is part of what identifies the parent. If the source should have been constant per key, fix the upstream join.",
 			},
 		},
@@ -771,7 +706,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Drop the group: a group with this many distinct tuples is near-unique per row and saves no space. Group only the fields that repeat as a parent block.",
 			},
 		},
@@ -781,7 +716,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Drop the group, or add the other fields that repeat with it (the rest of the parent block) so its members outweigh the index; details.member_row_bytes must exceed details.index_width.",
 			},
 		},
@@ -791,12 +726,11 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Groups", "*"},
+				Path:   []string{"groups", "*"},
 				Hint:   "Drop the group if details.byte_delta is not negative or details.dictionary_bytes is too much to hold resident; a ratio near 1 means the tuples are nearly unique per row.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"StrictDedup"},
 				Hint:   "To keep a deliberately low-ratio group, re-run without --strict (it then writes with this warning) or lower --dedup-ratio-floor; a floor of 1 leaves only the grows-the-file check.",
 			},
 		},
@@ -816,7 +750,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Features"},
+				Path:   []string{"features"},
 				Hint:   "Add at least one feature, attribute or window slot; to copy filtered records without new fields, use pulse cohort filter.",
 			},
 		},
@@ -826,7 +760,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Features", "*", "Type"},
+				Path:   []string{"features", "*", "type"},
 				Hint:   "Replace the feature named in details.feature with a built-in operator, or fix its params or source field so it yields at least one output column (predict lists the columns each feature emits).",
 			},
 		},
@@ -836,7 +770,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Windows", "*", "Field"},
+				Path:   []string{"windows", "*", "field"},
 				Hint:   "Point the window named by details.column at a numeric field, or give a lag/lead a numeric default; details.value_type names the value that was refused.",
 			},
 		},
@@ -846,7 +780,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"InvalidatedSidecars"},
+				Path:   []string{"invalidated_sidecars"},
 				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
 			},
 		},
@@ -856,7 +790,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Output"},
+				Path:   []string{"output"},
 				Hint:   "Remove the output block, or run the request through materialize (pulse api materialize / pulse_materialize) to write the reshaped cohort.",
 			},
 		},
@@ -866,12 +800,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Output", "Exclude"},
+				Path:   []string{"output", "exclude"},
 				Hint:   "Use columns (the closed list to keep, in order) OR exclude (the columns to drop), never both; keep at least one column; give every columns entry a from naming a source field or derived column.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Path:   []string{"output", "shards", "max_records"},
 				Hint:   "Give output.shards.max_records a positive row count per shard, or drop output.shards to write a single file.",
 			},
 		},
@@ -881,7 +815,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Columns", "*", "From"},
+				Path:   []string{"output", "columns", "*", "from"},
 				Hint:   "Name a source field (pulse cohort inspect lists them) or a feature / attribute / window label of the same request; details.suggestion names the closest match when there is one.",
 			},
 		},
@@ -891,7 +825,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Columns", "*", "As"},
+				Path:   []string{"output", "columns", "*", "as"},
 				Hint:   "Give one of the entries named by details.path and details.first a distinct as; the same from may appear twice under different as names.",
 			},
 		},
@@ -901,7 +835,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Output", "Columns", "*", "Nullable"},
+				Path:   []string{"output", "columns", "*", "nullable"},
 				Hint:   "Drop nullable: false from the column named by details.column (or set it true), or add a filterer that removes the rows where it is null (details.row is the first output row found).",
 			},
 		},
@@ -911,7 +845,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Output", "Columns", "*", "Type"},
+				Path:   []string{"output", "columns", "*", "type"},
 				Hint:   "Drop the type from the column named by details.column, or name a type its from_type casts to (details.reason says why this pair is refused).",
 			},
 		},
@@ -921,7 +855,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Path:   []string{"output", "columns", "*", "on_cast_error"},
 				Hint:   "Set on_cast_error: \"null\" on the column named by details.column (it must be nullable) to write a null in place of each such value, pick a wider type, or filter out the rows (details.row is the first output row found, details.value the value).",
 			},
 		},
@@ -931,7 +865,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Output", "Columns", "*", "OnCastError"},
+				Path:   []string{"output", "columns", "*", "on_cast_error"},
 				Hint:   "Expected when on_cast_error is null. To fail instead of nulling, drop on_cast_error; to keep the values, pick a wider type for the column named by details.column.",
 			},
 		},
@@ -941,7 +875,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Columns", "*", "Recode", "Map"},
+				Path:   []string{"output", "columns", "*", "recode", "map"},
 				Hint:   "Rename or drop the recode.map key details.label (details.suggestion names the closest source label when there is one); pulse cohort inspect --full-dict lists the dictionary of the column named by details.from.",
 			},
 		},
@@ -951,7 +885,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Groups"},
+				Path:   []string{"output", "groups"},
 				Hint:   "Expected when the column named by details.member changes. To regroup, declare output.groups over the written names; to write no group and silence this, set output.groups to []; to keep the group, write details.member unchanged.",
 			},
 		},
@@ -1026,7 +960,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"InvalidatedSidecars"},
+				Path:   []string{"invalidated_sidecars"},
 				Hint:   "Run each rebuild command the result's invalidated_sidecars lists (details.sidecars names their paths), or delete the stale sidecars.",
 			},
 		},
@@ -1036,7 +970,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Fields"},
+				Path:   []string{"fields"},
 				Hint:   "Ask numeric_percentiles / include_histogram of a numeric field; a categorical facet field's value_counts already carry its distribution.",
 			},
 		},
@@ -1046,7 +980,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"DiscreteTopK"},
+				Path:   []string{"discrete_top_k"},
 				Hint:   "Raise discrete_top_k to at least details.distinct (or set 0 for no cap) to see every value; keep it to read only the top values.",
 			},
 		},
@@ -1065,7 +999,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Windows"},
+				Path:   []string{"windows"},
 				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the regression over the derived cohort, naming the window's column; or drop the groups, aggregations and crosstab so the windows run over the record rows.",
 			},
 		},
@@ -1075,12 +1009,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Regressions", "*", "Type"},
+				Path:   []string{"regressions", "*", "type"},
 				Hint:   "The type (details.type, at details.regression_index) names no registered REG_* model on this instance: pick one from the manifest's regression list.",
 			},
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Regressions", "*", "Type"},
+				Path:   []string{"regressions", "*", "type"},
 				Hint:   "An embedder model (REG_<NAMESPACE>_<NAME>) is an extension: register its regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
 			},
 		},
@@ -1090,12 +1024,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Attributes"},
+				Path:   []string{"attributes"},
 				Hint:   "Windows-first: rewrite the step as a row-local expression formula (no total()) or ATTR_REG_PREDICT and name its label (or the window label itself) in an aggregation, grouper or crosstab axis — the windows then run first over the record rows and the aggregations read the values off each record; or drop the groups, aggregations and crosstab so the windows run over the record rows.",
 			},
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Attributes"},
+				Path:   []string{"attributes"},
 				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column.",
 			},
 		},
@@ -1105,38 +1039,38 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Windows", "*", "Type"},
+				Path:   []string{"windows", "*", "type"},
 				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Windows", "*", "Type"},
+				Path:   []string{"windows", "*", "type"},
 				Hint:   "A retired window type is refused with details.renamed_to naming its replacement (WIN_ADSTOCK → WIN_DISTRIBUTED_LAG): set type to that value; the params are unchanged.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Windows", "*", "OrderBy"},
+				Path:   []string{"windows", "*", "order_by"},
 				Hint:   "Every WIN_* operator requires at least one order_by key (WIN_SHARE / WIN_LIFT only when params.cumulative is true); supply a date or numeric field.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Windows", "*", "Frame"},
+				Path:   []string{"windows", "*", "frame"},
 				Hint:   "Drop frame on WIN_ROW_NUMBER, WIN_RANK, WIN_DENSE_RANK, WIN_LAG, WIN_LEAD, WIN_PCT_CHANGE, WIN_DELTA, WIN_SHARE, WIN_LIFT; supply frame (mode \"rows\") on WIN_MOVING_AVG (both bounds), WIN_EWMA and WIN_RUNNING_*.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Windows", "*", "Params"},
+				Path:     []string{"windows", "*", "params"},
 				Hint:     "details.reason param_*: write the scalar param (details.param) as a number, or as an expression over literals, params.<name>, coef() / sweep_axis() / response() over a bound model and the built-ins that yields a finite number — an exact integer for an `int` param. A param the manifest does not mark `expression` takes a literal only.",
 				Examples: []any{map[string]any{"decay": "params.decay"}, map[string]any{"decay": `sweep_axis("fit", "decay_tv")`}},
 			},
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Windows", "*"},
+				Path:   []string{"windows", "*"},
 				Hint:   "details.reason windows_first_reads_aggregate: an aggregation, grouper or crosstab axis reads a window output, so the windows run first over the records and no aggregation label exists yet — drop the window-output read from the aggregations (the windows then run over the aggregated rows again), or materialize the windows first and aggregate the derived cohort in a second request.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Windows", "*", "Params"},
+				Path:   []string{"windows", "*", "params"},
 				Hint:   "details.reason default_not_a_label: a WIN_LAG / WIN_LEAD over a categorical fills a missing neighbour with params.default, a cell of the lagged category — set it to one of details.field's dictionary labels exactly (pulse cohort inspect lists them), or drop it for null.",
 			},
 		},
@@ -1150,18 +1084,18 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Aggregations", "*", "Type"},
+				Path:     []string{"aggregations", "*", "type"},
 				Hint:     "A numeric aggregation over a categorical field would read its dictionary index: count its values instead.",
 				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "Field"},
+				Path:   []string{"attributes", "*", "field"},
 				Hint:   "ATTR_PREVIOUS_STATE reads a categorical_* or packed_bool state: a state stored as coded integers has no labels to carry, so re-import it as a categorical (an explicit import schema typing the column categorical_u8) and name that field.",
 			},
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Windows", "*"},
+				Path:   []string{"windows", "*"},
 				Hint:   "details.reason categorical_window_output: details.field is a lagged category (a WIN_LAG / WIN_LEAD of a categorical, window details.window_index), read only as a GROUP_CATEGORY key (a request group or a crosstab axis) or by another WIN_LAG / WIN_LEAD — key it with GROUP_CATEGORY, or materialize the window first and read the stored categorical in a second request.",
 			},
 		},
@@ -1171,12 +1105,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Features", "Params", "fit_on"},
+				Path:   []string{"features", "params", "fit_on"},
 				Hint:   "Set params.fit_on to the training rows — e.g. \"split == 0\" after a FEAT_TRAIN_TEST_SPLIT labelled split — so only they feed the category means; add folds (with rng_seed) to encode the training rows out-of-fold as well.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Features"},
+				Path:   []string{"features"},
 				Hint:   "For descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
 			},
 		},
@@ -1186,7 +1120,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Aggregations", "*", "Type"},
+				Path:   []string{"aggregations", "*", "type"},
 				Hint:   "Use AGG_AVERAGE instead of AGG_SUM for large series; the implementation falls back to f64 and emits PULSE_DECIMAL_PRECISION_LOSS instead of failing.",
 			},
 			{
@@ -1209,7 +1143,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Pre-filter zero divisors with FILTER_RANGE (min > 0 or max < 0) or guard the formula with an explicit non-zero check.",
 			},
 		},
@@ -1219,7 +1153,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Aggregations", "*", "Type"},
+				Path:     []string{"aggregations", "*", "type"},
 				Hint:     "Decimal fields support exact AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_VARIANCE, AGG_STDDEV, AGG_COUNT, AGG_DISTINCT_COUNT; pick one of those.",
 				Examples: []any{"AGG_SUM", "AGG_AVERAGE", "AGG_MIN", "AGG_MAX"},
 			},
@@ -1230,7 +1164,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Attributes", "*", "Params", "codes"},
+				Path:   []string{"attributes", "*", "params", "codes"},
 				Hint:   "Codes on a categorical field are dictionary LABELS, matched exactly (case included); check them against pulse cohort inspect --full-dict and correct or drop each one listed in details.missing_codes.",
 			},
 		},
@@ -1240,7 +1174,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Attributes", "*", "Params", "scale_min"},
+				Path:   []string{"attributes", "*", "params", "scale_min"},
 				Hint:   "Check the declared range against the data: set params.scale_min / scale_max (or the kind \"scale\" vector's bounds) to the battery's true range, or drop the out-of-range codes (e.g. a 99 'don't know') with a filter or recode first. details.n_out_of_range counts the values, details.n_rows the rows.",
 			},
 		},
@@ -1250,7 +1184,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "Field"},
+				Path:   []string{"attributes", "*", "field"},
 				Hint:   "Score a field that varies over the filtered base, widen the filters so more than one value contributes, or check the weight field (details.reason no_mass: no non-null value carries a valid positive weight). details.n counts the contributing values, details.spread names stddev or range.",
 			},
 		},
@@ -1260,7 +1194,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "OrderField"},
+				Path:   []string{"attributes", "*", "order_field"},
 				Hint:   "Order by a finer field (a datetime instead of a date) or drop the duplicate records first (pulse dedup, or a filter) so each subject has one record per time point. details.n_ambiguous counts the nulled records, details.n_subjects_ambiguous the subjects affected.",
 			},
 		},
@@ -1270,7 +1204,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Tests", "*", "Type"},
+				Path:   []string{"tests", "*", "type"},
 				Hint:   "Use the many-group comparison named in details.suggested, or filter split_by down to the two groups you mean to compare.",
 			},
 		},
@@ -1280,7 +1214,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Multiplicity"},
+				Path:     []string{"multiplicity"},
 				Hint:     "Merge details.suggested into the request — a multiplicity block such as {\"method\": \"holm\"} — to add adjusted p-values beside the raw ones.",
 				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm"}}},
 			},
@@ -1300,7 +1234,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Tests", "*", "Type"},
+				Path:   []string{"tests", "*", "type"},
 				Hint:   "Use the rank-based test named in details.suggested, which reads only the order of the levels.",
 			},
 		},
@@ -1310,7 +1244,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Weight"},
+				Path:     []string{"weight"},
 				Hint:     "Merge details.suggested into the request — a weight block naming the SPSS weighting variable — to weight every weight-aware slot; leave it out when unweighted figures are what you want.",
 				Examples: []any{map[string]any{"weight": map[string]any{"field": "WT"}}},
 			},
@@ -1321,7 +1255,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Attributes", "*", "Expression"},
+				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "No change is needed when the cohort-wide total is what you want. To skip the extra pass, divide two sums after aggregation with AGG_RATIO, or replace total(expr) with a constant read from an earlier run.",
 			},
 		},
@@ -1331,7 +1265,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Attributes", "*", "Expression"},
+				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "No change is needed when a null is the right answer for those rows. To give every row a number, guard each field in details.fields with field ?? 0 or a field == nil ? 0 : field ternary, and replace a literal nil branch with a number.",
 			},
 		},
@@ -1341,7 +1275,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Attributes", "*", "Expression"},
+				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Guard each field in details.fields with field ?? 0, a field != nil ? ... : ... ternary or a field != nil && ... short-circuit, or filter the null rows out before the formula runs.",
 			},
 		},
@@ -1351,7 +1285,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "jackknife_groups"},
+				Path:     []string{"regressions", "*", "jackknife_groups"},
 				Hint:     "Set jackknife_groups (details.suggested) for a delete-a-group jackknife: g refits instead of one per row, the groups drawn by rng_seed. Or set jackknife_by to a field whose values are natural clusters.",
 				Examples: []any{map[string]any{"jackknife_groups": 50}},
 			},
@@ -1362,7 +1296,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "resample"},
+				Path:     []string{"regressions", "*", "resample"},
 				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance; REG_OLS / REG_GLM) or no penalty for analytical inference.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
@@ -1373,7 +1307,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "resample"},
+				Path:     []string{"regressions", "*", "resample"},
 				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the bounded model, and the replicate standard errors, p-values and intervals replace the nulls. Or drop the bound on the predictors in details.active for the unconstrained fit's classical inference.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
@@ -1384,7 +1318,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Regressions", "*", "resample"},
+				Path:     []string{"regressions", "*", "resample"},
 				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the decay with the curve, and the replicate standard errors and intervals reflect how weakly the data pin them down. Or fix the decay outside the fit (WIN_DISTRIBUTED_LAG, drop params.adstock) or fit REG_MMM_BAYES, whose decay prior regularises it.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
@@ -1395,12 +1329,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
+				Path:   []string{"groups"},
 				Hint:   "Put the date grouper (details.date_axis, when present) last in groups so the series runs through time within each segment.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Path:     []string{"overlays", "*", "params", "partition_by"},
 				Hint:     "If the last grouper is the order you mean, set params.partition_by to the leading key columns to state it; an explicit partition_by silences the advisory.",
 				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}},
 			},
@@ -1411,7 +1345,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Params"},
+				Path:   []string{"params"},
 				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion, and every declared value is checked against its JSONType and Required flag (PULSE_REQUEST_PARAM_INVALID). Caller: check details.keys against the operator's documentation.",
 			},
 		},
@@ -1421,7 +1355,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Requests", "*", "Multiplicity", "Family"},
+				Path:     []string{"requests", "*", "multiplicity", "family"},
 				Hint:     "To correct the readout as one family, set family \"compose\" on the multiplicity block of each slot named in details.slots (or on the compose request's own block, when the slots name no family of their own), with one method across the batch. Keep the split when each slot answers a separate question.",
 				Examples: []any{map[string]any{"multiplicity": map[string]any{"method": "holm", "family": "compose"}}},
 			},
@@ -1432,7 +1366,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Optimize", "*", "Gradient"},
+				Path:     []string{"optimize", "*", "gradient"},
 				Hint:     "The block still solves; set gradient \"fd\" on it to state the finite-difference choice, or rewrite the expressions named in details.functions with functions that have a derivative rule (the maths built-ins, arithmetic, comparisons, the ternary).",
 				Examples: []any{map[string]any{"gradient": "fd"}},
 			},
@@ -1524,7 +1458,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*"},
+				Path:   []string{"rules", "*"},
 				Hint:   "Check the field name against the spec's `fields[].name` (for a profile-derived run, dump it with `synth from-profile --emit-spec`); a rule over an undeclared field is refused, never ignored.",
 			},
 		},
@@ -1534,7 +1468,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "When"},
+				Path:   []string{"rules", "*", "when"},
 				Hint:   "Compile-check the expression against the row's own types: every scalar (including packed_bool) is a number, so write `flag == 1` not bare `flag`; a categorical is a string; a set_* is a map (`flags[\"opt\"]`); test absence with `isnull(field)`. `when` must return a bool.",
 			},
 		},
@@ -1544,12 +1478,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "Set"},
+				Path:   []string{"rules", "*", "set"},
 				Hint:   "Match the literal to the target field's type: a number (or true/false) for a scalar, within that type's range; a declared `params.values` entry for a categorical_*; an array of declared `params.options` for a set_*.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Match the expression's RESULT to the target: a bool (lands as 1/0) or a number for any scalar, in that type's range; a declared category string for a categorical_*; a list of declared options for a set_*. A decimal128 takes a number from an expression and an exact string only from `set`.",
 			},
 		},
@@ -1559,7 +1493,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Rules", "*"},
+				Path:   []string{"rules", "*"},
 				Hint:   "Give the rule an action — `set`, `set_expr`, `set_null` or `null_together` — or delete the rule.",
 			},
 		},
@@ -1569,7 +1503,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Rules", "*"},
+				Path:   []string{"rules", "*"},
 				Hint:   "Drop the field from one of the two slots; if both outcomes are genuinely wanted, split them into two rules, which apply in declaration order with last write wins.",
 			},
 		},
@@ -1579,7 +1513,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Rules", "*", "NullTogether"},
+				Path:   []string{"rules", "*", "null_together"},
 				Hint:   "Name at least two distinct fields in the block, or use `set_null` for a single field — `null_together` exists to make one null decision cover several fields.",
 			},
 		},
@@ -1589,12 +1523,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Path:   []string{"Fields", "*", "Nullable"},
+				Path:   []string{"fields", "*", "nullable"},
 				Hint:   "Declare the field `\"nullable\": true` in the spec — the fix is on the FIELD, not the rule. On a profile-derived run the field is nullable only if the source had nulls in it: dump the spec with `synth from-profile --emit-spec`, add the flag, and generate with `synth from-schema`.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Rules", "*", "SetNull"},
+				Path:   []string{"rules", "*", "set_null"},
 				Hint:   "Or drop the field from `set_null` if a real 0 is what the cohort should carry — a non-nullable field has no way to record absence, and `null_together` will not help: it copies a gate's decision rather than making one.",
 			},
 		},
@@ -1604,12 +1538,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Rules", "*", "SetNull"},
+				Path:   []string{"rules", "*", "set_null"},
 				Hint:   "Name the fields whose absence this rule is the only source of. `owns_nulls` is scoped to `set_null` and to nothing else: it discards those fields' own `null_rate` draw so the rule's gate is the single source of their nulls.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Rules", "*", "OwnsNulls"},
+				Path:   []string{"rules", "*", "owns_nulls"},
 				Hint:   "Or drop `owns_nulls`. A `null_together` block already discards every non-gate member's own null_rate by copying the gate's decision, so a block needs no ownership flag.",
 			},
 		},
@@ -1619,7 +1553,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Replace `now()` with a fixed value: a literal epoch-day or epoch-second number, or a field drawn from a `date` / `datetime` distribution with explicit bounds. A generated row has no wall-clock time of its own.",
 			},
 		},
@@ -1629,7 +1563,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Write the field as a quoted literal the spec declares: `lag(\"spend\", 1, 0)`, not `lag(spend, 1)` or `lag(\"sp\" + \"end\", 1)`. Check the spelling against `fields[].name`.",
 			},
 		},
@@ -1639,7 +1573,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Write n as a whole-number literal between 1 and 1024: `lag(\"spend\", 1)` reads the previous accepted row, `lag(\"spend\", 52)` the row 52 accepted rows back. A computed, fractional, zero or negative offset is refused.",
 			},
 		},
@@ -1649,12 +1583,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Write the partition as a quoted literal naming a categorical field: `lag(\"spend\", 1, 0, \"geo\")`, not `lag(\"spend\", 1, 0, geo)`. A numeric, set or date field cannot partition.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules"},
+				Path:   []string{"rules"},
 				Hint:   "Move every rule that writes the partition field (set, set_expr, set_null or a null_together member) BEFORE the rule calling lag, or read lag from a constraint, which runs after every rule.",
 			},
 		},
@@ -1664,7 +1598,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Rules", "*", "SetExpr"},
+				Path:   []string{"rules", "*", "set_expr"},
 				Hint:   "Call `uniform()` with no arguments and `bernoulli(p)` with one probability in [0, 1]; clamp a computed one (`bernoulli(min(1, max(0, pd)))`). To filter on a draw, store it in a rule (`{\"set_expr\": {\"u\": \"uniform()\"}}` on an `\"output\": false` field) and constrain the field.",
 			},
 		},
@@ -1674,12 +1608,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Fields", "*", "Params"},
+				Path:   []string{"fields", "*", "params"},
 				Hint:   "Set the field's params.dst_policy: \"earlier\" reads the skipped time at the pre-transition offset (Europe/Berlin 2026-03-29 02:30 → 01:30Z), \"later\" at the post-transition offset (→ 00:30Z) — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Fields", "*", "Params"},
+				Path:   []string{"fields", "*", "params"},
 				Hint:   "Or give the transition hour no weight: a 0 in params.hour_weights at the skipped local hour (02 in most of Europe and North America) means no time in it is ever drawn.",
 			},
 		},
@@ -1689,12 +1623,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Fields", "*", "Params"},
+				Path:   []string{"fields", "*", "params"},
 				Hint:   "Set the field's params.dst_policy: \"earlier\" takes the first occurrence (pre-transition offset), \"later\" the second — the import's --dst-policy spellings. The run then warns how many generated times were resolved.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Fields", "*", "Params"},
+				Path:   []string{"fields", "*", "params"},
 				Hint:   "Or give the repeated hour no weight: a 0 in params.hour_weights at the repeated local hour (01 in North America, 02 in most of Europe) means no time in it is ever drawn.",
 			},
 		},
@@ -1704,7 +1638,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Regressions"},
+				Path:   []string{"regressions"},
 				Hint:   "Give the request at least one regression (the same `regressions` array a request carries); its cohort is ignored, the refit runs on the source cohort and on the generated rows.",
 			},
 			{
@@ -1713,21 +1647,12 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
-	PULSE_PROFILE_FIELD_UNSUPPORTED: {
-		Message: "The profile layer cannot summarize this field type; the field is skipped.",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Synthesize the affected field from an explicit schema spec instead of relying on profile-driven mode.",
-			},
-		},
-	},
 	PULSE_TEST_UNKNOWN_TYPE: {
 		Message: "The request names a test type registered as neither a test nor a post-test.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Tests", "*", "Type"},
+				Path:   []string{"tests", "*", "type"},
 				Hint:   "Check the name against the manifest's tests and post_tests lists, and put it in the slot of its tier (tests or post_tests).",
 			},
 		},
@@ -1737,7 +1662,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "Field"},
+				Path:   []string{"tests", "*", "field"},
 				Hint:   "Pick a numeric field (u*, f*, decimal128), or use TEST_CHISQ with rows / cols for a categorical association.",
 			},
 		},
@@ -1747,7 +1672,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Tests", "*", "Alpha"},
+				Path:     []string{"tests", "*", "alpha"},
 				Hint:     "Pick a value in (0, 1); common choices are 0.10, 0.05, 0.01. Omit alpha to accept the 0.05 default.",
 				Examples: []any{0.05, 0.01, 0.10},
 			},
@@ -1767,7 +1692,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "Field"},
+				Path:   []string{"tests", "*", "field"},
 				Hint:   "Field is constant in the affected group; pick a different field or use TEST_KS for distribution comparison on near-constant data.",
 			},
 		},
@@ -1777,13 +1702,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Path:     []string{"post_tests", "*", "params", "partition_by"},
 				Hint:     "Name the first k entries of Details.groups, in order (groups [warehouse, week] admits [warehouse]); omit partition_by to partition by every key but the last, or pass [] for one run over every row.",
 				Examples: []any{map[string]any{"partition_by": []any{"warehouse"}}, map[string]any{"partition_by": []any{}}},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"PostTests", "*", "Params", "partition_by"},
+				Path:   []string{"post_tests", "*", "params", "partition_by"},
 				Hint:   "mixed_depth: give every post-test the same partition_by (Details.depths lists each one's depth), or put the post-tests that partition differently in their own request (a Compose slot each).",
 			},
 		},
@@ -1793,24 +1718,30 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "SplitBy"},
+				Path:   []string{"tests", "*", "split_by"},
 				Hint:   "Pick a split_by field with at least two distinct categories after filtering, or relax the filters.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups", "*", "Field"},
+				Path:   []string{"groups", "*", "field"},
 				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the split_by field from groups, or run the across-groups test as its own ungrouped request.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"PostTests", "*", "Params", "partition_by"},
+				Path:     []string{"post_tests", "*", "params", "partition_by"},
 				Hint:     "split_is_partition_key: a post-test runs once per partition (every key but the last by default); pass partition_by [] to compare across the partition keys in one run, or reorder groups so the split key comes last.",
 				Examples: []any{map[string]any{"partition_by": []any{}}},
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"tests", "*", "type"},
+				Hint:     "TEST_TUKEY_HSD needs k >= 3 groups (details.min_required 3): with two groups swap it for TEST_T or TEST_WELCH (continuous) or TEST_PROP_Z (proportions).",
+				Examples: []any{"TEST_T", "TEST_WELCH", "TEST_PROP_Z"},
 			},
 		},
 	},
 	PULSE_TEST_CONTINGENCY_DEGENERATE: {
-		Message: "A chi-square contingency table is empty or has a single row/column. On a grouped request it is also raised at predict and runtime when rows or cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
+		Message: "A chi-square contingency table is empty or has a single row/column, or an exact 2 x 2 test saw another shape. On a grouped request it is also raised at predict and runtime when rows or cols names a grouper field (details.reason split_is_grouper), and it rides a warning naming details.group_key when one group's table is degenerate (that group's statistic and p_value are null; the others proceed).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1818,8 +1749,14 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups", "*", "Field"},
+				Path:   []string{"groups", "*", "field"},
 				Hint:   "split_is_grouper: a grouped request runs the test once per group; drop the rows / cols field from groups.",
+			},
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"tests", "*", "type"},
+				Hint:     "TEST_FISHER_EXACT supports 2 x 2 tables only (details.rows / details.cols give the observed shape): run TEST_CHISQ on a larger table, or filter rows / cols down to two levels each.",
+				Examples: []any{"TEST_CHISQ"},
 			},
 		},
 	},
@@ -1828,7 +1765,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Tests", "*", "Type"},
+				Path:     []string{"tests", "*", "type"},
 				Hint:     "Use TEST_FISHER_EXACT for small 2x2 tables (a two-group proportion test is one: split_by x success); for larger tables, pool rare levels to raise per-cell expected counts.",
 				Examples: []any{"TEST_FISHER_EXACT"},
 			},
@@ -1839,7 +1776,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "Field2"},
+				Path:   []string{"tests", "*", "field2"},
 				Hint:   "Pick a numeric field (u*, f*, decimal128), or derive one with ATTR_FORMULA and name its label.",
 			},
 		},
@@ -1849,12 +1786,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Tests", "*", "Params", "success"},
+				Path:   []string{"tests", "*", "params", "success"},
 				Hint:   "Supply the dictionary value that represents success, spelt exactly as the outcome's dictionary holds it (e.g. {\"success\": \"yes\"}); a categorical success no entry matches is refused — use pulse cohort inspect to list the dictionary values.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Tests", "*", "Params", "success"},
+				Path:   []string{"tests", "*", "params", "success"},
 				Hint:   "On a packed_bool outcome success is one of its two levels, exactly \"1\" (true) or \"0\" (false) — details.valid_levels; there are no true / false aliases.",
 			},
 		},
@@ -1864,13 +1801,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Tests", "*", "Params", "expected"},
+				Path:     []string{"tests", "*", "params", "expected"},
 				Hint:     "List every rows level with its planned share, each above 0, summing to exactly 1 (e.g. a 50/50 split); Pulse never renormalises.",
 				Examples: []any{map[string]any{"expected": map[string]any{"control": 0.5, "treatment": 0.5}}},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "Cols"},
+				Path:   []string{"tests", "*", "cols"},
 				Hint:   "with_cols: goodness of fit reads rows alone; drop cols, or drop params.expected for the independence test.",
 			},
 		},
@@ -1880,7 +1817,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Tests", "*", "Params", "expected"},
+				Path:   []string{"tests", "*", "params", "expected"},
 				Hint:   "Add each missing label with its expected share (re-balancing the others so the total stays 1), or filter those rows out before the test; check the spelling against pulse cohort inspect's dictionary.",
 			},
 		},
@@ -1890,13 +1827,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Tests", "*", "Params", "reference"},
+				Path:     []string{"tests", "*", "params", "reference"},
 				Hint:     "Name the control arm exactly as the split_by dictionary spells it (pulse cohort inspect lists the levels); on a packed_bool use \"1\" or \"0\". Omit it for alphabetical order.",
 				Examples: []any{map[string]any{"reference": "control"}},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "SplitBy"},
+				Path:   []string{"tests", "*", "split_by"},
 				Hint:   "without_split_by: reference orders the two split_by groups; set split_by, or drop reference for the one-sample form.",
 			},
 		},
@@ -1906,7 +1843,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Tests", "*", "Params", "reference"},
+				Path:   []string{"tests", "*", "params", "reference"},
 				Hint:   "Name one of the two observed groups as the reference, or filter the rows to the two arms you mean to compare.",
 			},
 		},
@@ -1916,13 +1853,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Tests", "*", "Type"},
+				Path:     []string{"tests", "*", "type"},
 				Hint:     "unsupported_test: only the two-group mean and proportion tests take a covariate — TEST_WELCH, TEST_T with split_by, TEST_Z_TWO_SAMPLE, TEST_PROP_Z with split_by; drop covariate on any other test.",
 				Examples: []any{"TEST_WELCH"},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "Params", "covariate"},
+				Path:   []string{"tests", "*", "params", "covariate"},
 				Hint:   "Name a numeric column measured BEFORE assignment (a pre-period value of the outcome is best), other than the test's own field; without_split_by: set split_by — the adjustment compares two groups (drop covariate on a one-sample t or a p0 test).",
 			},
 		},
@@ -1932,13 +1869,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Tests", "*", "Params", "p0"},
+				Path:     []string{"tests", "*", "params", "p0"},
 				Hint:     "Give p0 as a proportion strictly between 0 and 1 (e.g. 0.5 for a planned 50/50 split).",
 				Examples: []any{map[string]any{"p0": 0.5}},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Tests", "*", "SplitBy"},
+				Path:   []string{"tests", "*", "split_by"},
 				Hint:   "with_split_by: p0 selects the one-proportion test; drop split_by, or drop p0 for the two-proportion test.",
 			},
 		},
@@ -1948,7 +1885,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Tests", "*", "Type"},
+				Path:     []string{"tests", "*", "type"},
 				Hint:     "Pearson r is undefined when either variable is constant; use TEST_SPEARMAN_R or TEST_KENDALL_TAU for monotonic association on near-constant data, or remove the constant column.",
 				Examples: []any{"TEST_SPEARMAN_R", "TEST_KENDALL_TAU"},
 			},
@@ -1959,7 +1896,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Filter out the rows where either paired field is null (FILTER_NULL) so the pair count is explicit, or accept the warning when the dropped count is small.",
 			},
 		},
@@ -1978,7 +1915,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Tests", "*", "Params", "exact"},
+				Path:   []string{"tests", "*", "params", "exact"},
 				Hint:   "At this size the normal approximation is accurate: drop params.exact, or filter to a smaller sample when an exact p is required.",
 			},
 		},
@@ -1988,12 +1925,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Pre-filter the cohort to retain only fully observed subjects, or ignore the warning if the dropped count is small relative to N.",
 			},
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Tests", "*", "Params", "incomplete"},
+				Path:     []string{"tests", "*", "params", "incomplete"},
 				Hint:     "Set params.incomplete to \"mixed\" to keep incomplete subjects in a REML random-intercept model (F with Satterthwaite df) instead of dropping them.",
 				Examples: []any{"mixed"},
 			},
@@ -2004,39 +1941,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Filter or pre-aggregate (for example average the repeats) so each subject contributes exactly one observation per condition before running TEST_ANOVA_RM.",
-			},
-		},
-	},
-	PULSE_TEST_TUKEY_REQUIRES_K_GE_3: {
-		Message: "Tukey HSD requires k >= 3 groups; a t-test or two-proportion z is the appropriate alternative for k = 2.",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Tests", "*", "Type"},
-				Hint:     "Swap TEST_TUKEY_HSD for TEST_T or TEST_WELCH (continuous) or TEST_PROP_Z (proportions) when only two groups are present.",
-				Examples: []any{"TEST_T", "TEST_WELCH", "TEST_PROP_Z"},
-			},
-		},
-	},
-	PULSE_TEST_SHAPIRO_N_BOUND: {
-		Message: "A Shapiro-Wilk test observed n above its supported limit (5000).",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Sample at most 5000 rows before TEST_SHAPIRO_WILK, or compare the distribution with TEST_KS.",
-			},
-		},
-	},
-	PULSE_TEST_FISHER_R_OR_C_GT_2: {
-		Message: "TEST_FISHER_EXACT requires a 2x2 table.",
-		Fixups: []Fixup{
-			{
-				Action:   FixupReplaceOperator,
-				Path:     []string{"Tests", "*", "Type"},
-				Hint:     "Use TEST_CHISQ for rxc tables when expected counts are large enough; or filter the cohort to a 2x2 subset with FILTER_INCLUDE.",
-				Examples: []any{"TEST_CHISQ"},
 			},
 		},
 	},
@@ -2248,12 +2154,12 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Extensions", "Aggregators", "*", "CountSemantic"},
+				Path:   []string{"extensions", "aggregators", "*", "count_semantic"},
 				Hint:   "reason count_semantic_vector_input: CountSemantic declares one count per slot, which a VectorInput / ArrayValued aggregator (one figure per member) never finishes as — drop CountSemantic, or register a single-field aggregator.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Extensions", "Overlays", "*", "Params"},
+				Path:   []string{"extensions", "overlays", "*", "params"},
 				Hint:   "reasons field_without_series_handler / partition_needs_series / reserved_series_param: set Handler.Series (and list the series shape for HonoursPartitionBy; HonoursField also takes Handler.Compose) or drop the flag, and remove field / partition_by from Params — the engine declares and reads them.",
 			},
 		},
@@ -2263,12 +2169,11 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Extensions", "*", "ComponentSchema", "Keys"},
+				Path:   []string{"extensions", "*", "component_schema", "keys"},
 				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc (or Components() method) emission. See docs/src/internals/extension-points.md for the per-category contract.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Extensions", "*", "ComponentsFunc"},
 				Hint:   "Drop the extra keys from the ComponentsFunc map before returning so the emission stays a subset of ComponentSchema.Keys (plus the universal-floor keys n / n_null / total_n / n_in / n_out / n_null_input the orchestrator owns).",
 			},
 		},
@@ -2278,7 +2183,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Extensions", "*", "ComponentSchema"},
+				Path:   []string{"extensions", "*", "component_schema"},
 				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc (or the value's Components() method) emits, or drop the emitter to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
 			},
 		},
@@ -2382,7 +2287,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort", "Filename"},
+				Path:   []string{"cohort", "filename"},
 				Hint:   "Verify the file is a Pulse cohort: a single-file .pulse or a Pulse shard archive. Re-import the source data or pass the correct path.",
 			},
 		},
@@ -2401,7 +2306,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort", "Filename"},
+				Path:   []string{"cohort", "filename"},
 				Hint:   "Decompress first: `pulse import transfer --input cohort.pulse.zst --output cohort.pulse` (library: Pulse.ImportTransfer), then pass the resulting .pulse path. The result is byte-identical to the cohort that was exported.",
 			},
 		},
@@ -2420,7 +2325,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort", "Filename"},
+				Path:   []string{"cohort", "filename"},
 				Hint:   "List the archive's shards via `pulse shard list <archive>` and reference an existing basename, or add the missing shard via `pulse shard add <archive> <shard>`.",
 			},
 		},
@@ -2470,7 +2375,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema", "Fields", "*", "Description"},
+				Path:   []string{"schema", "fields", "*", "description"},
 				Hint:   "Update the source data's per-field description (or the vector's labels / kind / scale range) to match the canonical archive's, or accept the warning (downstream consumers see the canonical metadata).",
 			},
 		},
@@ -2516,7 +2421,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Shard", "Basename"},
 				Hint:   "Rename the incoming shard to a non-reserved basename (e.g. `20190101.pulse`) before adding it to the archive.",
 			},
 		},
@@ -2526,7 +2430,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Shard", "Basename"},
 				Hint:   "Rename one of the colliding shards to a unique basename before insertion. Inspect the existing archive via `pulse shard list <archive>` to confirm the taken names.",
 			},
 		},
@@ -2536,7 +2439,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"--rewrite"},
 				Hint:   "Re-run `pulse shard add --rewrite`: it streams a new archive into a staged file beside the original and renames it over, so it never opens the archive for writing. Or make the archive writable — clear a read-only flag or mount, or close the other process holding it (on Windows a reader that opened it without write sharing refuses the append). `details.reason` is `open_for_write` or `archive_changed`, `details.cause` the underlying error.",
 			},
 		},
@@ -2546,7 +2448,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"--repair"},
 				Hint:   "Run `pulse shard verify --repair <archive>` (library: RepairShardArchive): it checks the journalled length and tail checksum, truncates the archive back to its pre-append bytes and removes the marker; then re-run the `shard add`. `details.journal` is the marker path. Never delete the marker by hand — that publishes whatever torn tail the crash left.",
 			},
 		},
@@ -2574,12 +2475,11 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Shard", "Paths"},
 				Hint:   "Concatenate small shards into fewer, larger `.pulse` files before archiving them, or split the data across more than one archive. `details.shard_count` is the count the write would have produced and `details.limit` the ceiling.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Output", "Shards", "MaxRecords"},
+				Path:   []string{"output", "shards", "max_records"},
 				Hint:   "A materialize run with output.shards: raise max_records so the written rows fit 65535 shards (`details.row` is the first row past the limit), or filter the rows written.",
 			},
 		},
@@ -2607,12 +2507,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Stages", "*", "Request"},
+				Path:   []string{"stages", "*", "request"},
 				Hint:   "Run the offending stage as its own process request (details name the stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (any but GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS).",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Stages", "*", "Request", "Crosstab"},
+				Path:   []string{"stages", "*", "request", "crosstab"},
 				Hint:   "A crosstab cannot run as a chain stage (the message reason names it): run it as its own process request, over the cohort or over a cohort materialised from the chain's rows.",
 			},
 		},
@@ -2622,7 +2522,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Stages", "*", "Request", "Joins"},
+				Path:   []string{"stages", "*", "request", "joins"},
 				Hint:   "Move the joins entry onto stage 0 (details name the offending stage), or run the joined step as its own process request and chain from its output.",
 			},
 		},
@@ -2632,7 +2532,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Stages"},
+				Path:   []string{"stages"},
 				Hint:   "Add at least one stage with a request, or run a single stage as a plain process request.",
 			},
 		},
@@ -2642,7 +2542,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests", "*", "Label"},
+				Path:   []string{"requests", "*", "label"},
 				Hint:   "Rename one of the colliding slots, or clear a label that matches another slot's default (`request_<index+1>`). The error details carry the offending label string and the colliding slot indices.",
 			},
 		},
@@ -3276,12 +3176,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "On"},
+				Path:   []string{"joins", "*", "on"},
 				Hint:   "Re-import one cohort with the key field's type matching the other side (e.g. u64 on both), so on[].left_field and on[].right_field share a type.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "On"},
+				Path:   []string{"joins", "*", "on"},
 				Hint:   "When `details.reason` is \"set_key\" or \"vector_key\", the key is a set_* or vec_f32 / vec_f64 column, which has no single equality value on either side: join on a scalar key column instead (the set or vector column still rides through the join).",
 			},
 		},
@@ -3291,7 +3191,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "Kind"},
+				Path:   []string{"joins", "*", "kind"},
 				Hint:   "Set kind to \"inner\" or drop it.",
 			},
 		},
@@ -3301,7 +3201,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Cohort"},
+				Path:   []string{"cohort"},
 				Hint:   "Remove cohort and list that cohort as a union member with its own label, or remove union to read the one cohort.",
 			},
 		},
@@ -3311,7 +3211,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Union", "*", "Cohort"},
+				Path:   []string{"union", "*", "cohort"},
 				Hint:   "Give the member at details.member a cohort {filename, data_dir} naming a .pulse file, shard archive or archive#shard.pulse anchor, or drop the member.",
 			},
 		},
@@ -3321,7 +3221,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Union", "*", "Label"},
+				Path:   []string{"union", "*", "label"},
 				Hint:   "Give the member at details.member a non-empty label no other member uses (details.reason says whether it was empty or a duplicate of details.first).",
 			},
 		},
@@ -3331,7 +3231,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"UnionSourceField"},
+				Path:   []string{"union_source_field"},
 				Hint:   "For reason collision, set union_source_field to a name no member field uses (the default is _source); for reason without_union, remove union_source_field or add a union.",
 			},
 		},
@@ -3341,7 +3241,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Union"},
+				Path:   []string{"union"},
 				Hint:   "List fewer members, or compact shard-archive members (pulse shard compact) so the flattened shard count is at most details.limit.",
 			},
 		},
@@ -3360,7 +3260,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "Right"},
+				Path:   []string{"joins", "*", "right"},
 				Hint:   "Name one cohort in the join's right, and move the union to the request's own union slot (the join's left side).",
 			},
 		},
@@ -3370,7 +3270,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Union", "*"},
+				Path:   []string{"union", "*"},
 				Hint:   "List every cohort as a member of the request's one union, each with its own label.",
 			},
 		},
@@ -3380,7 +3280,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Union"},
+				Path:   []string{"union"},
 				Hint:   "Run the operation against one cohort (set cohort instead of union), or merge the members into one shard archive first (pulse shard create).",
 			},
 		},
@@ -3390,7 +3290,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "On"},
+				Path:   []string{"joins", "*", "on"},
 				Hint:   "Check the name against the left cohort's fields and the right cohort's (pulse_inspect or `pulse cohort inspect` on the joins[].right path).",
 			},
 		},
@@ -3400,7 +3300,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "On"},
+				Path:   []string{"joins", "*", "on"},
 				Hint:   "Add at least one {left_field, right_field} pair to on, naming the columns to equate.",
 			},
 		},
@@ -3410,7 +3310,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins"},
+				Path:   []string{"joins"},
 				Hint:   "Join in steps: materialize the first join's output to a cohort (pulse_materialize), then join that cohort in a second request.",
 			},
 		},
@@ -3420,7 +3320,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Joins", "*", "As"},
+				Path:   []string{"joins", "*", "as"},
 				Hint:   "Set as to a short prefix (e.g. \"r_\") so right-side columns become r_<name> in the joined record.",
 			},
 		},
@@ -3497,7 +3397,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Field"},
+				Path:   []string{"labels", "*", "field"},
 				Hint:   "Use a field name reported by pulse_inspect: a categorical field, or on an export or convert a u4 / u8 / u16 / u32 code field.",
 			},
 		},
@@ -3507,7 +3407,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Field"},
+				Path:   []string{"labels", "*", "field"},
 				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field or a u4 / u8 / u16 / u32 code field. For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
@@ -3517,7 +3417,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Table"},
+				Path:   []string{"labels", "*", "table"},
 				Hint:   "Register the table before pulse.New (pulse.Options.Extensions.LabelTables, or a file under PULSE_LABEL_TABLES_DIR), or correct the table name in the binding.",
 			},
 		},
@@ -3527,7 +3427,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Labels", "*", "Mode"},
+				Path:     []string{"labels", "*", "mode"},
 				Hint:     "Switch the binding to replace mode, or rename the colliding existing field upstream so \"<field>_label\" is free.",
 				Examples: []any{"replace", "augment"},
 			},
@@ -3538,7 +3438,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels"},
+				Path:   []string{"labels"},
 				Hint:   "Drop the duplicate entry; a single binding governs both replace and augment behaviour for one field.",
 			},
 		},
@@ -3548,7 +3448,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Table"},
+				Path:   []string{"labels", "*", "table"},
 				Hint:   "Bind a table keyed by the field's stored integers in plain decimal (\"1\", \"7\" — no leading zeros, signs or fractions, within the type's range); details carry the offending key and the field's maximum.",
 			},
 		},
@@ -3558,7 +3458,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Mode"},
+				Path:   []string{"labels", "*", "mode"},
 				Hint:   "Set mode \"augment\": the numeric value stays and a \"<field>_label\" string column carries the label (null on a code the table lacks).",
 			},
 		},
@@ -3575,7 +3475,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Labels", "*", "Mode"},
+				Path:     []string{"labels", "*", "mode"},
 				Hint:     "Switch to augment mode if you need the source value preserved verbatim, or clean the table so labels are unique per source value.",
 				Examples: []any{"replace", "augment"},
 			},
@@ -3586,7 +3486,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Table"},
+				Path:   []string{"labels", "*", "table"},
 				Hint:   "Extend the label table to cover the unresolved values, or back the table with a Lookup func that synthesises a fallback for unknown keys.",
 			},
 		},
@@ -3596,12 +3496,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Field"},
+				Path:   []string{"labels", "*", "field"},
 				Hint:   "Bind a field the request groups by (a grouper key, a crosstab row or column axis), or drop the binding.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels", "*", "Mode"},
+				Path:   []string{"labels", "*", "mode"},
 				Hint:   "For a crosstab matrix axis use mode \"replace\" (the axis keys become the labels), or request shape \"long\" to keep augment-mode sibling columns.",
 			},
 		},
@@ -3611,18 +3511,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Crosstab", "Rows"},
+				Path:   []string{"crosstab", "rows"},
 				Hint:   "Add at least one grouper to crosstab.rows; for a single-axis aggregation use a plain request with groups and aggregations instead.",
-			},
-		},
-	},
-	PULSE_CROSSTAB_EMPTY_COLUMNS: {
-		Message: "Not raised: a crosstab with no column-axis groupers runs with one implicit \"Total\" column. The code is kept so lookups of it resolve.",
-		Fixups: []Fixup{
-			{
-				Action: FixupReplaceField,
-				Path:   []string{"Crosstab", "Columns"},
-				Hint:   "Omit crosstab.columns for a single Total column holding every record whose row key resolved, or add groupers for a real column axis.",
 			},
 		},
 	},
@@ -3631,7 +3521,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Cell"},
+				Path:     []string{"crosstab", "cell"},
 				Hint:     "Set crosstab.cell to an aggregation with type and field; AGG_COUNT is the classic count cell, AGG_AVERAGE / AGG_SUM the typical numeric cells.",
 				Examples: []any{"AGG_COUNT", "AGG_AVERAGE", "AGG_SUM"},
 			},
@@ -3642,7 +3532,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
+				Path:   []string{"groups"},
 				Hint:   "Remove top-level groups and aggregations; the crosstab already runs as a grouped request. If both shapes are needed, put each in its own Compose slot.",
 			},
 		},
@@ -3652,7 +3542,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Set normalize to \"none\" to leave cells un-normalized, or pick a cell aggregator whose margin is defined under the chosen normalization direction.",
 				Examples: []any{"none", "row", "column", "total"},
 			},
@@ -3667,7 +3557,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "NormalizeLevel"},
+				Path:     []string{"crosstab", "normalize_level"},
 				Hint:     "Pick a depth in [0, len(axis)-1], where the axis is crosstab.rows under normalize row and crosstab.columns under normalize column. Omit normalize_level for the leaf.",
 				Examples: []any{0, 1, 2},
 			},
@@ -3678,7 +3568,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Set crosstab.normalize to \"row\" or \"column\" to choose which axis the level descends, or drop the normalize_level field to keep raw cell values.",
 				Examples: []any{"row", "column"},
 			},
@@ -3689,7 +3579,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Set normalize to \"row\" or \"column\" if a partial-depth denominator is intended, or drop normalize_level to keep the scalar grand-total denominator.",
 				Examples: []any{"row", "column"},
 			},
@@ -3700,7 +3590,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "NormalizeWithin"},
+				Path:     []string{"crosstab", "normalize_within"},
 				Hint:     "Pick a depth in [0, len(other-axis)-1], where the other axis is crosstab.columns under normalize row and crosstab.rows under normalize column. Omit normalize_within to keep the full row / column margin as the denominator.",
 				Examples: []any{0, 1},
 			},
@@ -3711,7 +3601,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Set crosstab.normalize to \"row\" or \"column\" to choose which axis hosts the cell-marginal numerator, or drop the normalize_within field to keep raw cell values.",
 				Examples: []any{"row", "column"},
 			},
@@ -3722,7 +3612,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Set normalize to \"row\" or \"column\" if a cross-axis partitioned denominator is intended, or drop normalize_within to keep the scalar grand-total denominator.",
 				Examples: []any{"row", "column"},
 			},
@@ -3733,7 +3623,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "MarginAggregations", "*", "Type"},
+				Path:     []string{"crosstab", "margin_aggregations", "*", "type"},
 				Hint:     "Give every margin_aggregations entry an aggregation type, or drop the entry. The canonical auxiliary base is AGG_DISTINCT_COUNT over the respondent key beside a weighted cell metric; AGG_COUNT and AGG_SUM are the other common choices.",
 				Examples: []any{"AGG_DISTINCT_COUNT", "AGG_COUNT", "AGG_SUM"},
 			},
@@ -3744,7 +3634,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "MarginAggregations", "*", "Label"},
+				Path:     []string{"crosstab", "margin_aggregations", "*", "label"},
 				Hint:     "Set an explicit, distinct label on each margin_aggregations entry. Two entries of the same type over the same field are indistinguishable without one, and the cell aggregation's own label is already taken.",
 				Examples: []any{"unweighted_base", "weighted_base"},
 			},
@@ -3755,7 +3645,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Cells", "*", "Type"},
+				Path:     []string{"crosstab", "cells", "*", "type"},
 				Hint:     "Give every cells entry a type (or a field whose schema type infers one), drop null entries, and set either cell (one measure) or cells (several), never both.",
 				Examples: []any{"AGG_AVERAGE", "AGG_COUNT", "AGG_SUM"},
 			},
@@ -3766,7 +3656,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Cells", "*", "Label"},
+				Path:     []string{"crosstab", "cells", "*", "label"},
 				Hint:     "Set an explicit, distinct label on each cells entry; two entries of the same type over the same field need one.",
 				Examples: []any{"mean_score", "top2_share"},
 			},
@@ -3777,7 +3667,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Margins"},
+				Path:     []string{"crosstab", "margins"},
 				Hint:     "Turn on the margin that should carry the auxiliary figure (margins.rows / margins.columns / margins.grand), or drop margin_aggregations. Setting a normalize direction is NOT enough — it computes its implied margin as a denominator and emits no auxiliary figure there.",
 				Examples: []any{map[string]any{"columns": true}, map[string]any{"rows": true, "grand": true}},
 			},
@@ -3788,13 +3678,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Normalize"},
+				Path:     []string{"crosstab", "normalize"},
 				Hint:     "Drop the normalize directive (or set it to \"none\") to keep map-valued cells, or swap the cell aggregator to a scalar form (e.g. AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG, or a constant of a numeric type) so normalization is defined.",
 				Examples: []any{"none"},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Crosstab", "Cell", "Type"},
+				Path:     []string{"crosstab", "cell", "type"},
 				Hint:     "Pick a scalar aggregator if the normalize directive must stay. AGG_SET_CARDINALITY_SUM gives summable popcount per cell; AGG_SET_CARDINALITY_AVG gives mean selections.",
 				Examples: []any{"AGG_SET_CARDINALITY_SUM", "AGG_SET_CARDINALITY_AVG"},
 			},
@@ -3836,7 +3726,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Kind"},
+				Path:     []string{"overlays", "*", "kind"},
 				Hint:     "Pick a registered kind from the manifest's overlays list (pulse --json, or pulse_manifest); spelling and casing must match exactly.",
 				Examples: []any{"OVERLAY_INDEX_VS_MARGIN"},
 			},
@@ -3847,30 +3737,30 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Ref", "Margin"},
+				Path:     []string{"overlays", "*", "ref", "margin"},
 				Hint:     "Set ref.margin to {\"axis\": \"row\" | \"column\" | \"grand\"} for OVERLAY_INDEX_VS_MARGIN, and give the request a crosstab so the margin has a denominator.",
 				Examples: []any{"row", "column", "grand"},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Groups"},
+				Path:   []string{"groups"},
 				Hint:   "OVERLAY_YOY needs EXACTLY ONE GROUP_DATE grouper (details.date_groupers counts those sent, details.groupers every group; a lone non-date grouper names itself in details.host_grouper). Add the GROUP_DATE grouper, or drop the extra one; the other keys may stay — YoY runs once per combination of them.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Kind"},
+				Path:     []string{"overlays", "*", "kind"},
 				Hint:     "When details.hosts is present the kind runs on another overlay slot: details.host is the slot it was sent on (request | compose | chain | facet), details.hosts every slot that runs it. Move the spec there (a Compose kind such as OVERLAY_T_VS_REF goes in the compose request's overlays, comparing two slots; a stage kind in the chain request's overlays; a population kind in the facet request's overlays), or pick a kind this slot runs.",
 				Examples: []any{"compose", "chain", "facet", "request"},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Kind"},
+				Path:     []string{"overlays", "*", "kind"},
 				Hint:     "When details.shapes is present the kind runs in a request's overlays but not over this host shape: details.shape is the host the request makes (matrix = a crosstab; series = groups + aggregations, no crosstab), details.shapes every shape the kind runs on. Pick a kind for this shape (a share or margin kind on a crosstab, a prior / baseline / total kind on a grouped request), or reshape the request. A series OVERLAY_FORMULA runs in compose overlays. In compose overlays a two-sample t / z vs-ref kind over a crosstab slot (details.slot) carries the same keys: compare grouped slots, or use its per-cell twin over the crosstab slots.",
 				Examples: []any{"matrix", "series"},
 			},
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Path:     []string{"requests", "*", "aggregations", "*", "type"},
 				Hint:     "When details.measure_type is present the kind cannot read that measure. A Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF, details.reason measure_not_mean, details.slot / details.host the scored aggregation) needs a mean — AGG_AVERAGE or AGG_WEIGHTED_MEAN, with the variance and sample size in params — or a measure whose components carry the moments: AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV (or an extension declaring mean + variance), read with no params. Score one of those, or point params.field at it. A prior-period T / Z kind needs AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV; the proportion kind an AGG_AVERAGE of a 0/1 indicator.",
 				Examples: []any{"AGG_AVERAGE", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_VARIANCE", "AGG_STDDEV"},
 			},
@@ -3881,7 +3771,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"DisableComponents"},
+				Path:     []string{"disable_components"},
 				Hint:     "Re-run with components enabled: clear Options.DisableComponents (and any per-request disable_components override) so the response's components carry the cell n / Welford triples the pairwise overlay divides by. On Compose the override is per slot: set disable_components: false on the slot details.slot names (it re-opens an engine-off gate), or score a scalar mean with the params triple instead.",
 				Examples: []any{false},
 			},
@@ -3892,7 +3782,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Scope"},
+				Path:     []string{"overlays", "*", "scope"},
 				Hint:     "Set scope to one the kind runs at (its op-overlay skill lists them) — \"cell\" for OVERLAY_INDEX_VS_MARGIN.",
 				Examples: []any{"cell"},
 			},
@@ -3903,7 +3793,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Filter out rows that contribute zero margin sums (e.g. FILTER_EXCLUDE on the empty / null axis value), or pick a cell aggregator whose denominator is bounded away from zero (AGG_COUNT margins are non-negative integers; AGG_SUM on signed numeric fields may legitimately produce zero).",
 			},
 		},
@@ -3913,22 +3803,22 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Crosstab", "Rows"},
+				Path:   []string{"crosstab", "rows"},
 				Hint:   "Lower the overlay's level (collapse a finer grouper) or widen the cells (raise observed counts) so the contingency margins reach the χ² reliability threshold — coarsen GROUP_DATE buckets, widen GROUP_RANGE intervals, or drop a deep grouper on the row axis. Alternatively, switch to OVERLAY_FISHER_EXACT_CELL (exact 2×2 p-values) which stays exact in the low-count regime.",
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Crosstab", "Columns"},
+				Path:   []string{"crosstab", "columns"},
 				Hint:   "Same as the row-axis fix — coarsen or drop a column-axis grouper so the contingency cells aggregate enough observations to drive expected counts past the reliability threshold.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"FacetRequest", "DiscreteTopK"},
+				Path:   []string{"discrete_top_k"},
 				Hint:   "OVERLAY_CHISQ_VS_POP: raise the subset record count by widening the facet request's filterers (drop a restrictive one), or lower its discrete_top_k so categories merge and observed counts rise. Population frequency is fixed at the population cohort level; only subset_N (sum of host counts) and the number of categories scale the expected counts.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "exact"},
+				Path:     []string{"overlays", "*", "params", "exact"},
 				Hint:     "OVERLAY_SYMMETRY: set params.exact to true for an exact p that needs no expected-count threshold — on a 2 x 2 the exact binomial McNemar test (R binom.test(n_12, n_12 + n_21)) with the discordant odds ratio and its exact interval, on k x k the exact conditional Bowker test. Not over a probability-weighted cell (refused).",
 				Examples: []any{true},
 			},
@@ -3939,13 +3829,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Level"},
+				Path:     []string{"overlays", "*", "level"},
 				Hint:     "Pick a depth in [0, len(axis)-1], where the axis is crosstab.rows for a row-axis overlay and crosstab.columns for a column-axis one. Omit level for the leaf (the deepest grouper on the axis).",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "window"},
+				Path:     []string{"overlays", "*", "params", "window"},
 				Hint:     "Use a whole number at or above details.min — 2 or more for the rolling z-score; window 1 of the rolling-mean index indexes each row against the one before it.",
 				Examples: []any{2, 3, 7},
 			},
@@ -3956,30 +3846,30 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
+				Path:     []string{"overlays", "*", "params"},
 				Hint:     "Set the overlay's params to an object holding the keys its kind requires. For OVERLAY_INDEX_VS_ROLLING_MEAN that is `{\"window\": N}`, N a positive integer (e.g. {\"window\": 3} for a 3-point rolling mean).",
 				Examples: []any{map[string]any{"window": 3}, map[string]any{"window": 7}, map[string]any{"window": 12}},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
+				Path:     []string{"overlays", "*", "params"},
 				Hint:     "Two-sample overlay (details.reason params_missing): supply the keys details.params names — variance_target / variance_ref and sample_size_target / sample_size_ref, or the symmetric variance / sample_size for both sides — each a finite number > 0. Or let the slot carry the moments: score the moment aggregator (Welford mean, variance and n — on a crosstab cell, any aggregator whose components carry mean and variance) with components enabled, and no params are read.",
 				Examples: []any{map[string]any{"variance": 4.0, "sample_size": 30}, map[string]any{"variance_target": 2.5, "variance_ref": 3.1, "sample_size_target": 40, "sample_size_ref": 38}},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "p_source"},
+				Path:     []string{"overlays", "*", "params", "p_source"},
 				Hint:     "Pairwise proportion kind on a normalised crosstab (details.param p_source, details.normalize set): drop p_source — the default on a normalised host reads each cell as the 0..1 share it already is — or set it to cell_value. Keep cell_value_pct only for a normalize none host whose cells are 0..100 percentages.",
 				Examples: []any{map[string]any{"p_source": "cell_value"}},
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Overlays", "*", "Params", "exact"},
+				Path:   []string{"overlays", "*", "params", "exact"},
 				Hint:   "OVERLAY_SYMMETRY details.reason exact_too_large: drop params.exact — the table's discordant counts are large enough for Bowker's chi-square test, which is what the exact test would approximate anyway. Or coarsen the states (fewer, merged categories) to bring the exact test under its limit.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Overlays", "*", "Params", "conf_level"},
+				Path:   []string{"overlays", "*", "params", "conf_level"},
 				Hint:   "OVERLAY_SYMMETRY details.reason needs_2x2: drop params.conf_level — on more than 2 states the exact Bowker test reports no odds ratio, so there is no interval to set a level for. Keep conf_level only on a 2 x 2 table.",
 			},
 		},
@@ -3989,7 +3879,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Path:     []string{"overlays", "*", "params", "formula"},
 				Hint:     "Fix the formula at the position details.parse_error names: balance every '(' with a ')', close every '\"' string, and use only the expression operators (+, -, *, /, %, **, ==, !=, <, <=, >, >=, &&, ||, !). ATTR_FORMULA and FILTER_EXPRESSION share the grammar (skills/expression-language.md), so a formula that parses there parses here.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}},
 			},
@@ -4000,7 +3890,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Path:     []string{"overlays", "*", "params", "formula"},
 				Hint:     "Make the formula's top-level expression yield a number or a bool. An embedder function it calls (pulse.Options.Extensions.ExprFunctions) must return a number, not a string, slice or composite (docs/src/internals/extension-points.md).",
 				Examples: []any{map[string]any{"formula": "cell / margin_row"}, map[string]any{"formula": "(value - prior) / prior"}},
 			},
@@ -4011,7 +3901,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "formula"},
+				Path:     []string{"overlays", "*", "params", "formula"},
 				Hint:     "Use an identifier from details.allowed (variables) or details.allowed_funcs (functions) for shape details.host_shape; skills/overlay-system.md tables each shape's namespace. A custom function is registered through pulse.Options.Extensions.ExprFunctions before pulse.New (docs/src/internals/extension-points.md; function names are free-form). A variable outside the shape's table needs a custom overlay kind (pulse.Options.Extensions.OverlayKinds) — OVERLAY_FORMULA cannot widen its namespace. `slot.<label>.<field>` resolves only in compose overlays, not in a request's overlays.",
 				Examples: []any{map[string]any{"formula": "(cell - margin_grand) / sd_grand"}, map[string]any{"formula": "value / total"}, map[string]any{"formula": "(slot.us.cell - slot.uk.cell) / slot.world.cell"}},
 			},
@@ -4022,7 +3912,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "field"},
+				Path:     []string{"overlays", "*", "params", "field"},
 				Hint:     "Set params.field to one of the labels in details.available, or give the aggregation you mean an explicit label and name that. Two aggregations over one input field (AGG_SUM and AGG_MEAN of spend) differ by label, not by field. Omit params.field to score the first aggregation. On a facet overlay, name an entry of details.available_fields, or add the field to the facet request's fields.",
 				Examples: []any{map[string]any{"field": "orders"}, map[string]any{"field": "AGG_SUM_spend"}},
 			},
@@ -4033,19 +3923,19 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Path:     []string{"overlays", "*", "params", "partition_by"},
 				Hint:     "Name the first k entries of details.groups, in order (groups [region, store, day] admits [region] or [region, store]); reorder groups to put the segment keys first, or omit partition_by to partition by every key but the last. Pass [] to walk every composite row as one series.",
 				Examples: []any{map[string]any{"partition_by": []any{"region"}}, map[string]any{"partition_by": []any{}}},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "partition_by"},
+				Path:     []string{"overlays", "*", "params", "partition_by"},
 				Hint:     "For the year-over-year overlay (reason not_non_date_keys) name every entry of details.groups except the GROUP_DATE column, once each, or omit partition_by — that is the default.",
 				Examples: []any{map[string]any{"partition_by": []any{"region", "store"}}},
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Overlays", "*", "Params", "partition_by"},
+				Path:   []string{"overlays", "*", "params", "partition_by"},
 				Hint:   "reason compose_host: drop partition_by from the compose overlay — the extension kind's Compose handler reads every slot whole; partition in a grouped request's own overlays instead.",
 			},
 		},
@@ -4055,22 +3945,22 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Field"},
+				Path:   []string{"overlays", "*", "ref", "sibling", "field"},
 				Hint:   "Set ref.sibling.field to the field of one of the request's groups (usually a categorical grouper); pulse api predict --json shows the grouper fields.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref", "Sibling", "Value"},
+				Path:   []string{"overlays", "*", "ref", "sibling", "value"},
 				Hint:   "Set ref.sibling.value to an observed key of that field: pulse cohort inspect --json lists its dictionary, pulse api facet the values left after filtering.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref", "BaselineIndex", "Position"},
+				Path:   []string{"overlays", "*", "ref", "baseline_index", "position"},
 				Hint:   "Set ref.baseline_index.position to a 0-based ordinal below the series length (run the request without the overlay and count its data rows).",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref", "Population", "Cohort"},
+				Path:   []string{"overlays", "*", "ref", "population", "cohort"},
 				Hint:   "A population overlay reads the facet result: name a field in details.available_fields, or add the field to the facet request's fields.",
 			},
 		},
@@ -4080,13 +3970,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Groups", "0", "Params"},
+				Path:     []string{"groups", "0", "params"},
 				Hint:     "Set `\"frequency\": \"<freq>\"` in the GROUP_DATE grouper's params, <freq> one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`, matching its component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour). Every OVERLAY_YOY on the request reads it.",
 				Examples: []any{map[string]any{"component": "month", "frequency": "monthly"}, map[string]any{"component": "year", "frequency": "annual"}, map[string]any{"component": "quarter", "frequency": "quarterly"}},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
+				Path:     []string{"overlays", "*", "params"},
 				Hint:     "Or set params.frequency on the OVERLAY_YOY overlay itself, which overrides the grouper's — useful when the grouper is not yours to change. Same values, matching the grouper's component.",
 				Examples: []any{map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
 			},
@@ -4097,17 +3987,17 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Stages"},
+				Path:   []string{"stages"},
 				Hint:   "Make both stages produce one shape: replace a crosstab stage's crosstab with the same groups and aggregations (matrix → series), or drop groups from the series stage (series → scalar).",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Target"},
+				Path:   []string{"overlays", "*", "target"},
 				Hint:   "Point the overlay's target at a stage whose shape matches the ref stage; pulse api predict-chain --json reports each stage's shape.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref"},
+				Path:   []string{"overlays", "*", "ref"},
 				Hint:   "Or point the overlay's ref at a stage whose shape matches the target stage.",
 			},
 		},
@@ -4117,18 +4007,18 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Targets"},
+				Path:   []string{"overlays", "*", "targets"},
 				Hint:   "Set each `targets` entry to a slot label of `requests[].label`; pulse api predict-compose --json lists the resolved labels.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Target", "Index"},
+				Path:     []string{"overlays", "*", "target", "index"},
 				Hint:     "Chain overlay: set target.index to a 0-based stage ordinal below the stage count, or omit target for the last stage.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Target", "Name"},
+				Path:   []string{"overlays", "*", "target", "name"},
 				Hint:   "Chain overlay: set target.name to a stage's name, matching exactly (case-sensitive).",
 			},
 		},
@@ -4138,23 +4028,23 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Reference"},
+				Path:   []string{"overlays", "*", "reference"},
 				Hint:   "Set `reference` to a slot label of `requests[].label`; pulse api predict-compose --json lists the resolved labels.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Ref", "Index"},
+				Path:     []string{"overlays", "*", "ref", "index"},
 				Hint:     "Chain overlay: set ref.index to a 0-based stage ordinal below the stage count. Every chain overlay must name its baseline — ref has no default.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Ref", "Name"},
+				Path:   []string{"overlays", "*", "ref", "name"},
 				Hint:   "Chain overlay: set ref.name to a stage's name, matching exactly (case-sensitive).",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Ref", "Matrix", "Name"},
+				Path:     []string{"overlays", "*", "ref", "matrix", "name"},
 				Hint:     "OVERLAY_MATRIX_RESULT: set ref.matrix.name to one of the names under details.matrices — a matrix spec's `name`, or for an unnamed spec its default `<TYPE>_<vector>` (vector spec) / `<TYPE>` (inline fields).",
 				Examples: []any{"MAT_CORRELATION_scores"},
 			},
@@ -4167,7 +4057,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests"},
+				Path:   []string{"requests"},
 				Hint:   "Make every slot produce the same key set: the same groups, the same filterers and the same shape-affecting params, over cohorts that hold the same keys.",
 			},
 		},
@@ -4180,17 +4070,17 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests", "*", "Crosstab", "Rows"},
+				Path:   []string{"requests", "*", "crosstab", "rows"},
 				Hint:   "Give the diverging slot the same row-axis groupers (kind, type and depth) as the reference slot; field names may differ.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests", "*", "Crosstab", "Columns"},
+				Path:   []string{"requests", "*", "crosstab", "columns"},
 				Hint:   "Give the diverging slot the same column-axis groupers (kind, type and depth) as the reference slot; field names may differ.",
 			},
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Requests", "*", "Aggregations", "*", "Type"},
+				Path:     []string{"requests", "*", "aggregations", "*", "type"},
 				Hint:     "When details.reason is mixed_measure_read a Compose two-sample vs-ref kind (OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF) reads one side as a bare mean and the other through its moments (details.reference_read / details.target_read): score the same family on both slots — AGG_AVERAGE / AGG_WEIGHTED_MEAN (variance and n from params) on both, or AGG_WELFORD / AGG_VARIANCE / AGG_STDDEV (components) on both.",
 				Examples: []any{"AGG_AVERAGE", "AGG_WELFORD"},
 			},
@@ -4202,7 +4092,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests"},
+				Path:   []string{"requests"},
 				Hint:   "Give the diverging slot the reference slot's shape: both crosstabs, both grouped (groups and aggregations, no crosstab), or both ungrouped (no groups).",
 			},
 		},
@@ -4214,12 +4104,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Options"},
+				Path:   []string{"overlays", "*", "options"},
 				Hint:   "Drop options.dict_prefix_fast (or set it false) for the by-label join, which tolerates any dictionary order.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests"},
+				Path:   []string{"requests"},
 				Hint:   "Or run the slots over cohorts whose dictionaries on the keying field share a common prefix — imported from one source, or shards of one archive.",
 			},
 		},
@@ -4232,7 +4122,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Requests", "*", "Crosstab"},
+				Path:   []string{"requests", "*", "crosstab"},
 				Hint:   "Give the offending slot a crosstab (rows, columns and cell), or pick a kind that runs on the slot's shape (the manifest's overlays entries list each kind's shapes).",
 			},
 		},
@@ -4242,12 +4132,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Targets"},
+				Path:   []string{"overlays", "*", "targets"},
 				Hint:   "Reduce `targets` to at most details.cap, or raise the cap. Dropping targets is the cheapest fix. If the panel exists to compare a reference cohort against many treatment arms, split it into batches of cap-sized sub-panels, each emitting its own OVERLAY_PROP_Z_PANEL layer; a fan-out spec splits into several specs the same way.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "*", "Options", "MaxPanelTargets"},
+				Path:   []string{"overlays", "*", "options", "max_panel_targets"},
 				Hint:   "Raise `options.max_panel_targets` to at least the observed target count when the O(N²) per-cell pairwise cost is acceptable.",
 			},
 		},
@@ -4257,23 +4147,23 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "n_within_depth"},
+				Path:     []string{"overlays", "*", "params", "n_within_depth"},
 				Hint:     "Raise `n_within_depth` so the fan-out dim named in details (`dim_index`) falls INSIDE the fixed prefix rather than being summed across. The prefix covers dim positions 0..n_within_depth, so `n_within_depth >= dim_index` makes each fan-out bucket its own slab — every slab then partitions its own keys and the distinct sum is exact. It must stay strictly below the pair-axis dim count.",
 				Examples: []any{0, 1, 2},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Crosstab", "Rows"},
+				Path:   []string{"crosstab", "rows"},
 				Hint:   "Move the fan-out grouper (such as GROUP_SET_PER_ELEMENT) to an OUTER position on the pair axis so the fixed prefix can cover it, or replace it with GROUP_SET_VALUE, which maps each record to exactly one bucket and so partitions. The same applies to crosstab.columns when the overlay's scope is `column`.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Overlays", "*", "Params", "n_within_depth"},
+				Path:   []string{"overlays", "*", "params", "n_within_depth"},
 				Hint:   "Compose OVERLAY_PROP_Z_PANEL only: remove `n_within_depth`. Without a depth `row_margin_value_within` reads the EXACT per-slot row margin and sums nothing, so no key can land in two summed rows — it is never gated, and equals `row_margin_value` wherever that margin is present. Use this when you wanted a per-row denominator rather than a within-prefix one.",
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params", "n_source"},
+				Path:     []string{"overlays", "*", "params", "n_source"},
 				Hint:     "Switch to a sample-size mode that does not sum distinct cardinalities. To KEEP the distinct-key count, use `row_margin_distinct` / `column_margin_distinct`: a margin accumulates over raw records rather than folding cells, so it is exact under a fan-out grouper and is never gated — at the cost of a margin-wide denominator instead of a slab one. `n_within` sums per-cell RECORD counts, which are additive under any grouper — correct, but it counts records rather than respondents. `cell_n_unweighted`, `row_margin_n` and `column_margin_n` read a single figure and never sum across a fan-out dim.",
 				Examples: []any{"row_margin_distinct", "column_margin_distinct", "n_within", "cell_n_unweighted", "row_margin_n", "column_margin_n"},
 			},
@@ -4284,19 +4174,18 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"ExportJob", "Target"},
 				Hint:     "To keep overlays, export with an overlay-aware writer instead of CSV / TSV: Arrow carries them as a top-level LIST<STRUCT> column family, Parquet as the same Arrow schema, Excel as one sheet per layer named `__overlay_<layer_name>`, NDJSON as one trailing line `{\"_overlays\": [...]}` after the last record. All four formats carry every layer; Arrow, Parquet and NDJSON also carry a layer's named parts, while Excel writes the primary payload only (PULSE_OVERLAY_EXPORT_PARTS_DROPPED).",
 				Examples: []any{"arrow", "parquet", "excel", "ndjson"},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"ExportJob", "IncludeOverlays"},
+				Path:     []string{"include_overlays"},
 				Hint:     "To silence this warning and keep CSV, set ExportJob.IncludeOverlays (or ConvertJob.IncludeOverlays) to false; the CSV body is the same either way.",
 				Examples: []any{false},
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Request"},
+				Path:   []string{"request"},
 				Hint:   "To read overlay results without exporting, run `pulse api process --json` and read `data.overlays`.",
 			},
 		},
@@ -4306,13 +4195,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"ExportJob", "Target"},
 				Hint:     "To keep the parts, export to a format that writes each overlay layer as JSON: NDJSON (a trailing `_overlays` line), Arrow or Parquet. Each carries the layer's `payload.parts` byte-for-byte as the JSON envelope does.",
 				Examples: []any{"ndjson", "arrow", "parquet"},
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Request"},
+				Path:   []string{"request"},
 				Hint:   "To read the parts without exporting, take them from the JSON envelope: `data.overlays[i].payload.parts.<part>`. A `return` include of `overlays[*].payload.parts.<part>` selects one part.",
 			},
 		},
@@ -4322,13 +4210,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceOperator,
-				Path:     []string{"Crosstab", "Cell", "Type"},
+				Path:     []string{"crosstab", "cell", "type"},
 				Hint:     "Score the crosstab cell with a count (AGG_COUNT, weighted or not) or a sum of a non-negative field (AGG_SUM), so every cell is a mass the overlay can turn into row and column profiles.",
 				Examples: []any{"AGG_COUNT", "AGG_SUM"},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Crosstab", "Cell", "Field"},
+				Path:   []string{"crosstab", "cell", "field"},
 				Hint:   "An AGG_SUM cell went negative: sum a field that cannot be negative (a quantity, an amount spent), or filter out the negative records with a FILTER_EXPRESSION before the crosstab runs.",
 			},
 		},
@@ -4338,12 +4226,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Crosstab", "Columns"},
+				Path:   []string{"crosstab", "columns"},
 				Hint:   "Group the rows and the columns the same way — one grouper each, on the from-state and the to-state fields (the same categories on both, e.g. from_tier x to_tier) — so both axes carry the same kind of key.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Crosstab", "Rows"},
+				Path:   []string{"crosstab", "rows"},
 				Hint:   "A state appears on one axis only. A column-only state nobody leaves (churned) is absorbing: name it in params.absorbing and the overlay adds its unit row. Otherwise record a transition for it on the other axis, or filter out the records that mention it with a FILTER_EXPRESSION before the crosstab runs.",
 			},
 		},
@@ -4353,13 +4241,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Overlays", "Params", "absorbing"},
+				Path:     []string{"overlays", "params", "absorbing"},
 				Hint:     "A chain with absorbing states (churned, closed) is reducible by design: read the absorption_time part (time to reach them) and the step_<n> / distribution_<n> projections instead of a steady state, and name every absorbing state in params.absorbing.",
 				Examples: []any{[]string{"churned"}},
 			},
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Crosstab", "Rows"},
+				Path:   []string{"crosstab", "rows"},
 				Hint:   "A periodic or split chain often comes from too short an observation window or too fine states: widen the window or merge states so every state can reach every other, then the steady state is defined.",
 			},
 		},
@@ -4369,13 +4257,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Overlays", "Params", "row_targets"},
+				Path:     []string{"overlays", "params", "row_targets"},
 				Hint:     "Give exactly one target per host key on each axis — the same spelling as the crosstab's row and column keys — and drop targets for categories the data never holds (or filter the host so it holds only the targeted categories).",
 				Examples: []any{map[string]any{"north": 0.25, "south": 0.25, "east": 0.25, "west": 0.25}},
 			},
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Overlays", "Params", "targets_as"},
+				Path:     []string{"overlays", "params", "targets_as"},
 				Hint:     "Counts targets must share one grand total across rows and columns; when the sources disagree, pass shares instead (targets_as \"shares\"), which are normalized per axis and scaled to the host grand total.",
 				Examples: []any{"shares"},
 			},
@@ -4386,13 +4274,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Groups"},
+				Path:     []string{"groups"},
 				Hint:     "Add a grouper so every matrix spec is computed once per bucket, then the summary reads every bucket's matrix.",
 				Examples: []any{[]map[string]any{{"type": "GROUP_CATEGORY", "field": "region"}}},
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Overlays", "*"},
+				Path:   []string{"overlays", "*"},
 				Hint:   "On an ungrouped request the matrix result already is the whole-cohort figure: drop the group-summary overlay and read the response's matrices directly.",
 			},
 		},
@@ -4402,13 +4290,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Overlays", "Params", "max_iter"},
+				Path:     []string{"overlays", "params", "max_iter"},
 				Hint:     "Raise max_iter (or loosen tolerance) when the residual is still falling; a residual that stalls means the targets are unreachable from this table's pattern of zeros.",
 				Examples: []any{1000},
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Overlays", "Params", "row_targets"},
+				Path:   []string{"overlays", "params", "row_targets"},
 				Hint:   "Check targets against the table's zeros: a category with no observed cells cannot be raked to a positive target — merge it with a neighbour or give it a zero target.",
 			},
 		},
@@ -4418,13 +4306,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Overlays", "*", "Params"},
+				Path:     []string{"overlays", "*", "params"},
 				Hint:     "Set params.frequency to one of `annual` | `quarterly` | `monthly` | `weekly` | `daily` | `hourly`, matching the GROUP_DATE grouper's component (annual↔year, quarterly↔quarter, monthly↔month, weekly↔week, daily↔day, hourly↔hour), or set it in the grouper's params instead.",
 				Examples: []any{map[string]any{"frequency": "annual"}, map[string]any{"frequency": "quarterly"}, map[string]any{"frequency": "monthly"}, map[string]any{"frequency": "weekly"}, map[string]any{"frequency": "daily"}, map[string]any{"frequency": "hourly"}},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Groups", "0"},
+				Path:     []string{"groups", "0"},
 				Hint:     "For a frequency outside the set, group coarser: e.g. hourly rows to a daily trend with `{\"type\": \"GROUP_DATE\", \"field\": \"<date_field>\", \"params\": {\"component\": \"day\", \"frequency\": \"daily\"}}` and no overlay-level frequency; the same lifts daily to monthly, monthly to quarterly or quarterly to annual.",
 				Examples: []any{map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "day", "frequency": "daily"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "month", "frequency": "monthly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "quarter", "frequency": "quarterly"}}, map[string]any{"Type": "GROUP_DATE", "Field": "event_date", "Params": map[string]any{"component": "year", "frequency": "annual"}}},
 			},
@@ -4441,7 +4329,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Field"},
+				Path:   []string{"field"},
 				Hint:   "Or look up on a field that already has an index: `pulse index list <cohort>` (Pulse.ListIndexes) reports every built index with its key tuple. Read that rather than globbing `.idx` files — a sidecar's file name is a hash of its keys.",
 			},
 		},
@@ -4456,7 +4344,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Value"},
+				Path:   []string{"value"},
 				Hint:   "Spell value exactly as the data holds it (categorical values are case-sensitive; a number must parse to the indexed field's value).",
 			},
 		},
@@ -4471,13 +4359,13 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"Keys"},
+				Path:     []string{"keys"},
 				Hint:     "Add another key column (a composite keys tuple) that uniquely identifies the record you want — e.g. combine the ambiguous field with an id/timestamp column and rebuild the sidecar index for that composite key via `pulse index build <cohort> --key <field1> --key <field2>`.",
 				Examples: []any{[]any{map[string]any{"field": "region", "value": "east"}, map[string]any{"field": "id", "value": "4"}}},
 			},
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Multiplicity"},
+				Path:     []string{"multiplicity"},
 				Hint:     "If duplicate matches are expected, set multiplicity to \"first\" for the lowest row id, or \"all\" for every matching row (the result's rows).",
 				Examples: []any{"first", "all"},
 			},
@@ -4493,15 +4381,6 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "For a shard archive, details.shards_uncovered lists the shards the index does not cover. Rebuild the archive's index (`pulse index build <archive.pulse> --key <field>` rewrites every shard's sidecar and the manifest's coverage); `pulse index verify` reports the same shards as shards_uncovered.",
-			},
-		},
-	},
-	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Not raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards. The code is kept so lookups of it resolve.",
-		Fixups: []Fixup{
-			{
-				Action: FixupRequiresReschema,
-				Hint:   "Build the index on the archive itself — `pulse index build <archive.pulse> --key <field>` — and look up against the archive path; an anchored shard (`archive.pulse#shard.pulse`) reads the same per-shard sidecar.",
 			},
 		},
 	},
@@ -4528,7 +4407,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Template"},
 				Hint:   "List the registered template names (Pulse.ListTemplates) and re-issue the render with one of them; if the template is meant to come from disk, confirm the file sits in the configured template directory with a .json extension and that the directory is actually being loaded.",
 			},
 		},
@@ -4543,13 +4421,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_TARGET_UNKNOWN: {
-		Message: "A template's target is absent or does not name one of the five public request roots, or a target-specific facade method was handed a template declaring a different target. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
+		Message: "A template's target is absent or does not name one of the five public request roots. Targets are spelled lowercase on the wire — request, composed, chain, facet, sample — and the target selects the type the rendered JSON decodes into, so it cannot be inferred from the body.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Target"},
-				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted. When the details carry expected_target the target is valid but the calling method cannot return it — RenderTemplateRequest handles only \"request\", so call RenderTemplate(name, vars) instead and read the Rendered pointer the declared target names.",
+				Path:     []string{"target"},
+				Hint:     "Set the template's target to exactly one of the lowercase wire spellings — request (types.Request), composed (types.ComposedRequest), chain (types.ChainRequest), facet (types.FacetRequest), sample (types.SampleRequest) — picking the one whose shape the template body already writes. The Go type name is not the wire value: \"ComposedRequest\" is rejected, \"composed\" is accepted.",
 				Examples: []any{"request", "composed", "chain", "facet", "sample"},
+			},
+		},
+	},
+	PULSE_TEMPLATE_TARGET_MISMATCH: {
+		Message: "A target-specific facade method was handed a template whose target is valid but not one that method can return: RenderTemplateRequest returns *types.Request, so it handles only the \"request\" target. The template needs no change.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "Call RenderTemplate(name, vars) instead and read the Rendered pointer the declared target names (Rendered.Composed, .Chain, .Facet or .Sample, or Rendered.Typed()), then hand it to the matching execution method. details.target is the template's target, details.expected_target the one the method handles.",
 			},
 		},
 	},
@@ -4558,7 +4445,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Supply a value for the variable named in the error details under the render call's variables map, or give that variable a default in the template declaration so it resolves without a caller-supplied value.",
 			},
 			{
@@ -4572,7 +4459,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Remove the unexpected key from the render call's variables map (a typo against a declared name is the usual cause — compare it against the template's declared variable list), or add a declaration for it to the template if the template really should accept it.",
 			},
 		},
@@ -4582,7 +4469,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Send the value in the declared type rather than a coercible near-miss (a number as a JSON number, not a quoted string; a boolean as true/false, not \"true\"), or widen the variable's declared type in the template to the type you actually pass.",
 			},
 		},
@@ -4592,7 +4479,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Replace the value with one of the permitted members listed in the error details, matching case exactly, or add the new member to the variable's values set in the template declaration.",
 			},
 		},
@@ -4602,7 +4489,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Declare the marker named in the error details as a template variable and supply a value (or a default) for it; if the marker is meant to be a literal, escape it in the template body so substitution leaves it alone.",
 			},
 		},
@@ -4622,7 +4509,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Variables", "*"},
+				Path:   []string{"variables", "*"},
 				Hint:   "Rename either the template variable or the for_each or sweep axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
 			},
 		},
@@ -4648,7 +4535,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Confirm the file really is an SPSS system file and not a .por, .zsav renamed, or an unrelated file with a .sav extension; open it in SPSS or PSPP and re-save it as a system file, then import the re-saved copy.",
 			},
 		},
@@ -4658,7 +4545,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-transfer or re-export the file — a truncated .sav is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
 			},
 		},
@@ -4668,7 +4555,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Check the path points at the file you meant and that the export or download actually wrote it — a zero-length file is usually a created-but-never-filled target, a failed transfer, or a shell redirection that truncated the destination before the writer ran.",
 			},
 		},
@@ -4678,7 +4565,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-save the file from SPSS or PSPP. A file whose header and 7/3 record disagree was almost certainly rewritten in place by a tool that byte-swapped one and not the other, and the values it holds cannot be trusted even where they decode.",
 			},
 		},
@@ -4688,7 +4575,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "No action is needed if the data imported correctly; the compression flag decided and it is the field that describes the bytes. If the import failed further on, re-save the file from SPSS or PSPP so the magic and the flag agree.",
 			},
 		},
@@ -4698,12 +4585,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "The imported values are unaffected; only the labels for the variable named in the details are missing. Re-saving the file from a current SPSS or PSPP normally rewrites long-string value labels into the record 7/21 extension, which Pulse does read.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Labels"},
+				Path:   []string{"labels"},
 				Hint:   "Supply the labels yourself if they matter: register a label table (Options.Extensions.LabelTables or PULSE_LABEL_TABLES_DIR) and name it in a labels entry's table.",
 			},
 		},
@@ -4713,7 +4600,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "No action is needed unless the subtype named in the details carries data you require. If it does, report the subtype so the reader can learn it; meanwhile re-saving the file from a different SPSS or PSPP version usually drops writer-specific extension records.",
 			},
 		},
@@ -4723,7 +4610,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Check what the skipped subtype named in the details would have supplied — long variable names, measurement levels, the character encoding — and whether the import still carries it. Re-saving the file from SPSS or PSPP rewrites the extension records and usually clears a malformed one.",
 			},
 		},
@@ -4733,7 +4620,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Look for the segment columns in the imported cohort — the named variable plus the ones immediately after it — and concatenate them if the whole value is needed. Re-saving the file from SPSS or PSPP rewrites record 7/14 and usually clears a segmentation that disagrees with the variable records.",
 			},
 		},
@@ -4743,7 +4630,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-export the file from SPSS or PSPP — `SAVE OUTFILE='survey.sav'.` writes a bytecode-compressed file, `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` an uncompressed one, and `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.` a ZSAV. All three import.",
 			},
 		},
@@ -4753,12 +4640,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-export the file rather than repairing the index by hand: in SPSS, File > Save As with type 'SPSS Statistics (*.zsav)', or in PSPP `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`. `pulse errors lookup PULSE_SPSS_ZSAV_INVALID` prints the block-index semantics.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "If re-exporting is not possible, save an uncompressed copy instead — `SAVE OUTFILE='survey.sav' /UNCOMPRESSED.` — which drops the block index entirely.",
 			},
 		},
@@ -4768,12 +4655,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Fetch the file again — a damaged zlib block is normally a truncated or corrupted transfer. Compare the byte length against the source before re-importing.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "If the source copy is itself damaged, re-export from SPSS or PSPP: `SAVE OUTFILE='survey.zsav' /ZCOMPRESSED.`, or `SAVE OUTFILE='survey.sav'.` for a bytecode-compressed .sav.",
 			},
 		},
@@ -4783,12 +4670,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-export the file from SPSS or PSPP rather than repairing it by hand — a desynchronised command stream means the bytes on disk no longer describe the dictionary, and no reader can recover the intended values. `pulse errors lookup PULSE_SPSS_COMPRESSION_INVALID` prints the byte offset semantics; the reported offset is where the stream stopped agreeing.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "If the file was produced by a non-SPSS writer, re-save it through SPSS or PSPP (`GET FILE='in.sav'. SAVE OUTFILE='out.sav'.`) so the data section is rewritten by a conforming encoder.",
 			},
 		},
@@ -4798,7 +4685,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-transfer or re-export the file — a data section ending mid-case is almost always an interrupted copy, download, or export. Compare the byte size against the source before importing again.",
 			},
 		},
@@ -4808,7 +4695,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Compare the declared and actual counts in the error details against what SPSS or PSPP reports for the same file. A writer that miscounts is usually harmless, but a shortfall can also mean a truncated transfer — re-export the file and check the counts agree.",
 			},
 		},
@@ -4818,7 +4705,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "Supply an explicit ImportJob.Schema that maps the variable named in the details to a different type, or drop the variable from the source file before importing. A variable with more than four billion distinct values is almost always free text that belongs outside the analytic cohort.",
 			},
 		},
@@ -4828,8 +4715,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
-				Hint:   "If the variable named in the details is free text rather than a coded category, exclude it from the import; if a near-unique categorical is expected, accept the warning.",
+				Path:   []string{"schema"},
+				Hint:   "Informational: the import is lossless and the threshold (half the case count) is fixed, not a setting. If the variable named in the details is free text rather than a coded category, drop or recode it in the source file to shrink the dictionary; if a near-unique categorical is expected, accept the warning.",
 			},
 		},
 	},
@@ -4838,7 +4725,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "No action is needed if second-resolution timestamps are not required. To force a typed temporal column, round the variable to whole seconds in SPSS or PSPP before exporting, or supply an explicit ImportJob.Schema naming the type you want.",
 			},
 		},
@@ -4848,7 +4735,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "No action is needed — GROUP_DATE and the date-range operators accept a datetime field and truncate it to the day. Supply an explicit ImportJob.Schema only if the column must be a date, accepting that times of day will not survive.",
 			},
 		},
@@ -4858,7 +4745,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "No action is needed if f64 is acceptable. To keep the narrower type, correct the offending value in the .sav (details.value) or supply an explicit ImportJob.Schema naming the type, accepting that the import then refuses a value that does not fit.",
 			},
 		},
@@ -4868,7 +4755,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Target"},
+				Path:   []string{"target"},
 				Hint:   "Export the cohort to a format with a 64-bit unsigned integer (parquet, arrow) or to text (csv, ndjson), which keep every u64 exactly. Keep the .sav only if the column is never used as an exact key: an identifier past 2^53 does not survive a double.",
 			},
 		},
@@ -4878,7 +4765,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Check the variable named in the details in SPSS or PSPP: two codes sharing one value label, or a label whose text equals another code's own value, is usually a data-entry mistake in the source dictionary. Give each code a distinct label and re-export.",
 			},
 		},
@@ -4888,7 +4775,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "This is the usual shape of a continuous variable that labels only its missing codes. Name the aggregator and grouper explicitly in the request instead of relying on smart defaults, or supply an explicit ImportJob.Schema typing the variable f64 if the labels are not needed.",
 			},
 		},
@@ -4898,7 +4785,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "If the value named in the details is meant as data rather than as missing, recode it in SPSS or PSPP to a token the import path does not treat as null before exporting.",
 			},
 		},
@@ -4908,7 +4795,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Re-save the file from SPSS or PSPP with a Unicode encoding (`SET UNICODE ON` before `SAVE`, or `pspp-convert` with `--encoding=UTF-8`), which writes record 7/20 as UTF-8. If you know the real charset and the file mislabels it, import with --charset windows-1252 (pio.SPSSReaderOptions.Charset) to override the declaration.",
 			},
 		},
@@ -4918,7 +4805,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "The file's declared charset is usually wrong rather than the bytes. Import with --charset <charset> (pio.SPSSReaderOptions.Charset) naming the encoding the data is really in, or re-save the file from SPSS or PSPP as UTF-8 so the declaration and the bytes agree.",
 			},
 		},
@@ -4928,7 +4815,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "No action is needed if the text imported correctly. If it did not, the 7/3 code may be the accurate one: import with --charset naming that charset (pio.SPSSReaderOptions.Charset) to override the name the file declares.",
 			},
 		},
@@ -4938,12 +4825,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Charset"},
+				Path:   []string{"charset"},
 				Hint:   "Write the file in a charset that can carry the text. Export with --charset UTF-8 (pio.SPSSWriterOptions.Charset) — modern SPSS, PSPP, haven and pyreadstat all read a UTF-8 .sav — and the emitted record 7/20 declares it, so the file stays self-describing.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Or change the value. The details carry the exact string; replace the offending character in the cohort (or in the source data) with one the target codepage defines.",
 			},
 		},
@@ -4953,12 +4840,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Rename the cohort field named in `cohort_field` to a legal SPSS identifier before exporting — letters, digits and '.', '_', '$', '#', '@', opening with a letter, 64 bytes or fewer. `pulse cohort inspect` lists the cohort's field names.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Charset"},
+				Path:   []string{"charset"},
 				Hint:   "If the fault is the 64-BYTE ceiling on a name that is 64 characters or fewer, the name is overflowing because of the charset it is being encoded into. Export with --charset naming a single-byte codepage that covers the text (pio.SPSSWriterOptions.Charset), or shorten the name.",
 			},
 		},
@@ -4968,7 +4855,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Rename one of the two cohort fields so the names differ by more than case. A set_* column is expanded into one indicator variable per dictionary entry, named for that entry, so a collision can also be between a dictionary entry and an ordinary field of the same name — rename either side.",
 			},
 		},
@@ -4978,7 +4865,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "The usual cause is a sidecar that describes an older shape of the cohort. Re-import the source .sav so the sidecar and the cohort are written together, or export with pio.SPSSWriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone, which emits every column as its own variable and drops nothing.",
 			},
 		},
@@ -4988,12 +4875,11 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"IgnoreSidecar"},
 				Hint:   "Export with pio.SPSSWriterOptions.IgnoreSidecar (--ignore-sidecar) to synthesise the dictionary from the .pulse schema alone. Nothing is folded, so nothing can fail to fold — every cohort column becomes its own SPSS variable, including the derived ones, at the cost of the source's recorded metadata.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "If the sidecar was written by a newer Pulse than the one exporting, upgrade the exporting binary: an unrecognised derived `kind` describes a column this version has never heard of. Otherwise re-import the source .sav so the cohort and its sidecar are written together.",
 			},
 		},
@@ -5003,12 +4889,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Charset"},
+				Path:   []string{"charset"},
 				Hint:   "If the text is ASCII-compatible but the target charset is multi-byte, a different charset may fit: export with --charset UTF-8 or the single-byte codepage the text belongs to (pio.SPSSWriterOptions.Charset) and the byte count drops.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Otherwise shorten the offending text in the cohort. The details name which field overflowed and by how much; a value label, a file label and a document line are all metadata that can be shortened without touching data.",
 			},
 		},
@@ -5018,12 +4904,11 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"spss-missing"},
 				Hint:   "Import with --spss-missing=null (pio.SPSSReaderOptions.MissingMode = pio.SPSSMissingNull). No sibling columns are generated, so no name can collide. The cost is real: every user-missing value becomes a plain null and the reason — refused vs. don't know vs. not applicable — is gone from the cohort. The full missing-value specification still rides the metadata sidecar either way.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Rename the colliding variable in SPSS (RENAME VARIABLES) and re-save the .sav. Renaming the real variable rather than the generated one keeps the sibling's `<var>_missing` convention intact, which is what the export path matches on.",
 			},
 		},
@@ -5033,7 +4918,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"spss-missing"},
 				Hint:   "Use --spss-missing=auto or --spss-missing=null (case-insensitive). Omit the flag entirely for `auto`, the fidelity-preserving default.",
 			},
 		},
@@ -5043,12 +4927,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "Exclude the missing codes from an analysis base with FILTER_EXCLUDE on the field, listing the dictionary ENTRIES from `missing_categories` — the cohort dictionary holds the SPSS codes, so the value is \"9\", never \"Refused\". A value not in the dictionary is a PROCESSING_CONFIG error, so a mistyped exclusion fails loudly rather than filtering nothing.",
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Filterers"},
+				Path:   []string{"filterers"},
 				Hint:   "No action is needed to keep them: the codes are ordinary values and every aggregation counts them. Leave the filterer off when the missing categories belong in the base.",
 			},
 		},
@@ -5058,12 +4942,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
-				Path:   []string{"Groupers"},
+				Path:   []string{"groupers"},
 				Hint:   "Work from the constituents, which are all present. Each is an ordinary column, so GROUP_CATEGORY / AGG_MODE_COUNT per constituent gives the same per-option counts a GROUP_SET_PER_ELEMENT fan-out over the derived column would have, one request slot per option instead of one.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "For an over-64 set, split it in SPSS (MRSETS /MDGROUP) into sub-sets of 64 or fewer constituents and re-save; each sub-set then derives its own set_* column. For a name that collides with the `|` delimiter or a null token, RENAME VARIABLES on the offending constituent and re-save.",
 			},
 		},
@@ -5078,7 +4962,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SPSS_SIDECAR_STALE: {
-		Message: "The SPSS metadata sidecar beside this cohort no longer matches it: the cohort's byte size or modification time has moved since the sidecar was written, so the dictionary the sidecar carries describes a different version of the data. The export refuses rather than applying it. A stale dictionary is the highest-fidelity-risk state available here — its value codes, labels and missing-value specifications are all complete and plausible, so applying them to changed data produces a .sav that looks authoritative and is wrong, and downstream SPSS syntax reading `IF q1 EQ 5` would silently address a category that is no longer there. This is deliberately an error where an ABSENT sidecar (PULSE_SPSS_SIDECAR_ABSENT) is only a warning.",
+		Message: "The SPSS metadata sidecar beside this cohort no longer matches it: the cohort's byte size has moved since the sidecar was written, or its modification time has and its content no longer hashes to the SHA-256 the sidecar recorded (a modification time that moved over unchanged bytes — a touch, a copy, a restore — keeps the sidecar), so the dictionary the sidecar carries describes a different version of the data. The export refuses rather than applying it. A stale dictionary is the highest-fidelity-risk state available here — its value codes, labels and missing-value specifications are all complete and plausible, so applying them to changed data produces a .sav that looks authoritative and is wrong, and downstream SPSS syntax reading `IF q1 EQ 5` would silently address a category that is no longer there. This is deliberately an error where an ABSENT sidecar (PULSE_SPSS_SIDECAR_ABSENT) is only a warning.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -5086,7 +4970,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"IgnoreSidecar"},
 				Hint:     "To export anyway WITHOUT the sidecar's metadata, pass --ignore-sidecar (pio.SPSSWriterOptions.IgnoreSidecar). It downgrades this error to a PULSE_SPSS_SIDECAR_IGNORED warning and takes the synthesised-default-dictionary path — the same output an absent sidecar would give. It does NOT apply the stale dictionary; there is no option that does.",
 				Examples: []any{true},
 			},
@@ -5101,7 +4984,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"IgnoreSidecar"},
 				Hint:     "To export without it, pass --ignore-sidecar (pio.SPSSWriterOptions.IgnoreSidecar). The flag suppresses the sidecar READ entirely, so an unreadable file cannot block the export; it downgrades this to a PULSE_SPSS_SIDECAR_IGNORED warning and synthesises a default dictionary.",
 				Examples: []any{true},
 			},
@@ -5112,7 +4994,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"IgnoreSidecar"},
 				Hint:     "To use the sidecar's metadata after all, drop --ignore-sidecar and re-run — which will also report whether the sidecar is stale or invalid, since this warning cannot. If the flag was set to work around such a refusal, fix that instead: re-run the import that produced the cohort so the sidecar and the cohort agree, and the flag becomes unnecessary.",
 				Examples: []any{false},
 			},
@@ -5123,22 +5004,22 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Source"},
+				Path:   []string{"source"},
 				Hint:   "Export from a .pulse COHORT rather than from a row stream: `pulse export spss -i cohort.pulse -o out.sav`. The .sav writer encodes from the cohort's raw storage — dictionary IDs, set masks, the null bitmap — never from rendered cell text, so it needs the cohort itself. `pulse convert data.csv out.sav` reaches it by importing to an intermediate cohort first.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Schema"},
+				Path:   []string{"schema"},
 				Hint:   "If the details name a column, that column is the problem. An empty set_* dictionary has no members to emit — drop the column from the export or populate it. A value with no recorded SPSS code comes from a cohort whose categorical dictionary moved since import; re-import from the source .sav, or export with --ignore-sidecar to synthesise a fresh dictionary from the cohort's own text.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"TimeZone"},
+				Path:   []string{"time_zone"},
 				Hint:   "If details.option is --tz: a .sav DATETIME is a naive wall-clock count with no offset slot, so a non-UTC render zone cannot be honoured. Drop --tz (the .sav carries UTC wall-clock values), or export a text format with --tz for offset-bearing local literals.",
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Target"},
+				Path:   []string{"target"},
 				Hint:   "Any other output format sidesteps the question entirely: csv, tsv, ndjson, jsonarray, parquet, arrow and excel all take a rendered row stream. `pulse export parquet -i cohort.pulse -o out.parquet`.",
 			},
 		},
@@ -5148,13 +5029,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"SanitizeNames"},
 				Hint:     "To keep the cohort's own names, drop --sanitize-names and rename the offending columns at the source instead — an SPSS name must open with a letter and carry only letters, digits and '.', '_', '$', '#', '@'. Without the flag the same names are a hard PULSE_SPSS_NAME_INVALID refusal, which is the default precisely because a silent rename is worse.",
 				Examples: []any{false},
 			},
 			{
 				Action: FixupSetDefault,
-				Path:   []string{"Labels"},
+				Path:   []string{"labels"},
 				Hint:   "If downstream syntax references the original names, keep the `renames` list: it is the only record of which emitted variable came from which cohort field. A sidecar-driven export never raises this — names that came from a .sav are legal by construction.",
 			},
 		},
@@ -5164,13 +5044,13 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"TimeZone"},
+				Path:     []string{"time_zone"},
 				Hint:     "Use an IANA Area/Location name such as America/New_York or Europe/Berlin (names are case-sensitive), or exactly UTC.",
 				Examples: []any{"America/New_York", "Europe/Berlin", "UTC"},
 			},
 			{
 				Action:   FixupReplaceField,
-				Path:     []string{"TimeZone"},
+				Path:     []string{"time_zone"},
 				Hint:     "For a fixed offset with no daylight-saving rules use Etc/GMT±N — note the POSIX sign is INVERTED: Etc/GMT-5 is UTC+05:00 and Etc/GMT+5 is UTC-05:00.",
 				Examples: []any{"Etc/GMT-5", "Etc/GMT+8"},
 			},
@@ -5181,7 +5061,6 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupRemoveParam,
-				Path:     []string{"FeatureProfileFile"},
 				Hint:     "Set exactly one of Options.FeatureProfile (a Go value) and Options.FeatureProfileFile (a JSON file read through the instance filesystem, relative to its root); setting both is refused rather than silently preferring one.",
 				Examples: []any{"profiles/self-serve.json"},
 			},
@@ -5193,7 +5072,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"FeatureProfileFile"},
 				Hint:   "For a `file_unreadable` reason, check that the path in the `path` detail exists under the instance filesystem root (DataDir, or the root of Options.FS) and is a readable file; for `malformed_json`, validate the body with a JSON linter.",
 			},
 		},
@@ -5225,7 +5103,6 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action:   FixupRemoveParam,
-				Path:     []string{"Options.DefaultWeight"},
 				Hint:     "For an `unmet` entry naming an `option` (Options.DefaultWeight, Options.DefaultMultiplicity), either add the required feature to the profile or leave that Options value unset.",
 				Examples: []any{"capability:weighting"},
 			},
@@ -5302,7 +5179,7 @@ var codeMetadata = map[Code]Metadata{
 			},
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"WeightAware"},
+				Path:   []string{"weight_aware"},
 				Hint:   "If you own the operator, read the row weight from extend.Record and declare WeightAware on its registration.",
 			},
 		},
@@ -5435,12 +5312,12 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Regressions", "*", "Params", "priors", "*", "roi"},
+				Path:   []string{"regressions", "*", "params", "priors", "*", "roi"},
 				Hint:   "When the ROI prior restates the lift test, drop the prior and keep the lift test: the likelihood reads the experiment on its own window and spend change.",
 			},
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Regressions", "*", "Params", "lift_tests"},
+				Path:   []string{"regressions", "*", "params", "lift_tests"},
 				Hint:   "When the prior already carries the experiment, drop that channel's lift test instead; keep both only when they come from independent evidence.",
 			},
 		},
@@ -5810,7 +5687,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"filters"},
+				Path:   []string{"filterers"},
 				Hint:   "Widen the filters (or the group bucket) so more rows reach the matrix, or drop the sparse member from the vector.",
 			},
 		},
@@ -5830,7 +5707,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "Params", "reference"},
+				Path:   []string{"attributes", "*", "params", "reference"},
 				Hint:   "Register a profile for each value in details.keys in the Extensions.ReferenceVectors table (an unsigned-integer key_field matches by its base-10 form, e.g. \"7\", never \"07\"), filter the rows out first, or compare against one profile with {table, key}.",
 			},
 			{
@@ -5845,7 +5722,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Attributes", "*", "Params", "metric"},
+				Path:   []string{"attributes", "*", "params", "metric"},
 				Hint:   "Pick a metric defined on the members' values (euclidean or manhattan for signed values, cosine for direction), or recode the members first (replace aitchison zero parts, dichotomise for a set metric).",
 			},
 		},
@@ -6098,7 +5975,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupRemoveParam,
-				Path:   []string{"Aggregations", "*", "Weight"},
+				Path:   []string{"aggregations", "*", "weight"},
 				Hint:   "Set \"weight\": null on the AGG_AUC slot to get the unweighted AUC with its DeLong standard error and 95% interval.",
 			},
 		},
@@ -6108,7 +5985,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupSetDefault,
-				Path:     []string{"Limits"},
+				Path:     []string{"limits"},
 				Hint:     "Set the field named by `limit` to 0 for the built-in default, -1 (pulse.Unlimited) to disable the limit, or a positive bound.",
 				Examples: []any{0, -1, 10000000},
 			},
@@ -6119,7 +5996,7 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Path:   []string{"Limits"},
+				Path:   []string{"limits"},
 				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or the CLI's root `--limit <limit>=<value>` flag (accepted by every `pulse` command); -1 disables it.",
 			},
 			{

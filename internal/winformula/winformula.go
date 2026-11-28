@@ -50,6 +50,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 
 	"github.com/expr-lang/expr"
 	exprtypes "github.com/expr-lang/expr/types"
@@ -173,12 +174,30 @@ func Compile(src string, cols exprtypes.Map, bound exprenv.Bound, paramsColumn b
 	opts := append([]expr.Option{expr.Env(decl)}, bound.Options()...)
 	prog, err := expr.Compile(src, opts...)
 	if err != nil {
-		return nil, exprenv.CompileError(Site, src, err)
+		return nil, exprenv.CompileError(Site, src, welfordMemberHint(err))
 	}
 	if ce := resultRefusal(src, prog); ce != nil {
 		return nil, ce
 	}
 	return &Program{src: src, prog: prog, reads: reads}, nil
+}
+
+// welfordNoField is expr-lang's wording for a member read the
+// WelfordCell declaration does not carry (w.Mean, w.count).
+var welfordNoField = "type " + reflect.TypeOf(WelfordCell{}).String() + " has no field "
+
+// welfordMemberHint rewords a compile failure on an AGG_WELFORD
+// member read: expr-lang names the internal Go type, so the reason
+// names the cell's figures instead (mean, variance, n — the wire
+// spellings, the only ones it reads). Any other error is returned as is.
+func welfordMemberHint(err error) error {
+	msg := err.Error()
+	i := strings.Index(msg, welfordNoField)
+	if i < 0 {
+		return err
+	}
+	field, _, _ := strings.Cut(msg[i+len(welfordNoField):], " ")
+	return fmt.Errorf("an AGG_WELFORD cell has no field %s; read its figures as mean, variance and n (w.mean): %w", field, err)
 }
 
 // VM returns the compiled program (the field-reference walk judges the

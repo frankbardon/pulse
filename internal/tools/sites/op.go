@@ -137,13 +137,25 @@ func opReport(r *repo, name string, opts options) (*Report, error) {
 		rep.Sections = append(rep.Sections, derived)
 	}
 	rep.Omitted = append(rep.Omitted, notes...)
-	if oracle, fixtures := r.oracleSection(testDecls, files, primitiveTests, regenPaths); len(oracle.Sites) > 0 {
+	oracle, fixtures := r.oracleSection(testDecls, files, primitiveTests, regenPaths)
+	if len(oracle.Sites) > 0 {
 		rep.Sections = append(rep.Sections, oracle)
 		for _, f := range fixtures {
 			if !contains(regenPaths, f) {
 				regenPaths = append(regenPaths, f)
 			}
 		}
+	}
+	if sec, gates, ok := r.oracleSuiteSection(op, files, fixtures); ok {
+		rep.Sections = append(rep.Sections, sec)
+		depGates = append(depGates, gates...)
+	}
+	if sec, ok := r.defaultCopySection(op, paths); ok {
+		rep.Sections = append(rep.Sections, sec)
+	}
+	if sec, warns, ok := r.catalogueSection(c); ok {
+		rep.Sections = append(rep.Sections, sec)
+		rep.Warnings = append(rep.Warnings, warns...)
 	}
 	if len(tables) > 0 {
 		sec := Section{Class: "test-tables", Title: "Test tables that name it — table-driven probes / fixtures: add the row a sibling operator or a new value needs"}

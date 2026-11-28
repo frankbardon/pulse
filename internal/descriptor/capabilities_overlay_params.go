@@ -69,7 +69,7 @@ func twoSampleParams() []descriptor.Param {
 func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 	ps := []descriptor.Param{
 		{Name: "pair_along_dim", Type: "int", Required: false, Description: "Restrict pairs to pair-axis keys that agree on every dim position except this one; absent = every pair."},
-		{Name: "n_within_depth", Type: "int", Required: false, Default: 0, Description: "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise."},
+		{Name: "n_within_depth", Type: "int", Required: false, Default: 0, Description: "With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; a non-zero depth under any other n_source is refused (PULSE_OVERLAY_PARAM_MISSING)."},
 		{Name: "letters", Type: "object", Required: false, Description: "{} or {\"alpha\": a}, 0 < a < 1: significance letters (the letters part); reads significant_adjusted under a correction, else raw p < 0.05 (an explicit alpha applies to either)."},
 	}
 	switch {
@@ -77,7 +77,7 @@ func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 		ps = append(ps, descriptor.Param{Name: "n_basis", Type: "enum", Required: true, EnumValues: []string{types.PairwiseNBasisKish, types.PairwiseNBasisWeights}, Description: "Variance / sample-size convention over the weighted moments; required, no default."})
 	case !types.PairwiseKindUsesWelford(kind):
 		ps = append(ps,
-			descriptor.Param{Name: "n_source", Type: "enum", Required: false, EnumValues: pairwiseNSources(), Description: "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*)."},
+			descriptor.Param{Name: "n_source", Type: "enum", Required: false, EnumValues: pairwiseNSources(), Description: "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*). An unknown mode is PULSE_OVERLAY_PARAM_MISSING (predict and runtime)."},
 			descriptor.Param{Name: "p_source", Type: "enum", Required: false, EnumValues: []string{types.PairwisePSourceCellValue, types.PairwisePSourceCellValuePct}, Description: "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."},
 		)
 	}
@@ -143,6 +143,8 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 			descriptor.Param{Name: "exact", Type: "bool", Required: false, Default: false, Description: "Exact p, no df. 2 x 2: binomial McNemar (R binom.test(n_12, n_12 + n_21)), statistic n_12, plus odds_ratio n_12 / n_21 and its exact interval odds_ratio_ci_lower / _upper at conf_level (echoed). k x k: exact conditional Bowker test (each pair's split binomial given its total), statistic the uncorrected chi-square; past 2^22 enumeration terms refused (reason exact_too_large). Refused on a probability-weighted cell and on non-whole discordant counts."},
 			descriptor.Param{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Exact 2 x 2 only: coverage of the odds-ratio interval (R binom.test conf.level), in (0, 1). Without exact true it is refused (reason needs_exact), on k x k reason needs_2x2; outside (0, 1) reason out_of_range."},
 		)
+	case types.OverlayKindChiSqVsRef:
+		ps = append(ps, descriptor.Param{Name: overlayhost.ChiSqVsRefReferenceKindKey, Type: "enum", Required: false, Default: overlayhost.ChiSqVsRefFixed, EnumValues: overlayhost.ChiSqVsRefReferenceKinds(), Description: "What the reference slot is: fixed (a population or benchmark distribution; goodness of fit, R chisq.test(target[C], p = ref[C], rescale.p = TRUE)) or sample (a second sample; the 2 x |C| homogeneity test of the two tables, R chisq.test(rbind(target[C], ref[C])), which allows for the reference's own sampling error)."})
 	case types.OverlayKindChiSqMatrix:
 		ps = append(ps, descriptor.Param{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2 x 2 host (R chisq.test(correct = TRUE)): Y = min(0.5, min |O - E|), chi-square = sum((|O - E| - Y)^2 / E); summary.parameters adds continuity_correction (Y). Inert on any larger table."})
 	case types.OverlayKindMarkov:

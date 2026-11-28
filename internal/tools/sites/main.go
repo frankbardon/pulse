@@ -7,7 +7,12 @@
 //	go run ./internal/tools/sites new-op overlay      # a NEW operator of a category
 //	go run ./internal/tools/sites slot request matrices
 //	go run ./internal/tools/sites slot compose sweep    # a ComposedRequest slot
+//	go run ./internal/tools/sites slot options ComposeOptions.CollectErrors
 //	go run ./internal/tools/sites fixture survey      # an example fixture cohort
+//	go run ./internal/tools/sites field-type decimal128
+//	go run ./internal/tools/sites error-code PULSE_SLOT_FAILED
+//	go run ./internal/tools/sites mcp-tool inspect
+//	go run ./internal/tools/sites io csv              # or io SchemaAwareReader
 //	go run ./internal/tools/sites categories          # list categories + operators
 //	make sites ARGS="op OVERLAY_MARKOV"
 //
@@ -49,7 +54,16 @@
 //     the call-site floors of a function a site file calls, and the
 //     case-table entry of each hit in a shared fixture generator;
 //   - fixture-cohort registration lists (fixture.go) are found by shape:
-//     a declaration or run of lines naming several fixture cohorts.
+//     a declaration or run of lines naming several fixture cohorts;
+//   - families (family.go: field types, error codes, MCP tools, I/O
+//     formats and iocore hooks) are read from their declaring file by
+//     AST; a member's sites are its classified occurrences, its
+//     registration tables are found by shape like the fixture lists, and
+//     each mode adds what reaches it unnamed (fieldtype.go, errcode.go,
+//     mcptool.go, iomode.go);
+//   - op adds shape sites (opextras.go): default copies, oracle suites
+//     and category catalogue tables; slot options resolves a facade
+//     options struct through its alias.
 //
 // Only the inherently manual part — which contract to read — is a
 // table (categoryTable.Manual / slotManual), and its paths are pinned
@@ -74,7 +88,12 @@ modes:
   new-op <category>               template checklist for a NEW operator of a category
   slot <request|compose|response> <name>
                                   sites of a Request/ComposedRequest/Response/ComposedResponse slot (Go field or json name; unknown = new-slot template)
+  slot options <Type>[.<Field>]   sites of a facade options struct field (ComposeOptions.CollectErrors; no / unknown field = new-field template)
   fixture <stem>                  registration sites of an example fixture cohort (existing, or a new stem)
+  field-type <name>               sites of a .pulse field type (decimal128, FieldTypeDate; unknown = new-type template)
+  error-code <CODE>               sites of an error code (PULSE_SLOT_FAILED; unknown = new-code template)
+  mcp-tool <name>                 sites of an MCP tool (pulse_inspect, inspect; unknown = new-tool template)
+  io <format|hook>                sites of an I/O format (csv, spss) or an iocore reader / writer hook (SchemaAwareReader); unknown = template
   categories                      list categories and their operators`
 
 type options struct {
@@ -148,6 +167,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		rep, err = fixtureReport(r, pos[1], opts)
+	case "field-type", "error-code", "mcp-tool", "io":
+		if len(pos) != 2 {
+			fmt.Fprintln(stderr, usage)
+			return 2
+		}
+		rep, err = familyModes[pos[0]](r, pos[1], opts)
 	case "categories":
 		rep, err = categoriesReport(r)
 	default:

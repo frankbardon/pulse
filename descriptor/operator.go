@@ -36,8 +36,8 @@ type Operator struct {
 	// a client cannot tell "every type is welcome here" from "this slot
 	// is not read at all", and the full AcceptsTypes list reads as a
 	// type claim about a slot the operator discards. When IgnoresField is
-	// set, AcceptsTypes says only that no type is REFUSED (the request
-	// wire form still requires a field name), and the operator's real
+	// set, AcceptsTypes says only that no type is REFUSED (the field is
+	// optional and no rule judges it), and the operator's real
 	// type constraints live on its Params entries, which carry
 	// Type=="field" plus a FieldFilter.
 	//
@@ -57,10 +57,14 @@ type Operator struct {
 	// emits its params' constant, and a field (vector, fields) on its
 	// slot is PROCESSING_CONFIG reason field_not_accepted. Its
 	// AcceptsTypes is empty ("no field input"), never a type list — the
-	// opposite of IgnoresField, whose slot requires a field name it then
+	// opposite of IgnoresField, whose slot may name a field it then
 	// discards. Held by descriptor's
 	// TestCapabilities_ForbidsFieldMatchesWindowRule against the shared
 	// window rule (internal/windowparams.FieldForbidden) and AGG_CONSTANT.
+	// The bool is the frozen v1 shape (kept over a required / optional /
+	// forbidden enum): with IgnoresField and AcceptsTypes it already
+	// spells every slot state, and a further state would be an additive
+	// new field.
 	ForbidsField bool `json:"forbids_field,omitempty"`
 
 	// IgnoresFrame marks a window operator that accepts (or requires) a
@@ -82,19 +86,23 @@ type Operator struct {
 	// runtime by processing's TestOperators_ReadsExpressionMatchesRuntime.
 	ReadsExpression bool `json:"reads_expression,omitempty"`
 
-	// EmitsType is the field type produced for single-output operators.
-	// Empty when the operator's emit type is conditional on input or
-	// when it does not emit a typed column (e.g. an aggregator emits a
-	// scalar).
+	// EmitsType is the field type of the column a single-output
+	// operator's output is written as (Materialize's derived column), not
+	// its value domain: a whole-number or 0/1 output is still "f64", and
+	// EmitsTypeNote states the domain. Empty when the operator's emit
+	// type is conditional on input or when it does not emit a typed
+	// column (e.g. an aggregator emits a scalar).
 	//
 	// No execution path reads this: attribute outputs are float64 end to
 	// end, window outputs land in a map[string]any and feature outputs in
 	// feature.Output.Values. It is a claim MCP clients size destination
-	// columns from, and the only thing that can contradict it is
-	// processing.TestManifestEmitsTypeHoldsAtRuntime, which runs every
-	// operator that declares one and checks the values it really emits
-	// against the declared domain. A new declaration must arrive with a
-	// probe there or that gate fails.
+	// columns from, contradicted only by two gates: the root package's
+	// TestManifestEmitsTypeMatchesMaterialize materializes every
+	// declaring attribute, window and feature and holds the column type
+	// to it, and processing.TestManifestEmitsTypeHoldsAtRuntime runs each
+	// one and checks the values it really emits against the declared (or
+	// the note's narrower) domain. A new declaration must arrive with a
+	// probe in both or they fail.
 	EmitsType string `json:"emits_type,omitempty"`
 
 	// EmitsTypeNote provides context when EmitsType is empty or

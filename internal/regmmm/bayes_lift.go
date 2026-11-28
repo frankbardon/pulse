@@ -48,7 +48,7 @@ type liftTestWire struct {
 }
 
 // bayesLiftSpec is one validated lift test, its window still in
-// params.time units; geo is the geo it names on a geo panel ("" on one
+// order.field units; geo is the geo it names on a geo panel ("" on one
 // market).
 type bayesLiftSpec struct {
 	channel    int
@@ -110,7 +110,7 @@ func liftSpecs(spec *types.RegressionSpec, tests []liftTestWire, channels []stri
 			return nil, refuse(reasonLiftChannel, fmt.Sprintf("channel %q is not one of params.channels", w.Channel), map[string]any{"channel": w.Channel})
 		}
 		if w.Start == nil || w.End == nil {
-			return nil, refuse(reasonLiftWindowMissing, "start and end (the experiment's first and last params.time, inclusive) are required", nil)
+			return nil, refuse(reasonLiftWindowMissing, "start and end (the experiment's first and last order.field value, inclusive) are required", nil)
 		}
 		if *w.Start > *w.End {
 			return nil, refuse(reasonLiftWindowInvalid, fmt.Sprintf("start %d is after end %d", *w.Start, *w.End), map[string]any{"start": *w.Start, "end": *w.End})

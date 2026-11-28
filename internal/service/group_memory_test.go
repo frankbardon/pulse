@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 	"testing"
 	"weak"
 
@@ -147,48 +148,62 @@ func manyShardRequest() *types.Request {
 // of far more shards than workers, the per-shard reducer never holds
 // more than limits.ShardMergeWindow(workers) unmerged partials, and a
 // merged partial is released — checked by REACHABILITY, not by
-// bookkeeping: every partial handed to the merge gets a weak pointer,
-// and at each merge (after a full GC) the partials still alive besides
-// the merged head are counted. Keeping every partial until one final
-// merge (the pre-E2-S4 arm) leaves all of them alive.
+// bookkeeping: every partial gets a weak pointer the moment its scan
+// completes (shardScannedHook), and at each merge (after a full GC) the
+// partials still alive besides the merged head are counted — the one
+// being merged, those reported and waiting for an earlier shard, and
+// any merged one not released. The merge hook's GC stalls the merging
+// goroutine, so without the dispatch window the workers scan ahead and
+// their finished partials pile up; keeping every partial until one
+// final merge (the pre-E2-S4 arm) leaves the merged ones alive. E7-S3
+// audit: the gate once registered a partial only when it reached the
+// merge, so it saw a released merge but never the pile-up — dropping
+// the window passed it.
 func TestGroupMemory_LivePartialsBoundedByWindow(t *testing.T) {
-	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate; swaps the package-level service.shardMergeHook test hook
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate; swaps the package-level service.shardMergeHook / shardScannedHook test hooks
 
 	cfg := manyShardArchive(t)
 	for _, workers := range []int{2, 3} {
 		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
 			window := limits.ShardMergeWindow(workers)
 			var (
-				ptrs     []weak.Pointer[shardPartial]
+				mu       sync.Mutex
+				ptrs     = map[int]weak.Pointer[shardPartial]{}
 				maxAlive int
 				merges   int
 			)
+			shardScannedHook = func(idx int, p *shardPartial) {
+				mu.Lock()
+				defer mu.Unlock()
+				ptrs[idx] = weak.Make(p)
+			}
 			shardMergeHook = func(idx int, p *shardPartial) {
-				if idx != len(ptrs) {
-					t.Errorf("merge order: shard %d folded at position %d", idx, len(ptrs))
+				if idx != merges {
+					t.Errorf("merge order: shard %d folded at position %d", idx, merges)
 				}
-				ptrs = append(ptrs, weak.Make(p))
 				merges++
 				runtime.GC()
+				mu.Lock()
+				defer mu.Unlock()
 				alive := 0
-				for _, w := range ptrs[1:] { // ptrs[0] is the merged head
-					if w.Value() != nil {
+				for i, w := range ptrs {
+					if i != 0 && w.Value() != nil { // shard 0's partial is the merged head
 						alive++
 					}
 				}
 				maxAlive = max(maxAlive, alive)
 			}
-			defer func() { shardMergeHook = nil }()
+			defer func() { shardMergeHook, shardScannedHook = nil, nil }()
 			svc := New(cfg)
 			svc.SetShardWorkers(workers)
 			if _, err := svc.Process(context.Background(), manyShardRequest()); err != nil {
 				t.Fatal(err)
 			}
-			if merges != 40 {
-				t.Fatalf("%d merges, want 40 (the run did not take the per-shard arm?)", merges)
+			if merges != 40 || len(ptrs) != 40 {
+				t.Fatalf("%d merges, %d scanned partials, want 40 (the run did not take the per-shard arm?)", merges, len(ptrs))
 			}
 			// The partial being merged is alive (the hook holds it) on
-			// top of at most window - 1 others still pending.
+			// top of at most window - 1 others dispatched and reported.
 			t.Logf("max unmerged partials alive: %d (window %d, 40 shards)", maxAlive, window)
 			if maxAlive > window {
 				t.Errorf("%d partials alive at once, window %d", maxAlive, window)

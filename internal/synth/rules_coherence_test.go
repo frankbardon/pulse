@@ -151,7 +151,7 @@ func coherenceFixtureProfile(t *testing.T) *synth.Profile {
 			// Gives `hi` real between-group variance, so the fitter
 			// gives it a model and the E2-S2 pre-claim has a model to
 			// retire.
-			{A: "region", B: "hi", Bernoulli: true, Categories: []synth.CategoricalNumericCategorySpec{
+			{A: "region", B: "hi", Categories: []synth.CategoricalNumericCategorySpec{
 				{Category: "east", Mean: 0.30}, {Category: "west", Mean: 0.70}, {Category: "north", Mean: 0.50}}},
 		},
 	}

@@ -308,7 +308,7 @@ func failFastRuns(p *Pulse) map[string]func(*ComposedRequest) (*ComposedResponse
 	return map[string]func(*ComposedRequest) (*ComposedResponse, error){
 		"Compose": func(c *ComposedRequest) (*ComposedResponse, error) { return p.Compose(ctx, c) },
 		"ComposeParallel": func(c *ComposedRequest) (*ComposedResponse, error) {
-			return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 4, FailFast: true})
+			return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 4})
 		},
 	}
 }

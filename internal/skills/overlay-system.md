@@ -30,8 +30,8 @@ Read-only decorations of a DERIVED figure. Specs ride `Request.Overlays`, one la
 ## Choosing an overlay
 
 1. Name the question, then read its intent (`pulse_skills_get intents`).
-2. Filter manifest `overlays[]` on that intent, then on the HOST you have — each entry lists `shapes`, `scopes`, `ref_kinds`, `buffered` and `inferential`.
-3. Read the kind's atomic skill; never hardcode a kind count.
+2. Filter manifest `overlays[]` on that intent, then on your HOST — each entry lists `shapes`, `scopes`, `ref_kinds` (`ref` arm keys), `buffered` and `inferential`.
+3. Read the kind's atomic skill; never hardcode a count.
 
 ## OverlaySpec composition
 

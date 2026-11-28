@@ -537,7 +537,7 @@ func TestDefaults_CrosstabAxes(t *testing.T) {
 	if ct.Columns[0].Type != types.GROUP_CATEGORY {
 		t.Errorf("column 0 = %q, want GROUP_CATEGORY", ct.Columns[0].Type)
 	}
-	want := [][]string{{"Crosstab", "Rows", "0", "Type"}, {"Crosstab", "Columns", "0", "Type"}}
+	want := [][]string{{"crosstab", "rows", "0", "type"}, {"crosstab", "columns", "0", "type"}}
 	if len(applied) != len(want) {
 		t.Fatalf("applied = %+v, want %d entries", applied, len(want))
 	}

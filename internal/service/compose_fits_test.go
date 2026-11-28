@@ -117,7 +117,7 @@ func composeBoth(t *testing.T, svc *Service, c *types.ComposedRequest) map[strin
 		t.Fatalf("Compose: %v", err)
 	}
 	out["serial"] = serial
-	par, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4, FailFast: true})
+	par, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4})
 	if err != nil {
 		t.Fatalf("ComposeParallel: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestComposeFits_RunOncePerFitAcrossSlotsAndSweep(t *testing.T) {
 			if mode == "serial" {
 				resp, err = svc.Compose(context.Background(), fitsBatch())
 			} else {
-				resp, err = svc.ComposeParallel(context.Background(), fitsBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+				resp, err = svc.ComposeParallel(context.Background(), fitsBatch(), ComposeOptions{MaxWorkers: 4})
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -297,7 +297,7 @@ func TestComposeFits_Refusals(t *testing.T) {
 			runs := map[string]func() error{
 				"serial": func() error { _, err := svc.Compose(context.Background(), c); return err },
 				"parallel": func() error {
-					_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			}
@@ -351,7 +351,7 @@ func TestComposeFits_InnerRefusalKeepsCode(t *testing.T) {
 	runs := map[string]func() error{
 		"serial": func() error { _, err := svc.Compose(context.Background(), c); return err },
 		"parallel": func() error {
-			_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 3, FailFast: true})
+			_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 3})
 			return err
 		},
 	}

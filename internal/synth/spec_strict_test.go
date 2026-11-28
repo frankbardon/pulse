@@ -242,3 +242,44 @@ func TestSpecFromProfile_RoundTripsRho(t *testing.T) {
 		t.Fatalf("round trip rho = %v, want %v", reparsed.Correlations[0].Rho, got)
 	}
 }
+
+// TestParseSpec_RemovedPairBernoulliSlot (pre-v1 #663): the deprecated
+// `bernoulli` slot of a categorical-numeric / set-numeric pair is gone.
+// A document still carrying it is refused PULSE_REQUEST_UNKNOWN_FIELD
+// at its path, and the refusal names the replacement (the target
+// field's own `bernoulli` distribution), never a nearest-key guess.
+func TestParseSpec_RemovedPairBernoulliSlot(t *testing.T) {
+	t.Parallel()
+
+	fields := `"fields":[{"name":"region","type":"categorical_u8","distribution":"weighted_categorical","params":{"values":["n","s"],"weights":[0.5,0.5]}},` +
+		`{"name":"ch","type":"set_u8","distribution":"set_bernoulli","params":{"options":["tv"],"frequencies":[0.5]}},` +
+		`{"name":"aware","type":"packed_bool","distribution":"bernoulli","params":{"p":0.3}}]`
+	cats := `"categories":[{"category":"n","mean":0.6,"std":0.4}]`
+	cases := []struct{ name, body, path string }{
+		{"categorical_numeric", `{"row_count":10,` + fields + `,"categorical_numeric_pairs":[{"a":"region","b":"aware","bernoulli":true,` + cats + `}]}`,
+			"categorical_numeric_pairs[0].bernoulli"},
+		{"set_numeric", `{"row_count":10,` + fields + `,"set_numeric_pairs":[{"set":"ch","option":"tv","numeric":"aware","bernoulli":true,` + cats + `}]}`,
+			"set_numeric_pairs[0].bernoulli"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := synth.ParseSpec([]byte(tc.body))
+			ce := unknownFieldOf(t, err)
+			if ce.Details["path"] != tc.path {
+				t.Errorf("details.path = %v, want %s", ce.Details["path"], tc.path)
+			}
+			if r, _ := ce.Details["replacement"].(string); !strings.Contains(r, `distribution "bernoulli"`) {
+				t.Errorf("details.replacement = %v, want the target-field distribution", ce.Details["replacement"])
+			}
+			if !strings.Contains(ce.Message, "was removed") || !strings.Contains(ce.Message, `distribution "bernoulli"`) {
+				t.Errorf("message does not name the replacement: %s", ce.Message)
+			}
+		})
+	}
+
+	// Another unknown pair key keeps the ordinary refusal.
+	_, err := synth.ParseSpec([]byte(`{"row_count":10,` + fields + `,"categorical_numeric_pairs":[{"a":"region","b":"aware","bogus":true,` + cats + `}]}`))
+	if ce := unknownFieldOf(t, err); ce.Details["replacement"] != nil {
+		t.Errorf("an unrelated unknown key must not name the bernoulli replacement: %+v", ce.Details)
+	}
+}

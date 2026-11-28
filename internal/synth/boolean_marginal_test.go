@@ -2,7 +2,6 @@ package synth_test
 
 import (
 	"math"
-	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/synth"
@@ -178,11 +177,10 @@ func TestSynth_BooleanDegeneratePrevalence(t *testing.T) {
 // boolPairSpec is a four-region cohort whose boolean target is written by
 // a conditional pair rather than by its own sampler.
 //
-// The target's MARGINAL is what now decides the cell draw — the pair's
-// `bernoulli` wire flag is retired and read by nothing — so the
-// distribution is the knob these tests turn. `flag` exists only so the
-// retired slot can be exercised on a target that contradicts it.
-func boolPairSpec(rows int, dist string, params map[string]any, flag bool) *synth.Spec {
+// The target's MARGINAL is what decides the cell draw — the pair's
+// `bernoulli` wire flag is removed (a document carrying it is refused)
+// — so the distribution is the knob these tests turn.
+func boolPairSpec(rows int, dist string, params map[string]any) *synth.Spec {
 	return &synth.Spec{
 		RowCount: rows,
 		Fields: []synth.FieldSpec{
@@ -201,7 +199,7 @@ func boolPairSpec(rows int, dist string, params map[string]any, flag bool) *synt
 			},
 		},
 		CategoricalNumericPairs: []synth.CategoricalNumericPairSpec{{
-			A: "region", B: "aware", Bernoulli: flag,
+			A: "region", B: "aware",
 			Min: 0, Max: 1, HasClamp: true,
 			Categories: []synth.CategoricalNumericCategorySpec{
 				{Category: "north", Mean: 0.60, Std: 0.49},
@@ -215,15 +213,15 @@ func boolPairSpec(rows int, dist string, params map[string]any, flag bool) *synt
 
 // boolPairBernoulliSpec is the ordinary shape: the target reconstructs as
 // a bernoulli step and the pair says nothing about it. It is what
-// SpecFromProfile now emits, and what the retired flag used to be
+// SpecFromProfile now emits, and what the removed flag used to be
 // required for.
 func boolPairBernoulliSpec(rows int) *synth.Spec {
-	return boolPairSpec(rows, synth.DistBernoulli, map[string]any{"p": 0.275}, false)
+	return boolPairSpec(rows, synth.DistBernoulli, map[string]any{"p": 0.275})
 }
 
 // TestSynth_BooleanConditionalPairPrevalence covers the second writer. A
 // captured categorical-numeric pair overwrites the target outright from
-// the cell's own moments, so without the Bernoulli flag it reproduces the
+// the cell's own moments, so without the bernoulli arm it reproduces the
 // continuous defect once PER CELL — and the per-cell error is worst
 // exactly where the signal is (a 5% cell generated at 41%, destroying the
 // contrast the pair exists to carry).
@@ -266,7 +264,7 @@ func TestSynth_BooleanConditionalPairPrevalence(t *testing.T) {
 //
 // It used to reach that arm by omitting the pair's `bernoulli` flag over
 // a bernoulli-reconstructed target. That shape is gone: the flag is
-// retired and the draw follows the target's own marginal, so an unflagged
+// removed and the draw follows the target's own marginal, so an unflagged
 // pair over a bernoulli field is now CORRECT — which is the bug fix, and
 // is asserted by TestSynth_BooleanConditionalPairDerivesFromTheMarginal.
 // The premise here survives intact because it never depended on the flag;
@@ -276,7 +274,7 @@ func TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased(t *testing.T)
 
 	const rows = 60000
 	spec := boolPairSpec(rows, synth.DistNormal,
-		map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0}, false)
+		map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0})
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 911})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -310,9 +308,9 @@ func TestSynth_BooleanConditionalPairOnAContinuousMarginalIsBiased(t *testing.T)
 //     though the pair declares NOTHING. This is the bug: the SET-numeric
 //     arm of SpecFromProfile never wrote the flag, so a boolean target
 //     there took the clamped-normal draw once per cell.
-//  2. A pair still DECLARING the retired flag over a target whose
-//     marginal is not bernoulli does not get the step, and is WARNED
-//     about rather than silently ignored.
+//  2. A pair over a target whose marginal is not bernoulli does not get
+//     the step. (A document still declaring the removed `bernoulli`
+//     flag is refused at decode: TestParseSpec_RemovedPairBernoulliSlot.)
 func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
 	t.Parallel()
 
@@ -323,10 +321,8 @@ func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SynthBytes: %v", err)
 		}
-		for _, w := range res.Warnings {
-			if strings.Contains(w, "retired `bernoulli` flag") {
-				t.Errorf("agreement must be silent, got %q", w)
-			}
+		if len(res.Warnings) != 0 {
+			t.Errorf("an ordinary bernoulli pair must be silent, got %v", res.Warnings)
 		}
 		flags := readF64Field(t, data, "aware")
 		regions := readCategoricalField(t, data, "region")
@@ -348,7 +344,7 @@ func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
 		// The shipped bug, in its own arm. SpecFromProfile's SET-numeric
 		// arm admitted a DistBernoulli target and never wrote the flag,
 		// so this exact spec shape drew a clamped normal per cell. No
-		// pair here can declare anything — the slot is retired.
+		// pair here can declare anything — the slot is removed.
 		spec := &synth.Spec{
 			RowCount: rows,
 			Fields: []synth.FieldSpec{
@@ -394,21 +390,12 @@ func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
 		assertPrevalence(t, "not_selected", notSel, 0.05, 4)
 	})
 
-	t.Run("retired flag over a non-bernoulli target is ignored and warned", func(t *testing.T) {
+	t.Run("non-bernoulli target keeps the continuous draw", func(t *testing.T) {
 		spec := boolPairSpec(rows, synth.DistNormal,
-			map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0}, true)
-		data, res, err := synth.SynthBytes(spec, synth.Options{Seed: 913})
+			map[string]any{"mean": 0.275, "std": 0.45, "min": 0.0, "max": 1.0})
+		data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 913})
 		if err != nil {
 			t.Fatalf("SynthBytes: %v", err)
-		}
-		var warned bool
-		for _, w := range res.Warnings {
-			if strings.Contains(w, "retired `bernoulli` flag") && strings.Contains(w, `"aware"`) {
-				warned = true
-			}
-		}
-		if !warned {
-			t.Errorf("a declared-but-ignored flag must be reported, got warnings %v", res.Warnings)
 		}
 		flags := readF64Field(t, data, "aware")
 		regions := readCategoricalField(t, data, "region")
@@ -422,7 +409,7 @@ func TestSynth_BooleanConditionalPairDerivesFromTheMarginal(t *testing.T) {
 			t.Fatal("no west rows generated")
 		}
 		if got := boolPrevalence(west); math.Abs(got-0.05) <= 0.01 {
-			t.Errorf("cell west prevalence %.4f — the retired flag must NOT have re-enabled the step draw", got)
+			t.Errorf("cell west prevalence %.4f — a non-bernoulli target must NOT get the step draw", got)
 		}
 	})
 }

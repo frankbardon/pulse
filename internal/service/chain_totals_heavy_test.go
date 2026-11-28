@@ -12,23 +12,26 @@ import (
 	"github.com/spf13/afero"
 )
 
-// chainMemorySlack is the noise band on a peak-heap comparison (the
-// minimum of three sampled passes each): a regression this catches is
-// the materialised input — a multiple, not a few percent.
-const chainMemorySlack = 1.10
+// The chain peak ceilings, as a fraction of the serial run's live peak
+// (peakLiveAbove under the stop-the-world collector, one pass each).
+// Measured on darwin/arm64, go1.26, E7-S4 (GOMAXPROCS 2, 4 and 10
+// agree): the ShardWorkers 4 chain 6.0 MB of the serial 87.1 MB
+// (0.069), the two-phase stage 27.9 MB of the serial processor's 73.7
+// MB (0.38); each ceiling is its figure x 1.25 (the calibrationBand
+// rule). On the sampled peak the gates allowed 1.10 x serial — and the
+// live peak of a per-shard arm that keeps every decoded record (83 MB)
+// sits under that, since the serial chain buffers every record too.
+const (
+	chainTotalsPeakRatio = 0.09
+	chainStagePeakRatio  = 0.47
+)
 
-// minPeakHeap is measurePeakHeap's minimum over three passes of fn.
-func minPeakHeap(t *testing.T, fn func() error) float64 {
+// livePeak is peakLiveAbove failing t on fn's error.
+func livePeak(t *testing.T, fn func() error) float64 {
 	t.Helper()
-	peak := -1.0
-	for range 3 {
-		got, err := measurePeakHeap(fn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if peak < 0 || got < peak {
-			peak = got
-		}
+	peak, err := peakLiveAbove(fn)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return peak
 }
@@ -60,16 +63,20 @@ func totalChain(path string) *types.ChainRequest {
 }
 
 // TestChainTotals_PeakMemoryNotWorseThanSerial (U74 E3-S3, #494): the
-// total() chain's peak heap on ShardWorkers 4 (stage 0 two-phase on the
-// per-shard arm, later stages two-phase over the rows) is not above the
-// serial chain's (ShardWorkers 1: stage 0 buffers every record, a
-// grouped total() being two-pass beside groups), and the answers are
-// the same bytes. The archive is retention-shaped: 400,000 rows over
-// 2,000 tags. (A grouping whose key count nears the row count is the
+// total() chain's live peak heap on ShardWorkers 4 (stage 0 two-phase
+// on the per-shard arm, later stages two-phase over the rows) stays
+// within chainTotalsPeakRatio of the serial chain's (ShardWorkers 1:
+// stage 0 buffers every record, a grouped total() being two-pass beside
+// groups), and the answers are the same bytes. Both peaks are exact
+// (peakLiveAbove; the test re-executes under rerunUnderSTWGC). The
+// archive is retention-shaped: 400,000 rows over 2,000 tags. (A grouping whose key count nears the row count is the
 // per-shard reducer's own trade — each worker holds a partial of every
 // group — on Process as on a chain stage 0.)
 func TestChainTotals_PeakMemoryNotWorseThanSerial(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+	if rerunUnderSTWGC(t) {
+		return
+	}
 
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "chain.pulse", 4, 100_000, 2_000)
@@ -81,7 +88,7 @@ func TestChainTotals_PeakMemoryNotWorseThanSerial(t *testing.T) {
 		svc := New(cfg)
 		svc.SetShardWorkers(workers)
 		var out []byte
-		peak := minPeakHeap(t, func() error {
+		peak := livePeak(t, func() error {
 			resp, err := svc.ProcessChain(context.Background(), totalChain("chain.pulse"))
 			if err != nil {
 				return err
@@ -93,21 +100,24 @@ func TestChainTotals_PeakMemoryNotWorseThanSerial(t *testing.T) {
 	}
 	serial, want := run(1)
 	parallel, got := run(4)
-	t.Logf("peak heap: serial %.1f MB, ShardWorkers 4 %.1f MB", serial/(1<<20), parallel/(1<<20))
+	t.Logf("live peak: serial %.1f MB, ShardWorkers 4 %.1f MB", serial/(1<<20), parallel/(1<<20))
 	if got != want {
 		t.Fatal("ShardWorkers 4 chain answers differ from the serial chain")
 	}
-	if parallel > serial*chainMemorySlack {
-		t.Errorf("parallel chain peak %.1f MB above the serial chain's %.1f MB", parallel/(1<<20), serial/(1<<20))
+	if parallel > serial*chainTotalsPeakRatio {
+		t.Errorf("parallel chain live peak %.1f MB over %.2f x the serial chain's %.1f MB", parallel/(1<<20), chainTotalsPeakRatio, serial/(1<<20))
 	}
 }
 
 // TestChainStageTotals_PeakMemoryNotWorseThanSerial: a later stage's
 // two-phase drive over 300,000 previous-stage rows (grouped, two
-// layers) peaks no higher than the serial processor over the same rows,
-// which buffers a record a row.
+// layers) peaks within chainStagePeakRatio of the serial processor's
+// live peak over the same rows, which buffers a record a row.
 func TestChainStageTotals_PeakMemoryNotWorseThanSerial(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+	if rerunUnderSTWGC(t) {
+		return
+	}
 
 	cfg, err := fs.New(fs.WithFs(afero.NewMemMapFs()))
 	if err != nil {
@@ -117,18 +127,18 @@ func TestChainStageTotals_PeakMemoryNotWorseThanSerial(t *testing.T) {
 	prior, in, data := chainTotalsPrior(300_000)
 	stage := chainTotalsStages()["multilayer_grouped"]
 	ctx := context.Background()
-	twoPhase := minPeakHeap(t, func() error {
+	twoPhase := livePeak(t, func() error {
 		schema, rows := chainTotalsRows(t, svc, prior, in, data)
 		_, err := svc.runChainStageTotals(ctx, stage, nil, schema, rows)
 		return err
 	})
-	serial := minPeakHeap(t, func() error {
+	serial := livePeak(t, func() error {
 		schema, rows := chainTotalsRows(t, svc, prior, in, data)
 		_, err := svc.runChainStage(ctx, stage, nil, schema, rows)
 		return err
 	})
-	t.Logf("peak heap: serial processor %.1f MB, two-phase %.1f MB", serial/(1<<20), twoPhase/(1<<20))
-	if twoPhase > serial*chainMemorySlack {
-		t.Errorf("two-phase stage peak %.1f MB above the serial processor's %.1f MB", twoPhase/(1<<20), serial/(1<<20))
+	t.Logf("live peak: serial processor %.1f MB, two-phase %.1f MB", serial/(1<<20), twoPhase/(1<<20))
+	if twoPhase > serial*chainStagePeakRatio {
+		t.Errorf("two-phase stage live peak %.1f MB over %.2f x the serial processor's %.1f MB", twoPhase/(1<<20), chainStagePeakRatio, serial/(1<<20))
 	}
 }

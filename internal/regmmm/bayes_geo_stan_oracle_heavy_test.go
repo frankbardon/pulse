@@ -121,8 +121,9 @@ func geoStanCaseCheck(t *testing.T, c geoStanCase) {
 		rows[i] = probeRow{"geo": c.Rows.Geo[i], "week": c.Rows.Week[i], "tv": c.Rows.TV[i], "search": c.Rows.Search[i],
 			"price": c.Rows.Price[i], "sales": c.Rows.Sales[i]}
 	}
+	slotParams, order := oracleParams(t, c.Params)
 	spec := &types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv", "search", "price"},
-		Params: c.Params, RNGSeed: c.RNGSeed}
+		Order: order, Params: slotParams, RNGSeed: c.RNGSeed}
 	reg, err := BayesFactory(spec, nil)
 	if err != nil {
 		t.Fatal(err)

@@ -4,7 +4,7 @@ description: Per-format CLI flags an agent must know — source-side read knobs 
 type: guide
 kind: design
 applies_to: process, compose, sample, facet, inspect, predict, manifest
-covers: [CLI flags, --ignore-extra, --float, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --tz, --ignore-sidecar, --uncompressed, --sanitize-names]
+covers: [CLI flags, --ignore-extra, --float, --sheet, --spss-missing, --charset, --group, --source-tz, --dst-policy, --tz, --overlays, --ignore-sidecar, --uncompressed, --sanitize-names]
 ```
 
 # Format CLI flags
@@ -30,6 +30,8 @@ Per-format READ knobs the file cannot always answer itself; all ride `io.ReaderO
 **Float width (same leaves + `import schema-template`).** Inferred floats are `f64`; `--float f32` halves the bytes but rounds to ~7 digits.
 
 **Export zone (`export <fmt>`, `export predict`; `io.ExportJob.TimeZone`).** `--tz Zone` (IANA or `UTC` only, else `PULSE_TIMEZONE_UNKNOWN`) renders `datetime` cells as local literals with offset — `2026-03-29T08:00:00+05:30` — that re-import to the same instant; `date` never moves. Absent / UTC-equivalent is byte-identical `…Z`. Arrow/Parquet carry it as UTF8 strings.
+
+**Export overlays (`export <fmt>`).** `--overlays FILE` embeds a saved result's executed layers (`io.ExportJob.Overlays`; envelope, result or bare array); CSV/TSV/SPSS warn `PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED`; request specs are `DATA_FILE`.
 
 ## Target-format CLI flags
 

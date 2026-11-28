@@ -359,11 +359,17 @@ type MatrixCell struct {
 
 // Scalar returns the cell's scalar form for callers that expect a
 // numeric value. Returns 0 when the cell is absent OR when Value is
-// non-scalar (rich payload). Use Value directly with a type switch to
-// distinguish scalar / map / slice payloads.
+// non-scalar (rich payload). A decimal128 cell (a decimal aggregate,
+// which marshals as its decimal string) returns its float64 value — NaN
+// for an undefined figure — as the float64 column's cell with the same
+// value does. Use Value directly with a type switch to distinguish
+// scalar / map / slice payloads.
 func (c MatrixCell) Scalar() float64 {
 	if !c.Present {
 		return 0
+	}
+	if d, ok := c.Value.(cellFloat64er); ok {
+		return d.CellFloat64()
 	}
 	switch v := c.Value.(type) {
 	case float64:
@@ -381,6 +387,10 @@ func (c MatrixCell) Scalar() float64 {
 	}
 	return 0
 }
+
+// cellFloat64er is a non-float cell value that reads as a float64: the
+// engine's decimal aggregate cell (its CellFloat64 method).
+type cellFloat64er interface{ CellFloat64() float64 }
 
 // MatrixPayload is the structured matrix-shape response carried on
 // Response.Crosstab. Includes enough information for a downstream renderer

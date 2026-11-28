@@ -36,7 +36,7 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 		{Name: "y", Type: encoding.FieldTypeF64}, {Name: "b", Type: encoding.FieldTypeF64},
 		{Name: "x1", Type: encoding.FieldTypeF64}, {Name: "x2", Type: encoding.FieldTypeF64},
 		{Name: "g", Type: encoding.FieldTypeF64}, {Name: "c", Type: encoding.FieldTypeF64},
-		{Name: "t", Type: encoding.FieldTypeF64}, {Name: "m", Type: encoding.FieldTypeF64},
+		{Name: "t", Type: encoding.FieldTypeU16}, {Name: "m", Type: encoding.FieldTypeF64},
 		{Name: "k", Type: encoding.FieldTypeF64}, {Name: "o", Type: encoding.FieldTypeU8},
 		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: probeDictionary()},
 	}}

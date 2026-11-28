@@ -114,7 +114,7 @@ operator accepts one. A `string` value is one column, a `list` value one
 per element; every `type: "field"` entry carries the flag too, so it is
 the one key to read. Some column-naming params stay `type: "string"`
 with the flag (MAT_SEM's and ATTR_SEM_SCORE's `group`, a mean test's
-`covariate`, AGG_DISTINCT_SUM's `distinct_by`, REG_MMM_BAYES's `time`):
+`covariate`, AGG_DISTINCT_SUM's `distinct_by`, REG_MMM_BAYES's `geo`):
 the flag sits beside `type` so no existing reading of `type` changes. A
 name of a result column (a post test's `n_col`, an overlay's `field` or
 `partition_by`) and an expression slot (`fit_on`, `holdout`) do not

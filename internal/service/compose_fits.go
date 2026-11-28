@@ -226,7 +226,9 @@ func (p *composeFitPass) run(ctx context.Context, i int) {
 	// (compose_compare.go); every other fit runs as it always has.
 	fitSet, figures := captureFor(ctx, fits[i].Name, fitSet)
 	sink := &adstockSink{}
-	resp, err := s.Process(withAdstockSink(withModelsBound(ctx, fitSet), sink), model.FitRequest(fits[i]))
+	// An unnamed regression's runtime messages name the fit (#787).
+	fitCtx := model.WithFitName(withAdstockSink(withModelsBound(ctx, fitSet), sink), fits[i].Name)
+	resp, err := s.Process(fitCtx, model.FitRequest(fits[i]))
 	if err != nil {
 		p.errs[i] = err
 		return

@@ -62,12 +62,57 @@ func BayesRows(seed uint64) []BayesRow {
 }
 
 // FastParams is a fit small enough for a unit test.
-const FastParams = `{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":100}`
+const FastParams = `{"channels":["tv"],"chains":2,"warmup":150,"draws":100}`
 
-// BayesSpec is a REG_MMM_BAYES slot over the small cohort.
+// BayesSpec is a REG_MMM_BAYES slot over the small cohort, ordered by
+// BayesOrder(params).
 func BayesSpec(params string) *types.RegressionSpec {
 	return &types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv", "price"},
-		Params: json.RawMessage(params)}
+		Order: BayesOrder(params), Params: json.RawMessage(params)}
+}
+
+// oracleParams splits an R-written oracle case's params into the slot's
+// params and order: the R generators (scripts/reference/gen_mmm_bayes*_stan.R)
+// still write the time field as params.time, which REG_MMM_BAYES no
+// longer reads (it is order.field, partition params.geo on a panel).
+// The lift keeps the derived seed, and so the oracle comparison, as it
+// was (orderAsSeedTime).
+func oracleParams(t testing.TB, raw json.RawMessage) (json.RawMessage, *types.RegressionOrder) {
+	t.Helper()
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		t.Fatal(err)
+	}
+	var field, geo string
+	if v, ok := obj["time"]; ok {
+		if err := json.Unmarshal(v, &field); err != nil {
+			t.Fatal(err)
+		}
+		delete(obj, "time")
+	}
+	if v, ok := obj["geo"]; ok {
+		_ = json.Unmarshal(v, &geo)
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out, &types.RegressionOrder{Field: field, Partition: geo}
+}
+
+// BayesOrder is the test cohorts' time order: order.field "week" and, on
+// a geo panel, partition params.geo (the model's panel rule).
+func BayesOrder(params string) *types.RegressionOrder {
+	var p struct {
+		Geo string `json:"geo"`
+	}
+	_ = json.Unmarshal([]byte(params), &p)
+	if p.Geo == "week" {
+		// A geo naming the time field is the factory's geo_conflict
+		// refusal; a partition naming it too would be the engine's.
+		p.Geo = ""
+	}
+	return &types.RegressionOrder{Field: "week", Partition: p.Geo}
 }
 
 // SetBayesSampler swaps the sampler a fit runs for f for the test's

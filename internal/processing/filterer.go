@@ -3,12 +3,12 @@ package processing
 import (
 	"fmt"
 	"math"
-	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/valuematch"
@@ -100,27 +100,19 @@ func newRangeFilterer() FiltererBuilder {
 }
 
 func (f *rangeFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (FilterFunc, error) {
-	if len(filter.Values) != 2 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"range filter requires exactly 2 values (min, max)")
-	}
 	// FILTER_RANGE declares numeric field types only. Without this guard a
 	// set column would be compared through its float64 echo — the low 64
 	// bits of the membership bitmask read as a quantity, which is a
-	// plausible wrong verdict rather than an error.
+	// plausible wrong verdict rather than an error. The field is judged
+	// before the values (a slot's field refusal precedes its config
+	// refusal, as predict orders them).
 	if err := rejectSetFieldForNumericFilter(filter, schema); err != nil {
 		return nil, err
 	}
-
-	minVal, err := strconv.ParseFloat(filter.Values[0], 64)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
-			fmt.Sprintf("parsing range min value %q", filter.Values[0]))
-	}
-	maxVal, err := strconv.ParseFloat(filter.Values[1], 64)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
-			fmt.Sprintf("parsing range max value %q", filter.Values[1]))
+	// The values rule is internal/opconfig's, the one predict calls.
+	minVal, maxVal, cerr := opconfig.RangeBounds(filter.Values)
+	if cerr != nil {
+		return nil, cerr
 	}
 
 	return func(record *Record) (bool, error) {
@@ -364,19 +356,10 @@ func (f *nullFilterer) Build(filter *types.Filterer, _ *encoding.Schema) (Filter
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"FILTER_NULL requires a field")
 	}
-	if len(filter.Values) != 1 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FILTER_NULL requires exactly one values entry: \"is_null\" or \"is_not_null\"")
-	}
-	var keepNull bool
-	switch filter.Values[0] {
-	case "is_null":
-		keepNull = true
-	case "is_not_null":
-		keepNull = false
-	default:
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("FILTER_NULL values[0]=%q; must be \"is_null\" or \"is_not_null\"", filter.Values[0]))
+	// The values rule is internal/opconfig's, the one predict calls.
+	keepNull, cerr := opconfig.NullMode(filter.Values)
+	if cerr != nil {
+		return nil, cerr
 	}
 
 	field := filter.Field
@@ -416,23 +399,12 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 			fmt.Sprintf("%s requires a field", tn))
 	}
 
-	truthyMode := false
-	switch len(filter.Values) {
-	case 0:
-		// strict mode
-	case 1:
-		switch filter.Values[0] {
-		case "truthy":
-			truthyMode = true
-		case "strict":
-			truthyMode = false
-		default:
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("%s values[0]=%q; must be \"truthy\" or \"strict\" (or omit values for strict)", tn, filter.Values[0]))
-		}
-	default:
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("%s accepts at most one values entry (\"truthy\" or \"strict\"); got %d", tn, len(filter.Values)))
+	// The mode rule is internal/opconfig's, the one predict calls; it
+	// runs before the type is read (strict mode alone requires a
+	// packed_bool).
+	truthyMode, cerr := opconfig.BoolMode(tn, filter.Values)
+	if cerr != nil {
+		return nil, cerr
 	}
 
 	field := schema.Field(filter.Field)

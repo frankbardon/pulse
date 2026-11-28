@@ -288,6 +288,9 @@ func scalarFromCell(cell types.MatrixCell) (float64, bool) {
 	if !cell.Present {
 		return 0, false
 	}
+	if f, ok := decimalCellFloat(cell.Value); ok {
+		return f, true
+	}
 	switch v := cell.Value.(type) {
 	case float64:
 		return v, true

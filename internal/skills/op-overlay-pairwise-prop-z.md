@@ -18,7 +18,7 @@ Pooled-SE two-proportion z between host slots ALONG one axis of the SAME crossta
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `pair_along_dim` | int | — | Restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. |
-| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
+| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; non-zero under any other n_source → `PULSE_OVERLAY_PARAM_MISSING`. |
 | `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1`: adds the `letters` part. |
 | `n_source` | enum | — | Where each leg's n is read; omitted = the cell's base (the normalise denominator on a normalised host; weighted, its N*). |
 | `p_source` | enum | — | How each leg's share is read; omitted = `cell_value` on a normalised host, else `cell_value_pct`. |

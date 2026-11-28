@@ -472,7 +472,7 @@ var mgModes = []mgMode{
 			t.Fatalf("clone request: %v", err)
 		}
 		out, err := f.p.ComposeParallel(context.Background(), &types.ComposedRequest{Requests: []*types.Request{req, &twin}},
-			pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			pulse.ComposeOptions{MaxWorkers: 2})
 		if err != nil {
 			return nil, err
 		}

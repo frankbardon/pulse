@@ -33,11 +33,11 @@ import (
 //
 // It is the answer to "what must travel with this cohort": moving or
 // copying the cohort together with every returned path keeps Lookup
-// hitting and SPSS export faithful at the new location — provided the
-// move carries the cohort's modification time across (a rename or
-// `cp -p` does; a plain copy does not). Both sidecars fingerprint the
-// cohort's size and mtime, and the SPSS sidecar refuses a cohort whose
-// mtime moved (PULSE_SPSS_SIDECAR_STALE). Only files that
+// hitting and SPSS export faithful at the new location. Both sidecars
+// fingerprint the cohort's size, mtime and content: a mover that keeps
+// the mtime (a rename, `cp -p`) is served hash-free, and one that resets
+// it (a plain copy) costs one SHA-256 of the cohort per read, after which
+// the unchanged bytes keep both sidecars. Only files that
 // exist are returned, each spelled relative to the same root as cohort
 // and exactly as its owner spells it — cohort plus the sidecar's suffix
 // (spss.SidecarPath, the index path rules), so the caller's separators

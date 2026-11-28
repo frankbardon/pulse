@@ -627,10 +627,11 @@ type FiltererRegistration struct {
 	Accepts  []encoding.FieldType
 	Params   []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
-	// hook. See FieldInputsFunc. Filterers don't carry a Params
-	// block; the callback receives nil raw bytes and should
-	// return the static set of extra fields the filterer reads
-	// beyond Filterer.Field.
+	// hook. See FieldInputsFunc. The callback receives the slot's
+	// Filterer.Params (nil when the slot carries none) — in
+	// Request.Filterers and in a fitted attribute's params.fit_on alike,
+	// at predict and at runtime — and returns the extra fields the
+	// filterer reads beyond Filterer.Field.
 	FieldInputs FieldInputsFunc
 	// ComponentSchema declares the per-operator components contract
 	// surfaced through Response.Components.Filterers[i].Operator.

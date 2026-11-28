@@ -313,7 +313,7 @@ func TestMultiplicityFold_Compose(t *testing.T) {
 			// Serial and parallel answer byte-identically.
 			preq := composeMultRequest()
 			c.mutate(preq)
-			pgot, err := svc.ComposeParallel(ctx, preq, ComposeOptions{MaxWorkers: 3, FailFast: true})
+			pgot, err := svc.ComposeParallel(ctx, preq, ComposeOptions{MaxWorkers: 3})
 			if err != nil {
 				t.Fatal(err)
 			}

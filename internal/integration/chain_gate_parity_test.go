@@ -192,7 +192,7 @@ func TestChainStageJoin_RefusedBothSides(t *testing.T) {
 }
 
 // TestJoinTooMany_LocatedInsideComposeAndChain: the join-count refusal
-// is a located refusal — inside Compose (serial and FailFast parallel)
+// is a located refusal — inside Compose (serial and fail-fast parallel)
 // it carries details.request, inside a chain details.stage, exactly as
 // a zone refusal does, and the validators add the same location.
 func TestJoinTooMany_LocatedInsideComposeAndChain(t *testing.T) {
@@ -225,7 +225,7 @@ func TestJoinTooMany_LocatedInsideComposeAndChain(t *testing.T) {
 		sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), rerr)
 	})
 	t.Run("compose parallel fail-fast", func(t *testing.T) {
-		_, rerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+		_, rerr := p.ComposeParallel(ctx, compose(), pulse.ComposeOptions{MaxWorkers: 2})
 		want(t, rerr, "request", 1)
 		sameEntry(t, descx.ValidateComposeWithOptions(compose(), opts), rerr)
 	})

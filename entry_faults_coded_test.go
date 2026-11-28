@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	iofs "io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/testutil/fuzzcontract"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // ftf is a FilterToFileWithRequest request over a missing source with
@@ -154,20 +154,21 @@ func TestEntryFaults_Coded(t *testing.T) {
 // Cause. A lookup table file keeps its own PULSE_LOOKUP_* code.
 func TestNewFaults_Coded(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	// The configuration directories are read through Options.FS.
+	mem := pfs.NewMemMap().Fs()
+	dir := filepath.Join(string(filepath.Separator)+"config", "faults")
 	file := filepath.Join(dir, "plain.txt")
-	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+	if err := afero.WriteFile(mem, file, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	bad := filepath.Join(dir, "bad")
-	if err := os.Mkdir(bad, 0o700); err != nil {
+	if err := mem.Mkdir(bad, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	badTable := filepath.Join(bad, "t.json")
-	if err := os.WriteFile(badTable, []byte("{"), 0o600); err != nil {
+	if err := afero.WriteFile(mem, badTable, []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	mem := pfs.NewMemMap().Fs()
 	cases := map[string]struct {
 		opts       pulse.Options
 		code       perr.Code

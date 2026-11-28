@@ -266,13 +266,19 @@ func TestJoinShapeFixture_BufferedRetainedRatio(t *testing.T) {
 		name  string
 		keep  encx.FieldFilter
 		keepN int
-		// maxRatio is positional / map retained B/record, with ~40%
-		// headroom over the measured figure (arm64, go1.26).
+		// maxRatio is positional / map retained B/record, set with
+		// ~40% headroom over the figure first measured (arm64, go1.26);
+		// the record has since grown (u64 exact words, attribute
+		// slots), so the headroom is now 24% / 8%. E7-S3 audit: one
+		// more 64-byte allocation retained a record fails projected4
+		// (0.675); full alone admits it (0.304).
 		maxRatio float64
 	}{
-		// MEASURED full: positional 1026 B, map 4198 B, ratio 0.244.
+		// MEASURED full: positional 1187 B, map 4198 B, ratio 0.283
+		// (1026 B / 0.244 when set).
 		{name: "full", maxRatio: 0.35},
-		// MEASURED projected4: positional 149 B, map 409 B, ratio 0.364.
+		// MEASURED projected4: positional 189 B, map 409 B, ratio 0.462
+		// (149 B / 0.364 when set).
 		{name: "projected4", keep: joinShapeKeep4, keepN: 4, maxRatio: 0.50},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3,10 +3,17 @@ package pulse
 import (
 	"bytes"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
+	"github.com/spf13/afero"
 )
 
 // envRangeTablesDir is the environment variable consulted when
@@ -44,19 +51,20 @@ func loadRangeTablesFromDir(opts *Options) error {
 	if dir == "" {
 		return nil
 	}
-	info, err := os.Stat(dir)
+	fsys := configDirFs(opts)
+	info, err := fsys.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q", dir), err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %q is not a directory", dir), nil)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: range tables dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("range_table", dir, fmt.Sprintf("pulse: reading range tables dir %q", dir), err)
+		return tableFileError("range_table", dir, fmt.Sprintf("pulse: reading range tables dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -79,7 +87,7 @@ func loadRangeTablesFromDir(opts *Options) error {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		raw, err := os.ReadFile(path)
+		raw, err := afero.ReadFile(fsys, path)
 		if err != nil {
 			return tableFileError("range_table", path, "pulse: reading range table "+path, err)
 		}
@@ -96,6 +104,41 @@ func loadRangeTablesFromDir(opts *Options) error {
 		opts.Extensions.RangeTables[tableName] = tbl
 	}
 	return nil
+}
+
+// ParseRangeTableFile parses one range-table file — the bytes a
+// RangeTablesDir (PULSE_RANGE_TABLES_DIR) *.json file holds — exactly as
+// the directory loader does, so a tool that writes or mirrors the format
+// can check a file against Pulse's own parser. name is the table name
+// the loader would register (the file stem); it only locates a refusal.
+//
+// Accepted shapes: a bare array of {label, start, end} range objects, or
+// a wrapped object {"description": "...", "ranges": [...]}. The bounds
+// type the table: ISO date strings make a date table (Ranges), JSON
+// numbers a numeric one (NumericRanges); a bound that is omitted or null
+// is open.
+//
+// It is PARSE-ONLY. The structural checks — overlapping ranges, a
+// duplicate label, an empty set, an invalid boundary — run at pulse.New
+// (the range-compilation pass every registered table goes through), so a
+// file this accepts can still be refused there (PULSE_RANGE_OVERLAP,
+// PULSE_RANGE_DUPLICATE_LABEL, PULSE_RANGE_EMPTY, PULSE_RANGE_INVALID).
+// To validate fully, register the table (Extensions.RangeTables) on a
+// pulse.New.
+//
+// A file that does not parse — not JSON, not one of the two shapes, an
+// empty array, bounds mixing dates and numbers — is DATA_FILE, details
+// {kind: "range_table", table: name}, the parse error kept as Cause.
+func ParseRangeTableFile(name string, data []byte) (RangeTable, error) {
+	tbl, err := parseRangeTableFile(data)
+	if err != nil {
+		ce := errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			"pulse: parsing range table "+strconv.Quote(name)+": "+err.Error(),
+			map[string]any{"kind": "range_table", "table": name})
+		ce.Cause = err
+		return RangeTable{}, ce
+	}
+	return tbl, nil
 }
 
 // parseRangeTableFile accepts either a bare array of range specs or a

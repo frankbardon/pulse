@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -54,9 +55,13 @@ func mmmWeeklyPulse(t *testing.T) *pulse.Pulse {
 // the objective objective, under posterior.
 func posteriorBatch(t *testing.T, fitParams, filter, variables, objective, constraint, posterior string) *pulse.ComposedRequest {
 	t.Helper()
+	order := `{"field": "week"}`
+	if strings.Contains(fitParams, `"geo": "market"`) {
+		order = `{"field": "week", "partition": "market"}`
+	}
 	raw := `{"params": {"budget": 700},
 	"fits": [{"name": "mmm", "request": {"cohort": {"filename": "mmm_weekly.pulse"}` + filter + `,
-		"regressions": [{"type": "REG_MMM_BAYES", "target": "sales", "predictors": ["tv", "search"], "rng_seed": 1, "params": ` + fitParams + `}]}}],
+		"regressions": [{"type": "REG_MMM_BAYES", "target": "sales", "predictors": ["tv", "search"], "rng_seed": 1, "order": ` + order + `, "params": ` + fitParams + `}]}}],
 	"requests": [{"label": "weeks", "cohort": {"filename": "mmm_weekly.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]}],
 	"optimize": [{"name": "allocation", "direction": "maximize", "variables": ` + variables + `,
 		"objective": "` + objective + `", "constraints": [{"expr": "` + constraint + `", "type": "eq"}],
@@ -105,7 +110,7 @@ func TestOptimize_PosteriorInBatchFit(t *testing.T) {
 	t.Parallel()
 
 	p := mmmWeeklyPulse(t)
-	const one = `{"channels": ["tv", "search"], "time": "week", "max_lag": 6, "chains": 1, "warmup": 40, "draws": 30, "return_draws": true}`
+	const one = `{"channels": ["tv", "search"], "max_lag": 6, "chains": 1, "warmup": 40, "draws": 30, "return_draws": true}`
 	east := `, "filterers": [{"type": "FILTER_INCLUDE", "field": "market", "values": ["east"]}]`
 	vars := `[{"name": "tv", "lower": 300, "upper": 650}, {"name": "search", "lower": 20, "upper": 300}]`
 	obj := `response(\"mmm\", \"tv\", tv) + response(\"mmm\", \"search\", search)`
@@ -126,7 +131,7 @@ func TestOptimize_PosteriorInBatchFit(t *testing.T) {
 	}
 
 	// The geo panel: tv in each market, read through its geo's own draws.
-	const panel = `{"channels": ["tv", "search"], "time": "week", "geo": "market", "max_lag": 6, "chains": 1, "warmup": 40, "draws": 20, "return_draws": true}`
+	const panel = `{"channels": ["tv", "search"], "geo": "market", "max_lag": 6, "chains": 1, "warmup": 40, "draws": 20, "return_draws": true}`
 	geoVars := `[{"name": "east", "lower": 100, "upper": 600}, {"name": "west", "lower": 100, "upper": 600}]`
 	geoObj := `response(\"mmm\", \"tv\", east, \"east\") + response(\"mmm\", \"tv\", west, \"west\")`
 	geo := runPosterior(t, p, func() *pulse.ComposedRequest {
@@ -148,7 +153,7 @@ func TestOptimize_PosteriorFailedFitFailsAlone(t *testing.T) {
 	t.Parallel()
 
 	p := mmmWeeklyPulse(t)
-	const fit = `{"channels": ["tv", "search"], "time": "week", "chains": 1, "warmup": 10, "draws": 5, "return_draws": true}`
+	const fit = `{"channels": ["tv", "search"], "chains": 1, "warmup": 10, "draws": 5, "return_draws": true}`
 	// No week survives the filter: the fit fails on its data.
 	none := `, "filterers": [{"type": "FILTER_EXPRESSION", "expression": "week > 1000"}]`
 	build := func() *pulse.ComposedRequest {

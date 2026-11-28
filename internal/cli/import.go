@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
+	"github.com/frankbardon/pulse/internal/pathq"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -516,7 +517,7 @@ func importSchemaTemplateCmd() *cli.Command {
 				format = pio.FormatFromPath(input).String()
 			}
 			if format == "" {
-				return fmt.Errorf("cannot detect format from %q; use --format", input)
+				return fmt.Errorf("cannot detect format from %s; use --format", pathq.Quote(input))
 			}
 
 			fs := afero.NewOsFs()

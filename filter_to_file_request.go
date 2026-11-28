@@ -116,8 +116,15 @@ type FilterToFileResult struct {
 	// index (one entry per shard sidecar for an archive index), the
 	// SPSS metadata sidecar — as Pulse.InvalidatedSidecars reports
 	// them. Nothing is rebuilt. Empty when nothing was replaced (or
-	// the advisory enumeration itself failed — the write stands).
+	// the advisory enumeration itself failed — the write stands, and
+	// Warnings says so).
 	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
+	// Warnings carries a failure to ENUMERATE those sidecars (the
+	// failure's own code, else SERVICE_RESOURCE, with details cohort and
+	// error). The write has already succeeded when this is set, so it is
+	// a warning, never an error: any sidecar beside OutputPath must be
+	// assumed stale.
+	Warnings []*perr.CodedError `json:"warnings,omitempty"`
 }
 
 // FilterToFileWithRequest is the deterministic, dedup-aware variant of
@@ -272,8 +279,12 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	}
 	if replacing {
 		// Advisory: the write already succeeded, so an enumeration
-		// failure leaves the list empty rather than failing the call.
-		res.InvalidatedSidecars, _ = p.InvalidatedSidecars(ctx, outPath)
+		// failure is a warning rather than a failed call.
+		sidecars, scanErr := p.InvalidatedSidecars(ctx, outPath)
+		res.InvalidatedSidecars = sidecars
+		if scanErr != nil {
+			res.Warnings = append(res.Warnings, sidecarScanWarning(outPath, scanErr))
+		}
 	}
 	return res, nil
 }

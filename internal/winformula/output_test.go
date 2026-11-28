@@ -3,6 +3,7 @@ package winformula
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	exprtypes "github.com/expr-lang/expr/types"
@@ -72,8 +73,9 @@ func TestOutputColumns_DeclaresBuiltinCells(t *testing.T) {
 // TestCompile_OutputColumns: over the declared output cells arithmetic
 // on a label key, a label list, a count map or the Welford triple is
 // PULSE_FORMULA_COMPILE_ERROR; a key comparison, a list length, a map
-// lookup and a Welford member read compile, and the member read
-// evaluates against the engine's own triple (same layout, another type).
+// lookup and a Welford member read by its wire name (w.mean, w.n)
+// compile and evaluate; the Go casing (w.Mean) is an unknown field,
+// refused with the cell's figures named (#782).
 func TestCompile_OutputColumns(t *testing.T) {
 	t.Parallel()
 	req := &types.Request{
@@ -86,18 +88,18 @@ func TestCompile_OutputColumns(t *testing.T) {
 		},
 	}
 	cols := OutputColumns(req, nil, nil)
-	for _, src := range []string{"region * 2", "n + region", "u * 2", "fr / n", "w + 1", "region"} {
+	for _, src := range []string{"region * 2", "n + region", "u * 2", "fr / n", "w + 1", "region", "w.Mean", "w.Variance + 1", "w.N * 2"} {
 		if _, ce := Compile(src, cols, exprenv.Bound{}, false); ce == nil || ce.Code != errors.PULSE_FORMULA_COMPILE_ERROR {
 			t.Errorf("%q: %v, want PULSE_FORMULA_COMPILE_ERROR", src, ce)
 		}
 	}
-	type engineTriple struct {
-		Mean, Variance float64
-		N              uint64
+	_, ce := Compile("w.Mean * 2", cols, exprenv.Bound{}, false)
+	if ce == nil || !strings.Contains(ce.Message, "read its figures as mean, variance and n") {
+		t.Errorf("w.Mean: %v, want the wire-name hint", ce)
 	}
-	env := map[string]any{"region": "north", "n": 4.0, "u": []string{"a", "b"}, "fr": map[string]int{"a": 2}, "w": engineTriple{Mean: 1.5, Variance: 2, N: 4}}
+	env := map[string]any{"region": "north", "n": 4.0, "u": []string{"a", "b"}, "fr": map[string]int{"a": 2}, "w": WelfordCell{Mean: 1.5, Variance: 2, N: 4}}
 	for src, want := range map[string]float64{
-		`region == "north" ? n : 0`: 4, "len(u) * n": 8, `fr["a"] / n`: 0.5, "w.Mean * w.N": 6,
+		`region == "north" ? n : 0`: 4, "len(u) * n": 8, `fr["a"] / n`: 0.5, "w.mean * w.n": 6, "w.variance + w.mean": 3.5,
 	} {
 		prog, ce := Compile(src, cols, exprenv.Bound{}, false)
 		if ce != nil {

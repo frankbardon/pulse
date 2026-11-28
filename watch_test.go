@@ -76,6 +76,63 @@ func TestWatchDir_OnlyPulseSuffix(t *testing.T) {
 	}
 }
 
+// TestWatchDir_AllFilesDisablesSuffix: AllFiles reports a file of any
+// name, even with a Suffix set (AllFiles wins).
+func TestWatchDir_AllFilesDisablesSuffix(t *testing.T) {
+	t.Parallel()
+
+	memFs := afero.NewMemMapFs()
+	_ = memFs.MkdirAll("d", 0o755)
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := p.WatchDirWithOptions(ctx, "d", WatchOptions{
+		PollInterval:   25 * time.Millisecond,
+		CoalesceWindow: 5 * time.Millisecond,
+		Suffix:         ".pulse",
+		AllFiles:       true,
+	})
+
+	_ = afero.WriteFile(memFs, "d/notes.csv", []byte("a,b"), 0o644)
+
+	got := waitForEvent(t, ch, 2*time.Second)
+	if want := filepath.Join("d", "notes.csv"); got.Path != want || got.Kind != ChangeCreated {
+		t.Fatalf("event = %+v, want %s Created", got, want)
+	}
+}
+
+// TestWatchDir_EmptySuffixDefaultsToPulse: the zero WatchOptions (and
+// WatchDir) keeps the ".pulse" filter; a non-.pulse file never surfaces.
+func TestWatchDir_EmptySuffixDefaultsToPulse(t *testing.T) {
+	t.Parallel()
+
+	memFs := afero.NewMemMapFs()
+	_ = memFs.MkdirAll("d", 0o755)
+	p, err := New(Options{FS: memFs})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := p.WatchDirWithOptions(ctx, "d", WatchOptions{
+		PollInterval:   25 * time.Millisecond,
+		CoalesceWindow: 5 * time.Millisecond,
+	})
+
+	// a.csv sorts before cohort.pulse, so an unfiltered walk would
+	// report it first.
+	_ = afero.WriteFile(memFs, "d/a.csv", []byte("a,b"), 0o644)
+	_ = afero.WriteFile(memFs, "d/cohort.pulse", []byte("x"), 0o644)
+
+	got := waitForEvent(t, ch, 2*time.Second)
+	if want := filepath.Join("d", "cohort.pulse"); got.Path != want || got.Kind != ChangeCreated {
+		t.Fatalf("event = %+v, want %s Created", got, want)
+	}
+}
+
 func waitForEvent(t *testing.T, ch <-chan ChangeEvent, timeout time.Duration) ChangeEvent {
 	t.Helper()
 	select {

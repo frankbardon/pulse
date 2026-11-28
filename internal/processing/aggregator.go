@@ -897,15 +897,21 @@ func (a *kurtosisAggregator) aggregateValues(vals []float64) (float64, error) {
 
 // distinctCountAggregator's scalar return is the cardinality of the
 // per-value set. Components() surfaces the same cardinality under the
-// {cardinality} key. frozenCardinality mirrors the post-Aggregate /
-// post-Finalize state so Components() works on both buffered and
-// streaming code paths — the streaming Finalize step nils out `set`
-// after computing, so the frozen mirror is the source of truth.
+// {cardinality} key. frozen mirrors the post-Aggregate / post-Finalize
+// state so Components() works on both buffered and streaming code
+// paths — the streaming Finalize step drops `set` after computing, so
+// the frozen mirror is the source of truth. It holds the cardinality
+// plus one once either path ran (0 = never ran), one word instead of a
+// count and a flag: the struct is one bucket's whole live state, so
+// with the inline set (distinctValueSet, #723) it fills a 48-byte size
+// class.
 type distinctCountAggregator struct {
-	set               map[float64]struct{}
-	frozenCardinality int
-	frozenFinalized   bool
+	set    distinctValueSet
+	frozen int
 }
+
+// freeze stamps the frozen mirror with cardinality n.
+func (a *distinctCountAggregator) freeze(n int) { a.frozen = n + 1 }
 
 func newDistinctCountAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggregator, error) {
 	if err := rejectSetFieldForNumericAggregator(agg, schema); err != nil {
@@ -920,17 +926,13 @@ func (a *distinctCountAggregator) Aggregate(records []*Record, field string) (fl
 }
 
 func (a *distinctCountAggregator) aggregateValues(vals []float64) (float64, error) {
-	a.frozenFinalized = true
-	if len(vals) == 0 {
-		a.frozenCardinality = 0
-		return 0, nil
-	}
-	set := make(map[float64]struct{})
+	var set distinctValueSet
 	for _, v := range vals {
-		set[v] = struct{}{}
+		set.add(v)
 	}
-	a.frozenCardinality = len(set)
-	return float64(len(set)), nil
+	n := set.len()
+	a.freeze(n)
+	return float64(n), nil
 }
 
 // percentileAggregator's scalar return is the configured percentile
@@ -1297,18 +1299,15 @@ func (a *zscoreAggregator) Components() (map[string]any, error) {
 // floor (n=0) is the source of truth for "no rows seen", matching
 // the empty-input convention used by Welford-family Rich().
 func (a *distinctCountAggregator) Components() (map[string]any, error) {
-	if a.frozenFinalized && a.frozenCardinality == 0 {
-		// Distinguish "ran, saw nothing" from "never ran": when the
-		// scalar path executed but found no rows, emit cardinality=0
-		// so consumers can read the post-Aggregate state without
-		// having to consult the floor independently.
-		return map[string]any{"cardinality": 0}, nil
-	}
-	if !a.frozenFinalized {
+	// Distinguish "ran, saw nothing" from "never ran": when the scalar
+	// path executed but found no rows, emit cardinality=0 so consumers
+	// can read the post-Aggregate state without having to consult the
+	// floor independently.
+	if a.frozen == 0 {
 		return nil, nil
 	}
 	return map[string]any{
-		"cardinality": a.frozenCardinality,
+		"cardinality": a.frozen - 1,
 	}, nil
 }
 

@@ -169,6 +169,25 @@ func (c *rowCells) setVector(i int, ft encoding.FieldType, dim int, v []float64)
 	return encoding.PutVector(c.vec[i][:w], ft, dim, v)
 }
 
+// setSet stores set field i's mask at rung ft: the on-wire bytes of a
+// wide rung, the uint64 word of a narrow one.
+func (c *rowCells) setSet(i int, ft encoding.FieldType, mask encoding.SetMask) error {
+	if ft.IsWideSet() {
+		wb, err := wideSetCell(mask, ft)
+		if err != nil {
+			return err
+		}
+		c.setWide(i, wb)
+		return nil
+	}
+	w, err := narrowSetWord(mask, ft)
+	if err != nil {
+		return err
+	}
+	c.vals[i] = w
+	return nil
+}
+
 // setWide stores a wide field's raw bytes.
 func (c *rowCells) setWide(i int, b wideFieldBytes) {
 	c.wide[i] = b

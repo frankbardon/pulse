@@ -14,6 +14,12 @@ import (
 // profile is folded in. It is what a startup notice should report: the
 // requested Options alone can say the cohort scan is on while the
 // profile has turned it off.
+//
+// ServeInfo is not comparable with ==: Limits is a slice, so compare
+// two values field by field (reflect.DeepEqual, or slices.Equal on
+// Limits). This is the frozen shape — Limits carries the manifest's
+// LimitMeta (name, value, default, unit) rather than pulse.Limits, so a
+// startup report needs no second vocabulary. New fields may be added.
 type ServeInfo struct {
 	// CohortScan reports whether the startup walk that enumerates the
 	// data root's .pulse files runs. False when Options.DisableCohortScan

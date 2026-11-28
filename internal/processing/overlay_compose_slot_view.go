@@ -63,8 +63,8 @@ type ComposeComponentsState int
 
 const (
 	// ComposeComponentsSlotAbsent — there is no such slot. The index
-	// is out of range, or the slot's *types.Response is nil (a slot
-	// that failed under FailFast=false). Caller-side resolution
+	// is out of range, or the slot's *types.Response is nil
+	// (the defensive nil guard). Caller-side resolution
 	// failure: no request knob changes it.
 	ComposeComponentsSlotAbsent ComposeComponentsState = iota
 
@@ -157,8 +157,8 @@ type ComposeHostView struct {
 
 // NewComposeHostView wraps the ordered per-slot responses as a host
 // view. `responses` is the slice ApplyComposeOverlays received, in
-// ComposedRequest.Requests order; nil entries (slots that failed under
-// FailFast=false) classify as ComposeComponentsSlotAbsent. The view
+// ComposedRequest.Requests order; nil entries (the defensive
+// failed-slot guard) classify as ComposeComponentsSlotAbsent. The view
 // copies no payload and mutates nothing — callers must not mutate the
 // responses during overlay execution.
 //

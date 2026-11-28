@@ -24,7 +24,7 @@ examples_tags: [feature-engineering, proportion-analysis, streaming-friendly]
 
 ## Output
 
-`packed_bool` per row: `1` if the value is a code, else `0`. Null → `0`.
+0/1 per row (an `f64` column, `emits_type`): `1` if the value is a code, else `0`. Null → `0`.
 
 <!-- generated: contract -->
 

@@ -35,7 +35,7 @@ import (
 // written down here. Every table entry is either a class marker
 // (freeValue, fileValue) or a constructor call that references the
 // library lister the flag's validator also reads (cohortValue and
-// fieldValue are constructor-built too).
+// fieldValue / zoneFieldValue are constructor-built too).
 // The CLI-owned logging vocabulary (logLevelNames / logFormatNames) is
 // the one allowlisted exception.
 
@@ -106,6 +106,21 @@ var fieldValue = fromCohort(
 			return nil, err
 		}
 		return r.Fields, nil
+	},
+	func(f *descriptor.InspectField) string { return f.Name })
+
+// zoneFieldValue lists the fields of the cohort the leaf names that may
+// be its default zone field: the categorical ones (Inspect's
+// Categorical, the categorical_u8 / u16 / u32 type rule
+// SetCohortZoneField applies), read from the header alone. Whether
+// every dictionary entry is a zone is checked by the leaf, not here.
+var zoneFieldValue = fromCohort(
+	func(ctx context.Context, p *pulse.Pulse, cohort string) ([]*descriptor.InspectField, error) {
+		r, err := p.Inspect(ctx, cohort)
+		if err != nil {
+			return nil, err
+		}
+		return slices.DeleteFunc(r.Fields, func(f *descriptor.InspectField) bool { return !f.Categorical }), nil
 	},
 	func(f *descriptor.InspectField) string { return f.Name })
 
@@ -226,7 +241,7 @@ func completionCohort(cmd *cli.Command, args []string) string {
 	if v := flagString(cmd, "input"); v != "" {
 		return v
 	}
-	for i, src := range positionalValues[cmd.FullName()] {
+	for i, src := range positionalLookup(cmd.FullName()) {
 		if src.class != classCohort {
 			continue
 		}
@@ -236,6 +251,17 @@ func completionCohort(cmd *cli.Command, args []string) string {
 		break
 	}
 	return flagString(cmd, "cohort")
+}
+
+// positionalLookup reads positionalValues lazily. completionCohort
+// (reached from every fromCohort provider) cannot name the table
+// directly: a field-classed positional (cohort zone set's FIELD) would
+// make the table's initializer depend on itself, an initialization
+// cycle. The table is read only at completion time, so init binds it.
+var positionalLookup func(leaf string) []valueSource
+
+func init() {
+	positionalLookup = func(leaf string) []valueSource { return positionalValues[leaf] }
 }
 
 // flagString is cmd.String(name) for a string flag cmd (or an ancestor)
@@ -302,6 +328,7 @@ var flagValues = map[string]valueSource{
 	"keep-pulse":      fileValue,
 	"data-dir":        fileValue,
 	"feature-profile": fileValue,
+	"overlays":        fileValue,
 
 	// cohorts
 	"input":  cohortValue,
@@ -388,6 +415,10 @@ var flagValuesIn = map[string]map[string]valueSource{
 	"pulse recommend": {
 		"level": vocab(descriptor.Levels),
 	},
+	// zone set: only a categorical field may be the default zone field.
+	"pulse cohort zone set": {
+		"field": zoneFieldValue,
+	},
 }
 
 // positionalValues lists, per leaf, what each positional argument
@@ -410,20 +441,22 @@ var positionalValues = map[string][]valueSource{
 			return p.Imports(ctx)
 		},
 		func(e pulse.ImportEntry) string { return e.Handle })},
-	"pulse cohort inspect": {cohortValue},
-	"pulse widen":          {cohortValue},
-	"pulse dedup":          {cohortValue},
-	"pulse rake":           {cohortValue},
-	"pulse index build":    {cohortValue},
-	"pulse index list":     {cohortValue},
-	"pulse index verify":   {cohortValue},
-	"pulse index drop":     {cohortValue},
-	"pulse shard add":      {cohortValue, cohortValue},
-	"pulse shard list":     {cohortValue},
-	"pulse shard compact":  {cohortValue},
-	"pulse shard verify":   {cohortValue},
-	"pulse shard remove":   {cohortValue, archiveShards},
-	"pulse shard extract":  {cohortValue, archiveShards},
+	"pulse cohort inspect":    {cohortValue},
+	"pulse cohort zone set":   {cohortValue, zoneFieldValue},
+	"pulse cohort zone clear": {cohortValue},
+	"pulse widen":             {cohortValue},
+	"pulse dedup":             {cohortValue},
+	"pulse rake":              {cohortValue},
+	"pulse index build":       {cohortValue},
+	"pulse index list":        {cohortValue},
+	"pulse index verify":      {cohortValue},
+	"pulse index drop":        {cohortValue},
+	"pulse shard add":         {cohortValue, cohortValue},
+	"pulse shard list":        {cohortValue},
+	"pulse shard compact":     {cohortValue},
+	"pulse shard verify":      {cohortValue},
+	"pulse shard remove":      {cohortValue, archiveShards},
+	"pulse shard extract":     {cohortValue, archiveShards},
 }
 
 // archiveShards lists the shard basenames of the archive named by the

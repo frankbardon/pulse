@@ -34,7 +34,7 @@ requires: [capability:crosstab]
 
 **No `columns` = one Total column** `["Total"]` (header type `TOTAL`) of every record whose row key resolved. Column % sums to 1; row-scope pairwise compares rows; column-axis `normalize_level` / `_within` is out of range.
 
-**Include ordering is per axis** (per key position when nested): listed order, else alphabetical; zero-record include values drop.
+**Include ordering is per axis** (per key position when nested): listed order, else native key order; zero-record include values drop.
 
 **Fit.** A <!-- feature: GROUP_QUANTILE -->`GROUP_QUANTILE`<!-- /feature --> / <!-- feature: GROUP_KMEANS -->`GROUP_KMEANS`<!-- /feature --> axis fits once over the filtered set (`params.fit` `global`, as in `groups`); `within` refits per outer bucket (rows, then columns).
 

@@ -270,36 +270,11 @@ type SetNumericPairSpec struct {
 	Min        float64                          `json:"min,omitempty"`
 	Max        float64                          `json:"max,omitempty"`
 	HasClamp   bool                             `json:"has_clamp,omitempty"`
-	// Bernoulli is RETIRED: accepted so every document written before
-	// the retirement still parses, and READ BY NOTHING.
-	//
-	// What it used to declare — the numeric target is a BOOLEAN
-	// marginal, so the cell's captured Mean is a prevalence and the
-	// draw is Bernoulli(Mean) rather than Normal(Mean, Std) — is now
-	// DERIVED from the target's own FieldSpec at generate() setup
-	// (buildBernoulliConditionals), exactly as the `discrete` staircase
-	// always was.
-	//
-	// The retirement is the point, not a tidy-up. A flag can DISAGREE
-	// with the field's own reconstruction, and a marginal disagreeing
-	// with the draw that overwrites it is the failure class the boolean
-	// and small-integer work exists to remove — invisible, because every
-	// cell still renders a plausible prevalence and only the number is
-	// wrong. It was not hypothetical: SpecFromProfile's SET-numeric arm
-	// admitted a DistBernoulli target, said in a comment that the flag
-	// was "carried the same way" as the categorical-numeric arm's, and
-	// did not set it, so a profile-derived set-numeric pair over a
-	// boolean target reproduced the clamped-normal defect once PER CELL.
-	// Deriving makes that omission unrepresentable.
-	//
-	// A spec still declaring it over a target whose marginal is NOT
-	// bernoulli gets a warning naming the pair (bernoulliFlagWarnings),
-	// never a refusal and never silence; declare the FIELD `bernoulli`
-	// instead. Do not reintroduce a read of this slot.
-	//
-	// Deprecated: declare the target field's distribution as
-	// DistBernoulli; this slot is ignored.
-	Bernoulli bool `json:"bernoulli,omitempty"`
+	// There is no `bernoulli` slot: whether the numeric target draws
+	// Bernoulli(Mean) is DERIVED from the target's own FieldSpec
+	// (buildBernoulliConditionals). A document still carrying the
+	// removed key is refused PULSE_REQUEST_UNKNOWN_FIELD naming the
+	// replacement (declare the target field's distribution `bernoulli`).
 }
 
 // SetSetPairSpec is one option x option pair's generation-time
@@ -357,18 +332,8 @@ type CategoricalNumericPairSpec struct {
 	Min      float64 `json:"min,omitempty"`
 	Max      float64 `json:"max,omitempty"`
 	HasClamp bool    `json:"has_clamp,omitempty"`
-	// Bernoulli is RETIRED, exactly as
-	// CategoricalNumericPairSpec.Bernoulli is — accepted so an older
-	// document still parses, read by nothing, derived from the target's
-	// own FieldSpec instead. THIS is the slot whose silent omission
-	// proved the case: SpecFromProfile never set it, so every
-	// profile-derived set-numeric pair over a boolean target drew a
-	// clamped normal. See CategoricalNumericPairSpec.Bernoulli for the
-	// full reasoning.
-	//
-	// Deprecated: declare the target field's distribution as
-	// DistBernoulli; this slot is ignored.
-	Bernoulli bool `json:"bernoulli,omitempty"`
+	// No `bernoulli` slot either: derived from the target's FieldSpec,
+	// as on SetNumericPairSpec.
 }
 
 // CategoricalNumericCategorySpec is the numeric field's conditional

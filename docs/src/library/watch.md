@@ -63,6 +63,7 @@ type WatchOptions struct {
     HashPrefixBytes int            // Default 64 KiB (< 0 hashes entire file)
     Recursive       bool           // WatchDir-only
     Suffix          string         // WatchDir: "" means ".pulse"; ignored by Watch
+    AllFiles        bool           // WatchDir: watch every file (Suffix ignored)
 }
 
 ch := p.WatchDirWithOptions(ctx, "cohorts/", pulse.WatchOptions{
@@ -88,8 +89,10 @@ ch := p.WatchDirWithOptions(ctx, "cohorts/", pulse.WatchOptions{
   change. Use `-1` when you need full-file hashing for small files
   where prefix collisions matter.
 - **`Suffix`** — filter directory contents to files ending in this
-  case-sensitive suffix. An empty value means `.pulse`, so `WatchDir`
-  always filters by some suffix.
+  case-sensitive suffix. An empty value means `.pulse`.
+- **`AllFiles`** — watch every file in the directory, whatever its
+  name; `Suffix` is ignored. Use it for a drop folder of source files
+  (CSV, Parquet, SPSS) you import as they land.
 
 ## Atomic-write coalescing
 

@@ -110,7 +110,7 @@ func (s *Service) processCrosstabCohort(ctx context.Context, req *types.Request,
 	// Project the iterator to only the fields the request actually
 	// references so each Record's value/null/wide maps allocate at
 	// retained-field width instead of full schema width. Forced on
-	// independent of opts.ProjectBufferedFields because the crosstab
+	// independent of the SetProjectBufferedFields gate because the crosstab
 	// path has no streamable alternative — the savings are load-bearing
 	// on cohorts beyond ~50 fields.
 	projected := s.applyCrosstabProjection(ctx, iter, req, cohort.Schema())

@@ -310,7 +310,12 @@ func grouperParitySuite() paritySuite {
 		},
 		rows: []parityRow{
 			contains(row("categorical", cat, grpParityCategory, "region", nil), `"region":"north"`),
-			row("numeric_key", cat, grpParityCategory, "qty", nil),
+			// A numeric key path (KeyFor's formatted-number keys) over
+			// single-digit keys only: the built-in emits number keys by
+			// value (#788), an extension grouper declares no key order
+			// (alphabetical), and the two orders agree only below 10.
+			row("numeric_key", cat, grpParityCategory, "qty",
+				[]*types.Filterer{{Type: types.FILTER_RANGE, Field: "qty", Values: []string{"0", "9"}}}),
 			row("categorical_filtered", cat, grpParityCategory, "region",
 				[]*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "region", Values: []string{"south", "east"}}}),
 			row("fanout_narrow_set", fan, grpParityPerElement, "tags", nil),

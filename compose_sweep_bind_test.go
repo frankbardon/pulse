@@ -119,7 +119,7 @@ func TestComposeSweepBind_RefusalsMatchPredict(t *testing.T) {
 			runs := map[string]func() error{
 				"Compose": func() error { _, err := p.Compose(ctx, tc.batch); return err },
 				"ComposeParallel": func() error {
-					_, err := p.ComposeParallel(ctx, tc.batch, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, tc.batch, ComposeOptions{MaxWorkers: 2})
 					return err
 				},
 			}

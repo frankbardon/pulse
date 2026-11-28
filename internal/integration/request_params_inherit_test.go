@@ -282,7 +282,7 @@ func TestParams_InheritPredictMatchesRuntime(t *testing.T) {
 			}
 			_, runErr := p.Compose(ctx, c.req)
 			assertPredictHasRunError(t, env.Errors, requireCodedError(t, runErr, c.code))
-			_, parErr := p.ComposeParallel(ctx, c.req, pulse.ComposeOptions{FailFast: true})
+			_, parErr := p.ComposeParallel(ctx, c.req, pulse.ComposeOptions{})
 			if ce := requireCodedError(t, parErr, c.code); ce.Message != requireCodedError(t, runErr, c.code).Message {
 				t.Fatalf("parallel %q, serial %q", ce.Message, requireCodedError(t, runErr, c.code).Message)
 			}

@@ -21,7 +21,7 @@ import (
 // outputs.draws exactly when the spec asked for it.
 
 // tinyDraws is a one-market fit small enough to run the path.
-const tinyDraws = `{"channels":["tv"],"time":"week","chains":1,"warmup":10,"draws":6,"return_draws":true,"draws_thin":2}`
+const tinyDraws = `{"channels":["tv"],"chains":1,"warmup":10,"draws":6,"return_draws":true,"draws_thin":2}`
 
 // TestMMMBayes_DrawLimitPredictMatchesRuntime: one market, 1 chain x 3
 // kept draws x (7 coefficients + 1 roi entry) = 24 values: under a
@@ -43,7 +43,7 @@ func TestMMMBayes_DrawLimitPredictMatchesRuntime(t *testing.T) {
 		geo        bool
 	}{
 		{"one market", regmmm.BayesCohort, regmmm.BayesSpec(tinyDraws), "certain", false},
-		{"geo panel", "panel.pulse", regmmm.BayesSpec(`{"channels":["tv"],"time":"week","geo":"geo","chains":1,"warmup":10,"draws":5,"return_draws":true}`), "possible", true},
+		{"geo panel", "panel.pulse", regmmm.BayesSpec(`{"channels":["tv"],"geo":"geo","chains":1,"warmup":10,"draws":5,"return_draws":true}`), "possible", true},
 	} {
 		want, _, ok := regmmm.BayesDrawValues(tc.spec, 2)
 		if !ok {
@@ -115,7 +115,7 @@ func TestMMMBayes_DrawsUnderReturnPresets(t *testing.T) {
 		}
 		return r.Outputs
 	}
-	const without = `{"channels":["tv"],"time":"week","chains":1,"warmup":10,"draws":6}`
+	const without = `{"channels":["tv"],"chains":1,"warmup":10,"draws":6}`
 	for _, preset := range []types.ReturnPreset{types.ReturnPresetStandard, types.ReturnPresetMinimal} {
 		ret := &types.Return{Preset: preset}
 		if out := run(tinyDraws, ret); out["draws"] == nil || out["roi"] == nil {

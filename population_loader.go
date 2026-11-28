@@ -3,6 +3,7 @@ package pulse
 import (
 	stderrors "errors"
 	"fmt"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +13,9 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/pathq"
+
+	"github.com/spf13/afero"
 )
 
 // envPopulationsDir is the environment variable consulted when
@@ -44,19 +48,20 @@ func loadPopulationsFromDir(opts *Options) error {
 	if dir == "" {
 		return nil
 	}
-	info, err := os.Stat(dir)
+	fsys := configDirFs(opts)
+	info, err := fsys.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q", dir), err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %q is not a directory", dir), nil)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: populations dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("population", dir, fmt.Sprintf("pulse: reading populations dir %q", dir), err)
+		return tableFileError("population", dir, fmt.Sprintf("pulse: reading populations dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -71,10 +76,10 @@ func loadPopulationsFromDir(opts *Options) error {
 			continue
 		}
 		path := filepath.Join(dir, file)
-		raw, err := os.ReadFile(path)
+		raw, err := afero.ReadFile(fsys, path)
 		if err != nil {
 			reason := model.ReasonFileUnreadable
-			if stderrors.Is(err, os.ErrNotExist) {
+			if stderrors.Is(err, iofs.ErrNotExist) {
 				reason = model.ReasonFileMissing
 			}
 			return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_FILE_UNREADABLE,

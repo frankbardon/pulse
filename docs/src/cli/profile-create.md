@@ -1723,7 +1723,7 @@ document's own warnings.
 | Code | Meaning |
 |---|---|
 | 0 | Success (capture warnings allowed) |
-| 1 | Read error, unsupported field type (`PULSE_PROFILE_FIELD_UNSUPPORTED`), or write failure — in the envelope's `errors` under `--json` |
+| 1 | Read error or write failure — in the envelope's `errors` under `--json` |
 | 2 | Usage error (unknown flag, malformed value, missing required flag); no envelope |
 
 ## Examples

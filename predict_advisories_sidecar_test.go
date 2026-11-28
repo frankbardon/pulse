@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/io/spss"
@@ -100,10 +99,7 @@ func TestSidecarAdvisories_SilentWithoutAUsableSidecar(t *testing.T) {
 			}
 		},
 		"stale sidecar": func(t *testing.T, afs afero.Fs) {
-			later := time.Now().Add(time.Hour)
-			if err := afs.Chtimes(suggestCohort, later, later); err != nil {
-				t.Fatal(err)
-			}
+			moveCohortUnderSidecar(t, afs, suggestCohort)
 		},
 		"malformed sidecar": func(t *testing.T, afs afero.Fs) {
 			if err := afero.WriteFile(afs, spss.SidecarPath(suggestCohort), []byte("{not json"), 0o644); err != nil {

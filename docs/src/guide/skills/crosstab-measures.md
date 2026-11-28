@@ -48,7 +48,7 @@ Only the `OVERLAY_PAIRWISE_*` kinds run on a multi-measure crosstab: once per me
 
 ## Predict and execution
 
-Predict validates every entry, defaults each untyped one (`defaults_applied` path `["Crosstab", "Cells", "<i>", "Type"]`), and counts one p-value per pair per measure. The fused path ([`crosstab-guide`](crosstab-guide.md)) runs one accumulator per measure per cell in lockstep; it fuses only when every measure would fuse alone. Fused and buffered output are identical.
+Predict validates every entry, defaults each untyped one (`defaults_applied` path `["crosstab", "cells", "<i>", "type"]`), and counts one p-value per pair per measure. The fused path ([`crosstab-guide`](crosstab-guide.md)) runs one accumulator per measure per cell in lockstep; it fuses only when every measure would fuse alone. Fused and buffered output are identical.
 
 ## See
 

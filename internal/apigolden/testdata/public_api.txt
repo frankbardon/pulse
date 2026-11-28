@@ -187,7 +187,7 @@ pulse: type CohortZoneResult field Warnings []pulse/internal/encoding.CohesionWa
 pulse: type CohortZoneResult field ZoneField string "json:\"zone_field\""
 pulse: type ComposeOptions = pulse/internal/service.ComposeOptions
 pulse: type ComposeOptions underlying struct
-pulse: type ComposeOptions field FailFast bool
+pulse: type ComposeOptions field CollectErrors bool
 pulse: type ComposeOptions field MaxWorkers int
 pulse: type ComposeOptions field PerRequestTimeout time.Duration
 pulse: type ComposePredictResult = pulse/internal/descriptor.ComposeValidationResult
@@ -277,8 +277,8 @@ pulse: type DedupResult field DedupReport.StrideAfter int "json:\"stride_after\"
 pulse: type DedupResult field DedupReport.StrideBefore int "json:\"stride_before\""
 pulse: type DedupResult field DedupReport.Target string "json:\"target\""
 pulse: type DedupResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
-pulse: type DedupResult field SidecarWarnings []*pulse/errors.CodedError "json:\"sidecar_warnings,omitempty\""
-pulse: type DedupResult method (*DedupResult) Warnings() []*pulse/errors.CodedError
+pulse: type DedupResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
+pulse: type DedupResult method (*DedupResult) AllWarnings() []*pulse/errors.CodedError
 pulse: const DefaultMaxChainStages int64 = 1000
 pulse: const DefaultMaxComposeSlots int64 = 1000
 pulse: const DefaultMaxCrosstabCells int64 = 10000000
@@ -557,6 +557,7 @@ pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
 pulse: type FilterToFileResult field OutputPath string "json:\"output_path\""
 pulse: type FilterToFileResult field Reused bool "json:\"reused\""
 pulse: type FilterToFileResult field RowCount int64 "json:\"row_count\""
+pulse: type FilterToFileResult field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type FiltererComponentsFunc func(instance pulse/extend.FiltererBuilder) (map[string]any, error)
 pulse: type FiltererRegistration struct
 pulse: type FiltererRegistration field Accepts []pulse/encoding.FieldType
@@ -844,7 +845,6 @@ pulse: type Options field Logger *log/slog.Logger
 pulse: type Options field LookupTablesDir string
 pulse: type Options field Metrics pulse/observe.Metrics
 pulse: type Options field PopulationsDir string
-pulse: type Options field ProjectBufferedFields bool
 pulse: type Options field RangeTablesDir string
 pulse: type Options field SetInferenceMinPct int
 pulse: type Options field ShardDistinctLimit int
@@ -882,6 +882,7 @@ pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
 pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, error)
+pulse: func ParseRangeTableFile(name string, data []byte) (pulse.RangeTable, error)
 pulse: type Population struct
 pulse: type Population field File []byte
 pulse: type PostFitRegistration struct
@@ -1473,6 +1474,7 @@ pulse: type VerifyResult field SetWidthHeadroom []pulse/encoding.SetWidthHeadroo
 pulse: type VerifyResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: func Version() string
 pulse: type WatchOptions struct
+pulse: type WatchOptions field AllFiles bool
 pulse: type WatchOptions field CoalesceWindow time.Duration
 pulse: type WatchOptions field HashPrefixBytes int
 pulse: type WatchOptions field PollInterval time.Duration
@@ -2323,11 +2325,6 @@ pulse/descriptor: type RecommendResult field Recommendations []pulse/descriptor.
 pulse/descriptor: type RecommendResult field RoutesTo []pulse/descriptor.Alternative "json:\"routes_to,omitempty\""
 pulse/descriptor: type RecommendResult field Shapes []pulse/descriptor.Shape "json:\"shapes,omitempty\""
 pulse/descriptor: type RecommendResult field Truncated bool "json:\"truncated\""
-pulse/descriptor: type RecommendStep struct
-pulse/descriptor: type RecommendStep field Placeholders []string "json:\"placeholders,omitempty\""
-pulse/descriptor: type RecommendStep field Request encoding/json.RawMessage "json:\"request\""
-pulse/descriptor: type RecommendStep field Tool string "json:\"tool\""
-pulse/descriptor: type RecommendStep field Why string "json:\"why\""
 pulse/descriptor: type Recommendation struct
 pulse/descriptor: type Recommendation field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type Recommendation field Alternatives []pulse/descriptor.Alternative "json:\"alternatives,omitempty\""
@@ -2339,7 +2336,6 @@ pulse/descriptor: type Recommendation field Needs []pulse/descriptor.RecommendNe
 pulse/descriptor: type Recommendation field Operator string "json:\"operator\""
 pulse/descriptor: type Recommendation field Placeholders []string "json:\"placeholders,omitempty\""
 pulse/descriptor: type Recommendation field Request encoding/json.RawMessage "json:\"request\""
-pulse/descriptor: type Recommendation field Steps []pulse/descriptor.RecommendStep "json:\"steps,omitempty\""
 pulse/descriptor: type Recommendation field Why string "json:\"why\""
 pulse/descriptor: type ReferenceVectorMeta struct
 pulse/descriptor: type ReferenceVectorMeta field Description string "json:\"description,omitempty\""
@@ -2781,10 +2777,8 @@ pulse/errors: package errors
 pulse/errors: func AllCodes() []pulse/errors.Code
 pulse/errors: func AllDomains() []string
 pulse/errors: func ByDomain(domain string) []pulse/errors.LookupResult
-pulse/errors: const CLI_COMMAND pulse/errors.Code = "CLI_COMMAND"
 pulse/errors: const CLI_ERROR pulse/errors.Code = "CLI_ERROR"
 pulse/errors: const CLI_INPUT pulse/errors.Code = "CLI_INPUT"
-pulse/errors: const CLI_INTERNAL pulse/errors.Code = "CLI_INTERNAL"
 pulse/errors: const CLI_OUTPUT pulse/errors.Code = "CLI_OUTPUT"
 pulse/errors: type Code string
 pulse/errors: type Code method (Code) Fixup(req any) []pulse/errors.Fixup
@@ -2796,11 +2790,7 @@ pulse/errors: type CodedError field Message string
 pulse/errors: type CodedError method (*CodedError) Error() string
 pulse/errors: type CodedError method (*CodedError) MarshalJSON() ([]byte, error)
 pulse/errors: type CodedError method (*CodedError) Unwrap() error
-pulse/errors: const DATA_CALCULATION pulse/errors.Code = "DATA_CALCULATION"
-pulse/errors: const DATA_CONFIG pulse/errors.Code = "DATA_CONFIG"
 pulse/errors: const DATA_FILE pulse/errors.Code = "DATA_FILE"
-pulse/errors: const DATA_INTERNAL pulse/errors.Code = "DATA_INTERNAL"
-pulse/errors: const DATA_PARSE pulse/errors.Code = "DATA_PARSE"
 pulse/errors: const DetailSPSSActual untyped string = "actual_fingerprint"
 pulse/errors: const DetailSPSSActualCases untyped string = "actual"
 pulse/errors: const DetailSPSSBlock untyped string = "block"
@@ -2878,10 +2868,8 @@ pulse/errors: const PROCESSING_REGRESSION_ORDER pulse/errors.Code = "PROCESSING_
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
 pulse/errors: const PROCESSING_REGRESSION_REGULARIZED_SELECTION pulse/errors.Code = "PROCESSING_REGRESSION_REGULARIZED_SELECTION"
 pulse/errors: const PROCESSING_REGRESSION_SEPARATION pulse/errors.Code = "PROCESSING_REGRESSION_SEPARATION"
-pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 pulse/errors: const PROCESSING_REGRESSION_VCOV_UNSUPPORTED pulse/errors.Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
-pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PROCESSING_VECTOR_LENGTH_MISMATCH pulse/errors.Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
 pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
@@ -2921,7 +2909,6 @@ pulse/errors: const PULSE_CROSSTAB_AGG_UNCLASSIFIED pulse/errors.Code = "PULSE_C
 pulse/errors: const PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL"
 pulse/errors: const PULSE_CROSSTAB_CELLS_INVALID pulse/errors.Code = "PULSE_CROSSTAB_CELLS_INVALID"
 pulse/errors: const PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS pulse/errors.Code = "PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS"
-pulse/errors: const PULSE_CROSSTAB_EMPTY_COLUMNS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
 pulse/errors: const PULSE_CROSSTAB_EMPTY_ROWS pulse/errors.Code = "PULSE_CROSSTAB_EMPTY_ROWS"
 pulse/errors: const PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL pulse/errors.Code = "PULSE_CROSSTAB_MARGIN_AGG_DUPLICATE_LABEL"
 pulse/errors: const PULSE_CROSSTAB_MARGIN_AGG_INVALID pulse/errors.Code = "PULSE_CROSSTAB_MARGIN_AGG_INVALID"
@@ -3019,7 +3006,6 @@ pulse/errors: const PULSE_INDEX_MANIFEST_INVALID pulse/errors.Code = "PULSE_INDE
 pulse/errors: const PULSE_INDEX_MANIFEST_STALE pulse/errors.Code = "PULSE_INDEX_MANIFEST_STALE"
 pulse/errors: const PULSE_INDEX_MISSING pulse/errors.Code = "PULSE_INDEX_MISSING"
 pulse/errors: const PULSE_INDEX_STALE pulse/errors.Code = "PULSE_INDEX_STALE"
-pulse/errors: const PULSE_INDEX_UNSUPPORTED_SHARDED pulse/errors.Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
 pulse/errors: const PULSE_IO_FORMAT_UNSUPPORTED pulse/errors.Code = "PULSE_IO_FORMAT_UNSUPPORTED"
 pulse/errors: const PULSE_JOIN_FIELD_COLLISION pulse/errors.Code = "PULSE_JOIN_FIELD_COLLISION"
 pulse/errors: const PULSE_JOIN_FIELD_UNKNOWN pulse/errors.Code = "PULSE_JOIN_FIELD_UNKNOWN"
@@ -3155,7 +3141,6 @@ pulse/errors: const PULSE_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_PARAMS_UN
 pulse/errors: const PULSE_POSTFIT_FAILED pulse/errors.Code = "PULSE_POSTFIT_FAILED"
 pulse/errors: const PULSE_POSTFIT_INVALID pulse/errors.Code = "PULSE_POSTFIT_INVALID"
 pulse/errors: const PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE pulse/errors.Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
-pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
 pulse/errors: const PULSE_RAKE_INVALID pulse/errors.Code = "PULSE_RAKE_INVALID"
 pulse/errors: const PULSE_RAKE_MISSING_VALUE pulse/errors.Code = "PULSE_RAKE_MISSING_VALUE"
@@ -3278,6 +3263,7 @@ pulse/errors: const PULSE_TEMPLATE_EXPR_SPLICE pulse/errors.Code = "PULSE_TEMPLA
 pulse/errors: const PULSE_TEMPLATE_INVALID pulse/errors.Code = "PULSE_TEMPLATE_INVALID"
 pulse/errors: const PULSE_TEMPLATE_NOT_FOUND pulse/errors.Code = "PULSE_TEMPLATE_NOT_FOUND"
 pulse/errors: const PULSE_TEMPLATE_RENDER_INVALID pulse/errors.Code = "PULSE_TEMPLATE_RENDER_INVALID"
+pulse/errors: const PULSE_TEMPLATE_TARGET_MISMATCH pulse/errors.Code = "PULSE_TEMPLATE_TARGET_MISMATCH"
 pulse/errors: const PULSE_TEMPLATE_TARGET_UNKNOWN pulse/errors.Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
 pulse/errors: const PULSE_TEMPLATE_UNRESOLVED pulse/errors.Code = "PULSE_TEMPLATE_UNRESOLVED"
 pulse/errors: const PULSE_TEMPLATE_VAR_ENUM pulse/errors.Code = "PULSE_TEMPLATE_VAR_ENUM"
@@ -3294,7 +3280,6 @@ pulse/errors: const PULSE_TEST_EXPECTED_INVALID pulse/errors.Code = "PULSE_TEST_
 pulse/errors: const PULSE_TEST_EXPECTED_LABEL_MISSING pulse/errors.Code = "PULSE_TEST_EXPECTED_LABEL_MISSING"
 pulse/errors: const PULSE_TEST_FIELD2_NOT_NUMERIC pulse/errors.Code = "PULSE_TEST_FIELD2_NOT_NUMERIC"
 pulse/errors: const PULSE_TEST_FIELD_NOT_NUMERIC pulse/errors.Code = "PULSE_TEST_FIELD_NOT_NUMERIC"
-pulse/errors: const PULSE_TEST_FISHER_R_OR_C_GT_2 pulse/errors.Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
 pulse/errors: const PULSE_TEST_INSUFFICIENT_N pulse/errors.Code = "PULSE_TEST_INSUFFICIENT_N"
 pulse/errors: const PULSE_TEST_INVALID_ALPHA pulse/errors.Code = "PULSE_TEST_INVALID_ALPHA"
 pulse/errors: const PULSE_TEST_P0_INVALID pulse/errors.Code = "PULSE_TEST_P0_INVALID"
@@ -3302,12 +3287,10 @@ pulse/errors: const PULSE_TEST_PAIRED_LENGTH_MISMATCH pulse/errors.Code = "PULSE
 pulse/errors: const PULSE_TEST_PARTITION_INVALID pulse/errors.Code = "PULSE_TEST_PARTITION_INVALID"
 pulse/errors: const PULSE_TEST_REFERENCE_INVALID pulse/errors.Code = "PULSE_TEST_REFERENCE_INVALID"
 pulse/errors: const PULSE_TEST_REFERENCE_MISSING pulse/errors.Code = "PULSE_TEST_REFERENCE_MISSING"
-pulse/errors: const PULSE_TEST_SHAPIRO_N_BOUND pulse/errors.Code = "PULSE_TEST_SHAPIRO_N_BOUND"
 pulse/errors: const PULSE_TEST_SPLIT_GROUPS_LT_2 pulse/errors.Code = "PULSE_TEST_SPLIT_GROUPS_LT_2"
 pulse/errors: const PULSE_TEST_SUBJECT_MISSING pulse/errors.Code = "PULSE_TEST_SUBJECT_MISSING"
 pulse/errors: const PULSE_TEST_SUCCESS_VALUE_MISSING pulse/errors.Code = "PULSE_TEST_SUCCESS_VALUE_MISSING"
 pulse/errors: const PULSE_TEST_TIES_DOMINATE pulse/errors.Code = "PULSE_TEST_TIES_DOMINATE"
-pulse/errors: const PULSE_TEST_TUKEY_REQUIRES_K_GE_3 pulse/errors.Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
 pulse/errors: const PULSE_TEST_UNKNOWN_TYPE pulse/errors.Code = "PULSE_TEST_UNKNOWN_TYPE"
 pulse/errors: const PULSE_TEST_VARIANCE_ZERO pulse/errors.Code = "PULSE_TEST_VARIANCE_ZERO"
 pulse/errors: const PULSE_TIMEZONE_UNKNOWN pulse/errors.Code = "PULSE_TIMEZONE_UNKNOWN"
@@ -3343,7 +3326,6 @@ pulse/errors: const PULSE_WEIGHT_UNSUPPORTED pulse/errors.Code = "PULSE_WEIGHT_U
 pulse/errors: const PULSE_WINDOW_INVALID pulse/errors.Code = "PULSE_WINDOW_INVALID"
 pulse/errors: func ParseCode(s string) (pulse/errors.Code, bool)
 pulse/errors: const SERVICE_INTERNAL pulse/errors.Code = "SERVICE_INTERNAL"
-pulse/errors: const SERVICE_REGISTRY pulse/errors.Code = "SERVICE_REGISTRY"
 pulse/errors: const SERVICE_RESOURCE pulse/errors.Code = "SERVICE_RESOURCE"
 pulse/errors: const SERVICE_VALIDATION pulse/errors.Code = "SERVICE_VALIDATION"
 pulse/errors: func Search(query string) []pulse/errors.LookupResult
@@ -4673,7 +4655,6 @@ pulse/synth: type CategoricalNumericPairSpec = pulse/internal/synth.CategoricalN
 pulse/synth: type CategoricalNumericPairSpec underlying struct
 pulse/synth: type CategoricalNumericPairSpec field A string "json:\"a\""
 pulse/synth: type CategoricalNumericPairSpec field B string "json:\"b\""
-pulse/synth: type CategoricalNumericPairSpec field Bernoulli bool "json:\"bernoulli,omitempty\""
 pulse/synth: type CategoricalNumericPairSpec field Categories []pulse/internal/synth.CategoricalNumericCategorySpec "json:\"categories\""
 pulse/synth: type CategoricalNumericPairSpec field HasClamp bool "json:\"has_clamp,omitempty\""
 pulse/synth: type CategoricalNumericPairSpec field Max float64 "json:\"max,omitempty\""
@@ -5167,7 +5148,6 @@ pulse/synth: type SetNumericPairProfile field Option string "json:\"option\""
 pulse/synth: type SetNumericPairProfile field Set string "json:\"set\""
 pulse/synth: type SetNumericPairSpec = pulse/internal/synth.SetNumericPairSpec
 pulse/synth: type SetNumericPairSpec underlying struct
-pulse/synth: type SetNumericPairSpec field Bernoulli bool "json:\"bernoulli,omitempty\""
 pulse/synth: type SetNumericPairSpec field Categories []pulse/internal/synth.CategoricalNumericCategorySpec "json:\"categories\""
 pulse/synth: type SetNumericPairSpec field HasClamp bool "json:\"has_clamp,omitempty\""
 pulse/synth: type SetNumericPairSpec field Max float64 "json:\"max,omitempty\""
@@ -7252,4 +7232,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e519ed4a1c1445f7d426eff786d4aec6496b9112b9131c0b5a65be763e0521c2
+// golden-hash: 201ae141dd63bee7fad58ae112861b31ee68abe4513d1fcc597249841eca37a3

@@ -236,13 +236,13 @@ var (
 			descriptor.DomainScience: "Check whether a replication's category mix departs from the original study's.",
 		},
 		NotFor: []descriptor.Alternative{
-			{When: "both results are samples of similar size and you want a test that allows for uncertainty in both: stack the rows, label each source and cross them", Use: "TEST_CHISQ"},
+			{When: "both samples come from one cohort and you would rather test the split inside one request: label each source and cross it with the categories", Use: "TEST_CHISQ"},
 			{When: "you want to see which cells moved rather than one overall test", Use: "OVERLAY_PROP_Z_CELL"},
 			{When: "you want the size of each cell's change", Use: "OVERLAY_DELTA_VS_REF"},
 		},
 		Assumptions: []string{
 			overlayCountsOnly,
-			"The null hypothesis is that the target's mix matches the reference's. The reference mix is treated as fixed expected shares and its own sampling uncertainty is ignored, so with a small reference the p-value is too small.",
+			"The null hypothesis is that the target's mix matches the reference's. By default the reference mix is treated as fixed expected shares and its own sampling uncertainty is ignored, so with a small reference the p-value is too small; params.reference_kind sample runs the two-sample homogeneity test instead, which allows for both.",
 			"Target and reference should be separate, independent sets of rows.",
 			"The p-value is carried in the layer's scalar slot; the chi-square value is in summary.statistic.",
 			"Every expected count should be about 5 or more; a warning flags layers where some are lower.",

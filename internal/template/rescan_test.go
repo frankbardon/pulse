@@ -2,13 +2,13 @@ package template_test
 
 import (
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/internal/template"
 	"github.com/spf13/afero"
 )
@@ -433,7 +433,7 @@ func TestStore_ReloadSplitsFileFaultsFromWalkFaults(t *testing.T) {
 		if err == nil {
 			t.Fatal("Reload() = nil error, want the walk fault for a root that is not a directory")
 		}
-		if !strings.Contains(err.Error(), strconv.Quote(dir)) {
+		if !strings.Contains(err.Error(), pathq.Quote(dir)) {
 			t.Errorf("Reload() = %v, want the offending root named", err)
 		}
 

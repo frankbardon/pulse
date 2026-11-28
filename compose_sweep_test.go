@@ -198,7 +198,7 @@ func TestComposeSweep_LimitBeforeAnySlot(t *testing.T) {
 	for name, run := range map[string]func() error{
 		"Compose": func() error { _, err := p.Compose(ctx, build(over)); return err },
 		"ComposeParallel": func() error {
-			_, err := p.ComposeParallel(ctx, build(over), ComposeOptions{FailFast: false})
+			_, err := p.ComposeParallel(ctx, build(over), ComposeOptions{CollectErrors: true})
 			return err
 		},
 	} {

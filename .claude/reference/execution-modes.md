@@ -12,7 +12,7 @@ One line per mode: identity, knob, named skill; the slices carry the wiring.
 
 - **Streaming Process** (`pulse.ProcessStream`, `--stream`) — four orchestrator modes; the forced-buffered list is `skills/streaming-and-watching.md`.
 - **Projected buffered decode** — default-on, output-transparent; `Options{DisableProjection}` / `--no-project`.
-- **Parallel Compose** (`pulse.ComposeParallel`, `--parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, FailFast}`; post-slot overlay fold at `internal/service/compose_overlay.go`. `skills/compose-requests.md`.
+- **Parallel Compose** (`pulse.ComposeParallel`, `--parallel N`) — `ComposeOptions{MaxWorkers, PerRequestTimeout, CollectErrors}`; post-slot overlay fold at `internal/service/compose_overlay.go`. `skills/compose-requests.md`.
 - **Parallel shards** (`Options.ShardWorkers`) / **parallel buffered Process** (`Options.DecodeWorkers`) — mergeable-only via the engine's internal `CanMergeRequest`, orthogonal to each other; the decode arm needs a mapped single file (`byte-layout.md` (Memory-mapped reads)). `skills/cohort-schema-design.md`.
 - **ProcessChain** (`pulse.ProcessChain`) — source-rooted linear chain, mergeable-only, dual-slot overlays. `skills/process-chain.md`.
 - **Pushdown hash join** (`Request.Joins`) — exactly one inner join per Request. `skills/join-design.md`.

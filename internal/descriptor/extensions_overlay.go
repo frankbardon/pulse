@@ -177,7 +177,7 @@ func extensionOverlayRunsOn(inst *InstanceSnapshot, host string) bool {
 // extensionOverlayCapabilities projects the snapshot's extension
 // overlay kinds onto the built-in Manifest.Overlays entry shape, sorted
 // by kind: shapes, scopes and Ref arms from the declared contract
-// (OverlayDetails; a margin Ref is the OverlayRef field "Margin", none
+// (OverlayDetails; a margin Ref is the OverlayRef arm "margin", none
 // lists no field), Buffered always (an extension kind runs buffered
 // only — overlayhost.StreamReasons), the declared params and
 // Inferential, the Purpose's intents, and — where weighting is offered
@@ -208,7 +208,7 @@ func extensionOverlayCapabilities(s *ExtensionsSnapshot, weighting bool) []descr
 		}
 		for _, r := range d.Refs {
 			if r == overlayhost.RefMargin {
-				c.RefKinds = append(c.RefKinds, "Margin")
+				c.RefKinds = append(c.RefKinds, "margin")
 			}
 		}
 		slices.Sort(c.Shapes)

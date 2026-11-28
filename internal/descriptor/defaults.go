@@ -95,9 +95,9 @@ const defaultDateComponent = "day"
 // Rules:
 //   - The crosstab cell — and each measure of a multi-measure
 //     crosstab.cells — is an aggregation slot and defaults like one
-//     (Path ["Crosstab", "Cell" | "Cells", i, "Type"]); each crosstab
+//     (Path ["crosstab", "cell" | "cells", i, "type"]); each crosstab
 //     row / column axis grouper is a grouper slot and defaults like a
-//     top-level group (Path ["Crosstab", "Rows" | "Columns", i, "Type"]).
+//     top-level group (Path ["crosstab", "rows" | "columns", i, "type"]).
 //   - Defaults never override an explicit Type.
 //   - Defaults never cross categories (a missing aggregator does not
 //     insert a grouper, and vice versa).
@@ -141,7 +141,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 		}
 		agg.Type = rule.Agg
 		applied = append(applied, descriptor.DefaultApplied{
-			Path:     []string{"Aggregations", strconv.Itoa(i), "Type"},
+			Path:     []string{"aggregations", strconv.Itoa(i), "type"},
 			Field:    agg.Field,
 			Type:     string(rule.Agg),
 			Category: "aggregation",
@@ -150,7 +150,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 	}
 
 	for i, grp := range req.Groups {
-		applied = appendGroupDefault(applied, grp, schema, inst, i, "Groups")
+		applied = appendGroupDefault(applied, grp, schema, inst, i, "groups")
 	}
 
 	// The crosstab cell aggregations — the single Cell, or each measure
@@ -159,9 +159,9 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 	if ct := req.Crosstab; ct != nil {
 		cellPath := func(i int) []string {
 			if ct.HasMeasures() {
-				return []string{"Crosstab", "Cells", strconv.Itoa(i), "Type"}
+				return []string{"crosstab", "cells", strconv.Itoa(i), "type"}
 			}
-			return []string{"Crosstab", "Cell", "Type"}
+			return []string{"crosstab", "cell", "type"}
 		}
 		for i, agg := range ct.CellAggregations() {
 			if agg == nil || agg.Type != "" || agg.Field == "" {
@@ -188,10 +188,10 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 		// A banner's column groups and section rows are expanded into
 		// these axes before any slot runs, so they default here too.
 		for i, grp := range ct.Rows {
-			applied = appendGroupDefault(applied, grp, schema, inst, i, "Crosstab", "Rows")
+			applied = appendGroupDefault(applied, grp, schema, inst, i, "crosstab", "rows")
 		}
 		for i, grp := range ct.Columns {
-			applied = appendGroupDefault(applied, grp, schema, inst, i, "Crosstab", "Columns")
+			applied = appendGroupDefault(applied, grp, schema, inst, i, "crosstab", "columns")
 		}
 	}
 
@@ -203,7 +203,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 // appendGroupDefault fills grp's Type from its field type's grouper
 // rule (plus the rule's parameter defaults, applyDefaultGroupParams)
 // when grp names a field but no Type, and appends the DefaultApplied
-// entry at prefix ++ [i, "Type"]. A nil slot, an explicit Type, an
+// entry at prefix ++ [i, "type"]. A nil slot, an explicit Type, an
 // unknown field, a type with no grouper rule or a rule whose operator
 // inst hides leaves grp untouched and appends nothing. Shared by the
 // top-level groups and the crosstab axes so the two never drift.
@@ -224,7 +224,7 @@ func appendGroupDefault(applied []descriptor.DefaultApplied, grp *types.Group, s
 	// runnable without further configuration.
 	applyDefaultGroupParams(grp)
 	return append(applied, descriptor.DefaultApplied{
-		Path:     append(slices.Clone(prefix), strconv.Itoa(i), "Type"),
+		Path:     append(slices.Clone(prefix), strconv.Itoa(i), "type"),
 		Field:    grp.Field,
 		Type:     string(rule.Group),
 		Category: "grouper",
@@ -236,7 +236,7 @@ func appendGroupDefault(applied []descriptor.DefaultApplied, grp *types.Group, s
 // slot that reads a kind-declared vector and names none
 // (vectors.MatrixMetricDefaults: the kind's default for the slot's
 // consumer, never a poor fit) and reports each as a "metric"
-// DefaultApplied at ["Matrices", i, "Params", "metric"]. The Matrices
+// DefaultApplied at ["matrices", i, "params", "metric"]. The Matrices
 // slice is copied before the first write, so the caller's backing array
 // never changes. A slot whose operator inst hides is left alone. No
 // kind, no fill: MAT_DISTANCE then keeps its implicit euclidean.
@@ -259,7 +259,7 @@ func resolveMetricDefaults(req *types.Request, schema *encoding.Schema, inst *In
 			reason += "; " + d.TableDefault + " is not offered by " + string(typ) + " here"
 		}
 		applied = append(applied, descriptor.DefaultApplied{
-			Path:     []string{"Matrices", strconv.Itoa(d.Index), "Params", "metric"},
+			Path:     []string{"matrices", strconv.Itoa(d.Index), "params", "metric"},
 			Field:    d.Vector,
 			Type:     d.Metric,
 			Category: "metric",
@@ -273,7 +273,7 @@ func resolveMetricDefaults(req *types.Request, schema *encoding.Schema, inst *In
 // attribute slot (ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE) that reads
 // a kind-declared vector and names none (vectors.AttributeMetricDefaults
 // — the default the operator's own resolution takes) and reports each as
-// a "metric" DefaultApplied at ["Attributes", i, "Params", "metric"].
+// a "metric" DefaultApplied at ["attributes", i, "params", "metric"].
 // The Attributes slice and each filled *Attribute are copied before the
 // write, so the caller's request never changes. A slot whose operator
 // inst hides is left alone.
@@ -298,7 +298,7 @@ func resolveAttributeMetricDefaults(req *types.Request, schema *encoding.Schema,
 			reason += "; " + d.TableDefault + " is not offered by " + string(a.Type)
 		}
 		applied = append(applied, descriptor.DefaultApplied{
-			Path:     []string{"Attributes", strconv.Itoa(d.Index), "Params", "metric"},
+			Path:     []string{"attributes", strconv.Itoa(d.Index), "params", "metric"},
 			Field:    d.Vector,
 			Type:     d.Metric,
 			Category: "metric",

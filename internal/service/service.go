@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -58,6 +59,12 @@ type Service struct {
 	// the ctx every RequestTimeout entry hands its run — bounded or not
 	// — so a test can wait out a tiny deadline deterministically.
 	entryHook func(ctx context.Context)
+
+	// clock, when set (tests only), is the RequestTimeout start time
+	// BoundRequest reads instead of time.Now — a frozen clock gives every
+	// nested entry the outer entry's deadline exactly, as a coarse
+	// platform clock does.
+	clock func() time.Time
 
 	// appendSeam, when set (tests only), observes the in-place tail
 	// append of AddShard (shard_append.go) so a crash test can snapshot
@@ -212,8 +219,8 @@ func (s *Service) DisableComponents() bool {
 // When enabled the streaming iterator computes the set of fields a
 // request actually reads (NeededFields) and skips map writes for
 // fields outside that set. Per-record memory drops proportional to
-// the projection ratio; decode CPU is unchanged. Default is false;
-// pulse.Options{ProjectBufferedFields: true} opts in.
+// the projection ratio; decode CPU is unchanged. Default is false at
+// the engine; pulse.New turns it on unless Options.DisableProjection.
 //
 // Extension operators without a registered FieldInputs hook widen
 // the projection to "every field" automatically — projection is
@@ -1292,7 +1299,7 @@ func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *t
 }
 
 // applyCrosstabProjection is the crosstab-specific variant of
-// applyProjection that ignores the opts.ProjectBufferedFields gate.
+// applyProjection that ignores the SetProjectBufferedFields gate.
 // Crosstab always materializes the filter-passing record set; on wide
 // cohorts the projection win is the difference between a working query
 // and an out-of-memory event, so the optimisation is mandatory for the
@@ -1550,7 +1557,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 
 	// Compose-only overlay barrier. Runs AFTER every slot has
 	// produced a finalised *Response and BEFORE the response is
-	// returned to the caller. The serial path has no FailFast knob
+	// returned to the caller. The serial path has no CollectErrors knob
 	// (a slot error returned early above), so when we reach this
 	// barrier every slot succeeded — the hook is unconditional.
 	// Empty / nil req.Overlays short-circuits with no allocation

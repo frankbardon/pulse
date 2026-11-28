@@ -483,8 +483,9 @@ func (e *explainer) advisories(env *descriptor.Envelope) {
 
 // defaults returns the operators predict inferred, keyed by the slot's
 // wire path ("aggregations[0]"), and records them on the result with
-// goPrefix before predict's own path.
-func (e *explainer) defaults(env *descriptor.Envelope, goPrefix []string) map[string]string {
+// prefix (the wire keys of the request's place in its root) before
+// predict's own path.
+func (e *explainer) defaults(env *descriptor.Envelope, prefix []string) map[string]string {
 	if env == nil {
 		return nil
 	}
@@ -494,20 +495,18 @@ func (e *explainer) defaults(env *descriptor.Envelope, goPrefix []string) map[st
 	}
 	out := map[string]string{}
 	for _, d := range pr.DefaultsApplied {
-		if len(d.Path) >= 2 {
-			if key, ok := defaultSlotKey[d.Path[0]]; ok {
-				out[key+"["+d.Path[1]+"]"] = d.Type
-			}
+		if len(d.Path) >= 2 && defaultSlotKeys[d.Path[0]] {
+			out[d.Path[0]+"["+d.Path[1]+"]"] = d.Type
 		}
-		d.Path = append(append([]string(nil), goPrefix...), d.Path...)
+		d.Path = append(append([]string(nil), prefix...), d.Path...)
 		e.res.DefaultsApplied = append(e.res.DefaultsApplied, d)
 	}
 	return out
 }
 
-// defaultSlotKey maps the Go field names DefaultApplied paths start
-// with to their wire keys.
-var defaultSlotKey = map[string]string{"Aggregations": "aggregations", "Groups": "groups"}
+// defaultSlotKeys are the top-level slot keys a DefaultApplied path
+// starts with that a request step reads back.
+var defaultSlotKeys = map[string]bool{"aggregations": true, "groups": true}
 
 // explainRequest is the Request root.
 func (e *explainer) explainRequest(r *types.Request) error {
@@ -893,7 +892,7 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		} else {
 			e.absorb(env, prefix)
 		}
-		e.requestSteps(prefix, r, e.defaults(env, []string{"Requests", strconv.Itoa(i)}))
+		e.requestSteps(prefix, r, e.defaults(env, []string{"requests", strconv.Itoa(i)}))
 	}
 	// The optimize blocks run after the slots and fits, each as it runs
 	// (explain_optimize.go).
@@ -946,7 +945,7 @@ func (e *explainer) explainChain(c *types.ChainRequest) error {
 			if err != nil {
 				return err
 			}
-			inferred = e.defaults(env, []string{"Stages", "0", "Request"})
+			inferred = e.defaults(env, []string{"stages", "0", "request"})
 		}
 		if i > 0 && hasUntyped(st.Request) {
 			laterUntyped = true

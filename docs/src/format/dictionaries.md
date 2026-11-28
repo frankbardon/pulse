@@ -58,7 +58,9 @@ ID range (`FieldType.MaxSetEntries()`):
 
 `set_u256` is a hard ceiling — there is deliberately no wider rung, so
 a 257-option column has no set type and stays as its constituent
-columns. Overflow on import is `PULSE_IMPORT_SET_OVERFLOW` (not the
+columns. An inferred set rung a later cell outgrows promotes up this
+ladder, exactly as a categorical rung does (below); a declared rung, or
+`set_u256`, overflows as `PULSE_IMPORT_SET_OVERFLOW` (not the
 categorical code below). Inference picks the smallest rung that fits,
 so a dictionary can be narrower than its rung's capacity — a 206-option
 `set_u256` wastes 50 bit slots, accepted knowingly over a
@@ -70,10 +72,13 @@ What happens when a column outgrows its dictionary depends on where its
 type came from:
 
 - **Inferred** (`import <format>` without `--schema`, `import auto`,
-  `convert`): the rung promotes `categorical_u8` → `u16` → `u32` and
-  warns `PULSE_IMPORT_WIDTH_PROMOTED`
+  `convert`): the rung promotes `categorical_u8` → `u16` → `u32`
+  (a set: `set_u8` → … → `set_u256`) and warns
+  `PULSE_IMPORT_WIDTH_PROMOTED`
   ([Width promotion](../cli/flags.md#width-promotion-inferred-imports-and-converts)).
-  Only a dictionary past `categorical_u32` refuses the import.
+  Only a dictionary past `categorical_u32` refuses the import; a set
+  past `set_u256` drops its row (`PULSE_IMPORT_ROW_ERROR`, reason
+  `PULSE_IMPORT_SET_OVERFLOW`).
 - **Declared** (`--schema`, an SPSS schema): a value past the cap is
   `PULSE_IMPORT_CATEGORICAL_OVERFLOW`, and its row is skipped as a
   `PULSE_IMPORT_ROW_ERROR`. The good rows are written with a

@@ -59,12 +59,15 @@ These tests guard structural invariants. If one of them fails, the
 underlying conventions (not the test) are what need re-thinking. What
 each checks in detail: `.claude/reference/update-demand/gates.md`.
 How to run the documentation checks and work their allowlists:
-[Documentation Checks](doc-checks.md).
+[Documentation Checks](doc-checks.md). How the heap-reading memory
+gates measure, and the regression each was falsified against:
+[Memory Gates](memory-gates.md).
 
 | Gate | Guards |
 |---|---|
 | `TestPredictNoExecutionImports`         | `internal/descriptor/predict.go` does not import `internal/service/` or `internal/processing/` |
 | `TestDescriptorNoFmtSprintf`            | `descriptor/` + `internal/descriptor/` never build JSON via `fmt.Sprintf` |
+| `TestNoQuotedPathVerbs`                 | no message builder `%q`s (or `strconv.Quote`s) a filesystem path; it uses `pathq.Quote`, so a Windows path reads with single backslashes (`internal/pathq`) |
 | `TestGoldensNotHandEdited`              | `descriptor/testdata/*` hashes match the generator |
 | `TestClaudeMdMentionsFormatVersion`, `TestClaudeMdSizeBudget` | CLAUDE.md names the current `format_version` and stays under its size ceiling |
 | `TestEnvVarsDocumented`                 | Every `PULSE_*` env var has a row in [Options → Environment variables](../library/options.md#environment-variables) |
@@ -84,7 +87,10 @@ How to run the documentation checks and work their allowlists:
 | `TestManifestStreamableMatchesTypes`    | Manifest `Streamable` flags mirror the type-level methods |
 | `TestCodesHaveFixups`                   | Each error code has a `codeMetadata` Message and at least one Fixup (or `FixupNotApplicable`) |
 | `TestEmittedCodeLiteralsRegistered`     | Every code-shaped string literal in non-test Go source is a registered code (`errors/codes.go`) |
+| `TestRegisteredCodesEmittedOrReserved` | The converse: every registered code is emitted by non-test Go source (named as a value, not only matched against), or listed in the gate's `reservedCodes` with a reason |
 | `TestRefusalMessagesUseWireKeys`        | Request-facing refusal prose names wire keys (`params.field`, `max_iters`), not Go field paths |
+| `TestFixupPathsAreWireKeys`             | Every `Fixup.Path` segment in `errors/fixup_metadata.go` is an index (`*`, digits) or a wire key (a JSON tag, a manifest param name); a fix on a Go-only surface carries no Path |
+| `TestPredict_DefaultsAppliedPathsAreWireKeys` | `defaults_applied[].path` is wire keys (`["crosstab", "cells", "1", "type"]`) |
 | `TestDefaults_Applied`                  | Smart-default operator-type inference behaves as documented |
 | `TestDocsLinksResolve`                  | Every relative link and `#anchor` in `docs/src/**` and the repo-root `*.md` files resolves as published: inside `docs/src`, a `SUMMARY.md` chapter, mdBook heading slugs. Allowlist `internal/doccheck/allowlists/links.txt`, locked empty; `make linkcheck-external` checks http(s) links by hand |
 | `TestCliHelpMatchesFlagsDoc`            | The CLI command tree and the generated `docs/src/cli/reference.md` carry the same leaves and, per leaf, the same flags (aliases included), plus the root's global flags, both directions; every flag the concepts page `docs/src/cli/flags.md` names is mounted somewhere; allowlist `cli-flags.txt`, locked empty |

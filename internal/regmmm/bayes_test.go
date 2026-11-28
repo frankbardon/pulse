@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/mcmc"
 	"github.com/frankbardon/pulse/types"
 )
@@ -74,7 +76,7 @@ func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
 	t.Parallel()
 
 	for _, x := range []string{"(intercept)", "sigma", "decay:x", "k:x", "s:x", "tv"} {
-		s := BayesSpec(`{"channels":["tv"],"time":"week"}`)
+		s := BayesSpec(`{"channels":["tv"]}`)
 		s.Predictors = []string{"tv", x}
 		var ce *perr.CodedError
 		if _, err := BayesFactory(s, nil); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_CONFIG || ce.Details["slot"] != "predictors" {
@@ -82,7 +84,7 @@ func TestMMMBayes_FactoryRefusesCoefficientNameCollision(t *testing.T) {
 		}
 	}
 	if _, err := BayesFactory(&types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv", "kx"},
-		Params: json.RawMessage(`{"channels":["tv"],"time":"week"}`)}, nil); err != nil {
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["tv"]}`)}, nil); err != nil {
 		t.Errorf("a predictor merely starting with k: %v", err)
 	}
 }
@@ -97,7 +99,7 @@ func TestMMMBayes_ShortInputNeverSamples(t *testing.T) {
 	runs := 0
 	SetBayesSampler(t, func(float64) mcmc.Sampler { runs++; return mcmc.NUTS{} })
 	s := &types.RegressionSpec{Type: BayesName, Target: "probe_y", Predictors: []string{"probe_x1", "probe_x2"},
-		Params: json.RawMessage(`{"channels":["probe_x1","probe_x2"],"time":"week"}`)}
+		Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["probe_x1","probe_x2"]}`)}
 	model, err := BayesFactory(s, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +114,43 @@ func TestMMMBayes_ShortInputNeverSamples(t *testing.T) {
 	}
 	if runs != 0 {
 		t.Errorf("the short fit sampled %d times", runs)
+	}
+}
+
+// TestMMMBayes_RefusalNamesFit (E4-S9): a runtime refusal of an
+// unnamed REG_MMM_BAYES inside a named Compose fit says regression
+// "<fit>" (pmodel.RegressionLabel), never regression ""; a named one
+// keeps its own name; outside a fit an unnamed one stays "". Only the
+// message reads the label: details.regression is the spec's own name.
+func TestMMMBayes_RefusalNamesFit(t *testing.T) {
+	t.Parallel()
+
+	rows := make(probeRows, 4)
+	for i := range rows {
+		rows[i] = probeRow{"probe_y": float64(i), "probe_x1": float64(i % 3)}
+	}
+	for _, tc := range []struct{ name, fit, want string }{
+		{"", "mmm", `regression "mmm":`},
+		{"own", "mmm", `regression "own":`},
+		{"", "", `regression "":`},
+	} {
+		s := &types.RegressionSpec{Type: BayesName, Name: tc.name, Target: "probe_y", Predictors: []string{"probe_x1"},
+			Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels":["probe_x1"]}`)}
+		model, err := BayesFactory(s, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = model.(extend.ContextRegression).FitContext(pmodel.WithFitName(context.Background(), tc.fit), rows)
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA {
+			t.Fatalf("name %q fit %q: %v, want PROCESSING_REGRESSION_INSUFFICIENT_DATA", tc.name, tc.fit, err)
+		}
+		if !strings.Contains(ce.Message, tc.want) {
+			t.Errorf("name %q fit %q: message %q, want %s", tc.name, tc.fit, ce.Message, tc.want)
+		}
+		if ce.Details["regression"] != tc.name {
+			t.Errorf("name %q fit %q: details.regression %v, want the spec's own name", tc.name, tc.fit, ce.Details["regression"])
+		}
 	}
 }
 

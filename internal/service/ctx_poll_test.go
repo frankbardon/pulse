@@ -189,7 +189,7 @@ func TestCtxPoll_JoinBuildCancelled(t *testing.T) {
 	}
 }
 
-// TestFailFastWinner: a FailFast Compose reports the lowest-index
+// TestFailFastWinner: a fail-fast Compose reports the lowest-index
 // failure that is not a sibling cancellation — a slot cancelled by
 // another slot's error never hides that error — while a caller-done ctx
 // keeps the lowest-index failure, cancellation included.

@@ -771,7 +771,7 @@
           "type": "string"
         },
         "mode": {
-          "type": "string"
+          "$ref": "#/$defs/LabelMode"
         },
         "table": {
           "type": "string"
@@ -782,6 +782,13 @@
         "table"
       ],
       "type": "object"
+    },
+    "LabelMode": {
+      "enum": [
+        "augment",
+        "replace"
+      ],
+      "type": "string"
     },
     "MarginAggregationFigure": {
       "additionalProperties": false,
@@ -2587,4 +2594,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: ad859cddfa9e5768caaa3f49f8b6eb8b6973ccca0cc986f3315750774516a3d4
+// golden-hash: 67c86c139b0bf48c9e9bf9a65af3bb59cf6ac782483ba5acc5e5ce96c35e0baf

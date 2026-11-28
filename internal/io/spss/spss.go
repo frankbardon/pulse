@@ -233,6 +233,11 @@ type Option func(*Reader)
 //
 // The check is skipped entirely below a small case-count floor, because
 // a distinct-count ratio over a handful of cases says nothing.
+//
+// Internal by decision (v1, #798): pio.SPSSReaderOptions does not carry
+// it, so the warning's fixup offers no threshold knob. An advisory
+// warning's sensitivity is not a general embedder need, and exposing it
+// later is additive.
 func WithCardinalityWarnFraction(fraction float64) Option {
 	return func(r *Reader) { r.opts.cardinalityWarnFraction = fraction }
 }

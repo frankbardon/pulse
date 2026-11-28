@@ -25,6 +25,11 @@
 #     (NaN for a zero target cell, Inf for a positive one), so the cells
 #     outside C are left out and the target is renormalised over C —
 #     OVERLAY_CHISQ_VS_POP's rule.
+#   * overlay_chisq_vs_ref_sample.json — OVERLAY_CHISQ_VS_REF under
+#     params.reference_kind "sample" (#791): the 2 x |C| homogeneity test
+#     chisq.test(rbind(target[C], ref[C])) over C = the cells whose
+#     target + reference count is positive (a cell empty on both sides
+#     has a zero expected, where stock chisq.test is NaN).
 #   * overlay_ks_vs_pop.json — OVERLAY_KS_VS_POP (U36 E3-S4: ks.test's p,
 #     no longer Stephens'). The histogram path's D is ks.test(x, y)$
 #     statistic on the bucketised samples (each record replaced by its
@@ -169,6 +174,39 @@ write_golden("overlay_chisq_vs_ref", c(ov_meta(
   "chisq.test(target[C], p = ref[C], rescale.p = TRUE), cells read row by row",
   "C = the cells whose reference count is positive."
 ), list(cases = cvr_cases)))
+
+# ------------------------- OVERLAY_CHISQ_VS_REF, reference_kind = "sample"
+cvs_case <- function(name, target, ref, note) {
+  tv <- as.vector(t(target))
+  rv <- as.vector(t(ref))
+  C <- (tv + rv) > 0
+  ct <- suppressWarnings(chisq.test(rbind(tv[C], rv[C]), correct = FALSE))
+  list(
+    name = name, note = note,
+    target = ov_mat(target), ref = ov_mat(ref),
+    statistic = num(unname(ct$statistic)), df = num(unname(ct$parameter)),
+    p_value = num(ct$p.value), expected_min = num(min(ct$expected)),
+    excluded_cells = num(sum(!C))
+  )
+}
+m43 <- function(...) matrix(c(...), 4, 3, byrow = TRUE)
+cvs_cases <- list(
+  cvs_case("experiment_region_segment",
+           m43(27, 16, 13, 17, 19, 17, 16, 16, 18, 16, 19, 13),
+           m43(13, 18, 13, 14, 11, 21, 20, 24, 8, 21, 15, 15),
+           "experiment.pulse region x segment AGG_COUNT, variant (target) against control (reference): the #791 case (goodness of fit gives 37.3 on the same counts)"),
+  cvs_case("mixed", m3(12, 7, 30, 25, 18, 9, 4, 22, 15), m3(30, 10, 40, 20, 25, 15, 10, 30, 20),
+           "the goodness-of-fit mixed case read as two samples"),
+  cvs_case("one_side_empty_cell", m3(12, 7, 30, 25, 6, 9, 4, 22, 15), m3(30, 10, 40, 20, 0, 15, 10, 30, 20),
+           "a cell empty in the reference only: an ordinary observation, inside C"),
+  cvs_case("both_empty_cell", m3(12, 7, 30, 25, 0, 9, 4, 22, 15), m3(30, 10, 40, 20, 0, 15, 10, 30, 20),
+           "a cell empty on both sides: no evidence, left out of the statistic and df")
+)
+write_golden("overlay_chisq_vs_ref_sample", c(ov_meta(
+  "OVERLAY_CHISQ_VS_REF",
+  "chisq.test(rbind(target[C], ref[C]), correct = FALSE), cells read row by row",
+  "params.reference_kind sample: C = the cells whose target + reference count is positive."
+), list(cases = cvs_cases)))
 
 # ------------------------------------------------------- OVERLAY_KS_VS_POP
 kolmo_surv <- function(l) .Call(stats:::C_pkolmogorov_two_limit, l, FALSE, 1e-300)

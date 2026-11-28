@@ -595,6 +595,7 @@
 - [Development Setup](contributing/setup.md)
 - [Style Guide](contributing/style.md)
 - [Testing Conventions](contributing/testing.md)
+  - [Memory Gates](contributing/memory-gates.md)
 - [Running CI Gates Locally](contributing/local-ci.md)
 - [Documentation Checks](contributing/doc-checks.md)
 - [Agent Evaluation](contributing/agent-eval.md)

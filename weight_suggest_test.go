@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/io/spss"
@@ -148,10 +147,7 @@ func TestSuggestedWeight_AbsentOrStaleIsSilent(t *testing.T) {
 			}
 		},
 		"cohort fingerprint moved": func(t *testing.T, afs afero.Fs) {
-			later := time.Now().Add(time.Hour)
-			if err := afs.Chtimes(suggestCohort, later, later); err != nil {
-				t.Fatal(err)
-			}
+			moveCohortUnderSidecar(t, afs, suggestCohort)
 		},
 		"malformed sidecar": func(t *testing.T, afs afero.Fs) {
 			if err := afero.WriteFile(afs, spss.SidecarPath(suggestCohort), []byte("{not json"), 0o644); err != nil {

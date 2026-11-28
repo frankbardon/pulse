@@ -38,15 +38,21 @@ package processing
 //     (they emit a scalar, a bucket layout, and nothing respectively).
 //     They are checked only for the absence: if one starts declaring an
 //     EmitsType, the completeness half demands a probe for it.
-//   - The CEILING of a wide integer declaration is unreachable by
-//     construction. WIN_ROW_NUMBER's "u32" would need four billion rows
-//     to press, so for those the probe presses integrality and
+//   - EmitsType is the materialized COLUMN type (f64 for every
+//     attribute, window and feature today), held to the column by the
+//     root package's TestManifestEmitsTypeMatchesMaterialize. An output
+//     whose values are narrower than its column — a popcount, a 0/1
+//     flag, a rank — states that domain in its EmitsTypeNote, and
+//     emitsValueDomain holds the values to it here (E4-S9): the
+//     declaration may say f64 but ATTR_SET_POPCOUNT must still fit u16.
+//   - The CEILING of a wide integer domain is unreachable by
+//     construction. WIN_ROW_NUMBER's u32 domain would need four billion
+//     rows to press, so for those the probe presses integrality and
 //     non-negativity only — which is still the half that breaks, since a
-//     negative or fractional value in a u32 column is the actual failure
-//     mode. The ceiling IS pressed wherever it is reachable:
-//     ATTR_SET_POPCOUNT at 256 (the exact value that broke "u8"),
-//     FEAT_TRAIN_TEST_SPLIT at 2 against "u8", ATTR_SET_HAS against
-//     packed_bool.
+//     negative or fractional rank is the actual failure mode. The
+//     ceiling IS pressed wherever it is reachable: ATTR_SET_POPCOUNT at
+//     256 (the exact value that broke the old "u8"), ATTR_SET_HAS and
+//     ATTR_CODE_IN against packed_bool.
 //   - A row on which the operator emitted NO value (a window row left
 //     null, a null-masked feature output) carries nothing to check and
 //     is skipped; every probe must still emit at least one value, so a
@@ -655,6 +661,19 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 	},
 }
 
+// emitsValueDomain is the value domain of an output narrower than its
+// declared (column) EmitsType: the field type its EmitsTypeNote's values
+// fit. The gate checks the values against it on top of the column type,
+// and every entry must sit on a declaring operator.
+var emitsValueDomain = map[string]string{
+	string(types.ATTR_SET_POPCOUNT): "u16",
+	string(types.ATTR_SET_HAS):      "packed_bool",
+	string(types.ATTR_CODE_IN):      "packed_bool",
+	string(types.WIN_ROW_NUMBER):    "u32",
+	string(types.WIN_RANK):          "u32",
+	string(types.WIN_DENSE_RANK):    "u32",
+}
+
 // ---------------------------------------------------------------------
 // The gate
 // ---------------------------------------------------------------------
@@ -725,13 +744,25 @@ func TestManifestEmitsTypeHoldsAtRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("every_value_domain_is_declared", func(t *testing.T) {
+		for name := range emitsValueDomain {
+			if entries[name].EmitsType == "" {
+				t.Errorf("emitsValueDomain names %s, which declares no EmitsType", name)
+			}
+		}
+	})
+
 	for _, name := range declared {
 		probe, ok := emitsTypeProbes[name]
 		if !ok {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
-			checkEmitsDomain(t, name, entries[name].EmitsType, probe(t))
+			vals := probe(t)
+			checkEmitsDomain(t, name, entries[name].EmitsType, vals)
+			if domain, ok := emitsValueDomain[name]; ok {
+				checkEmitsDomain(t, name+" (value domain)", domain, vals)
+			}
 		})
 	}
 }

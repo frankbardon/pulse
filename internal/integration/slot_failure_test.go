@@ -708,7 +708,7 @@ func TestSlotFailure_ComposeFitFatalReaders(t *testing.T) {
 		for arm, run := range map[string]func(*types.ComposedRequest) error{
 			"serial": func(b *types.ComposedRequest) error { _, err := p.Compose(ctx, b); return err },
 			"parallel": func(b *types.ComposedRequest) error {
-				_, err := p.ComposeParallel(ctx, b, pulse.ComposeOptions{MaxWorkers: 4, FailFast: true})
+				_, err := p.ComposeParallel(ctx, b, pulse.ComposeOptions{MaxWorkers: 4})
 				return err
 			},
 		} {

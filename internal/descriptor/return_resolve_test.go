@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"github.com/frankbardon/pulse/internal/returnplan"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -496,5 +497,50 @@ func TestReturnPresetsFor_Instance(t *testing.T) {
 	}
 	if got := BuildManifest().ReturnPresets; len(got) != 3 || !slices.Contains(got[2].Paths, "matrices[*].primary") {
 		t.Errorf("full manifest return_presets = %+v", got)
+	}
+}
+
+// TestReturnPresetStandard_RegressionMembership (#777): the standard
+// preset keeps every RegressionResult key but the two bulky blocks
+// (credible_intervals, selection) — a key added to the result joins the
+// preset or this list, never silently neither. warnings and error are
+// kept by every preset (the nested-warnings and error rules).
+func TestReturnPresetStandard_RegressionMembership(t *testing.T) {
+	t.Parallel()
+
+	notStandard := map[string]bool{"credible_intervals": true, "selection": true, "warnings": true, "error": true}
+	kept := map[string]bool{}
+	for _, p := range ReturnPresetsFor(nil) {
+		if p.Name != string(types.ReturnPresetStandard) {
+			continue
+		}
+		for _, path := range p.Paths {
+			if k, ok := strings.CutPrefix(path, "regressions[*]."); ok {
+				kept[k] = true
+			}
+		}
+	}
+	rt := reflect.TypeOf(types.RegressionResult{})
+	keys := map[string]bool{}
+	for i := 0; i < rt.NumField(); i++ {
+		name, _, _ := strings.Cut(rt.Field(i).Tag.Get("json"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		keys[name] = true
+		if notStandard[name] {
+			if kept[name] {
+				t.Errorf("standard keeps regressions[*].%s, listed as not kept", name)
+			}
+			continue
+		}
+		if !kept[name] {
+			t.Errorf("standard omits regressions[*].%s: add it to returnPresetPaths or to notStandard (and payload-schema.md's presets table)", name)
+		}
+	}
+	for k := range kept {
+		if !keys[k] {
+			t.Errorf("standard keeps regressions[*].%s, which RegressionResult has no key for", k)
+		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -267,7 +268,7 @@ func loadFeatureProfileFile(fsys afero.Fs, path string) (*FeatureProfile, error)
 	raw, err := afero.ReadFile(fsys, path)
 	if err != nil {
 		return nil, featureProfileInvalid(featureProfileReasonFileUnreadable,
-			fmt.Sprintf("feature profile: cannot read %q: %v", path, err),
+			fmt.Sprintf("feature profile: cannot read %s: %v", pathq.Quote(path), err),
 			map[string]any{"path": path})
 	}
 	return decodeFeatureProfile(raw, path)
@@ -301,7 +302,7 @@ func decodeFeatureProfile(raw []byte, path string) (*FeatureProfile, error) {
 	prefix := "feature profile: "
 	if path != "" {
 		details["path"] = path
-		prefix = fmt.Sprintf("feature profile: %q: ", path)
+		prefix = fmt.Sprintf("feature profile: %s: ", pathq.Quote(path))
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -400,13 +401,7 @@ func applyFeatureProfileBehaviour(opts *Options, fp *FeatureProfile) {
 	b := fp.Behaviour
 	opts.DisableDefaults = opts.DisableDefaults || b.DisableDefaults
 	opts.DisableComponents = opts.DisableComponents || b.DisableComponents
-	if b.DisableProjection {
-		// The deprecated ProjectBufferedFields knob would otherwise
-		// turn projection back on (New ORs it against
-		// !DisableProjection), letting Options override the profile.
-		opts.DisableProjection = true
-		opts.ProjectBufferedFields = false
-	}
+	opts.DisableProjection = opts.DisableProjection || b.DisableProjection
 }
 
 func featureProfileInvalid(reason, msg string, details map[string]any) error {

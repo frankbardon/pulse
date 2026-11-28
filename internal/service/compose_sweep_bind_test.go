@@ -110,7 +110,7 @@ func TestComposeSweepBind_SweepFirstSchedule(t *testing.T) {
 			if mode == "serial" {
 				out, err = svc.Compose(context.Background(), sweepBindBatch())
 			} else {
-				out, err = svc.ComposeParallel(context.Background(), sweepBindBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+				out, err = svc.ComposeParallel(context.Background(), sweepBindBatch(), ComposeOptions{MaxWorkers: 4})
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -411,7 +411,7 @@ func TestComposeSweepBind_PhaseZeroFailureAggregate(t *testing.T) {
 
 	svc := fitsService(t)
 	t.Run("parallel_no_fail_fast", func(t *testing.T) {
-		resp, err := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+		resp, err := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4, CollectErrors: true})
 		var ce *perr.CodedError
 		if resp != nil || !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL {
 			t.Fatalf("resp %v, err %v", resp, err)
@@ -425,7 +425,7 @@ func TestComposeSweepBind_PhaseZeroFailureAggregate(t *testing.T) {
 	t.Run("parallel_later_phase_has_no_skipped", func(t *testing.T) {
 		c := sweepBindBatch()
 		c.Requests[0].Cohort = &types.Cohort{Filename: "missing.pulse"}
-		_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4})
+		_, err := svc.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4, CollectErrors: true})
 		var ce *perr.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_INTERNAL || !reflect.DeepEqual(ce.Details["failed_indices"], []int{0}) {
 			t.Fatalf("err %v", err)
@@ -436,7 +436,7 @@ func TestComposeSweepBind_PhaseZeroFailureAggregate(t *testing.T) {
 	})
 	t.Run("fail_fast_located", func(t *testing.T) {
 		serial, serr := svc.Compose(context.Background(), phaseZeroFailBatch())
-		par, perr2 := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4, FailFast: true})
+		par, perr2 := svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
 		for name, run := range map[string]struct {
 			resp *types.ComposedResponse
 			err  error
@@ -466,7 +466,7 @@ func TestComposeSweepBind_PhaseZeroFailureRunsNoExplicitSlot(t *testing.T) {
 			if mode == "serial" {
 				_, err = svc.Compose(context.Background(), phaseZeroFailBatch())
 			} else {
-				_, err = svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4})
+				_, err = svc.ComposeParallel(context.Background(), phaseZeroFailBatch(), ComposeOptions{MaxWorkers: 4, CollectErrors: true})
 			}
 			if err == nil {
 				t.Fatal("phase 0 did not fail")
@@ -566,7 +566,7 @@ func TestComposeSweepBind_WinnerModelFiles(t *testing.T) {
 			if mode == "serial" {
 				out, err = svc.Compose(ctx, c)
 			} else {
-				out, err = svc.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 4, FailFast: true})
+				out, err = svc.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 4})
 			}
 			if err != nil {
 				t.Fatal(err)

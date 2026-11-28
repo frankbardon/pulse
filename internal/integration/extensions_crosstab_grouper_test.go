@@ -2,6 +2,9 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -68,10 +71,16 @@ func TestExtensions_SingleKeyGrouperFusesCrosstab(t *testing.T) {
 				t.Errorf("extension grouper path: KeyForRow=%d Group=%d, want the fused per-record arm only",
 					probe.online.Load(), probe.buffered.Load())
 			}
-			// The axis header echoes the operator type; that is the only
-			// permitted difference.
+			// The axis header echoes the operator type, and the numeric
+			// score axis emits in value order on the built-in (#788 — its
+			// keys rank by value) but alphabetically on the extension (an
+			// extension grouper declares no key order); those are the only
+			// permitted differences: the same keys carry the same cells.
 			b := mustJSON(t, builtin.Crosstab)
-			e := strings.ReplaceAll(mustJSON(t, ext.Crosstab), `"`+string(grpParityCategory)+`"`, `"`+string(types.GROUP_CATEGORY)+`"`)
+			if !columnKeysNumericAscending(t, builtin.Crosstab) {
+				t.Errorf("built-in score axis is not in value order: %s", b)
+			}
+			e := strings.ReplaceAll(mustJSON(t, reorderColumns(t, ext.Crosstab, builtin.Crosstab)), `"`+string(grpParityCategory)+`"`, `"`+string(types.GROUP_CATEGORY)+`"`)
 			if b != e {
 				t.Errorf("crosstab differs\nbuiltin:   %s\nextension: %s", b, e)
 			}
@@ -84,4 +93,49 @@ func TestExtensions_SingleKeyGrouperFusesCrosstab(t *testing.T) {
 			}
 		})
 	}
+}
+
+// columnKeysNumericAscending reports whether c's column keys parse as
+// numbers in strictly ascending order.
+func columnKeysNumericAscending(t *testing.T, c *types.CrosstabResult) bool {
+	t.Helper()
+	prev := math.Inf(-1)
+	for _, k := range c.Matrix.ColumnKeys {
+		v, err := strconv.ParseFloat(fmt.Sprint(k[0]), 64)
+		if err != nil || v <= prev {
+			return false
+		}
+		prev = v
+	}
+	return len(c.Matrix.ColumnKeys) > 1
+}
+
+// reorderColumns returns a copy of c whose matrix columns follow ref's
+// column key order (each column's cells move with its key); a key ref
+// lacks fails the test.
+func reorderColumns(t *testing.T, c, ref *types.CrosstabResult) *types.CrosstabResult {
+	t.Helper()
+	pos := make(map[string]int, len(c.Matrix.ColumnKeys))
+	for j, k := range c.Matrix.ColumnKeys {
+		pos[fmt.Sprint(k)] = j
+	}
+	out := *c
+	m := *c.Matrix
+	m.ColumnKeys = make([]types.AxisKey, len(ref.Matrix.ColumnKeys))
+	m.Cells = make([][]types.MatrixCell, len(c.Matrix.Cells))
+	for i := range m.Cells {
+		m.Cells[i] = make([]types.MatrixCell, len(ref.Matrix.ColumnKeys))
+	}
+	for j, k := range ref.Matrix.ColumnKeys {
+		src, ok := pos[fmt.Sprint(k)]
+		if !ok {
+			t.Fatalf("column key %v missing from %v", k, c.Matrix.ColumnKeys)
+		}
+		m.ColumnKeys[j] = c.Matrix.ColumnKeys[src]
+		for i := range m.Cells {
+			m.Cells[i][j] = c.Matrix.Cells[i][src]
+		}
+	}
+	out.Matrix = &m
+	return &out
 }

@@ -4,6 +4,8 @@
 type — a new on-wire encoding the schema block can describe, the
 record codec can read / write, and the operator surface can accept.
 
+> **Run the site checklist first.** `make sites ARGS="field-type <name>"` prints, for an existing type or a new one, every switch and table that lists field types (complete ones a new type must join, subsets to check), the predicates, refusals and type-named helpers that reach it without naming it, and the gates below. See [Finding Change Sites](finding-change-sites.md).
+
 Load `.claude/reference/byte-layout.md` first: most of its rules fail
 silently. Adding a field type touches more layers than any other recipe — the
 binary format, the schema reader, the operator-accept tables, the

@@ -21,7 +21,7 @@ import (
 // bayesCurveFit is a REG_MMM_BAYES fit under saturation (raw JSON
 // value, "" for absent) with the curve's coefficients.
 func bayesCurveFit(saturation string) (*types.RegressionSpec, *types.RegressionResult) {
-	params := `{"channels": ["tv"], "time": "week", "max_lag": 5`
+	params := `{"channels": ["tv"], "max_lag": 5`
 	if saturation != "" {
 		params += `, "saturation": "` + saturation + `"`
 	}

@@ -114,7 +114,7 @@ func TestGroupDate_HourWeekStartEveryArm(t *testing.T) {
 			requireCounts(t, dayCountsFromRows(t, out.Responses[0].Data, "ts"), want)
 		})
 		t.Run(tc.name+"/compose-parallel", func(t *testing.T) {
-			out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(archive)}}, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(archive)}}, pulse.ComposeOptions{MaxWorkers: 2})
 			if err != nil {
 				t.Fatal(err)
 			}

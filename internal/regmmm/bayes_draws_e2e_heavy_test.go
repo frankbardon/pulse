@@ -27,8 +27,8 @@ func TestMMMBayes_DrawsEndToEnd(t *testing.T) {
 		file, params string
 		roi          []string
 	}{
-		{regmmm.BayesCohort, `{"channels":["tv"],"time":"week","chains":2,"warmup":150,"draws":100,"return_draws":true,"draws_thin":4}`, []string{"tv"}},
-		{"panel.pulse", `{"channels":["tv"],"time":"week","geo":"geo","chains":2,"warmup":150,"draws":100,"return_draws":true,"draws_thin":4}`, []string{"tv", "tv[east]", "tv[west]"}},
+		{regmmm.BayesCohort, `{"channels":["tv"],"chains":2,"warmup":150,"draws":100,"return_draws":true,"draws_thin":4}`, []string{"tv"}},
+		{"panel.pulse", `{"channels":["tv"],"geo":"geo","chains":2,"warmup":150,"draws":100,"return_draws":true,"draws_thin":4}`, []string{"tv", "tv[east]", "tv[west]"}},
 	} {
 		resp := process(t, p, bayesRequest(tc.file, regmmm.BayesSpec(tc.params)))
 		r := resp.Regressions[0]

@@ -149,8 +149,9 @@ func stanCaseCheck(t *testing.T, c stanCase, bound float64) extend.RegressionOut
 	for i := range rows {
 		rows[i] = probeRow{"week": c.Rows.Week[i], "tv": c.Rows.TV[i], "price": c.Rows.Price[i], "sales": c.Rows.Sales[i]}
 	}
+	slotParams, order := oracleParams(t, c.Params)
 	spec := &types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv", "price"},
-		Params: c.Params, RNGSeed: c.RNGSeed}
+		Order: order, Params: slotParams, RNGSeed: c.RNGSeed}
 	reg, err := BayesFactory(spec, nil)
 	if err != nil {
 		t.Fatal(err)

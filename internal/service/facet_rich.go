@@ -313,17 +313,26 @@ func validateFacetSchemaRequest(req *types.FacetRequest, schema *encoding.Schema
 	}
 
 	for _, name := range req.Fields {
-		if schema.Field(name) == nil {
+		f := schema.Field(name)
+		if f == nil {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				fmt.Sprintf("facet field %q not found in schema", name),
 				map[string]any{"field": name})
 		}
+		// A set_*, vec_* or datetime field — predict's rule.
+		if ce := descx.FacetFieldTypeRefusal(f); ce != nil {
+			return ce
+		}
 	}
 	for _, name := range req.AdditiveFields {
-		if schema.Field(name) == nil {
+		f := schema.Field(name)
+		if f == nil {
 			return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 				fmt.Sprintf("additive field %q not found in schema", name),
 				map[string]any{"field": name})
+		}
+		if ce := descx.FacetFieldTypeRefusal(f); ce != nil {
+			return ce
 		}
 		// Additive scope-stripping cannot semantically remove a clause
 		// hidden inside a FILTER_EXPRESSION body. Reject up front rather
@@ -448,9 +457,8 @@ func newKindAccumulator(f *encoding.Field, req *types.FacetRequest, bins int, l 
 		wantPercentiles := len(req.NumericPercentiles) > 0
 		return newNumericAccumulator(f, wantPercentiles, req.IncludeHistogram, bins, req.HistogramRange), nil
 	default:
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			fmt.Sprintf("facet does not support field type %s", f.Type.String()),
-			map[string]any{"field": f.Name, "type": f.Type.String()})
+		// Refused earlier (validateFacetSchemaRequest), by the same rule.
+		return nil, descx.FacetTypeUnsupported(f)
 	}
 }
 
@@ -547,6 +555,10 @@ func (a *categoricalAccumulator) finalize(req *types.FacetRequest) (*types.Facet
 	}, warning, nil
 }
 
+// boolAccumulator tallies a packed_bool field as two discrete values
+// spelled "1" (true) and "0" (false): Sample's spelling, pulse_facet's,
+// a GROUP_CATEGORY key's and a FILTER_INCLUDE value's (E4-S8; it said
+// "true" / "false").
 type boolAccumulator struct {
 	field    *encoding.Field
 	limits   limits.Limits
@@ -595,10 +607,10 @@ func (a *boolAccumulator) update(r *processing.Record, field string) error {
 func (a *boolAccumulator) finalize(req *types.FacetRequest) (*types.FacetField, *types.ResponseWarning, error) {
 	var values []types.FacetValueCount
 	if a.t > 0 {
-		values = append(values, types.FacetValueCount{Value: "true", Count: a.t})
+		values = append(values, types.FacetValueCount{Value: "1", Count: a.t})
 	}
 	if a.fcnt > 0 {
-		values = append(values, types.FacetValueCount{Value: "false", Count: a.fcnt})
+		values = append(values, types.FacetValueCount{Value: "0", Count: a.fcnt})
 	}
 	values, truncatedAt, warning := sortAndTruncateDiscrete(values, a.field.Name, a.distinct, req.DiscreteTopK)
 	return &types.FacetField{

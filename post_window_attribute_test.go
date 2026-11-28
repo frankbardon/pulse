@@ -53,7 +53,7 @@ func TestWindowPredictor_PostWindowScoresWindowTermModel(t *testing.T) {
 	runs := map[string]func() (*ComposedResponse, error){
 		"Compose": func() (*ComposedResponse, error) { return p.Compose(ctx, c) },
 		"ComposeParallel": func() (*ComposedResponse, error) {
-			return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+			return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 		},
 	}
 	for name, run := range runs {

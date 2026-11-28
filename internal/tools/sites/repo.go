@@ -294,18 +294,27 @@ func contains(xs []string, x string) bool {
 	return false
 }
 
-// goTestCmd renders the rerun command for a package directory.
+// goTestCmd renders the rerun command for a package directory. A
+// package of the nested embedder smoke module runs from that module's
+// directory, as `make smoke` does (the root `./...` never reaches it).
 func goTestCmd(dir string, tests []string) string {
-	pkg := "./" + dir + "/"
+	prefix, pkg := "go test -count=1 ", "./"+dir+"/"
 	if dir == "." {
 		pkg = "./"
+	}
+	if dir == embedderSmokeDir || strings.HasPrefix(dir, embedderSmokeDir+"/") {
+		prefix = "cd " + embedderSmokeDir + " && GOFLAGS=-mod=mod go test -count=1 "
+		pkg = "./" + strings.TrimPrefix(strings.TrimPrefix(dir, embedderSmokeDir), "/")
+		if pkg != "./" {
+			pkg += "/"
+		}
 	}
 	sort.Strings(tests)
 	tests = dedupe(tests)
 	if len(tests) == 0 {
-		return "go test -count=1 " + pkg
+		return prefix + pkg
 	}
-	return "go test -count=1 " + pkg + " -run '^(" + strings.Join(tests, "|") + ")$'"
+	return prefix + pkg + " -run '^(" + strings.Join(tests, "|") + ")$'"
 }
 
 func dedupe(xs []string) []string {

@@ -18,7 +18,7 @@ Welch–Satterthwaite t on MEANS between host slots ALONG one axis of the SAME c
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `pair_along_dim` | int | — | Restrict pairs to same-bucket comparisons on the pair axis. |
-| `n_within_depth` | int | `0` | Accepted and inert here (n comes from the Welford triple). |
+| `n_within_depth` | int | `0` | Not read here (n comes from the Welford triple): non-zero → `PULSE_OVERLAY_PARAM_MISSING`. |
 | `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1`: adds the `letters` part. |
 
 `scope` (required) — `row` or `column`. `ref` empty. `n_source` / `p_source` are NOT accepted: predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), every mode; runtime leaves them inert.

@@ -231,16 +231,15 @@ func TestValidateOverlays_WelfordKindReportsBothSelectors(t *testing.T) {
 
 // TestValidateOverlays_WelfordKindAcceptsAbsentSelectors — the default
 // path is untouched. An absent Params blob, an empty object, an
-// explicit empty selector, pair_along_dim and n_within_depth all stay
-// valid on a Welford kind.
+// explicit empty selector, pair_along_dim and a zero n_within_depth all
+// stay valid on a Welford kind.
 //
-// n_within_depth is deliberately in this list. It is equally inert
-// here, but its inertness is a CONSEQUENCE of n_source's rather than an
-// independent fact — a non-zero depth without a slab n_source is just
-// as inert on the proportion kinds, so refusing it only on the Welford
-// kinds would be the incoherent rule this story exists to avoid. It is
-// also a plain int whose zero value is meaningful, so "was it set?" is
-// not observable after decode.
+// A NON-ZERO n_within_depth is refused, but not as a Welford rule: a
+// depth without a slab n_source is just as inert on the proportion
+// kinds, so it is the every-kind rule (overlayhost.PairwiseWithinDepthMessage,
+// #743) — pinned below, and at the facade by
+// TestPairwiseWithinDepth_PredictMatchesRuntime. Zero is the plain
+// int's unset value, so it is never refused.
 func TestValidateOverlays_WelfordKindAcceptsAbsentSelectors(t *testing.T) {
 	t.Parallel()
 
@@ -251,7 +250,6 @@ func TestValidateOverlays_WelfordKindAcceptsAbsentSelectors(t *testing.T) {
 			`{"n_source":""}`,
 			`{"p_source":""}`,
 			`{"pair_along_dim":0}`,
-			`{"n_within_depth":2}`,
 			`{"n_within_depth":0,"pair_along_dim":0}`,
 		} {
 			t.Run(string(kind)+"/"+params, func(t *testing.T) {
@@ -261,6 +259,12 @@ func TestValidateOverlays_WelfordKindAcceptsAbsentSelectors(t *testing.T) {
 				}
 			})
 		}
+		t.Run(string(kind)+"/non-zero n_within_depth", func(t *testing.T) {
+			env := pwWelfordValidate(kind, `{"n_within_depth":2}`)
+			if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_OVERLAY_PARAM_MISSING) {
+				t.Fatalf("non-zero n_within_depth on %s: got %v, want one PULSE_OVERLAY_PARAM_MISSING", kind, pwPartErrorCodes(env))
+			}
+		})
 	}
 }
 

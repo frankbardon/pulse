@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -52,7 +53,7 @@ func CheckSaveDuplicates(sites []SaveSite) *errors.CodedError {
 		key := cleanModelPath(s.Path)
 		if first, dup := seen[key]; dup {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SAVE_INVALID,
-				fmt.Sprintf("save path %q is written twice, by %s and by %s; the later write would replace the earlier", s.Path, first, s.Site),
+				fmt.Sprintf("save path %s is written twice, by %s and by %s; the later write would replace the earlier", pathq.Quote(s.Path), first, s.Site),
 				map[string]any{"path": s.Path, "reason": ReasonSaveDuplicate, "sites": []any{first, s.Site}})
 		}
 		seen[key] = s.Site

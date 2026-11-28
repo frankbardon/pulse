@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 802, 803]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 802, 803, 804, 813, 814, 815]
 branch: v1-release
 ---
 
@@ -33,49 +33,61 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#168** (12. Release v1.0.0) `STABILITY.md` published at the repo root, with the final public package list ([api-and-release 02](../v1.0.0-api-and-release/02-stability-policy.md))
 - [ ] **#169** (12. Release v1.0.0) Release candidate tag (`v1.0.0-rc.1`) built through the release pipeline and exercised by the downstream library
 - [ ] **#170** (12. Release v1.0.0) `v1.0.0` tagged
-- [ ] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze
-- [ ] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3)
-- [ ] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4)
-- [ ] **#767** (1. API surface & release pipeline) `make sites` has no mode for an I/O-path change: add an `io` mode in `internal/tools/sites` that finds a reader / importer change's companions by shape (format readers, `internal/io` import / convert / widen, byte-layout and io-import slices, import skills, migration doc), with a falsified fixture test and a recipe line. Found in docs-content (E4-S1)
-- [ ] **#769** (7. Guided analysis — docs, API & MCP) `pulse cohort inspect` text mode prints no `Zone field:` line for a cohort's default zone field (`--json` carries `zone_field`)
-- [ ] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table)
+- [x] **#220** (12. Release v1.0.0) Decide the root alias for `types.ReturnedMarker` (`pulse.ReturnedMarker`) before the API freeze *Done in pre-v1 E1-S6.*
+- [x] **#660** (1. API surface & release pipeline) Export the range-table parser (`pulse.ParseRangeTableFile`, the `PULSE_RANGE_TABLES_DIR` loader's own parser — `parseRangeTableFile` in `range_loader.go`, unexported today) so an external tool that mirrors the range-table file format can drop its copy, as `pulse.ParseLookupTableFile` already allows for lookup tables. Additive (API golden, migration doc); decide before the freeze whether it ships in v1.0.0 or a later minor. Found in lookup-tables-loader (E3-S3) *Done in pre-v1 E1-S5.*
+- [x] **#756** (1. API surface & release pipeline) The label-, lookup-, range-table and populations directory loaders (`label_loader.go`, `lookup_loader.go`, `range_loader.go`, `population_loader.go`) read `PULSE_*_DIR` / `Options.*Dir` through `os` (`os.ReadDir` / `os.ReadFile` / `os.Stat`), so an embedder on an in-memory `Options.FS` cannot use them and their tests write host temp dirs. Thread the same Fs the template store uses (`templateFs`: `Options.FS` when set, else `afero.NewOsFs()`), migrate their tests to `afero.NewMemMapFs()`, and update `.claude/reference/byte-layout/table-directories.md` and `docs/src/library/options.md`. Found in docs-audit (E3-S4) *Done in pre-v1 E1-S5.*
+- [x] **#767** (1. API surface & release pipeline) `make sites` has no mode for an I/O-path change: add an `io` mode in `internal/tools/sites` that finds a reader / importer change's companions by shape (format readers, `internal/io` import / convert / widen, byte-layout and io-import slices, import skills, migration doc), with a falsified fixture test and a recipe line. Found in docs-content (E4-S1) *Done in pre-v1 E6-S1: the `io` mode (formats and `iocore` hooks).*
+- [x] **#769** (7. Guided analysis — docs, API & MCP) `pulse cohort inspect` text mode prints no `Zone field:` line for a cohort's default zone field (`--json` carries `zone_field`) *Done in pre-v1 E6-S2.*
+- [x] **#770** (1. API surface & release pipeline) `pulse completion` does not complete the COHORT positional of `pulse cohort zone set` / `clear` (missing from the cohort-positional table) *Done in pre-v1 E6-S2.*
 - [x] **#771** (12. Release v1.0.0) Register the emitted-but-unregistered codes `CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT`, and gate every emitted `DOMAIN_*` literal against the registry
-- [ ] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row
-- [ ] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
-- [ ] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines
-- [ ] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders
-- [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
-- [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
-- [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
-- [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
-- [ ] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests
-- [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
-- [ ] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys)
-- [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
-- [ ] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type
-- [ ] **#786** (11. Documentation audit) Inferred `set_*` rungs promote at import instead of dropping rows
-- [ ] **#787** (11. Documentation audit) `REG_MMM_BAYES` diagnostics in a named Compose fit name the fit and count its parameters right
-- [ ] **#788** (11. Documentation audit) Decide whether `ATTR_DATE_PART` hour / weekday keys sort numerically
-- [ ] **#789** (11. Documentation audit) A facet overlay's `ref.population.cohort` resolves through `data_dir` / `PULSE_DATA_DIR`
-- [ ] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null
-- [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
-- [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
-- [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
-- [ ] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names
-- [ ] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys
-- [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
-- [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
-- [ ] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision
+- [x] **#772** (11. Documentation audit) Decide whether `ComposeOptions.FailFast` should default to true in the library (the CLI already fails fast); a change needs an explicit opt-out and a migration-doc row. **Done (pre-v1 E1-S1): replaced by `ComposeOptions.CollectErrors`; the zero value fails fast; `--no-fail-fast` sets `CollectErrors`.**
+- [x] **#773** (11. Documentation audit) `WatchDir` cannot watch every file in a directory (an empty `Suffix` means `.pulse`); add a way to
+- [x] **#774** (11. Documentation audit) `make sites` has no field-type, error-code or MCP-tool target; add those modes with falsified fixture tests and recipe lines *Done in pre-v1 E6-S1: the `field-type`, `error-code` and `mcp-tool` modes, plus `slot options` and the `op` shape sites.*
+- [x] **#776** (11. Documentation audit) Decide whether the `PULSE_TEMPLATES_DIR` loader skips Pulse sidecars like the label, lookup and range-table loaders *Done in pre-v1 E1-S4.*
+- [x] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
+- [x] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test *Done in pre-v1 E3-S3: the hook gets `Filterer.Params` at predict (field-reference walk, `params.fit_on` included) and in the runtime projection, which now also reads `params.fit_on` extension filterers; pinned by `TestExtensionFilterer_FieldInputsReadParams` / `_FitOn…`.*
+- [x] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it *Done in pre-v1 E3-S3: `field` optional and unchecked (`fieldaccept.IgnoresField`: no existence check, no decimal rule); params `field_filter` tightened to `numeric`; pinned by `TestAggRatio_FieldOptionalAndUnchecked`.*
+- [x] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`) *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
+- [x] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
+- [x] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`) *Done in pre-v1 E4-S1: `w.mean` / `w.variance` / `w.n` (expr tags on `winformula.WelfordCell`, the engine triple's alias); the Go casing is refused `PULSE_FORMULA_COMPILE_ERROR` on both sides, pinned by `TestCompile_OutputColumns` / `TestWinFormula_OutputCellReads`.*
+- [x] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys) *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
+- [x] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
+- [x] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type *Done in pre-v1 E4-S2: `processing.FacetValue` spells each value by field type (date, datetime, decimal at scale, exact u64), keyed exactly; pinned by `TestFacet_RendersValuesByFieldType`.*
+- [x] **#786** (11. Documentation audit) Inferred `set_*` rungs promote at import instead of dropping rows *Done in pre-v1 E5-S1.*
+- [x] **#787** (11. Documentation audit) `REG_MMM_BAYES` diagnostics in a named Compose fit name the fit and count its parameters right
+- [x] **#788** (11. Documentation audit) Decide whether `ATTR_DATE_PART` hour / weekday keys sort numerically *Done in pre-v1 E4-S3: numeric order. `GROUP_CATEGORY` keys over a non-dictionary field rank by value (`keyOrderer` + `keyOrderGate`, a schema-time verdict) in `data`, components, crosstab axes and `sort`; categorical labels unchanged; pinned by `TestGroupCategory_NumericKeysSortByValue` / `TestGroupCategory_NumericKeyOrderWorkerInvariant`.*
+- [x] **#789** (11. Documentation audit) A facet overlay's `ref.population.cohort` resolves through `data_dir` / `PULSE_DATA_DIR` *Done in pre-v1 E4-S2: the population cohort carries the host's `data_dir`; pinned by `TestFacetOverlay_PopulationResolvesAsHostCohort` (MemMap, request and instance data dirs).*
+- [x] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null *Done in pre-v1 E4-S1: `cellFloat` reads a decimal cell (SortValuer) as its float64 value for every value-reading window, pinned by `TestValueWindows_DecimalCellsReadAsFloat64` / `TestWindows_ReadDecimalAggregation`.*
+- [x] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
+- [x] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export *Done in pre-v1 E6-S3: `pulse export --overlays FILE`.*
+- [x] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*
+- [x] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
+- [x] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
+- [x] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate *Done in pre-v1 E2-S3: fifteen dead codes retired; `PULSE_DECIMAL_PRECISION_LOSS` held reserved (documented, not yet raised); gated by `TestRegisteredCodesEmittedOrReserved`.*
+- [x] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys *Done in pre-v1 E2-S2: wire keys throughout, Go-only fixes carry no path; gated by `TestFixupPathsAreWireKeys`.*
+- [x] **#798** (11. Documentation audit) The SPSS cardinality-warning threshold is public or kept internal by decision *Done in pre-v1 E1-S6.*
 - [x] **#802** (11. Documentation audit) The simulate intent gets an MCP synth tool, or stays CLI / library-only by decision **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
-- [ ] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier
+- [x] **#803** (11. Documentation audit) Example search gains a plain-word synonym tier *Done in pre-v1 E6-S4: word-synonym tier in example search.*
+- [x] **#804** (11. Documentation audit) `PULSE_DECIMAL_PRECISION_LOSS` is raised when a decimal aggregate falls back to f64
+- [x] **#805** (11. Documentation audit) Predict ≡ runtime on an unknown pairwise `n_source` and a non-whole `GROUP_QUANTILE` interval *Done in pre-v1 E3-S5.*
+- [x] **#806** (11. Documentation audit) Every numeric reader of an aggregation cell reads a `decimal128` cell as its value *Done in pre-v1 E4-S8.*
+- [x] **#807** (11. Documentation audit) Facet over `set_*` / `vec_*` / `datetime` lists or refuses, predict ≡ runtime *Done in pre-v1 E4-S8.*
+- [x] **#808** (11. Documentation audit) `packed_bool` facet values spelled as Sample spells them *Done in pre-v1 E4-S8.*
+- [x] **#809** (11. Documentation audit) ±Inf / NaN grouper keys spelled the same on every architecture *Done in pre-v1 E4-S8.*
+- [x] **#810** (11. Documentation audit) `ATTR_SET_*`, `ATTR_CODE_IN` and the `WIN_*` rank `emits_type` is the materialized column type, gated *Done in pre-v1 E4-S9.*
+- [x] **#811** (11. Documentation audit) `REG_MMM_BAYES` runtime refusals in a named Compose fit name the fit *Done in pre-v1 E4-S9.*
+- [x] **#812** (11. Documentation audit) A `PULSE_SLOT_FAILED` warning names an unnamed slot once *Done in pre-v1 E5-S4.*
+- [x] **#813** (11. Documentation audit) `pulse completion` completes the FIELD positional of `cohort zone set` *Done in pre-v1 E6-S5.*
+- [x] **#814** (11. Documentation audit) `make sites` slot mode type-checks the embedder smoke module *Done in pre-v1 E6-S5.*
+- [x] **#815** (15. Found in roadmap-inventory (2026-11-02)) The six heavy estimate gates read an exact live-heap peak, not the GC-goal-sensitive sampled one *Done in pre-v1 E7-S4.*
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
-- [ ] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) · [U33](U33-v1-release.md)
+- [x] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) **Done (pre-v1 E1-S3): removed, with the `REG_MMM_BAYES` `params.time` alias.** · [U33](U33-v1-release.md)
 - [ ] **#664** One Go version support policy: README says Go 1.22+ (`README.md:26`), `docs/src/contributing/setup.md:21` says 1.24+, `go.mod` says 1.26.1 and CI tests only 1.26. Pick the policy, fix both pages and add a "Supported Go versions" row to `STABILITY.md` · [U33](U33-v1-release.md)
 - [ ] **#665** A v1.0.0 release-notes assembly step: compile the release notes and an upgrade guide from the alpha.0–alpha.37 rows of `v1.0.0-api-and-release/03-embedder-migration.md` (there is no CHANGELOG; `release.yml` uses `--generate-notes`) · [U33](U33-v1-release.md)
-- [ ] **#311** Acceptance: a table test misspells a key in every slot family and gets a coded refusal; all six showcase examples run under `--strict` with nothing ignored, and their scripts drop the `.errors | length` checks in favour of exit status · [U33](U33-v1-release.md) — *partial (E1-S4): in-pulse table test `TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey` (every derived slot family × every root, CLI predict + process and MCP predict + runtime, synth spec, every template target); the showcase-example run under `--strict` and the script changes remain, filed as #464 under U33*
-- [ ] **#464** Casebook conversion for U44: the six showcase scripts drop their `.errors | length` checks for exit status and run under `--strict`; the brand tracker's crosstab label workaround goes (labels now reach axis and overlay keys); README and REPRODUCE.md expected numbers refreshed. Remainder of #311. Found in U44 (E1-S4, E2-S4) · [U33](U33-v1-release.md)
-- [ ] **#469** Convert the `pulse-casebook` credit / A-B / privacy / retail examples to the U45 idioms (no `outcome` twin or `2.718… **`, binary metrics as `packed_bool`, direct `TEST_CHISQ` on the flag, `month_index` retention flags) and refresh each README and `REPRODUCE.md`. The in-pulse proof shipped in U45 (#317); the casebook repository is separate. Found in U45 (E4-S3) · [U33](U33-v1-release.md)
+- [x] **#311** Acceptance: a table test misspells a key in every slot family and gets a coded refusal; all six showcase examples run under `--strict` with nothing ignored, and their scripts drop the `.errors | length` checks in favour of exit status · [U33](U33-v1-release.md) — *partial (E1-S4): in-pulse table test `TestStrictInput_EveryFamilyAndRootRefusesAMisspelledKey` (every derived slot family × every root, CLI predict + process and MCP predict + runtime, synth spec, every template target); done in pre-v1 E8-S1: the six casebook showcase scripts run under `--strict` on the branch build and check exit statuses only (#464)*
+- [x] **#464** Casebook conversion for U44: the six showcase scripts drop their `.errors | length` checks for exit status and run under `--strict`; the brand tracker's crosstab label workaround goes (labels now reach axis and overlay keys); README and REPRODUCE.md expected numbers refreshed. Remainder of #311. Found in U44 (E1-S4, E2-S4) *Done in pre-v1 E8-S1 (pulse-casebook `pre-v1` branch): every leaf that takes `--strict` runs under it, the by-design refusals must exit 1, brand-tracker requests 01 / 03 / 05 / 10 bind their label tables and `tables.sh` maps codes only for the rake report; figures re-recorded on the branch build.* · [U33](U33-v1-release.md)
+- [x] **#469** Convert the `pulse-casebook` credit / A-B / privacy / retail examples to the U45 idioms (no `outcome` twin or `2.718… **`, binary metrics as `packed_bool`, direct `TEST_CHISQ` on the flag, `month_index` retention flags) and refresh each README and `REPRODUCE.md`. The in-pulse proof shipped in U45 (#317); the casebook repository is separate. Found in U45 (E4-S3) *Done in pre-v1 E8-S2 (pulse-casebook `pre-v1` branch): credit drops its `outcome` twin (`default_12m` stratifies, groups and splits directly) and `2.718… **` (now `exp()`); A/B stores `trial_started` / `paid_converted` / `retained_30d` as `packed_bool` (`success: "1"`, the flag as the REG_OLS target); privacy already ran `TEST_CHISQ` on the `churned` flag (README says so); retail retention flags use `month_index`; every figure is unchanged.* · [U33](U33-v1-release.md)
 - [x] **#206** (12. Release v1.0.0) Human statistics sign-off (release-blocking): a named statistics reviewer works through the [U08 review record](../reviews/U08-statistics-review.md) and its open items (the U08 E3 / E4 sections and the U09 section) the [U12 weighted-inference review](../reviews/U12-weighting-review.md) (the `n_eff` semantics and every lifted weighted formula) and the [U24 matrix-operators review](../reviews/U24-matrix-operators-review.md) (findings MR-01 to MR-08 and the open owner calls) and the [U25 multivariate review](../reviews/U25-multivariate-review.md) (the open owner calls) and the [U30 flows review](../reviews/U30-flows-review.md) (its open items), signs off the U08 inferential AND the U09 descriptive guidance AND the U12 weighted inference AND the U24 matrix and U25 multivariate guidance, and owns the statistical-review CODEOWNERS entries Signed off 2026-10-31 by the owner (@frankbardon).
 - [ ] **#171** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) Every new operator in every theme is weight-aware (or explicitly refuses a weight) and multiplicity-aware where it emits p-values
 - [ ] **#173** (13. Cross-cutting (applies throughout; tick when verified for the whole release)) New `PULSE_MATRIX_*` / `PULSE_VECTOR_*` / `PULSE_OVERLAY_*` / `PULSE_PROFILE_*` / `PULSE_LIMIT_*` / `PULSE_WEIGHT_*` / `PULSE_RETURN_*` / advisory codes all have `codeMetadata` + fixups
@@ -191,49 +203,49 @@ U24 shipped the multivariate matrix operators without a human reviewer: an exter
 
 ## Inherited from U17
 
-- **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way).
+- **`pulse.ReturnedMarker` root alias** (#220). `Response.Returned` is a `*types.ReturnedMarker`, reachable through `types`; the root facade aliases most result types but not this one. Decide before the freeze: adding it changes the public-API golden (`TestPublicAPIGolden`, regenerate via `-update`) and `STABILITY.md`; leaving it out is fine if embedders reach the type through `types` (record the decision in the migration doc either way). *Decided in pre-v1 E1-S6 (TODO #220 ticked).*
 
 ## Inherited from U19
 
-- **`FailFast=false` discards successful slots** (#224). `ComposeParallel` with `FailFast=false` returns `(nil, SERVICE_INTERNAL)` with `failed_indices` / `first_error` details, dropping every slot that succeeded. U19 corrected `docs/src/library/parallel-compose.md`, which claimed the successful slots populate the response. Decide before the freeze whether to return the partial `ComposedResponse` (a behaviour change for `STABILITY.md` and the migration doc) or keep the all-or-nothing contract and say so in `STABILITY.md`.
-- **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator.
+- **`FailFast=false` discards successful slots** (#224). `ComposeParallel` with `FailFast=false` returns `(nil, SERVICE_INTERNAL)` with `failed_indices` / `first_error` details, dropping every slot that succeeded. U19 corrected `docs/src/library/parallel-compose.md`, which claimed the successful slots populate the response. Decide before the freeze whether to return the partial `ComposedResponse` (a behaviour change for `STABILITY.md` and the migration doc) or keep the all-or-nothing contract and say so in `STABILITY.md`. *Resolved by pre-v1 E1-S1:* kept all-or-nothing (`(nil, err)` in both modes, no partial slots), stated in the `ComposeOptions` / `ComposeParallel` GoDoc, `docs/src/library/parallel-compose.md`, `docs/src/cli/api-compose.md` and the migration guide.
+- **`RequestTimeout` and the RowIter drain** (#228). U19 bounds `ProcessStreamResult` across run and drain (a stalled consumer trips it), but `Pulse.ProcessStream` returns a `RowIter` whose `Next(ctx)` drain runs under the caller's ctx only. Decide the frozen contract: keep (document it in `STABILITY.md` and the Tuning limits page) or carry the inner deadline into the iterator. *Decided in pre-v1 E1-S6 (TODO #228 ticked).*
 
 ## Inherited from U20
 
 - **Lockstep contrib release rehearsal** (#232). *Resolved by observability-adapters:* the adapters moved into the root module as `observe/otel` / `observe/prom`, so there are no contrib tags, no `scripts/release-contrib.sh` and no `contrib` release job left to rehearse; nothing for the release runbook.
-- **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`.
-- **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze.
+- **`ServeInfo` comparability** (#233). `mcpserve.ServeInfo` gained `Limits []descriptor.LimitMeta`, so it is no longer `==`-comparable (an apidiff advisory). Keep the slice or switch to `pulse.Limits` before the freeze; record the choice in the migration doc and `STABILITY.md`. *Decided in pre-v1 E1-S6 (TODO #233 ticked).*
+- **Uninstrumented methods** (#234). `CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars` and `Watch*` have no `OperationKind` (`uninstrumentedMethods` in `observability_test.go`). Confirm the list before the `observe` enums freeze. *Decided in pre-v1 E1-S6 (TODO #234 ticked).*
 
 ## Inherited from U38
 
 Filed from [U38 handed on](U38-skill-sync.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#506** — **A non-positive `interval` is silently 1.** `GROUP_RANGE` / `GROUP_ROUNDED` treat an explicit `interval ≤ 0` as 1 at predict and at runtime. U38 corrected the manifest to say so (`interval` optional, default 1) and left the behaviour alone (out of its scope). Decide before the freeze: refuse an explicit `interval ≤ 0` (a behaviour change for `STABILITY.md` and the migration doc, with a predict ≡ runtime test) or keep the coercion and state it in `STABILITY.md`.
+- [x] **#506** — **A non-positive `interval` is silently 1.** `GROUP_RANGE` / `GROUP_ROUNDED` treat an explicit `interval ≤ 0` as 1 at predict and at runtime. U38 corrected the manifest to say so (`interval` optional, default 1) and left the behaviour alone (out of its scope). Decide before the freeze: refuse an explicit `interval ≤ 0` (a behaviour change for `STABILITY.md` and the migration doc, with a predict ≡ runtime test) or keep the coercion and state it in `STABILITY.md`. *Done in pre-v1 E3-S2: a negative interval is refused `PROCESSING_CONFIG` on both sides (`opconfig.GroupInterval`); 0 stays the unset slot (default 1), as `Group.Interval` is a plain number; pinned by `TestPredictParity_ArityCellInterval`.*
 
 ## Inherited from U37
 
 Filed from [U37 handed on](U37-shell-completion.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze.
+- [x] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze. *Done in pre-v1 E2-S1: `LookupMultiplicity` / `LabelMode` enums; the CLI-only `assert-unique` alias is not offered.*
 - [x] **#508** — **Completion candidates containing `:` are split by the shell scripts.** Escape per shell in `writeCandidates` or document it in `completion.md`. *Done in U77 (E1-S2): escaped candidates, bash / fish scripts patched, documented in `completion.md`.*
 
 ## Inherited from U77
 
 Filed from [U77 handed on](U77-ci-platform.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#684** — **Path messages quote with `%q`.** On Windows every backslash of a path in an error or warning message reads doubled (`"C:\\Users\\…"`). Sweep the ~137 engine sites to one path-quoting helper (Unix output unchanged) and repoint the four tests that match `strconv.Quote(path)`.
+- [x] **#684** — **Path messages quote with `%q`.** On Windows every backslash of a path in an error or warning message reads doubled (`"C:\\Users\\…"`). Sweep the ~137 engine sites to one path-quoting helper (Unix output unchanged) and repoint the four tests that match `strconv.Quote(path)`. *Done in pre-v1 E5-S4: `internal/pathq.Quote`, sites swept, gated by `TestNoQuotedPathVerbs`.*
 
 ## Inherited from U75
 
 Filed from [U75 handed on](U75-zones-labels-2.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#735** — **Black-box proof of the grouped-cohort `0x02` filter precompute's per-row zone.** The precompute that reads a per-row zone on a grouped (`0x02`) cohort is covered by a unit test only; add an integration case beside the per-row oracle (`internal/integration/time_zone_field*_test.go`) over a grouped cohort. Found in U50 (E1-S2), carried by #481.
+- [x] **#735** — **Black-box proof of the grouped-cohort `0x02` filter precompute's per-row zone.** The precompute that reads a per-row zone on a grouped (`0x02`) cohort is covered by a unit test only; add an integration case beside the per-row oracle (`internal/integration/time_zone_field*_test.go`) over a grouped cohort. Found in U50 (E1-S2), carried by #481. *Done in pre-v1 E7-S1: `TestTimeZoneField_GroupedFilterPrecompute`.*
 
 ## Inherited from U74
 
 Filed from [U74 handed-on](U74-memory-bounds.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it.
+- [x] **#723** — **Compact `AGG_DISTINCT_COUNT` value sets.** One `map[float64]struct{}` per group bucket held ~1.4 GB on the 50M retention chain, now the largest single holder. #361 passes without it (anon peak 13.1–15.0 GiB in the 16 GiB box), so this widens a 1.0–2.9 GiB margin; counts must stay exact and worker-invariant, and the memory estimate's per-aggregator bytes move with it. *Done in pre-v1 E5-S3: inline value set promoted to a map past 16 values; ~232 → ~75–130 B a group at 1–8 values, state entry 320 → 176 B; counts exact and worker-invariant (`TestDistinctCountInvariance_Archive` / `_Heavy`).*
 
 ## Handed on from U76
 
@@ -246,62 +258,74 @@ Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO
 
 Recorded only in shipped efforts' notes and PR bodies; checked against the code and filed under this unit. Full text in [`TODO.md`](../TODO.md) §15; tick there when delivered.
 
-- [ ] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze.
-- [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
-- [ ] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document.
-- [ ] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks.
-- [ ] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect.
-- [ ] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests.
-- [ ] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations.
-- [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`.
-- [ ] **#747** — **Residual-correlation fidelity for a staircase endpoint.**
-- [ ] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze.
-- [ ] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing.
+- [x] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze. *Done in pre-v1 E1-S4.*
+- [x] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check. *Done in pre-v1 E5-S2: escalate, both sidecars; a touched-but-unchanged cohort keeps its SPSS sidecar, a changed one is refused; pinned by `TestLoadSidecar_TouchedButUnchangedKeepsTheSidecar`.*
+- [x] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document. *Done in pre-v1 E1-S6.*
+- [x] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks. *Done in pre-v1 E1-S6.*
+- [x] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect. *Done in pre-v1 E3-S4: a non-zero (or negative) `n_within_depth` under an `n_source` that does not read it is refused `PULSE_OVERLAY_PARAM_MISSING` on both sides (`overlayhost.PairwiseWithinDepthMessage`); 0 stays unset (plain int); pinned by `TestPairwiseWithinDepth_PredictMatchesRuntime`.*
+- [x] **#744** — **Audit the `ReadMemStats` memory gates** in `internal/service` tests. *Done in pre-v1 E7-S3: every heap-reading gate falsified against one injected production regression (table: `docs/src/contributing/memory-gates.md`). Five missed theirs and were tightened: `TestGroupMemory_LivePartialsBoundedByWindow` (registers partials at scan completion via `shardScannedHook`), `TestGroupMemory_MergedBytesPerGroup` (bound by one partition's figure too), `TestShardScan_SkipsShardDictionaries` (1.5 decodes, was 2 + 3 x archive), `TestShardParallel_DecodeAllocsPerRow` (4 a row, was 10) and `TestArchiveMemory_EstimatedBytesRatio` (dictionaries past the run base; fixture dropped before the GC-goal-sensitive matrix cases).*
+- [x] **#745** — **Model-workbench owner calls:** `fit_on` vs a profile-hidden `FILTER_EXPRESSION`, `ForbidsField` shape, `AGG_AUC` deviations. *(2)(3) done in pre-v1 E1-S6.* *(1) done in pre-v1 E3-S4: a hidden (or never-registered) `params.fit_on` filterer type refuses at predict as at run time; a feature's expression `fit_on` is not a filterer slot and runs on both sides; pinned by `TestHiddenFitOn_PredictMatchesRuntime`. All three parts closed.*
+- [ ] **#746** — **Flakes:** `TestRequestTimeout_*` on Windows, `TestHMC_ContextCancel`. *Root causes fixed in pre-v1 E7-S2 (a RequestTimeout deadline tie on Windows' coarse clock, a real bug; a counter-vs-cancel race in the HMC/NUTS cancel test); tick when the final CI run's Windows job is green.*
+- [x] **#747** — **Residual-correlation fidelity for a staircase endpoint.** *Done in pre-v1 E7-S1: `TestBuildModelFidelity_StaircaseEndpointResidualPack` — a staircase endpoint is unmeasured per pair by design.*
+- [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*
+- [x] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) closed in pre-v1 E4-S6 (set-field MCP enums narrowed to `c.Set`).*
+- [x] **#815** — **Estimate gates on an exact live-heap probe** (the sampled peak let MatrixScale listwise admit a dropped bucket factor). *Done in pre-v1 E7-S4: `peakLiveAbove` under stop-the-world GC, bands re-pinned ×/÷ 1.25 from measured figures, every E7-S3 injection caught.*
 
 ## Handed on from U32
 
 Found in docs-audit (E3-S4); full text in [`TODO.md`](../TODO.md); tick there when delivered.
 
-- [ ] **#756** — **The label, lookup, range-table and populations directory loaders read through `os`**, so an embedder on an in-memory `Options.FS` cannot use them; thread the template store's Fs.
+- [x] **#756** — **The label, lookup, range-table and populations directory loaders read through `os`**, so an embedder on an in-memory `Options.FS` cannot use them; thread the template store's Fs. *Done in pre-v1 E1-S5.*
 
 ## Handed on from U32b
 
 Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, E7-S1, E7-S4, E7-S5, E8-S1, E8-S2, E8-G1); full text in [`TODO.md`](../TODO.md); tick there when delivered. #769 and #770 belong to the zone and completion areas of U50 and U37, both done, so this open unit carries them.
 
-- [ ] **#767** — **`make sites` has no mode for an I/O-path change**; add an `io` mode that finds a reader / importer change's companions by shape, with a falsified fixture test.
-- [ ] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line.
-- [ ] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table.
+- [x] **#767** — **`make sites` has no mode for an I/O-path change**; add an `io` mode that finds a reader / importer change's companions by shape, with a falsified fixture test. *Done in pre-v1 E6-S1: the `io` mode (formats and `iocore` hooks).*
+- [x] **#769** — **`cohort inspect` text mode omits the default zone field**; add a `Zone field:` line. *Done in pre-v1 E6-S2.*
+- [x] **#770** — **No cohort completion for `cohort zone set|clear`**; add both leaves to the cohort-positional table. *Done in pre-v1 E6-S2.*
 - [x] **#771** — **`CLI_ERROR` and `PULSE_SHARD_AGGREGATE_DRIFT` are emitted but unregistered**; register them and gate emitted code literals against the registry. *Done in U32b (E8-S4): both registered; `TestEmittedCodeLiteralsRegistered` gates emitted literals.*
-- [ ] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it).
-- [ ] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`.
-- [ ] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767).
-- [ ] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not.
-- [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.
-- [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
-- [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.
-- [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
-- [ ] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests.
-- [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
-- [ ] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling.
-- [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.
-- [ ] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type.
-- [ ] **#786** — **Inferred set rungs drop rows instead of promoting**; extend the ladder.
-- [ ] **#787** — **Bayesian MMM diagnostics in a named fit name `""` and miscount parameters**; fall back to the fit name, match the list.
-- [ ] **#788** — **Date-part hour / weekday keys sort as strings**; decide numeric order.
-- [ ] **#789** — **Facet overlay population cohort ignores `data_dir`**; resolve it as the host cohort.
-- [ ] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse.
-- [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
-- [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
-- [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
-- [ ] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms.
-- [ ] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys.
-- [ ] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it.
-- [ ] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys.
-- [ ] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide.
+- [x] **#772** — **`ComposeOptions.FailFast` is false in the library but on in the CLI**; decide the default (an opt-out is needed to flip it). *Resolved by pre-v1 E1-S1:* `CollectErrors` is the opt-out; the zero value fails fast.
+- [x] **#773** — **`WatchDir` cannot watch every file**: an empty `Suffix` means `.pulse`. *Done in pre-v1 E1-S2:* `WatchOptions.AllFiles`.
+- [x] **#774** — **`make sites` has no field-type, error-code or MCP-tool target**; add them (sibling of #767). *Done in pre-v1 E6-S1: the `field-type`, `error-code` and `mcp-tool` modes, plus `slot options` and the `op` shape sites.*
+- [x] **#776** — **The templates directory does not skip Pulse sidecars**; align with the other loaders or document why not. *Done in pre-v1 E1-S4.*
+- [x] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden. *Done in pre-v1 E4-S5.*
+- [x] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test. *Done in pre-v1 E3-S3: the hook gets `Filterer.Params` at predict (field-reference walk, `params.fit_on` included) and in the runtime projection, which now also reads `params.fit_on` extension filterers; pinned by `TestExtensionFilterer_FieldInputsReadParams` / `_FitOn…`.*
+- [x] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it. *Done in pre-v1 E3-S3: `field` optional and unchecked (`fieldaccept.IgnoresField`: no existence check, no decimal rule); params `field_filter` tightened to `numeric`; pinned by `TestAggRatio_FieldOptionalAndUnchecked`.*
+- [x] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test. *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
+- [x] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests. *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
+- [x] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`. *Done in pre-v1 E4-S1: `w.mean` / `w.variance` / `w.n` (expr tags on `winformula.WelfordCell`, the engine triple's alias); the Go casing is refused `PULSE_FORMULA_COMPILE_ERROR` on both sides, pinned by `TestCompile_OutputColumns` / `TestWinFormula_OutputCellReads`.*
+- [x] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling. *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
+- [x] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it. *Done in pre-v1 E4-S5.*
+- [x] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type. *Done in pre-v1 E4-S2: `processing.FacetValue` spells each value by field type (date, datetime, decimal at scale, exact u64), keyed exactly; pinned by `TestFacet_RendersValuesByFieldType`.*
+- [x] **#786** — **Inferred set rungs drop rows instead of promoting**; extend the ladder. *Done in pre-v1 E5-S1: `set_u8` → … → `set_u256` with `PULSE_IMPORT_WIDTH_PROMOTED`; past `set_u256` stays the row error; pinned by `TestImportWiden_SetRungsPromote` / `TestConvertWiden_Set`.*
+- [x] **#787** — **Bayesian MMM diagnostics in a named fit name `""` and miscount parameters**; fall back to the fit name, match the list. *Done in pre-v1 E4-S5.*
+- [x] **#788** — **Date-part hour / weekday keys sort as strings**; decide numeric order. *Done in pre-v1 E4-S3: numeric order. `GROUP_CATEGORY` keys over a non-dictionary field rank by value (`keyOrderer` + `keyOrderGate`, a schema-time verdict) in `data`, components, crosstab axes and `sort`; categorical labels unchanged; pinned by `TestGroupCategory_NumericKeysSortByValue` / `TestGroupCategory_NumericKeyOrderWorkerInvariant`.*
+- [x] **#789** — **Facet overlay population cohort ignores `data_dir`**; resolve it as the host cohort. *Done in pre-v1 E4-S2: the population cohort carries the host's `data_dir`; pinned by `TestFacetOverlay_PopulationResolvesAsHostCohort` (MemMap, request and instance data dirs).*
+- [x] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse. *Done in pre-v1 E4-S1: `cellFloat` reads a decimal cell (SortValuer) as its float64 value for every value-reading window, pinned by `TestValueWindows_DecimalCellsReadAsFloat64` / `TestWindows_ReadDecimalAggregation`.*
+- [x] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning. *Done in pre-v1 E4-S4: `params.reference_kind: sample`, the homogeneity test.*
+- [x] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route. *Done in pre-v1 E6-S3: `pulse export --overlays FILE`.*
+- [x] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does. *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*
+- [x] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms. *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
+- [x] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys. *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
+- [x] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it. *Done in pre-v1 E2-S3: fifteen dead codes retired; `PULSE_DECIMAL_PRECISION_LOSS` held reserved (documented, not yet raised); gated by `TestRegisteredCodesEmittedOrReserved`.*
+- [x] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys. *Done in pre-v1 E2-S2: wire keys throughout, Go-only fixes carry no path; gated by `TestFixupPathsAreWireKeys`.*
+- [x] **#798** — **SPSS cardinality threshold is internal-only**; expose it or decide. *Done in pre-v1 E1-S6.*
 
 ## Handed on from U32c
 
 Found in docs-validation (E1-S2, E2-S2); full text in [`TODO.md`](../TODO.md); tick there when delivered. The synth units (U52, U76) and the example-search units (U23, U31) are done, so this open unit carries them. The consolidated record of the documentation work, with every U32a, U32b and U32c finding and its disposition, is [`reviews/U32-docs-review.md`](../reviews/U32-docs-review.md); its owner sign-off line is filled by the owner there.
 
 - [x] **#802** — **No MCP tool runs synth**, so an MCP-only agent can author a spec but not run it; add a synth tool or keep simulate CLI / library-only by decision. **Resolved 2026-11-27 by owner decision: no MCP synth tool; simulate stays CLI / library-only.**
-- [ ] **#803** — **Example search has no plain-word synonym tier** ("null" does not find "missing"); add a small word-synonym table to the synonym tier.
+- [x] **#803** — **Example search has no plain-word synonym tier** ("null" does not find "missing"); add a small word-synonym table to the synonym tier. *Done in pre-v1 E6-S4: word-synonym tier in example search.*
+- [x] **#804** — **The decimal f64-fallback warning is never raised**; raise `PULSE_DECIMAL_PRECISION_LOSS` on every host, then un-reserve it. *Done in pre-v1 E4-S7.*
+- [x] **#805** — **An unknown pairwise `n_source` runs as the default; a bad `GROUP_QUANTILE` interval is silently 4 buckets**; refuse both at predict and at run time. *Done in pre-v1 E3-S5: `PULSE_OVERLAY_PARAM_MISSING` / `PROCESSING_CONFIG` on both sides; pinned by `TestPairwiseUnknownNSource_PredictMatchesRuntime` / `TestQuantileInterval_PredictMatchesRuntime`.*
+- [x] **#806** — **Overlays, post-tests, crosstab normalize, chain and `MatrixCell.Scalar` read a decimal cell as nothing**; read its value. *Done in pre-v1 E4-S8: `decimalCellFloat` ahead of each reader's type switch; pinned by `TestDecimalCells_*`.*
+- [x] **#807** — **Facet over set / vector fields returns nothing; the rich facet refuses what predict passes**; list or refuse, one rule. *Done in pre-v1 E4-S8: a set lists its dictionary, a vector is refused; `descx.FacetFieldTypeRefusal` on both sides.*
+- [x] **#808** — **`packed_bool` facet spellings disagree**; use Sample's. *Done in pre-v1 E4-S8: `"1"` / `"0"`.*
+- [x] **#809** — **±Inf grouper keys are platform-defined**; spell them fixed. *Done in pre-v1 E4-S8.*
+- [x] **#810** — **Attribute and window `emits_type` is narrower than the materialized column**; declare the column type, gate it. *Done in pre-v1 E4-S9.*
+- [x] **#811** — **Bayesian MMM refusals in a named fit say `regression ""`**; name the fit. *Done in pre-v1 E4-S9.*
+- [x] **#812** — **The slot-failed warning names an unnamed slot twice** (`regressions[0] "regressions[0]" failed …`); name it once. *Done in pre-v1 E5-S4.*
+- [x] **#813** — **`cohort zone set`'s FIELD positional does not complete** (an initialization cycle); break it with a lazy lookup, complete the eligible zone fields. *Done in pre-v1 E6-S5.*
+- [x] **#814** — **`make sites` slot mode skips the embedder smoke module**; type-check it too. *Done in pre-v1 E6-S5.*

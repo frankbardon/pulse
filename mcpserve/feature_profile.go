@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/frankbardon/pulse/internal/profilefile"
 )
 
@@ -39,7 +40,7 @@ func NewPulse(popts pulse.Options, opts Options) (*pulse.Pulse, error) {
 	switch {
 	case path != "" && embedderSet:
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_INVALID,
-			fmt.Sprintf("feature profile: mcpserve.Options.FeatureProfileFile %q conflicts with the profile already set on pulse.Options; set exactly one", path),
+			fmt.Sprintf("feature profile: mcpserve.Options.FeatureProfileFile %s conflicts with the profile already set on pulse.Options; set exactly one", pathq.Quote(path)),
 			map[string]any{"reason": "both_options_set", "path": path})
 	case path == "" && !embedderSet:
 		path = os.Getenv(envFeatureProfile)

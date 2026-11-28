@@ -119,7 +119,7 @@ func TestResolveComposeSlots_MixedLabels(t *testing.T) {
 
 // TestResolveComposeSlots_NilResponseSlot asserts the resolver
 // preserves a nil *Response slot in the byLabel map (the
-// FailFast=false failed-slot hole) so the downstream LookupReference
+// defensive failed-slot nil guard) so the downstream LookupReference
 // / LookupTarget surface can surface the canonical TARGET / REFERENCE
 // UNKNOWN code rather than silently skipping the slot.
 func TestResolveComposeSlots_NilResponseSlot(t *testing.T) {
@@ -322,7 +322,7 @@ func TestLookupReference_EmptyLabel(t *testing.T) {
 }
 
 // TestLookupReference_NilSlotReturnsCoded asserts a label that
-// resolves to a nil *Response (the FailFast=false hole) surfaces
+// resolves to a nil *Response (the defensive nil hole) surfaces
 // PULSE_OVERLAY_REFERENCE_UNKNOWN rather than returning the nil
 // pointer to the handler.
 func TestLookupReference_NilSlotReturnsCoded(t *testing.T) {
@@ -399,7 +399,7 @@ func TestLookupTarget_EmptyLabel(t *testing.T) {
 }
 
 // TestLookupTarget_NilSlotReturnsCoded asserts a label that resolves
-// to a nil *Response (the FailFast=false hole) surfaces
+// to a nil *Response (the defensive nil hole) surfaces
 // PULSE_OVERLAY_TARGET_UNKNOWN rather than returning the nil pointer
 // to the handler.
 func TestLookupTarget_NilSlotReturnsCoded(t *testing.T) {

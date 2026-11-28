@@ -100,12 +100,13 @@ const (
 // bayes_model.go's: internal max-abs scaling, every figure reported in
 // original units.
 //
-// The rows are one market's time series: params.time names an integer
+// The rows are one market's time series: order.field names an integer
 // field the fit sorts the rows by; a gap or a repeated value (a panel
 // — several markets or geos per period) is PROCESSING_CONFIG. A null in
 // the target or a predictor drops its row listwise and so leaves a gap.
-// params.time is the one field read beyond the target and predictors
-// (pmodel.ModelRegressionFieldInputs, which the projection decodes).
+// order.field (and params.geo on a panel) are the fields read beyond the
+// target and predictors (the projection decodes the order block and
+// pmodel.ModelRegressionFieldInputs).
 //
 // The coefficient table is "(intercept)", each channel's β on the raw
 // outcome (contribution_t = β·curve(raw adstock_t); predictor
@@ -258,7 +259,6 @@ func (c channelPriorWire) kernelPrior(key string) *priorWire {
 // bayesParamsWire is the params object.
 type bayesParamsWire struct {
 	Channels       []string                    `json:"channels"`
-	Time           string                      `json:"time"`
 	MaxLag         *int                        `json:"max_lag"`
 	Adstock        *string                     `json:"adstock"`
 	Saturation     *string                     `json:"saturation"`
@@ -383,6 +383,9 @@ func toPrior(w *priorWire, s support) (prior, error) {
 
 func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.Regression, error) {
 	var w bayesParamsWire
+	if err := bayesRemovedTimeRefusal(spec); err != nil {
+		return nil, err
+	}
 	if len(spec.Params) > 0 {
 		// Strict: a typo in a prior is refused, never ignored.
 		if err := paramread.DecodeStrict(paramread.Regression, string(BayesName), spec.Params, &w); err != nil {
@@ -391,10 +394,7 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 	} else {
 		paramread.Declare(paramread.Regression, string(BayesName), &w)
 	}
-	timeField, err := bayesTimeField(spec, &w)
-	if err != nil {
-		return nil, err
-	}
+	timeField := bayesTimeField(spec)
 	cfg := &bayesConfig{name: spec.Name, target: spec.Target, time: timeField, maxLag: defaultMaxLag,
 		chains: defaultBayesChains, warmup: defaultBayesWarmup, draws: defaultBayesDraws,
 		credibleLevel: defaultCredibleLevel, targetAccept: defaultBayesTargetAccept}
@@ -402,7 +402,7 @@ func BayesFactory(spec *types.RegressionSpec, schema *encoding.Schema) (extend.R
 		return nil, bayesSlotError(spec, "params.channels", "params.channels needs at least one channel", nil)
 	}
 	if timeField == "" {
-		return nil, bayesSlotError(spec, "params.time", "order.field (or the deprecated params.time) must name the integer time field", nil)
+		return nil, bayesSlotError(spec, "order", "order.field must name the integer time field (order: {field: \"week\"}; on a geo panel add partition: <params.geo>)", nil)
 	}
 	if w.Geo != nil {
 		if err := geoSpecRefusal(spec, *w.Geo, timeField); err != nil {
@@ -686,26 +686,44 @@ func peakPriorRefusal(p prior, maxLag int) error {
 // does (internal/descriptor's model-regression declaration calls it).
 // The order refusals' details.reason values.
 const (
-	// reasonTimeAliasConflict: order.field and the deprecated
-	// params.time name different fields.
-	reasonTimeAliasConflict = "time_alias_conflict"
 	// reasonOrderPartitionGeo: order.partition is not params.geo.
 	reasonOrderPartitionGeo = "order_partition_not_geo"
+	// reasonParamsTimeRemoved: the spec still carries params.time, the
+	// alias of order.field removed before v1.
+	reasonParamsTimeRemoved = "params_time_removed"
 )
 
-// bayesTimeField is the slot's time field: order.field, else the
-// deprecated params.time alias; both set must name the same field
-// (PROCESSING_CONFIG, slot order, reason time_alias_conflict). Empty
-// when neither is set.
-func bayesTimeField(spec *types.RegressionSpec, w *bayesParamsWire) (string, error) {
-	if spec.Order == nil || spec.Order.Field == "" {
-		return w.Time, nil
+// bayesRemovedTimeRefusal refuses a params.time key (PROCESSING_CONFIG,
+// slot params.time, reason params_time_removed), naming its replacement:
+// the time field is the slot's order.field. It was a deprecated alias of
+// order.field; it is refused rather than read so no spec silently
+// changes meaning.
+func bayesRemovedTimeRefusal(spec *types.RegressionSpec) error {
+	if len(spec.Params) == 0 {
+		return nil
 	}
-	if w.Time != "" && w.Time != spec.Order.Field {
-		return "", bayesSlotError(spec, "order", fmt.Sprintf("order.field %q and the deprecated params.time %q name different time fields; drop params.time", spec.Order.Field, w.Time),
-			map[string]any{"reason": reasonTimeAliasConflict, "field": spec.Order.Field, "time": w.Time})
+	var obj map[string]json.RawMessage
+	if paramread.Probe(spec.Params, &obj) != nil {
+		return nil // the strict decode reports it
 	}
-	return spec.Order.Field, nil
+	raw, ok := obj["time"]
+	if !ok {
+		return nil
+	}
+	var field string
+	_ = json.Unmarshal(raw, &field)
+	return bayesSlotError(spec, "params.time",
+		fmt.Sprintf("params.time was removed: name the time field in the slot's order.field instead (order: {field: %q}; on a geo panel add partition: <params.geo>)", field),
+		map[string]any{"reason": reasonParamsTimeRemoved, "replacement": "order.field", "time": field})
+}
+
+// bayesTimeField is the slot's time field, order.field ("" when the
+// slot declares no order).
+func bayesTimeField(spec *types.RegressionSpec) string {
+	if spec.Order == nil {
+		return ""
+	}
+	return spec.Order.Field
 }
 
 // bayesOrderPartitionRefusal is the panel rule of an order: on a geo
@@ -749,7 +767,7 @@ func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
-	cp.Params, cp.Order = orderAsTimeAlias(cp.Params, cp.Order)
+	cp.Params, cp.Order = orderAsSeedTime(cp.Params, cp.Order)
 	cp.Params = regresample.CanonicalJSON(withoutOutputOnlyParams(cp.Params))
 	body, err := json.Marshal(&cp)
 	if err != nil {
@@ -758,9 +776,14 @@ func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	return regresample.DeriveSeed(body, 0, nil)
 }
 
-// bayesRegression is one slot's buffered fit.
+// bayesRegression is one slot's buffered fit. label is the name its
+// refusals call it by (pmodel.RegressionLabel): FitContext binds it per
+// call, so a regression with no name inside a named Compose fit says
+// regression "<fit>" (message text only; details.regression stays the
+// regression's own name).
 type bayesRegression struct {
-	cfg *bayesConfig
+	cfg   *bayesConfig
+	label string
 }
 
 // Fit is FitContext under a background context.
@@ -781,7 +804,11 @@ func (r *bayesRegression) slotError(err error) error {
 	}
 	msg := strings.TrimPrefix(ce.Message, string(BayesName)+": ")
 	msg = strings.TrimPrefix(msg, string(BayesName)+" ")
-	return perr.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("%s regression %q: %s", BayesName, r.cfg.name, msg), details)
+	label := r.label
+	if label == "" {
+		label = r.cfg.name
+	}
+	return perr.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("%s regression %q: %s", BayesName, label, msg), details)
 }
 
 // configError is a PROCESSING_CONFIG refusal of the rows.
@@ -801,6 +828,9 @@ type bayesData struct {
 // and samples it. The row count is checked first, before any value is
 // read, so a short input is a cheap coded refusal.
 func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (extend.RegressionOutput, error) {
+	// A per-call copy: the slot's model may fit concurrently under
+	// different Compose fits, each labelling its own refusals.
+	r = &bayesRegression{cfg: r.cfg, label: pmodel.RegressionLabel(ctx, r.cfg.name)}
 	cfg := r.cfg
 	n, nc, nz := rows.Len(), len(cfg.channels), len(cfg.controls)
 	per := len(cfg.kernel.Params()) + len(cfg.curve.Params()) + 1
@@ -846,7 +876,7 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	return r.output(post), nil
+	return r.output(ctx, post), nil
 }
 
 // addLiftTests resolves params.lift_tests onto the fitted rows: a
@@ -904,7 +934,7 @@ func (r *bayesRegression) fitRows(data *bayesData) (int, error) {
 	return int(*from - first), nil
 }
 
-// read copies the admitted rows out and sorts them by params.time,
+// read copies the admitted rows out and sorts them by order.field,
 // refusing a time key that is not an integer field, a gap, a repeat
 // and a negative spend.
 func (r *bayesRegression) read(rows extend.Rows) (*bayesData, error) {
@@ -916,17 +946,17 @@ func (r *bayesRegression) read(rows extend.Rows) (*bayesData, error) {
 	for i := 1; i < len(d.time); i++ {
 		switch step := d.time[i] - d.time[i-1]; {
 		case step == 0:
-			return nil, r.configError(fmt.Sprintf("params.time %q repeats %d: without params.geo the model fits one market's series, one row per period; for a panel (several geos or markets per period) name its market field in params.geo, or filter to one market", cfg.time, d.time[i]),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "duplicate_time", "time": d.time[i]})
+			return nil, r.configError(fmt.Sprintf("order.field %q repeats %d: without params.geo the model fits one market's series, one row per period; for a panel (several geos or markets per period) name its market field in params.geo, or filter to one market", cfg.time, d.time[i]),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": "duplicate_time", "time": d.time[i]})
 		case step != 1:
-			return nil, r.configError(fmt.Sprintf("params.time %q jumps from %d to %d: the periods must be contiguous (a filtered or null row leaves a gap the adstock would carry across)", cfg.time, d.time[i-1], d.time[i]),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "time_gap", "from": d.time[i-1], "to": d.time[i]})
+			return nil, r.configError(fmt.Sprintf("order.field %q jumps from %d to %d: the periods must be contiguous (a filtered or null row leaves a gap the adstock would carry across)", cfg.time, d.time[i-1], d.time[i]),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": "time_gap", "from": d.time[i-1], "to": d.time[i]})
 		}
 	}
 	return d, nil
 }
 
-// readRows copies the rows out in params.time order, refusing a time
+// readRows copies the rows out in order.field order, refusing a time
 // key that is not an integer field and a negative spend (the grid's
 // checks are the caller's: read, readSeries).
 func (r *bayesRegression) readRows(rows extend.Rows) (*bayesData, error) {
@@ -943,12 +973,12 @@ func (r *bayesRegression) readRows(rows extend.Rows) (*bayesData, error) {
 		rec := rows.At(i)
 		tv, ok := rec.NumericValue(cfg.time)
 		if !ok {
-			return nil, r.configError(fmt.Sprintf("params.time %q is null on a row, or is not a numeric field", cfg.time),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "time_missing"})
+			return nil, r.configError(fmt.Sprintf("order.field %q is null on a row, or is not a numeric field", cfg.time),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": "time_missing"})
 		}
 		if tv != math.Trunc(tv) || math.Abs(tv) > 1<<53 {
-			return nil, r.configError(fmt.Sprintf("params.time %q must be an integer on every row, got %v", cfg.time, tv),
-				map[string]any{"slot": "params.time", "field": cfg.time, "reason": "time_not_integer"})
+			return nil, r.configError(fmt.Sprintf("order.field %q must be an integer on every row, got %v", cfg.time, tv),
+				map[string]any{"slot": "order.field", "field": cfg.time, "reason": "time_not_integer"})
 		}
 		o := obs{t: int64(tv), spend: make([]float64, len(cfg.channels)), contrl: make([]float64, len(cfg.controls))}
 		o.y, _ = rec.NumericValue(cfg.target)

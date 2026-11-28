@@ -266,6 +266,13 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The response-shaping presets: a closed vocabulary on an ungated
 	// slot.
 	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
+	// The point-lookup multiplicity modes and the label-binding modes:
+	// closed vocabularies with public listers. The CLI's hyphenated
+	// `assert-unique` alias is a flag spelling only (the library refuses
+	// it on LookupRequest), so it is not offered; an absent value is the
+	// default (omitempty).
+	m[reflect.TypeFor[types.LookupMultiplicity]()] = stringify(types.AllLookupMultiplicities())
+	m[reflect.TypeFor[types.LabelMode]()] = stringify(types.AllLabelModes())
 	// The sweep modes, range scales and rank orders: closed vocabularies (a hidden
 	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
 	// SweepRank with it).
@@ -638,24 +645,14 @@ var fieldOverrides = map[fieldKey]any{
 		"type":        "object",
 		"description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"<placeholder>\" string named after its wire key, listed in placeholders.",
 	},
-	{reflect.TypeFor[descriptor.RecommendStep](), "request"}: map[string]any{
-		"type":        "object",
-		"description": "The step tool's input as wire JSON: a {request, out} pair (request in the #/$defs/Request shape) for a step that writes a cohort, else a #/$defs/Request. Every value the caller must supply is a \"<placeholder>\" string, listed in placeholders.",
-	},
 }
 
 // fieldAnnotations adds keys (a description, the deprecated flag) to a
 // field's reflected schema without replacing it, so its $ref and type
-// stay generated.
-var fieldAnnotations = map[fieldKey]map[string]any{
-	// Recommend no longer drafts a materialise plan (a model reads a
-	// label its own request derives), so steps is always absent; the
-	// slot stays for format_version 1.1 compatibility.
-	{reflect.TypeFor[descriptor.Recommendation](), "steps"}: {
-		"deprecated":  true,
-		"description": "Deprecated: always absent. Recommend drafts no multi-request plan; a model reads a label its own request derives.",
-	},
-}
+// stay generated. Empty at v1.0.0: nothing public is deprecated. A
+// deprecation in a v1.x release marks its field here with
+// "deprecated": true.
+var fieldAnnotations = map[fieldKey]map[string]any{}
 
 // optionalFields are wire keys whose Go field carries no omitempty (the
 // marshalled form always writes them) but that a caller may omit: an

@@ -1781,6 +1781,31 @@ on the `ComponentsFunc` path. `ComponentSchema.Keys` with neither a
 `ComponentsFunc` when the factory returns a third-party type you cannot
 extend.
 
+### Distinct-key admission (pairwise and panel overlays)
+
+The `OVERLAY_PAIRWISE_*` distinct-key `n_source` modes
+(`n_within_distinct`, `row_margin_distinct`, `column_margin_distinct`)
+and the panel overlay read a cell's distinct-RESPONDENT count, so they
+admit a cell aggregator by its IDENTITY: the operator half of its
+`ComponentSchema` (the declared keys minus the `{n, n_null}` floor)
+must EQUAL one admitted signature — `{cardinality}` (read as
+`AGG_DISTINCT_COUNT`) or `{sum, distinct_count}` (read as
+`AGG_DISTINCT_SUM`). The match is exact set equality, never subset
+containment, and it is the v1 rule:
+
+- an extension aggregator declaring a compatible measure plus ANY other
+  key is refused, loudly — `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`
+  naming `observed_cell_aggregator` and `admitted_cell_aggregators`,
+  never a silent wrong `n`;
+- an extension aggregator declaring EXACTLY one signature is admitted
+  and its key is read as a distinct-key count. Declare those key sets
+  only for that meaning (the components block carries no
+  per-registration provenance to tell the two apart).
+
+Rationale and signature table: `cellAggregatorIdentitySignatures`
+(`internal/processing/overlay_pairwise_host.go`); the user-facing rule:
+the `pairwise-n-sources` and `overlay-pairwise` skills.
+
 ### Floor-only registrations
 
 If both `ComponentSchema.Keys` is empty and `ComponentsFunc` is nil
@@ -2164,8 +2189,7 @@ type FieldInputsFunc func(raw json.RawMessage) []string
 Buffered-decode projection is **default-on** (output-transparent —
 same result, only faster; opt out with `pulse.Options{DisableProjection: true}`
 or the `--no-project` CLI flag on `pulse api process` only —
-`process-chain` / `compose` do not expose it in v1). `pulse.Options.ProjectBufferedFields`
-is retained but deprecated (a harmless no-op). While projection is
+`process-chain` / `compose` do not expose it in v1). While projection is
 active, the runtime walks each request before opening the streaming
 iterator and calls
 the engine's field-needs extractor (`internal/processing`, not
@@ -2221,6 +2245,11 @@ pulse.AggregatorRegistration{
     },
 }
 ```
+
+`raw` is the slot's own `Params` block — for a filterer, its
+`Filterer.Params`, in `Request.Filterers` and in a fitted attribute's
+`params.fit_on` alike — at predict and at runtime; nil when the slot
+carries none, so a hook decodes it defensively.
 
 Return-value semantics:
 

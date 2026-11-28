@@ -58,9 +58,9 @@ Windows run on the result rows, in each partition's order (`order_by`).
 |---|---|
 | Do two groups differ in mean? | `TEST_T` / `TEST_WELCH` (Welch t), `TEST_Z_TWO_SAMPLE` (large samples, normal tail), `TEST_MANN_WHITNEY_U` (ranks) |
 | Do paired measurements differ? (`field` and `field2` on one row) | `TEST_PAIRED_T`, `TEST_WILCOXON_SR` (signed ranks) |
-| Do k groups differ in mean? | `TEST_ANOVA_F`, `TEST_ANOVA_WELCH` (unequal variances), `TEST_KRUSKAL_WALLIS` (ranks), then `TEST_TUKEY_HSD` for the pairs (k ≥ 3, else `PULSE_TEST_TUKEY_REQUIRES_K_GE_3`); `TEST_ANOVA_RM` for repeated measures |
+| Do k groups differ in mean? | `TEST_ANOVA_F`, `TEST_ANOVA_WELCH` (unequal variances), `TEST_KRUSKAL_WALLIS` (ranks), then `TEST_TUKEY_HSD` for the pairs (k ≥ 3, else `PULSE_TEST_SPLIT_GROUPS_LT_2` with `details.min_required` 3); `TEST_ANOVA_RM` for repeated measures |
 | Do groups differ in variance? | `TEST_BROWN_FORSYTHE` |
-| Are two categorical fields associated? | `TEST_CHISQ`; `TEST_FISHER_EXACT` for a 2 × 2 table with small counts (a larger table is `PULSE_TEST_FISHER_R_OR_C_GT_2`) |
+| Are two categorical fields associated? | `TEST_CHISQ`; `TEST_FISHER_EXACT` for a 2 × 2 table with small counts (a larger table is `PULSE_TEST_CONTINGENCY_DEGENERATE`) |
 | Do two proportions differ? | `TEST_PROP_Z` |
 | Are two numeric fields correlated? | `TEST_PEARSON_R`, `TEST_SPEARMAN_R`, `TEST_KENDALL_TAU` |
 

@@ -57,7 +57,7 @@ var slotParityCases = []struct {
 	// REG_MMM_BAYES's geo panel field: a label or an unsigned code. The
 	// filter keeps four weeks, so an accepted type's fit is the cheap
 	// insufficient-data slot failure (no sampling).
-	{"REG_MMM_BAYES", fieldaccept.SlotGeo, `{"filterers":[{"type":"FILTER_RANGE","field":"week","values":["1","4"]}],"regressions":[{"type":"REG_MMM_BAYES","target":"y","predictors":["x"],"params":{"channels":["x"],"time":"week","geo":"$F"}}]}`},
+	{"REG_MMM_BAYES", fieldaccept.SlotGeo, `{"filterers":[{"type":"FILTER_RANGE","field":"week","values":["1","4"]}],"regressions":[{"type":"REG_MMM_BAYES","target":"y","predictors":["x"],"order":{"field":"week","partition":"$F"},"params":{"channels":["x"],"geo":"$F"}}]}`},
 }
 
 // TestFieldTypeSlots_PredictMatchesRuntime extends the acceptance gate

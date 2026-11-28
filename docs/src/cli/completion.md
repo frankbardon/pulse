@@ -117,7 +117,7 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   named first.
 - **Cohort paths.** A cohort flag (`--input` on a cohort-reading leaf,
   `recommend --cohort`, `synth from-profile --source`) and a cohort
-  positional (`cohort inspect`, `widen`, `dedup`, `rake`,
+  positional (`cohort inspect`, `cohort zone set|clear`, `widen`, `dedup`, `rake`,
   `index build|list|verify|drop`, `shard add|list|compact|verify|remove|extract`)
   complete the `.pulse` cohorts under `PULSE_DATA_DIR` — single files and
   shard archives, in subdirectories too (managed imports included), never
@@ -143,6 +143,11 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   typed word to the binary). `--vector-kind NAME:kind` does not complete.
   Name the cohort first: the cohort must be typed before the field flag;
   with none named nothing is offered.
+- **Zone fields.** The FIELD of `cohort zone set COHORT FIELD` (the
+  positional or `--field`) completes only the named cohort's categorical
+  fields, the ones `zone set` accepts as a default zone field. Whether
+  every value of the field is a time zone is checked when the command
+  runs, not during completion.
 
 Candidates are sorted and the same on every run. They are the full
 built-in vocabularies; a feature profile does not narrow them.

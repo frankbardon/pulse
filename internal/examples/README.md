@@ -115,10 +115,9 @@ A category-specific runner exercises everything in its folder:
 ./internal/examples/windows/run-all.sh
 ```
 
-Run from the repo root: a facet overlay's `ref.population.cohort`
-(`overlays/10`, `18`, `21`, `30`) is a path such as
-`.data/experiment.pulse`, resolved from the working directory rather
-than the host cohort's `data_dir`.
+A facet overlay's `ref.population.cohort` (`overlays/10`, `18`, `21`,
+`30`) names a cohort such as `experiment.pulse`, resolved as the host
+cohort is: under its `data_dir`.
 
 Or invoke individual requests:
 

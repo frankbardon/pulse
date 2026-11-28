@@ -54,7 +54,7 @@ func TestStaticIssues_Sites(t *testing.T) {
 			{Type: types.ATTR_FORMULA, Label: "c", Expression: "vcenter(xy)"},
 		},
 	}
-	got := StaticIssues(req, nil, nil)
+	got := StaticIssues(req, nil, nil, nil)
 	want := []string{"filter", "formula total() argument", "formula"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d issues %v, want %d", len(got), got, len(want))

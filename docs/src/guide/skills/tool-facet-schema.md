@@ -17,7 +17,7 @@ The facet request's keys at top level (no wrapper): `cohort` (`{filename}`, or `
 
 ## Output
 
-The facet result (no envelope): `fields` keyed by name, each `{kind, type_name, description, null_count}` plus `discrete {values: [{value, count}], distinct_count, truncated_at}` (categorical / boolean / set fields; a `u4`–`u32` field under an augment label binding counts per code) or `numeric {count, sum, min, max, mean, stddev, percentiles, histogram {min, max, bins}}`; `additive` keyed the same way; `total_records`, `filtered_records`; `overlays` (FACET-host layers); `warnings` as coded `{code, message, details}` (truncation `PULSE_FACET_VALUES_TRUNCATED`, a stat asked of a non-numeric field, labels, overlays).
+The facet result (no envelope): `fields` keyed by name, each `{kind, type_name, description, null_count}` plus `discrete {values: [{value, count}], distinct_count, truncated_at}` (categorical fields, and `packed_bool` as `"1"` / `"0"`; a `u4`–`u32` field under an augment label binding counts per code) or `numeric {count, sum, min, max, mean, stddev, percentiles, histogram {min, max, bins}}`; `additive` keyed the same way; `total_records`, `filtered_records`; `overlays` (FACET-host layers); `warnings` as coded `{code, message, details}` (truncation `PULSE_FACET_VALUES_TRUNCATED`, a stat asked of a non-numeric field, labels, overlays).
 
 ## Gotchas
 
@@ -25,6 +25,7 @@ The facet result (no envelope): `fields` keyed by name, each `{kind, type_name, 
 - `include_histogram` needs `histogram_range` with min < max, else `SERVICE_VALIDATION`.
 - `additive_fields` drops that field's own filter clauses before counting, so each value reports the records it would add.
 - A percentile or histogram asked of a non-numeric field is ignored with a warning, not refused.
+- A `set_*`, `vec_*` or `datetime` field (faceted or additive) is refused `SERVICE_VALIDATION` (`facet does not support field type …`), by predict too; list a set's members with `pulse_facet`.
 
 ## See
 

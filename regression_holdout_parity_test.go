@@ -383,7 +383,7 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 	types.REG_MMM_BAYES: func() *types.RegressionSpec {
 		return &types.RegressionSpec{Name: "reg-mmm-bayes", Type: types.REG_MMM_BAYES, Target: "sales", RNGSeed: 5,
 			Predictors: []string{"tv", "trend"},
-			Params:     json.RawMessage(`{"channels":["tv"],"time":"week","geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true}`)}
+			Order:      &types.RegressionOrder{Field: "week", Partition: "market"}, Params: json.RawMessage(`{"channels":["tv"],"geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true}`)}
 	},
 }
 
@@ -610,7 +610,8 @@ func TestHoldout_BayesCarryoverOptOut(t *testing.T) {
 
 	p := windowParityPulse(t, Options{})
 	spec := holdoutBuiltinCases[types.REG_MMM_BAYES]()
-	spec.Params = json.RawMessage(`{"channels":["tv"],"time":"week","geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true,"carryover":false}`)
+	spec.Params = json.RawMessage(`{"channels":["tv"],"geo":"market","chains":1,"warmup":20,"draws":8,"return_draws":true,"carryover":false}`)
+	spec.Order = &types.RegressionOrder{Field: "week", Partition: "market"}
 	got := holdoutParityRoutes(t, p, holdoutParityCase{name: "bayes-no-carry", spec: spec, pred: "week > 46", score: `,"carryover":false`})
 	h, want := got.Holdout, bayesHoldoutPreCarry
 	near := func(what string, g, w float64) {
@@ -865,7 +866,7 @@ func TestBayesInfluence_RefusedByDesignPredictRuntimeParity(t *testing.T) {
 			run := func() error { _, err := p.Compose(ctx, c); return err }
 			if slot.typ == types.ATTR_REG_INFLUENCE {
 				run = func() error {
-					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2, FailFast: true})
+					_, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2})
 					return err
 				}
 			}

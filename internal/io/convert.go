@@ -40,8 +40,10 @@ import (
 // type that holds the value, ConvertReport.Schema carries the final
 // types, ConvertReport.WidthWarnings one PULSE_IMPORT_WIDTH_PROMOTED per
 // field, and a KeepPulseAt intermediate is imported at those types — the
-// cohort a plain import of the source writes. Only a categorical past
-// categorical_u32 still refuses. Convert passes cell TEXT through, so a
+// cohort a plain import of the source writes. A set past its rung
+// promotes the same way (internSetOrWiden), with the token delimiter
+// inference found. Only a categorical past categorical_u32 still
+// refuses. Convert passes cell TEXT through, so a
 // promotion never changes what the target receives.
 func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	// Refused before the source is read, exactly as ImportJob refuses it.
@@ -50,6 +52,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	}
 	schema := j.Schema
 	var inferWarnings []InferenceWarning
+	var setDelims map[string]string
 
 	// A SchemaAwareReader source hands over an authoritative schema — the
 	// source's own dictionary, not a guess — and convert adopts it before
@@ -107,7 +110,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, inferWarnings, err = j.inferSchema(pins)
+		schema, inferWarnings, setDelims, err = j.inferSchema(pins)
 		if err != nil {
 			return nil, err
 		}
@@ -119,6 +122,10 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		}
 	}
 	_ = inferWarnings
+	// The token delimiter of each inferred set column, read as the import
+	// reads it (ImportJob.setDelimiterFor): the row loop interns with it
+	// and the KeepPulseAt intermediate inherits it.
+	delimFor := (&ImportJob{SetDelimiters: setDelims}).setDelimiterFor
 
 	// widenable marks the fields the row pass may promote past their
 	// sample-inferred width — every field of an inferred schema, none of
@@ -138,10 +145,11 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		return nil, err
 	}
 
-	// Build dictionaries for categorical fields.
+	// Build dictionaries for categorical fields, and for the set fields
+	// whose rung the row loop tracks (convertTracksWidth).
 	dicts := make(map[int]*encoding.Dictionary)
 	for i := range schema.Fields {
-		if schema.Fields[i].Type.IsCategorical() {
+		if schema.Fields[i].Type.IsCategorical() || schema.Fields[i].Type.IsSet() && widenable[i] {
 			if schema.Fields[i].Dictionary == nil {
 				schema.Fields[i].Dictionary = encoding.NewDictionary()
 			}
@@ -216,6 +224,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			Target:         j.KeepPulseAt,
 			Schema:         schema,
 			SampleRows:     j.SampleRows,
+			SetDelimiters:  setDelims,
 			FS:             fs,
 			InferredSchema: inferredSchema,
 			IgnoreExtra:    j.IgnoreExtra,
@@ -278,7 +287,17 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			// its dictionary, and an inferred field whose value
 			// outgrows its sample-inferred width is promoted. The cell
 			// TEXT is what the target receives either way.
-			_, steps, cerr := convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum, nil)
+			var steps []widening
+			var cerr error
+			if f.Type.IsSet() {
+				// The set arm: tokens interned in the import's order, a
+				// rung they outgrow promoted. A set past set_u256 passes
+				// its text through; the intermediate drops the row, as an
+				// import does.
+				_, steps, cerr = internSetOrWiden(schema, i, raw, dicts[i], delimFor(f.Name), widenable[i], rowNum)
+			} else {
+				_, steps, cerr = convertOrWiden(schema, i, raw, dicts[i], DefaultSetDelimiter, widenable[i], rowNum, nil)
+			}
 			widened = append(widened, steps...)
 			if cerr == nil || !f.Type.IsCategorical() {
 				// A number that does not convert at all is passed
@@ -487,7 +506,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 			return nil, fmt.Errorf("schema inference requires a ResetReader source")
 		}
 		var err error
-		schema, warnings, err = j.inferSchema(pins)
+		schema, warnings, _, err = j.inferSchema(pins)
 		if err != nil {
 			return nil, err
 		}
@@ -594,12 +613,12 @@ func refuseConvertVectors(schema *encoding.Schema) error {
 // inferSchema runs the inference pass with the job's sampling and
 // float-width knobs and the source's pins — the one call Run and Predict
 // share, so a predicted convert infers the schema Run writes.
-func (j *ConvertJob) inferSchema(pins map[string]encoding.Field) (*encoding.Schema, []InferenceWarning, error) {
+func (j *ConvertJob) inferSchema(pins map[string]encoding.Field) (*encoding.Schema, []InferenceWarning, map[string]string, error) {
 	res, err := InferSchemaWithOptions(j.Source, InferOptions{SampleRows: j.SampleRows, FloatWidth: j.FloatWidth, pins: pins})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return res.Schema, res.Warnings, nil
+	return res.Schema, res.Warnings, res.Delimiters, nil
 }
 
 // checkZoneField is the declared zone field's pre-pass verdict, shared
@@ -730,7 +749,7 @@ func convertTracksWidth(ft encoding.FieldType, widenable bool) bool {
 		encoding.FieldTypeU32, encoding.FieldTypeF32:
 		return true
 	}
-	return false
+	return ft.IsSet()
 }
 
 // sourceSchema pulls the authoritative schema off a SchemaAwareReader

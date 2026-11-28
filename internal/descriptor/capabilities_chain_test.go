@@ -86,7 +86,7 @@ func TestProcessChainCapability_OverlaysBufferedMatchesStreamability(t *testing.
 // overlay row declares the canonical chain-family contract: Shapes ⊇
 // {MATRIX, SCALAR, SERIES} (whole-chain kinds inherit the target
 // stage's host shape), Scopes == [total] (whole-result decoration), and
-// RefKinds == [Stage] (the StageRef discriminated reference family).
+// RefKinds == [stage] (the StageRef discriminated reference family).
 func TestProcessChainCapability_OverlaysShape(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +100,7 @@ func TestProcessChainCapability_OverlaysShape(t *testing.T) {
 	wantScopes := []types.OverlayScope{
 		types.OverlayScopeTotal,
 	}
-	wantRefKinds := []string{"Stage"}
+	wantRefKinds := []string{"stage"}
 
 	for _, c := range cap.Overlays {
 		if got := c.Shapes; !equalShapes(got, wantShapes) {

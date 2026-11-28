@@ -72,9 +72,9 @@ for ev := range p.WatchDir(ctx, "cohorts/", true) { handle(ev.Kind, ev.Path, ev.
 
 No pre-seed: existing files surface as `ChangeCreated` on the first tick.
 
-`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `< 0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems: `PollInterval` ~30 s.
+`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `< 0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`), `AllFiles` (no suffix filter). Network filesystems: `PollInterval` ~30 s.
 
-Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp has an editor/atomic-write name, and both fall inside `CoalesceWindow`.
+Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` for an editor/atomic-write temp in the same directory inside `CoalesceWindow`.
 <!-- /feature -->
 
 <!-- feature: capability:filter_to_file -->

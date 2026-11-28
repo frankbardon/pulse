@@ -300,22 +300,18 @@ func (a *distinctCountAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	if a.set == nil {
-		a.set = make(map[float64]struct{})
-	}
-	a.set[v] = struct{}{}
+	a.set.add(v)
 	return nil
 }
 
 func (a *distinctCountAggregator) Finalize() (float64, error) {
-	// Stamp the frozen mirror before nilling the live set so
+	// Stamp the frozen mirror before dropping the live set so
 	// Components() reads the post-finalize cardinality after the
 	// streaming-path reset.
-	a.frozenCardinality = len(a.set)
-	a.frozenFinalized = true
-	out := float64(len(a.set))
-	a.set = nil
-	return out, nil
+	n := a.set.len()
+	a.freeze(n)
+	a.set = distinctValueSet{}
+	return float64(n), nil
 }
 
 func (a *modeCountAggregator) UpdateRow(r *Record, field string) error {
@@ -609,15 +605,7 @@ func (a *distinctCountAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_DISTINCT_COUNT")
 	}
-	if len(b.set) == 0 {
-		return nil
-	}
-	if a.set == nil {
-		a.set = make(map[float64]struct{}, len(b.set))
-	}
-	for v := range b.set {
-		a.set[v] = struct{}{}
-	}
+	a.set.merge(&b.set)
 	return nil
 }
 

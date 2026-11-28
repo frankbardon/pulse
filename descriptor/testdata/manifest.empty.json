@@ -148,7 +148,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 116,
+    "error_codes_count": 108,
     "error_domains": [
       "CLI",
       "DATA",
@@ -158,16 +158,10 @@
       "SERVICE"
     ],
     "error_codes": [
-      "CLI_COMMAND",
       "CLI_ERROR",
       "CLI_INPUT",
-      "CLI_INTERNAL",
       "CLI_OUTPUT",
-      "DATA_CALCULATION",
-      "DATA_CONFIG",
       "DATA_FILE",
-      "DATA_INTERNAL",
-      "DATA_PARSE",
       "ENCODING_INTERNAL",
       "ENCODING_INVALID",
       "ENCODING_IO",
@@ -178,7 +172,6 @@
       "PROCESSING_PANIC",
       "PROCESSING_REGRESSION_DIAGNOSTIC",
       "PROCESSING_RUNTIME",
-      "PROCESSING_STATE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
@@ -271,7 +264,6 @@
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
       "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
-      "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
       "SERVICE_VALIDATION"
     ],
@@ -290,7 +282,7 @@
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `overlays`, `regression`, `tests`, `windows`).\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, everyday synonyms widen each word (`missing` finds `null` / `blank`, `rate` finds `count`), then a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `features`, `filterers`, `groupers`, `overlays`, `regression`, `tests`, `windows`).\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_inspect",
@@ -814,6 +806,9 @@
           "regressions[*].l1_ratio",
           "regressions[*].prior",
           "regressions[*].resample",
+          "regressions[*].bootstrap_requested",
+          "regressions[*].bootstrap_succeeded",
+          "regressions[*].jackknife_groups",
           "regressions[*].criterion",
           "regressions[*].coefficients",
           "regressions[*].std_errors",
@@ -827,6 +822,13 @@
           "regressions[*].deviance",
           "regressions[*].null_deviance",
           "regressions[*].pseudo_r2",
+          "regressions[*].reference",
+          "regressions[*].categories",
+          "regressions[*].theta",
+          "regressions[*].theta_std_err",
+          "regressions[*].two_log_lik",
+          "regressions[*].aic",
+          "regressions[*].dispersion",
           "regressions[*].n_obs",
           "regressions[*].sum_weights",
           "regressions[*].n_eff",
@@ -958,4 +960,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: fcbf20f8076874055f2efbadf0f7775623466657192525cbbab51ac3f7b66921
+// golden-hash: 6f2e0a622e15bca456ae3d4c1e819708d0f9a74e113752509129d92750b92c36

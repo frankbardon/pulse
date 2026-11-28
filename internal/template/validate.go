@@ -54,6 +54,15 @@ type ValidateOptions struct {
 	// exprslots.SlotExtensionParam), exactly as in a built-in
 	// expression slot. Nil: only the built-in slots.
 	ExprParams map[string][]string
+
+	// SkipName reports a file the store's directory walk skips without
+	// reading, by its base name — the instance hands Pulse's own *.json
+	// sidecars (pulse.isPulseSidecarName: a managed-import ".meta.json",
+	// an SPSS ".spss.json", an index manifest, a saved model / population
+	// / SEM file), so a template directory that is also a data directory
+	// does not report them as broken templates. Nil skips nothing. Read
+	// by the Store only; Parse ignores it.
+	SkipName func(name string) bool
 }
 
 // ParseWith is Parse with the instance facts in opts.

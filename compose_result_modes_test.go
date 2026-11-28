@@ -17,7 +17,7 @@ import (
 // MaxComposeSlots counting a pre-phase slot once. Stream order is
 // pinned at the CLI (internal/cli compose_result_stream_test.go). No
 // assertion depends on scheduling: at most one slot fails under
-// FailFast, and a non-fail-fast pool cancels nothing.
+// fail-fast, and a non-fail-fast pool cancels nothing.
 
 // TestComposeResult_SerialParallelParity: a batch whose block reads
 // slot "after" (index 1) through its upper bound and "weeks" (index 0)
@@ -37,7 +37,7 @@ func TestComposeResult_SerialParallelParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, o := range []ComposeOptions{{MaxWorkers: 1, FailFast: true}, {MaxWorkers: 4, FailFast: true}, {MaxWorkers: 4}} {
+	for _, o := range []ComposeOptions{{MaxWorkers: 1}, {MaxWorkers: 4}, {MaxWorkers: 4, CollectErrors: true}} {
 		par, err := p.ComposeParallel(context.Background(), c, o)
 		if err != nil {
 			t.Fatalf("%+v: %v", o, err)
@@ -100,7 +100,7 @@ func TestComposeResult_FailedReadSlotAggregated(t *testing.T) {
 	c := failingReadBatch(t)
 	c.Requests = append(c.Requests, &types.Request{Label: "also_missing", Cohort: &types.Cohort{Filename: "missing.pulse"},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "week", Label: "n"}}})
-	resp, err := p.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4})
+	resp, err := p.ComposeParallel(context.Background(), c, ComposeOptions{MaxWorkers: 4, CollectErrors: true})
 	ce := requireCoded(t, err, perr.SERVICE_INTERNAL)
 	if resp != nil || !reflect.DeepEqual(ce.Details["failed_indices"], []int{1, 2}) || !reflect.DeepEqual(ce.Details["result_slots"], []string{"after"}) {
 		t.Fatalf("resp %v, details %v", resp, ce.Details)

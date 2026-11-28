@@ -127,14 +127,14 @@ func TestMMMBayes_KernelFactory(t *testing.T) {
 	t.Parallel()
 
 	ok := []string{
-		`{"channels":["tv"],"time":"week"}`,
-		`{"channels":["tv"],"time":"week","adstock":"geometric"}`,
-		`{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8}`,
-		`{"channels":["tv"],"time":"week","adstock":"weibull_cdf","max_lag":8}`,
-		`{"channels":["tv"],"time":"week","adstock":"weibull_pdf","max_lag":8}`,
-		`{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8,"priors":{"tv":{"decay":{"family":"beta","alpha":3,"beta":3},"peak":{"family":"truncnormal","mu":2,"sigma":1,"lower":0,"upper":8}}}}`,
-		`{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"beta","alpha":2,"beta":2}}}}`,
-		`{"channels":["tv"],"time":"week","adstock":"weibull_pdf","max_lag":8,"priors":{"tv":{"shape":{"family":"lognormal","mu":0,"sigma":1},"scale":{"family":"halfnormal","sigma":4}}}}`,
+		`{"channels":["tv"]}`,
+		`{"channels":["tv"],"adstock":"geometric"}`,
+		`{"channels":["tv"],"adstock":"delayed","max_lag":8}`,
+		`{"channels":["tv"],"adstock":"weibull_cdf","max_lag":8}`,
+		`{"channels":["tv"],"adstock":"weibull_pdf","max_lag":8}`,
+		`{"channels":["tv"],"adstock":"delayed","max_lag":8,"priors":{"tv":{"decay":{"family":"beta","alpha":3,"beta":3},"peak":{"family":"truncnormal","mu":2,"sigma":1,"lower":0,"upper":8}}}}`,
+		`{"channels":["tv"],"adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"beta","alpha":2,"beta":2}}}}`,
+		`{"channels":["tv"],"adstock":"weibull_pdf","max_lag":8,"priors":{"tv":{"shape":{"family":"lognormal","mu":0,"sigma":1},"scale":{"family":"halfnormal","sigma":4}}}}`,
 	}
 	for _, params := range ok {
 		if ce := BayesSpecRefusal(BayesSpec(params)); ce != nil {
@@ -144,15 +144,15 @@ func TestMMMBayes_KernelFactory(t *testing.T) {
 	for _, tc := range []struct {
 		name, params, slot, msg string
 	}{
-		{"unknown kernel", `{"channels":["tv"],"time":"week","adstock":"hyperbolic"}`, "params.adstock", "not one of: geometric, delayed, weibull_cdf, weibull_pdf"},
-		{"delayed without max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed"}`, "params.max_lag", "needs params.max_lag"},
-		{"weibull without max_lag", `{"channels":["tv"],"time":"week","adstock":"weibull_cdf"}`, "params.max_lag", "needs params.max_lag"},
-		{"peak on geometric", `{"channels":["tv"],"time":"week","priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors", "has no peak parameter"},
-		{"decay on weibull", `{"channels":["tv"],"time":"week","adstock":"weibull_cdf","max_lag":8,"priors":{"tv":{"decay":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors", "has no decay parameter"},
-		{"shape on delayed", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8,"priors":{"tv":{"shape":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "has no shape parameter"},
-		{"peak past max_lag", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"truncnormal","mu":2,"sigma":1,"lower":0,"upper":9}}}}`, "params.priors", "inside [0, max_lag = 8]"},
-		{"peak unbounded", `{"channels":["tv"],"time":"week","adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "inside [0, max_lag = 8]"},
-		{"shape on the real line", `{"channels":["tv"],"time":"week","adstock":"weibull_pdf","max_lag":8,"priors":{"tv":{"shape":{"family":"normal","mu":1,"sigma":1}}}}`, "params.priors", "not inside"},
+		{"unknown kernel", `{"channels":["tv"],"adstock":"hyperbolic"}`, "params.adstock", "not one of: geometric, delayed, weibull_cdf, weibull_pdf"},
+		{"delayed without max_lag", `{"channels":["tv"],"adstock":"delayed"}`, "params.max_lag", "needs params.max_lag"},
+		{"weibull without max_lag", `{"channels":["tv"],"adstock":"weibull_cdf"}`, "params.max_lag", "needs params.max_lag"},
+		{"peak on geometric", `{"channels":["tv"],"priors":{"tv":{"peak":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors", "has no peak parameter"},
+		{"decay on weibull", `{"channels":["tv"],"adstock":"weibull_cdf","max_lag":8,"priors":{"tv":{"decay":{"family":"beta","alpha":1,"beta":1}}}}`, "params.priors", "has no decay parameter"},
+		{"shape on delayed", `{"channels":["tv"],"adstock":"delayed","max_lag":8,"priors":{"tv":{"shape":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "has no shape parameter"},
+		{"peak past max_lag", `{"channels":["tv"],"adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"truncnormal","mu":2,"sigma":1,"lower":0,"upper":9}}}}`, "params.priors", "inside [0, max_lag = 8]"},
+		{"peak unbounded", `{"channels":["tv"],"adstock":"delayed","max_lag":8,"priors":{"tv":{"peak":{"family":"lognormal","mu":0,"sigma":1}}}}`, "params.priors", "inside [0, max_lag = 8]"},
+		{"shape on the real line", `{"channels":["tv"],"adstock":"weibull_pdf","max_lag":8,"priors":{"tv":{"shape":{"family":"normal","mu":1,"sigma":1}}}}`, "params.priors", "not inside"},
 	} {
 		ce := BayesSpecRefusal(BayesSpec(tc.params))
 		if ce == nil {
@@ -179,9 +179,9 @@ func TestMMMBayes_KernelFactory(t *testing.T) {
 		{"weibull_pdf", "decay:x", false},
 		{"weibull_pdf", "k:x", true},
 	} {
-		params := `{"channels":["tv"],"time":"week","max_lag":8}`
+		params := `{"channels":["tv"],"max_lag":8}`
 		if tc.kernel != "" {
-			params = `{"channels":["tv"],"time":"week","max_lag":8,"adstock":"` + tc.kernel + `"}`
+			params = `{"channels":["tv"],"max_lag":8,"adstock":"` + tc.kernel + `"}`
 		}
 		s := BayesSpec(params)
 		s.Predictors = []string{"tv", tc.predictor}
@@ -203,7 +203,7 @@ func TestMMMBayes_KernelCoefficientNames(t *testing.T) {
 	t.Parallel()
 
 	for _, kernel := range kernelNames() {
-		s := BayesSpec(fmt.Sprintf(`{"channels":["tv"],"time":"week","max_lag":8,"adstock":%q}`, kernel))
+		s := BayesSpec(fmt.Sprintf(`{"channels":["tv"],"max_lag":8,"adstock":%q}`, kernel))
 		s.Predictors = []string{"tv", "radio", "price"}
 		s.Params = json.RawMessage(strings.Replace(string(s.Params), `["tv"]`, `["tv","radio"]`, 1))
 		reg, err := BayesFactory(s, nil)

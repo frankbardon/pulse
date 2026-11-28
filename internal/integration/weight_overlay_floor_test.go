@@ -109,10 +109,10 @@ func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
 			}
 			return r
 		}
-		mk := func(kind types.OverlayKind, scope types.OverlayScope, refDisable, tgtDisable *bool, w *types.WeightSpec) *types.ComposedRequest {
+		mk := func(kind types.OverlayKind, scope types.OverlayScope, params map[string]any, refDisable, tgtDisable *bool, w *types.WeightSpec) *types.ComposedRequest {
 			return &types.ComposedRequest{
 				Requests: []*types.Request{slot("total", w, refDisable, false), slot("sub", w, tgtDisable, true)},
-				Overlays: []types.ComposeOverlaySpec{{Name: "o", Kind: kind, Scope: scope, Reference: "total", Targets: []string{"sub"}}},
+				Overlays: []types.ComposeOverlaySpec{{Name: "o", Kind: kind, Scope: scope, Reference: "total", Targets: []string{"sub"}, Params: params}},
 			}
 		}
 		kinds := []struct {
@@ -120,12 +120,14 @@ func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
 			scope types.OverlayScope
 			// readsRef: the reference slot's floor matters (it is a
 			// tested leg); CHISQ_VS_REF reads the reference only as a
-			// distribution.
+			// distribution — unless reference_kind is sample (#791).
 			readsRef bool
+			params   map[string]any
 		}{
-			{types.OverlayKindPropZCell, types.OverlayScopeCell, true},
-			{types.OverlayKindPropZPanel, types.OverlayScopeCell, true},
-			{types.OverlayKindChiSqVsRef, types.OverlayScopeMatrix, false},
+			{types.OverlayKindPropZCell, types.OverlayScopeCell, true, nil},
+			{types.OverlayKindPropZPanel, types.OverlayScopeCell, true, nil},
+			{types.OverlayKindChiSqVsRef, types.OverlayScopeMatrix, false, nil},
+			{types.OverlayKindChiSqVsRef, types.OverlayScopeMatrix, true, map[string]any{"reference_kind": "sample"}},
 		}
 		for _, engineOff := range []bool{false, true} {
 			p := instance(engineOff)
@@ -135,9 +137,9 @@ func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
 				off = nil // inherit the engine opt-out
 			}
 			for _, k := range kinds {
-				refused := map[string]*types.ComposedRequest{"target hidden": mk(k.kind, k.scope, on, off, &prob)}
+				refused := map[string]*types.ComposedRequest{"target hidden": mk(k.kind, k.scope, k.params, on, off, &prob)}
 				if k.readsRef {
-					refused["reference hidden"] = mk(k.kind, k.scope, off, on, &prob)
+					refused["reference hidden"] = mk(k.kind, k.scope, k.params, off, on, &prob)
 				}
 				for name, req := range refused {
 					_, rerr := p.Compose(ctx, req)
@@ -153,11 +155,11 @@ func TestWeight_ComponentsDisabledFloorRefusalMatchesPredict(t *testing.T) {
 					}
 				}
 				runs := map[string]*types.ComposedRequest{
-					"frequency":     mk(k.kind, k.scope, off, off, &freq),
-					"components on": mk(k.kind, k.scope, on, on, &prob),
+					"frequency":     mk(k.kind, k.scope, k.params, off, off, &freq),
+					"components on": mk(k.kind, k.scope, k.params, on, on, &prob),
 				}
 				if !k.readsRef {
-					runs["reference hidden"] = mk(k.kind, k.scope, off, on, &prob)
+					runs["reference hidden"] = mk(k.kind, k.scope, k.params, off, on, &prob)
 				}
 				for name, req := range runs {
 					if _, err := p.Compose(ctx, req); err != nil {

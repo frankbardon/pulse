@@ -31,7 +31,7 @@ No `kind` declares nothing: no default, no warning. An unknown kind is `PULSE_VE
 
 ## How the default is filled
 
-An operator that takes a `metric` and reads the vector BY NAME (`vector`, not inline `fields`) fills the kind's default when the request names none. It is a smart default: predict reports it in `defaults_applied` (`category` `metric`, `path` `["Matrices", i, "Params", "metric"]`), the echoed request carries it, and disabling defaults (`--no-defaults`) turns it off. An explicit `metric` always wins.
+An operator that takes a `metric` and reads the vector BY NAME (`vector`, not inline `fields`) fills the kind's default when the request names none. It is a smart default: predict reports it in `defaults_applied` (`category` `metric`, `path` `["matrices", i, "params", "metric"]`), the echoed request carries it, and disabling defaults (`--no-defaults`) turns it off. An explicit `metric` always wins.
 
 When the operator does not accept the kind's default it fills the first metric it accepts that suits the kind (never a poor fit); the `reason` says so.<!-- feature: MAT_DISTANCE --> `MAT_DISTANCE` compares centroids, so `measure` fills `euclidean` (add `standardize` for the `std_euclidean` effect), `binary` fills `cosine`, and `composition` under `standardize` fills `manhattan` (z-scored centroids are signed). With no kind and no metric it keeps `euclidean`.<!-- /feature -->
 

@@ -293,7 +293,7 @@ var (
 			Shared: SharedPValue,
 			Caveats: []string{
 				"On this kind the scalar holds the p-value (the same value as summary.p_value), not the chi-square; the chi-square is in summary.statistic.",
-				"The reference mix is treated as fixed, so its own sampling uncertainty is ignored and with a small reference the p-value comes out too small.",
+				"By default the reference mix is treated as fixed, so its own sampling uncertainty is ignored and with a small reference the p-value comes out too small; when the reference is itself a sample, set params.reference_kind to sample for the two-sample homogeneity test.",
 			},
 		},
 		{

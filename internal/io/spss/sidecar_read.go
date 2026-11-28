@@ -26,18 +26,31 @@ package spss
 // one. If a later change appears to want them unified, it is reverting
 // the decision this file exists to hold.
 //
-// # Why the check is size + mtime and not a hash
+// # Why the check is size + mtime, escalating to the hash
 //
-// Modelled on encoding.SidecarIndexPath's staleness model, for its
-// reasons. Hashing a multi-gigabyte cohort on every export would cost
-// more than the export, so the read path compares the cheap O(1) pair
-// the document already carries — byte size and modification time — and
-// that catches every mutation that goes through a writer, since a
-// rewrite moves at least one of them. The residual gap is the same one
-// PULSE_INDEX_STALE lives with: an in-place edit preserving BOTH size
-// and mtime goes unnoticed. The authoritative answer is the full
-// SHA-256 recompute, offered separately as [Document.VerifyDigest] for
-// a verify-style pass that can afford it.
+// The one drift rule the point-lookup index also follows
+// (internal/service classifyIndexFreshness): the read path compares the
+// cheap O(1) pair the document carries — byte size and modification
+// time — and
+//
+//   - a full match is fresh, hash-free (hashing a multi-gigabyte cohort
+//     on every read would cost more than an export);
+//   - a SIZE mismatch is stale, conclusively and hash-free: the
+//     fingerprint covers the whole file, so a different length cannot
+//     hash to it;
+//   - an MTIME drift with a matching size ESCALATES to the content
+//     fingerprint. A modification time is metadata a copy, a restore,
+//     an object store (whole-second LastModified) or a `touch` moves
+//     without touching a byte; the SHA-256 settles what the stat pair
+//     only raised. Unchanged content keeps the sidecar; changed content
+//     is stale. The sidecar is not re-stamped (a read never writes), so
+//     each read of a drifted cohort hashes it once — one sequential
+//     read, the order of the export it precedes.
+//
+// The residual gap is the one PULSE_INDEX_STALE lives with: an in-place
+// edit preserving BOTH size and mtime goes unnoticed. The authoritative
+// answer is the full SHA-256 recompute, offered as
+// [Document.VerifyDigest] for a verify-style pass.
 //
 // # Where the caller knob lives, and why here
 //
@@ -338,8 +351,10 @@ func (r *SidecarResolution) Synthesise() bool { return r == nil || r.Document ==
 //  3. Unreadable, not JSON, foreign `kind`, unknown `format_version`,
 //     malformed fingerprint, or a broken parallel-array contract ->
 //     PULSE_SPSS_SIDECAR_INVALID.
-//  4. Cohort size or mtime moved since the sidecar was written ->
-//     PULSE_SPSS_SIDECAR_STALE.
+//  4. Cohort size moved since the sidecar was written, or its mtime
+//     moved and its SHA-256 no longer matches -> PULSE_SPSS_SIDECAR_STALE.
+//     An mtime drift over unchanged content passes (see the file
+//     comment).
 //  5. Otherwise SidecarStatusPresent, with the document normalised (see
 //     [Document.Normalise]).
 //
@@ -397,7 +412,8 @@ func LoadSidecar(fsys afero.Fs, cohortPath string, opts WriterOptions) (*Sidecar
 		return nil, err
 	}
 
-	// Step 4. The cheap O(1) pair, never a hash. See the file comment.
+	// Step 4. The cheap O(1) pair; a hash only on an mtime drift. See
+	// the file comment.
 	if err := doc.checkFresh(fsys, cohortPath, path); err != nil {
 		return nil, err
 	}
@@ -478,14 +494,15 @@ func readSidecarDocument(fsys afero.Fs, cohortPath, path string) (*Document, err
 	return &doc, nil
 }
 
-// checkFresh is the cheap O(1) staleness comparison.
+// checkFresh is the staleness verdict: the cheap O(1) stat pair, and
+// the content fingerprint when only the mtime moved (the file comment
+// has the rule and why).
 //
-// Both halves are compared and both are reported, because which one
-// moved is diagnostic: a changed size means the cohort was rewritten,
-// a changed mtime alone can mean it was merely touched or copied. The
-// verdict is the same either way — the document no longer provably
-// describes these bytes — but a caller deciding whether to re-import or
-// to re-stamp needs to see which.
+// Both halves of the pair are reported, because which one moved is
+// diagnostic: a changed size means the cohort was rewritten; a changed
+// mtime over a changed SHA-256 means it was rewritten in place to the
+// same length. A changed mtime over the same SHA-256 is no change at
+// all — the cohort was touched or copied — and keeps the sidecar.
 func (d *Document) checkFresh(fsys afero.Fs, cohortPath, path string) error {
 	info, err := fsys.Stat(cohortPath)
 	if err != nil {
@@ -507,35 +524,56 @@ func (d *Document) checkFresh(fsys afero.Fs, cohortPath, path string) error {
 	if gotSize == d.Fingerprint.SourceSize && gotMod == d.Fingerprint.SourceModTime {
 		return nil
 	}
+	expected := map[string]any{
+		"size":     d.Fingerprint.SourceSize,
+		"mod_time": d.Fingerprint.SourceModTime,
+	}
+	actual := map[string]any{
+		"size":     gotSize,
+		"mod_time": gotMod,
+	}
+	what := "its byte size has"
+	if gotSize != d.Fingerprint.SourceSize && gotMod != d.Fingerprint.SourceModTime {
+		what = "its byte size and modification time have both"
+	}
+	if gotSize == d.Fingerprint.SourceSize {
+		// Only the mtime moved: the fingerprint decides.
+		want, _ := d.Fingerprint.Digest() // well-formed: readSidecarDocument refused otherwise
+		got, err := hashCohort(fsys, cohortPath, path, "spss.LoadSidecar")
+		if err != nil {
+			return err
+		}
+		if got == want {
+			return nil
+		}
+		what = "its contents (the modification time moved and the SHA-256 differs) have"
+		expected["sha256"] = d.Fingerprint.SHA256
+		actual["sha256"] = hex.EncodeToString(got[:])
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_SPSS_SIDECAR_STALE,
 		"spss: the metadata sidecar "+path+" no longer matches the cohort "+cohortPath+
-			" — "+staleWhat(d.Fingerprint.SourceSize, gotSize, d.Fingerprint.SourceModTime, gotMod)+
+			" — "+what+
 			" changed since the sidecar was written, so its SPSS dictionary describes a different"+
 			" version of this data; applying it would produce a .sav that looks authoritative and is wrong",
 		map[string]any{
-			errors.DetailSPSSCohort:  cohortPath,
-			errors.DetailSPSSSidecar: path,
-			errors.DetailSPSSExpected: map[string]any{
-				"size":     d.Fingerprint.SourceSize,
-				"mod_time": d.Fingerprint.SourceModTime,
-			},
-			errors.DetailSPSSActual: map[string]any{
-				"size":     gotSize,
-				"mod_time": gotMod,
-			},
+			errors.DetailSPSSCohort:   cohortPath,
+			errors.DetailSPSSSidecar:  path,
+			errors.DetailSPSSExpected: expected,
+			errors.DetailSPSSActual:   actual,
 		})
 }
 
-// staleWhat names which half of the cheap pair moved, for the message.
-func staleWhat(wantSize, gotSize uint64, wantMod, gotMod int64) string {
-	switch {
-	case wantSize != gotSize && wantMod != gotMod:
-		return "its byte size and modification time have both"
-	case wantSize != gotSize:
-		return "its byte size has"
-	default:
-		return "its modification time has"
+// hashCohort computes the cohort's content fingerprint (the full-file
+// SHA-256 the document records). op names the caller in a file fault.
+func hashCohort(fsys afero.Fs, cohortPath, path, op string) (encx.Fingerprint, error) {
+	f, err := fsys.Open(cohortPath)
+	if err != nil {
+		return encx.Fingerprint{}, errors.NewCodedErrorWithDetails(errors.DATA_FILE,
+			op+": opening cohort "+cohortPath+": "+err.Error(),
+			map[string]any{errors.DetailSPSSCohort: cohortPath, errors.DetailSPSSSidecar: path})
 	}
+	defer func() { _ = f.Close() }()
+	return encx.ComputeFingerprint(f)
 }
 
 // ---------------------------------------------------------------------------
@@ -547,11 +585,11 @@ func staleWhat(wantSize, gotSize uint64, wantMod, gotMod int64) string {
 //
 // It is the authoritative freshness answer, and the mirror of what
 // `pulse index verify` does for the sidecar point-lookup index: the
-// read path takes the cheap O(1) size+mtime pair on every call, and
-// this is available for a verify-style pass that can afford to read the
-// whole cohort. It closes the one gap the cheap check has — an in-place
-// edit that preserves both size and mtime — at the cost of a full read,
-// which is exactly why it is not on the export path.
+// read path trusts a full size+mtime match hash-free (hashing only on
+// an mtime drift), and this is available for a verify-style pass that
+// can afford to read the whole cohort. It closes the one gap the read
+// path has — an in-place edit that preserves both size and mtime — at
+// the cost of a full read on every call.
 //
 // A mismatch is PULSE_SPSS_SIDECAR_STALE, the same verdict the cheap
 // check returns, because it is the same fact discovered more expensively.
@@ -572,15 +610,7 @@ func (d *Document) VerifyDigest(fsys afero.Fs, cohortPath string) error {
 			"spss.Document.VerifyDigest: no filesystem",
 			map[string]any{errors.DetailSPSSCohort: cohortPath})
 	}
-	f, err := fsys.Open(cohortPath)
-	if err != nil {
-		return errors.NewCodedErrorWithDetails(errors.DATA_FILE,
-			"spss.Document.VerifyDigest: opening cohort "+cohortPath+": "+err.Error(),
-			map[string]any{errors.DetailSPSSCohort: cohortPath, errors.DetailSPSSSidecar: path})
-	}
-	defer func() { _ = f.Close() }()
-
-	got, ferr := encx.ComputeFingerprint(f)
+	got, ferr := hashCohort(fsys, cohortPath, path, "spss.Document.VerifyDigest")
 	if ferr != nil {
 		return ferr
 	}

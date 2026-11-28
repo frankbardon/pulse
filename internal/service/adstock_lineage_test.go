@@ -137,7 +137,7 @@ func TestAdstockLineage_BayesFitBinds(t *testing.T) {
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: fitsCohort},
 		Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Name: "m", Target: "y", Predictors: []string{"x"},
-			Params: json.RawMessage(`{"channels": ["x"], "time": "week", "max_lag": 4, "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
+			Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels": ["x"], "max_lag": 4, "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
 	}
 	set, _, _, err := svc.runComposeFits(context.Background(), []types.FitSpec{{Name: "bayes", Request: req}}, nil, 1)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestAdstockLineage_BayesFitBinds(t *testing.T) {
 		kreq := &types.Request{
 			Cohort: &types.Cohort{Filename: fitsCohort},
 			Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Name: "m", Target: "y", Predictors: []string{"x"},
-				Params: json.RawMessage(`{"channels": ["x"], "time": "week", "max_lag": 4, "adstock": "` + tc.kernel + `", "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
+				Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels": ["x"], "max_lag": 4, "adstock": "` + tc.kernel + `", "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
 		}
 		set, _, _, err := svc.runComposeFits(context.Background(), []types.FitSpec{{Name: "bayes", Request: kreq}}, nil, 1)
 		if err != nil {
@@ -207,7 +207,7 @@ func TestAdstockLineage_BayesCurveBinds(t *testing.T) {
 		req := &types.Request{
 			Cohort: &types.Cohort{Filename: fitsCohort},
 			Regressions: []*types.RegressionSpec{{Type: types.REG_MMM_BAYES, Name: "m", Target: "y", Predictors: []string{"x"},
-				Params: json.RawMessage(`{"channels": ["x"], "time": "week", "max_lag": 4, "saturation": "` + tc.curve + `", "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
+				Order: &types.RegressionOrder{Field: "week"}, Params: json.RawMessage(`{"channels": ["x"], "max_lag": 4, "saturation": "` + tc.curve + `", "chains": 1, "warmup": 20, "draws": 20}`), RNGSeed: 7}},
 		}
 		set, _, _, err := svc.runComposeFits(context.Background(), []types.FitSpec{{Name: "bayes", Request: req}}, nil, 1)
 		if err != nil {

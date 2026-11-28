@@ -499,7 +499,7 @@ func parityCases(f *limitsFixture) []parityCase {
 	mmmPanel := func() *types.Request {
 		return &types.Request{Cohort: &types.Cohort{Filename: f.mmm}, Regressions: []*types.RegressionSpec{{
 			Type: types.REG_MMM_BAYES, Name: "mmm", Target: "sales", Predictors: []string{"tv"}, RNGSeed: 7,
-			Params: []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5}`)}}}
+			Order: &types.RegressionOrder{Field: "week", Partition: "geo"}, Params: []byte(`{"channels":["tv"],"geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5}`)}}}
 	}
 	mmmGeosAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMGeos = n } }
 	// The same tiny fits returning their raw draws (params.return_draws):
@@ -513,13 +513,15 @@ func parityCases(f *limitsFixture) []parityCase {
 	const mmmPanelDraws, mmmOneDraws = 100, 35
 	mmmPanelDrawsReq := func() *types.Request {
 		req := mmmPanel()
-		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"geo":"geo","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		req.Regressions[0].Order = &types.RegressionOrder{Field: "week", Partition: "geo"}
 		return req
 	}
 	mmmOne := func() *types.Request {
 		req := mmmPanel()
 		req.Filterers = []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "geo", Values: []string{"g0"}}}
-		req.Regressions[0].Params = []byte(`{"channels":["tv"],"time":"week","max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		req.Regressions[0].Params = []byte(`{"channels":["tv"],"max_lag":2,"chains":1,"warmup":10,"draws":5,"return_draws":true}`)
+		req.Regressions[0].Order = &types.RegressionOrder{Field: "week"}
 		return req
 	}
 	mmmDrawsAt := func(n int64) func(*limits.Limits) { return func(l *limits.Limits) { l.MaxMMMDrawValues = n } }
@@ -668,14 +670,14 @@ func parityCases(f *limitsFixture) []parityCase {
 		{name: "compose parallel slots", host: hostCompose, site: "compose (parallel)", setup: serialArm,
 			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
-				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
+				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{})
 				return err
 			},
 			limits: func(l *limits.Limits) { l.MaxComposeSlots = 1 }, wantTrip: limits.MaxComposeSlots},
 		{name: "compose parallel slot groups", host: hostCompose, site: "compose (parallel slot)", setup: serialArm,
 			compose: func() *types.ComposedRequest { return composed(two(grouped(paritySum, f.wide))) },
 			run: func(ctx context.Context, svc *Service) error {
-				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{FailFast: true})
+				_, err := svc.ComposeParallel(ctx, composed(two(grouped(paritySum, f.wide))), ComposeOptions{})
 				return err
 			},
 			limits: maxGroups(8), wantTrip: limits.MaxGroups},

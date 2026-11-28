@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -253,11 +254,6 @@ func (a *ratioAggregator) MergeOnline(other OnlineAggregator) error {
 	return nil
 }
 
-type ciParams struct {
-	Confidence float64 `json:"confidence"`
-	Method     string  `json:"method"`
-}
-
 // ciAggregator accumulates Welford (n, mean, M2) and emits the
 // requested CI bound at finalize: mean ∓ z·stderr with the two-sided
 // normal critical value z = Φ⁻¹(1 − α/2) (method "normal") and
@@ -315,32 +311,10 @@ const (
 
 func newCIAggregator(bound ciBound) AggregatorFactory {
 	return func(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-		params := ciParams{Confidence: 0.95, Method: "normal"}
-		paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
-		if len(agg.Params) > 0 {
-			if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
-				return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "invalid ci params: "+err.Error())
-			}
-			if params.Confidence == 0 {
-				params.Confidence = 0.95
-			}
-			if params.Method == "" {
-				params.Method = "normal"
-			}
-		}
-		if !(params.Confidence > 0 && params.Confidence < 1) {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"AGG_CI_* confidence must lie in the open interval (0, 1)")
-		}
-		switch params.Method {
-		case "normal":
-			// streamable
-		case "bootstrap":
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"AGG_CI_* method=\"bootstrap\" is reserved for a buffered follow-up; use method=\"normal\" today")
-		default:
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"AGG_CI_* method must be \"normal\" or \"bootstrap\"")
+		// The params rule is internal/opconfig's, the one predict calls.
+		params, cerr := opconfig.CIParams(agg.Type, agg.Params)
+		if cerr != nil {
+			return nil, cerr
 		}
 		a := &ciAggregator{bound: bound, confidence: params.Confidence, method: params.Method}
 		if spec := slotWeight(agg); spec != nil {

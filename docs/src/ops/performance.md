@@ -76,8 +76,8 @@ request whose estimated memory or size would pass a configured limit
   Detail: [Tuning Limits → Worker counts](../library/tuning-limits.md#worker-counts).
 - **Parallel compose.** `(*Pulse).ComposeParallel` (CLI:
   `pulse api compose --parallel N`) runs compose slots on a bounded
-  worker pool; defaults `MaxWorkers = GOMAXPROCS`, `FailFast = false`
-  (the CLI sets it unless `--no-fail-fast`)
+  worker pool; defaults `MaxWorkers = GOMAXPROCS` and fail-fast
+  (`CollectErrors = false`; the CLI's `--no-fail-fast` sets it)
   ([Parallel Compose](../library/parallel-compose.md)).
 
 ## Embed or shell out

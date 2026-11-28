@@ -47,7 +47,7 @@ Row-level predicate. Pass per the configured mode. No emitted column.
 
 ## Gotchas
 
-- `field` is required; empty → `SERVICE_VALIDATION`. A missing or unknown `values` entry → `PROCESSING_CONFIG` at run time; predict passes it.
+- `field` is required; empty → `SERVICE_VALIDATION`. A missing or unknown `values` entry → `PROCESSING_CONFIG`, at predict and at run time.
 - Reads the bitmap only — the underlying type's sentinel value (e.g. `NaN`, empty `set_*`) is NOT treated as null.
 - For "non-null AND in a set", put this filter (`is_not_null`) before the value filter.
 

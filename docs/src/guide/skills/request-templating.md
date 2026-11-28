@@ -84,7 +84,7 @@ Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (
 
 A bad **declared default** is an author error → `PULSE_TEMPLATE_INVALID` (checked semantically at declaration: enum membership, date parse, period XOR); a bad **caller value** → `_VAR_TYPE` / `_VAR_ENUM`. Same split on names: `$var`/`{{}}`/`$when` naming an **undeclared** variable is an author error caught at validation (`_INVALID`); a **declared but unresolved** reference is render-time `_UNRESOLVED`.
 
-Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied, undeclared — never ignored), `_RENDER_INVALID` (strict decode failed, incl. a top-level slot this instance does not offer), `_AXIS_COLLISION` (a variable shares an item or sweep axis's name), `_EXPR_SPLICE`. Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
+Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target), `_TARGET_MISMATCH` (`RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied, undeclared — never ignored), `_RENDER_INVALID` (strict decode failed, incl. a top-level slot this instance does not offer), `_AXIS_COLLISION` (a variable shares an item or sweep axis's name), `_EXPR_SPLICE`. Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
 
 ## What render does NOT do
 

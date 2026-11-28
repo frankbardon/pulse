@@ -70,29 +70,6 @@ type Recommendation struct {
 	Advisories   []Advisory      `json:"advisories,omitempty"`
 	Alternatives []Alternative   `json:"alternatives,omitempty"`
 	FollowUps    []Alternative   `json:"follow_ups,omitempty"`
-
-	// Deprecated: Steps is always nil (absent on the wire). Recommend
-	// once drafted a materialise plan around a derived-column producer;
-	// a model reads a label its own request derives, so no plan is
-	// needed. The field stays for format_version 1.1 compatibility.
-	Steps []RecommendStep `json:"steps,omitempty"`
-}
-
-// RecommendStep is the element of the deprecated, always-nil
-// Recommendation.Steps: Recommend drafts no multi-request plan. It
-// describes one request of such a plan,
-// run in order. Tool names the MCP tool that runs it (pulse_materialize,
-// then pulse_process; the CLI and library twins take the same body).
-// Request is the tool's input as wire JSON — for pulse_materialize the
-// {request, out} pair — whose caller-supplied values are
-// "<placeholder>" strings listed in Placeholders; a later step names the
-// cohort an earlier one writes by the same "<out>" placeholder. Why says
-// what the step does.
-type RecommendStep struct {
-	Tool         string          `json:"tool"`
-	Request      json.RawMessage `json:"request"`
-	Placeholders []string        `json:"placeholders,omitempty"`
-	Why          string          `json:"why"`
 }
 
 // RecommendNeed is one parameter a draft cannot fill from the schema:

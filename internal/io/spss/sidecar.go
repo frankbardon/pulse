@@ -154,9 +154,11 @@ type Document struct {
 // `.sav` may be long gone, and re-importing it would produce a new
 // cohort with its own fingerprint anyway.
 //
-// The read path (E5-S1) compares SourceSize and SourceModTime, an O(1)
-// stat; SHA256 is the authoritative recompute for a verify pass. A
-// stale sidecar is an ERROR, not a warning — applying a stale
+// The read path compares SourceSize and SourceModTime, an O(1) stat: a
+// full match is fresh, a size mismatch stale, and an mtime drift alone
+// escalates to SHA256 — the point-lookup index's rule — so a touched or
+// copied cohort keeps its sidecar. SHA256 is also the authoritative
+// recompute for a verify pass. A stale sidecar is an ERROR, not a warning — applying a stale
 // dictionary to changed data yields a file that looks authoritative and
 // is wrong. An ABSENT sidecar is only a warning: a cohort that was
 // never SPSS-derived correctly has none.

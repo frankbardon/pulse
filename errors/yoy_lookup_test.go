@@ -59,10 +59,10 @@ func TestErrorsLookup_YoY_FrequencyMissing_FixupsCoverBothAuthoringSlots(t *test
 	sawGroups, sawOverlays := false, false
 	for _, f := range r.Fixups {
 		path := strings.Join(f.Path, "/")
-		if strings.HasPrefix(path, "Groups/") {
+		if strings.HasPrefix(path, "groups/") {
 			sawGroups = true
 		}
-		if strings.HasPrefix(path, "Overlays/") {
+		if strings.HasPrefix(path, "overlays/") {
 			sawOverlays = true
 		}
 	}
@@ -150,7 +150,7 @@ func TestErrorsLookup_YoY_IncompatibleFrequency_MentionsGrouperFallback(t *testi
 	sawGrouperHint := false
 	for _, f := range r.Fixups {
 		path := strings.Join(f.Path, "/")
-		if !strings.HasPrefix(path, "Groups/") {
+		if !strings.HasPrefix(path, "groups/") {
 			continue
 		}
 		hint := strings.ToLower(f.Hint)

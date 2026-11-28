@@ -88,8 +88,8 @@ var (
 // the union of every feature whose execution can raise the code; a code
 // raised by every member of an operator family is owned by the whole
 // family (hidden only when the family is). Codes that report an UNKNOWN
-// name of a family (PULSE_TEST_UNKNOWN_TYPE, PULSE_OVERLAY_KIND_UNKNOWN,
-// SERVICE_REGISTRY) are shared: a hidden name must fail exactly like a
+// name of a family (PULSE_TEST_UNKNOWN_TYPE, PULSE_OVERLAY_KIND_UNKNOWN)
+// are shared: a hidden name must fail exactly like a
 // never-registered one, so they stay reachable when the whole family is
 // hidden.
 var errorOwners = map[errors.Code][]string{
@@ -99,7 +99,6 @@ var errorOwners = map[errors.Code][]string{
 	errors.ENCODING_TYPE_MISMATCH: shared,
 	errors.ENCODING_INTERNAL:      shared,
 	errors.PROCESSING_CONFIG:      shared,
-	errors.PROCESSING_STATE:       shared,
 	errors.PROCESSING_RUNTIME:     shared,
 	errors.PROCESSING_GROUP:       shared,
 	errors.PROCESSING_INTERNAL:    shared,
@@ -108,7 +107,6 @@ var errorOwners = map[errors.Code][]string{
 	// dependency), so the REG_* family covers every path.
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT:        ownAllRegs,
 	errors.PROCESSING_REGRESSION_NO_CONVERGE:           ownAllRegs,
-	errors.PROCESSING_REGRESSION_SINGULAR_GRAM:         ownAllRegs,
 	errors.PROCESSING_REGRESSION_SEPARATION:            own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_FAMILY:        own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_LINK:          own("REG_GLM"),
@@ -121,17 +119,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_AUC_OUTCOME_NOT_BINARY:           own("AGG_AUC"),
 	errors.SERVICE_VALIDATION:                          shared,
 	errors.SERVICE_RESOURCE:                            shared,
-	errors.SERVICE_REGISTRY:                            shared,
 	errors.SERVICE_INTERNAL:                            shared,
 	errors.DATA_FILE:                                   shared,
-	errors.DATA_PARSE:                                  shared,
-	errors.DATA_CONFIG:                                 shared,
-	errors.DATA_CALCULATION:                            shared,
-	errors.DATA_INTERNAL:                               shared,
 	errors.CLI_INPUT:                                   shared,
 	errors.CLI_OUTPUT:                                  shared,
-	errors.CLI_COMMAND:                                 shared,
-	errors.CLI_INTERNAL:                                shared,
 	errors.CLI_ERROR:                                   shared,
 
 	// Import / export.
@@ -299,7 +290,6 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_DST_NONEXISTENT:         own(featSynth),
 	errors.PULSE_SYNTH_DST_AMBIGUOUS:           own(featSynth),
 	errors.PULSE_SYNTH_FIDELITY_MODEL_INVALID:  own(featSynth),
-	errors.PULSE_PROFILE_FIELD_UNSUPPORTED:     own(featSynth),
 
 	// Statistical tests. The unknown-name code is shared (see above);
 	// the per-test codes name only the tests that raise them.
@@ -325,10 +315,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEST_TIES_DOMINATE:            ownAllTests,
 	errors.PULSE_TEST_SUBJECT_MISSING:          own("TEST_ANOVA_RM"),
 	errors.PULSE_TEST_BALANCED_DESIGN_REQUIRED: own("TEST_ANOVA_RM"),
-	errors.PULSE_TEST_TUKEY_REQUIRES_K_GE_3:    own("TEST_TUKEY_HSD"),
-	errors.PULSE_TEST_SHAPIRO_N_BOUND:          own("TEST_SHAPIRO_WILK"),
 	errors.PULSE_TEST_EXACT_UNAVAILABLE:        own("TEST_MANN_WHITNEY_U"),
-	errors.PULSE_TEST_FISHER_R_OR_C_GT_2:       own("TEST_FISHER_EXACT"),
 
 	// Extension registration runs at pulse.New on every instance.
 	errors.PULSE_EXTENSION_NAME_INVALID:                 shared,
@@ -526,7 +513,6 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LABEL_NOT_APPLIED:           own(featLabels),
 
 	errors.PULSE_CROSSTAB_EMPTY_ROWS:                          own(featCrosstab),
-	errors.PULSE_CROSSTAB_EMPTY_COLUMNS:                       own(featCrosstab),
 	errors.PULSE_CROSSTAB_MISSING_CELL:                        own(featCrosstab),
 	errors.PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS:               own(featCrosstab),
 	errors.PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE:             own(featCrosstab),
@@ -591,25 +577,25 @@ var errorOwners = map[errors.Code][]string{
 	// Point lookup and its sidecar index. A comparison slot's {record}
 	// reference runs the same lookup (ownRecordRef), so it raises them
 	// too.
-	errors.PULSE_INDEX_MISSING:             plus(own(featIndex, featLookup), ownRecordRef),
-	errors.PULSE_LOOKUP_NOT_FOUND:          plus(own(featLookup), ownRecordRef),
-	errors.PULSE_LOOKUP_AMBIGUOUS:          plus(own(featLookup), ownRecordRef),
-	errors.PULSE_INDEX_STALE:               plus(own(featIndex, featLookup, featShard), ownRecordRef),
-	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: plus(own(featIndex, featLookup), ownRecordRef),
-	errors.PULSE_INDEX_MANIFEST_INVALID:    own(featIndex, featLookup),
-	errors.PULSE_INDEX_MANIFEST_STALE:      own(featIndex, featLookup),
+	errors.PULSE_INDEX_MISSING:          plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_NOT_FOUND:       plus(own(featLookup), ownRecordRef),
+	errors.PULSE_LOOKUP_AMBIGUOUS:       plus(own(featLookup), ownRecordRef),
+	errors.PULSE_INDEX_STALE:            plus(own(featIndex, featLookup, featShard), ownRecordRef),
+	errors.PULSE_INDEX_MANIFEST_INVALID: own(featIndex, featLookup),
+	errors.PULSE_INDEX_MANIFEST_STALE:   own(featIndex, featLookup),
 
-	errors.PULSE_TEMPLATE_NOT_FOUND:      own(featTemplates),
-	errors.PULSE_TEMPLATE_INVALID:        own(featTemplates),
-	errors.PULSE_TEMPLATE_TARGET_UNKNOWN: own(featTemplates),
-	errors.PULSE_TEMPLATE_VAR_MISSING:    own(featTemplates),
-	errors.PULSE_TEMPLATE_VAR_UNKNOWN:    own(featTemplates),
-	errors.PULSE_TEMPLATE_VAR_TYPE:       own(featTemplates),
-	errors.PULSE_TEMPLATE_VAR_ENUM:       own(featTemplates),
-	errors.PULSE_TEMPLATE_UNRESOLVED:     own(featTemplates),
-	errors.PULSE_TEMPLATE_RENDER_INVALID: own(featTemplates),
-	errors.PULSE_TEMPLATE_AXIS_COLLISION: own(featTemplates),
-	errors.PULSE_TEMPLATE_EXPR_SPLICE:    own(featTemplates),
+	errors.PULSE_TEMPLATE_NOT_FOUND:       own(featTemplates),
+	errors.PULSE_TEMPLATE_INVALID:         own(featTemplates),
+	errors.PULSE_TEMPLATE_TARGET_UNKNOWN:  own(featTemplates),
+	errors.PULSE_TEMPLATE_TARGET_MISMATCH: own(featTemplates),
+	errors.PULSE_TEMPLATE_VAR_MISSING:     own(featTemplates),
+	errors.PULSE_TEMPLATE_VAR_UNKNOWN:     own(featTemplates),
+	errors.PULSE_TEMPLATE_VAR_TYPE:        own(featTemplates),
+	errors.PULSE_TEMPLATE_VAR_ENUM:        own(featTemplates),
+	errors.PULSE_TEMPLATE_UNRESOLVED:      own(featTemplates),
+	errors.PULSE_TEMPLATE_RENDER_INVALID:  own(featTemplates),
+	errors.PULSE_TEMPLATE_AXIS_COLLISION:  own(featTemplates),
+	errors.PULSE_TEMPLATE_EXPR_SPLICE:     own(featTemplates),
 
 	// SPSS: every code is raised by the .sav / .zsav reader or writer or
 	// the SPSS metadata sidecar, all gated by io_format:spss.

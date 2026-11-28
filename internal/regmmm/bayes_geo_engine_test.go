@@ -37,7 +37,7 @@ func panelRows() []regmmm.BayesRow {
 // geoBayesSpec is a tiny geo-panel slot: enough draws to run the path,
 // not to read the posterior.
 func geoBayesSpec(geo string) *types.RegressionSpec {
-	return regmmm.BayesSpec(`{"channels":["tv"],"time":"week","geo":"` + geo + `","chains":1,"warmup":10,"draws":5}`)
+	return regmmm.BayesSpec(`{"channels":["tv"],"geo":"` + geo + `","chains":1,"warmup":10,"draws":5}`)
 }
 
 // TestMMMBayes_GeoFieldProjected: params.geo is read beyond the target,
@@ -147,9 +147,15 @@ func TestMMMBayes_GeoLimitPredictMatchesRuntime(t *testing.T) {
 	if n := c.runs.Load(); n != 0 {
 		t.Errorf("a refused panel sampled %d times", n)
 	}
-	// Without params.geo the same panel is two rows per week.
-	_, rerr = p.Process(ctx, bayesRequest("panel.pulse", regmmm.BayesSpec(regmmm.FastParams)))
-	if !stderrors.As(rerr, &ce) || ce.Details["reason"] != "duplicate_time" || !strings.Contains(ce.Message, "params.geo") {
-		t.Errorf("a panel without params.geo: %v, want duplicate_time pointing at params.geo", rerr)
+	// Without params.geo (and so without order.partition) the same
+	// panel is two rows per week: the engine's order check fails the
+	// slot, pointing at order.partition.
+	resp, rerr := p.Process(ctx, bayesRequest("panel.pulse", regmmm.BayesSpec(regmmm.FastParams)))
+	if rerr != nil || len(resp.Regressions) != 1 || resp.Regressions[0].Error == nil {
+		t.Fatalf("a panel without params.geo: %v, want a failed slot", rerr)
+	}
+	if e := resp.Regressions[0].Error; e.Code != string(perr.PROCESSING_REGRESSION_ORDER) || e.Details["reason"] != "duplicate" ||
+		!strings.Contains(e.Message, "order.partition") {
+		t.Errorf("a panel without params.geo: %+v, want PROCESSING_REGRESSION_ORDER duplicate pointing at order.partition", e)
 	}
 }

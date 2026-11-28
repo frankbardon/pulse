@@ -498,6 +498,7 @@ Usage: `pulse export arrow [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export csv`
@@ -513,6 +514,7 @@ Usage: `pulse export csv [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export excel`
@@ -528,6 +530,7 @@ Usage: `pulse export excel [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export jsonarray`
@@ -543,6 +546,7 @@ Usage: `pulse export jsonarray [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export ndjson`
@@ -558,6 +562,7 @@ Usage: `pulse export ndjson [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export parquet`
@@ -573,6 +578,7 @@ Usage: `pulse export parquet [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse export predict`
@@ -610,6 +616,7 @@ In depth: [export spss](export-spss.md)
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 | `--ignore-sidecar` |  |  | Do not read the SPSS metadata sidecar beside the source cohort; synthesise the .sav dictionary from the .pulse schema alone. Suppresses the READ, not merely the staleness verdict — an unreadable sidecar cannot block the export either. Cannot round-trip a cohort whose derived set_\* column is still present (see the docs). |
 | `--uncompressed` |  |  | Write the .sav data section as flat 8-byte elements instead of SPSS's bytecode compression. Both encodings are losslessly equivalent; bytecode is the default because it is what SPSS's own SAVE writes. Does not select ZSAV — that is not emitted. |
@@ -645,6 +652,7 @@ Usage: `pulse export tsv [options]`
 | `--include` | string, repeatable |  | Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order. |
 | `--labels` | string, repeatable |  | Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace\|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration. |
 | `--tz` | string |  | Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -&gt; 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset). |
+| `--overlays` | string |  | Embed executed overlay layers in the export (io.ExportJob.Overlays): a JSON file holding a --json result envelope, a result object with an overlays array (a process or compose response), or the bare array. Layers are results, not request overlay specs; NDJSON, Arrow, Parquet and Excel embed them, CSV, TSV and SPSS skip them with PULSE_OVERLAY_EXPORT_CSV_UNSUPPORTED. |
 | `--json` |  |  | Output the result as a JSON envelope |
 
 ### `pulse features check`
@@ -1423,6 +1431,7 @@ Each flag a command mounts, with the commands that mount it. The global flags ar
 | `--out` | [`docs export`](#pulse-docs-export) |
 | `--out`, `-o` | [`api materialize`](#pulse-api-materialize), [`dedup`](#pulse-dedup), [`examples data`](#pulse-examples-data), [`rake`](#pulse-rake) |
 | `--output`, `-o` | [`cohort filter`](#pulse-cohort-filter), [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export spss`](#pulse-export-spss), [`export transfer`](#pulse-export-transfer), [`export tsv`](#pulse-export-tsv), [`import arrow`](#pulse-import-arrow), [`import csv`](#pulse-import-csv), [`import excel`](#pulse-import-excel), [`import jsonarray`](#pulse-import-jsonarray), [`import ndjson`](#pulse-import-ndjson), [`import parquet`](#pulse-import-parquet), [`import spss`](#pulse-import-spss), [`import transfer`](#pulse-import-transfer), [`import tsv`](#pulse-import-tsv), [`profile create`](#pulse-profile-create), [`synth from-profile`](#pulse-synth-from-profile), [`synth from-schema`](#pulse-synth-from-schema) |
+| `--overlays` | [`export arrow`](#pulse-export-arrow), [`export csv`](#pulse-export-csv), [`export excel`](#pulse-export-excel), [`export jsonarray`](#pulse-export-jsonarray), [`export ndjson`](#pulse-export-ndjson), [`export parquet`](#pulse-export-parquet), [`export spss`](#pulse-export-spss), [`export tsv`](#pulse-export-tsv) |
 | `--overwrite` | [`api materialize`](#pulse-api-materialize), [`examples data`](#pulse-examples-data), [`import auto`](#pulse-import-auto), [`import transfer`](#pulse-import-transfer), [`rake`](#pulse-rake) |
 | `--parallel` | [`api compose`](#pulse-api-compose) |
 | `--percentile` | [`api facet`](#pulse-api-facet) |

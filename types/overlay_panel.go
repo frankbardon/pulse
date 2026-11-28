@@ -55,8 +55,9 @@ type PanelOverlayParams struct {
 	// first-dim slab the unsummed row margin instead, which is a
 	// smaller number that looks entirely plausible.
 	// types.PairwiseOverlayParams.NWithinDepth is a plain int and has
-	// exactly this defect; it is not fixed here (its wire value
-	// shipped) and must not be reproduced.
+	// exactly this defect (an explicit 0 under a mode that ignores it
+	// cannot be refused; a non-zero one is, #743); it is not fixed here
+	// and must not be reproduced.
 	//
 	// Accepted ONLY with an n_source that consumes it
 	// (PanelNSourceUsesWithinDepth). Set alongside any other mode it
@@ -254,7 +255,7 @@ func ValidPanelNSource(s string) bool {
 // NWithinDepth is a POINTER here — "set" is distinguishable from
 // "zero", so the check cannot misfire on a caller who never wrote the
 // key. (The axis-pairing family's int field cannot make that
-// distinction, which is why its equivalent no-op is still open.)
+// distinction, so it refuses only a non-zero inert depth, #743.)
 func PanelNSourceUsesWithinDepth(s string) bool {
 	return s == PanelNSourceRowMarginValueWithin ||
 		s == PanelNSourceRowMarginDistinctWithin

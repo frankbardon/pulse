@@ -442,6 +442,8 @@ func TestComposeSlotVetoes_WeightBasis(t *testing.T) {
 		{name: "propz_cell_default_weight", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZCell, nil)}, def: prob, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoNone}},
 		{name: "chisq_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, nil)}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
 		{name: "chisq_reference_never_read", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, nil)}, a: prob, b: prob, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
+		{name: "chisq_sample_reads_reference", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, map[string]any{"reference_kind": "sample"})}, a: prob, b: prob, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoNone}},
+		{name: "chisq_sample_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindChiSqVsRef, map[string]any{"reference_kind": "sample"})}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
 		{name: "panel_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, nil)}, want: []componentsVeto{vetoNone, vetoNone, vetoNone}},
 		{name: "panel_weighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, nil)}, b: freq, want: []componentsVeto{vetoNone, vetoCrosstab, vetoNone}},
 		{name: "panel_cell_n_unweighted", overlays: []types.ComposeOverlaySpec{ov(types.OverlayKindPropZPanel, cellN)}, want: []componentsVeto{vetoCrosstab, vetoCrosstab, vetoNone}},

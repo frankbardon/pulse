@@ -34,9 +34,9 @@
       "target": "sales",
       "predictors": ["tv", "radio", "search", "social", "price", "promo"],
       "rng_seed": 1,
+      "order": {"field": "week"},
       "params": {
         "channels": ["tv", "radio", "search", "social"],
-        "time": "week",
         "chains": 2,
         "warmup": 100,
         "draws": 100,

@@ -61,7 +61,7 @@ A batch with a binding runs sweep-first: authored fits, then the sweep slots (on
 
 ## Failure
 
-A failed sweep slot stops the batch after the sweep slots: no explicit slot runs and the fit is not refitted. Serial `Compose` and fail-fast `ComposeParallel` return the slot's own error (`details.request`). Without fail-fast the error is `SERVICE_INTERNAL` with `failed_indices`, `first_error` and `skipped_indices` (the slots that never ran); a later-phase failure has no `skipped_indices`.
+A failed sweep slot stops the batch after the sweep slots: no explicit slot runs and the fit is not refitted. Serial `Compose` and fail-fast `ComposeParallel` return the slot's own error (`details.request`). Under `CollectErrors` (`--no-fail-fast`) the error is `SERVICE_INTERNAL` with `failed_indices`, `first_error` and `skipped_indices` (the slots that never ran); a later-phase failure has no `skipped_indices`.
 
 ## No winner
 

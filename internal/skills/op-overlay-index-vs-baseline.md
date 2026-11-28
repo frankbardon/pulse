@@ -34,7 +34,7 @@ SERIES — one entry per host group key in host order, `summary.statistic` = `po
 
 ## Gotchas
 
-- Out-of-range `position` → `PULSE_OVERLAY_REF_UNKNOWN` at run time (predict cannot know the series length).
+- Out-of-range `position` → `PULSE_OVERLAY_REF_UNKNOWN`. Predict refuses it when the series groups categorical fields by label (their dictionary sizes bound each partition); over any other grouper, or a partition missing a key, only the run knows the length.
 - Zero (or absent) baseline point → `null` across entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer, unlike the subtractive twin.
 - Absent host point → its entry keeps the key, no `statistic`.
 - Buffered: the baseline is read after the host finalizes.

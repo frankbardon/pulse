@@ -154,10 +154,11 @@ schema with [`pulse import schema-template`](../getting-started/first-cohort.md)
 
 ## `PULSE_IMPORT_WIDTH_PROMOTED`
 
-A warning, not an error. Inference sizes each `categorical_*` rung and
-integer width from the first `--sample-rows` rows. When a later value
-does not fit — the 257th distinct value of a `categorical_u8` parent-name
-column, `70000` in a column the sample saw as `u8`, `-3` or `2.5` in an
+A warning, not an error. Inference sizes each `categorical_*` and
+`set_*` rung and integer width from the first `--sample-rows` rows.
+When a later value does not fit — the 257th distinct value of a
+`categorical_u8` parent-name column, a ninth distinct token in a
+`set_u8` multi-select column, `70000` in a column the sample saw as `u8`, `-3` or `2.5` in an
 integer column, `1e300` in a column the sample saw as `f32` (under `--float f32`) — Pulse
 promotes the field to the narrowest type that holds it and imports the
 row. `pulse convert` does the same over an inferred schema instead of
@@ -172,7 +173,8 @@ past a `column_type_overrides` type refuses the whole import with
 `PULSE_IMPORT_OVERRIDE_INVALID` — never a promotion (on
 `pulse convert`, a full declared categorical rung is the fatal
 `PULSE_IMPORT_CATEGORICAL_OVERFLOW`). A non-boolean in a `packed_bool`
-column never promotes either: it stays a row error.
+column never promotes either: it stays a row error, as does a set past
+`set_u256`.
 
 ## `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`
 
@@ -197,18 +199,12 @@ CODE`.
 
 | Code | Meaning | What to do |
 |---|---|---|
-| `SERVICE_REGISTRY` | The request names an operator this instance does not register | Fix the `type` spelling; check `pulse --json` (a feature profile may hide it) |
-| `DATA_PARSE` | Tabular input failed to parse at a row | Fix the source row, or the delimiter / format flags |
-| `DATA_CONFIG` | An import or export job is misconfigured (conflicting flags, unknown format, bad target) | Read the message's `details`; fix the job |
-| `DATA_CALCULATION` | A value-level read failed, such as a field missing from a record | Check the field names against the schema |
-| `CLI_COMMAND` | A CLI command failed to dispatch | Check the command and flags (`pulse <command> --help`) |
 | `CLI_OUTPUT` | Output could not be written (a file error, an unsupported format) | Check the output path and format |
-| `CLI_INTERNAL`, `DATA_INTERNAL`, `ENCODING_INTERNAL`, `PROCESSING_STATE` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
+| `ENCODING_INTERNAL` | An internal invariant broke | A bug: report it with the request and the cohort's schema |
 
-Two codes are never raised and exist only so a lookup resolves:
-`PULSE_CROSSTAB_EMPTY_COLUMNS` (a crosstab without column groupers runs
-with one implicit Total column) and `PULSE_INDEX_UNSUPPORTED_SHARDED`
-(point-lookup indexes accept shard archives).
+Every registered code is raised by some path or held as reserved with
+its reason (`TestRegisteredCodesEmittedOrReserved`); a code nothing
+raises is retired, not kept for lookup.
 
 ## MCP "tool not found" / "no tools registered"
 

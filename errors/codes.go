@@ -24,9 +24,6 @@ const (
 	// PROCESSING_CONFIG indicates component configuration errors.
 	PROCESSING_CONFIG Code = "PROCESSING_CONFIG"
 
-	// PROCESSING_STATE indicates context state management errors.
-	PROCESSING_STATE Code = "PROCESSING_STATE"
-
 	// PROCESSING_RUNTIME indicates runtime execution errors.
 	PROCESSING_RUNTIME Code = "PROCESSING_RUNTIME"
 
@@ -63,12 +60,6 @@ const (
 	// while a predictor's coefficient kept growing, so the maximum-
 	// likelihood estimate lies at infinity. Details name the predictors.
 	PROCESSING_REGRESSION_SEPARATION Code = "PROCESSING_REGRESSION_SEPARATION"
-
-	// PROCESSING_REGRESSION_SINGULAR_GRAM indicates XᵀX remained
-	// non-invertible even after regularization. Typically caused by a
-	// degenerate predictor (all-zero column) or a vanishingly small
-	// Alpha.
-	PROCESSING_REGRESSION_SINGULAR_GRAM Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 
 	// PROCESSING_REGRESSION_INVALID_FAMILY indicates REG_GLM was
 	// requested with a Family outside the supported set
@@ -148,9 +139,6 @@ const (
 	// SERVICE_RESOURCE indicates resource loading or access failures.
 	SERVICE_RESOURCE Code = "SERVICE_RESOURCE"
 
-	// SERVICE_REGISTRY indicates registry lookup failures.
-	SERVICE_REGISTRY Code = "SERVICE_REGISTRY"
-
 	// SERVICE_INTERNAL indicates unexpected errors in service layer.
 	SERVICE_INTERNAL Code = "SERVICE_INTERNAL"
 )
@@ -159,18 +147,6 @@ const (
 const (
 	// DATA_FILE indicates file access or format errors.
 	DATA_FILE Code = "DATA_FILE"
-
-	// DATA_PARSE indicates data parsing or deserialization errors.
-	DATA_PARSE Code = "DATA_PARSE"
-
-	// DATA_CONFIG indicates data configuration errors.
-	DATA_CONFIG Code = "DATA_CONFIG"
-
-	// DATA_CALCULATION indicates errors during data field access or calculation.
-	DATA_CALCULATION Code = "DATA_CALCULATION"
-
-	// DATA_INTERNAL indicates unexpected errors in data layer.
-	DATA_INTERNAL Code = "DATA_INTERNAL"
 )
 
 // CLI domain - Command-line interface operations
@@ -180,12 +156,6 @@ const (
 
 	// CLI_OUTPUT indicates output generation or file write errors.
 	CLI_OUTPUT Code = "CLI_OUTPUT"
-
-	// CLI_COMMAND indicates command execution errors.
-	CLI_COMMAND Code = "CLI_COMMAND"
-
-	// CLI_INTERNAL indicates unexpected errors in CLI layer.
-	CLI_INTERNAL Code = "CLI_INTERNAL"
 
 	// CLI_ERROR is the code a CLI leaf reports for a failure that
 	// carries no Pulse code of its own (a bare filesystem or decode
@@ -227,7 +197,8 @@ const (
 	// PULSE_IMPORT_WIDTH_PROMOTED is a WARNING-class code emitted once per
 	// field when an inferred import meets a value, past the bounded
 	// inference sample, that the sample-inferred width cannot hold — a
-	// categorical_* dictionary outgrowing its rung, an integer past its
+	// categorical_* dictionary outgrowing its rung, a set_* cell whose
+	// tokens outgrow its rung (up to set_u256), an integer past its
 	// u4..u32 width, or a non-integer number in an integer column. The
 	// field is promoted to the narrowest type that holds it (details:
 	// field, from, to, source_row) and the row imports instead of
@@ -360,7 +331,9 @@ const (
 	// set-typed column exceeds the declared set width — or, at the top
 	// of the ladder, the largest available one (256 entries for
 	// set_u256). Surfaced by the importer when a multi-select column's
-	// observed vocabulary cannot fit the column's set tier.
+	// observed vocabulary cannot fit the column's set tier; an inferred
+	// tier below set_u256 is promoted instead
+	// (PULSE_IMPORT_WIDTH_PROMOTED).
 	PULSE_IMPORT_SET_OVERFLOW Code = "PULSE_IMPORT_SET_OVERFLOW"
 
 	// PULSE_IMPORT_CATEGORICAL_UNBOUNDED indicates sample suggests unbounded cardinality.
@@ -1106,11 +1079,6 @@ const (
 	// refit in. Refused before generation; nothing is written.
 	PULSE_SYNTH_FIDELITY_MODEL_INVALID Code = "PULSE_SYNTH_FIDELITY_MODEL_INVALID"
 
-	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
-	// layer cannot summarize. The field is skipped with a warning rather
-	// than failing the whole profile.
-	PULSE_PROFILE_FIELD_UNSUPPORTED Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
-
 	// PULSE_TEST_UNKNOWN_TYPE indicates the request referenced a TestType
 	// that is not registered in either the row-test or post-test registry.
 	PULSE_TEST_UNKNOWN_TYPE Code = "PULSE_TEST_UNKNOWN_TYPE"
@@ -1275,20 +1243,6 @@ const (
 	// alone. A subject MISSING a condition is PULSE_TEST_SUBJECT_MISSING
 	// (or params.incomplete "mixed").
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED Code = "PULSE_TEST_BALANCED_DESIGN_REQUIRED"
-
-	// PULSE_TEST_TUKEY_REQUIRES_K_GE_3 indicates a Tukey HSD request on
-	// fewer than 3 groups. A standard t-test or two-proportion z is
-	// the appropriate alternative for k = 2.
-	PULSE_TEST_TUKEY_REQUIRES_K_GE_3 Code = "PULSE_TEST_TUKEY_REQUIRES_K_GE_3"
-
-	// PULSE_TEST_SHAPIRO_N_BOUND warns that a Shapiro-Wilk request
-	// observed n above the supported limit (5000). The asymptotic
-	// alternative (D'Agostino's K² or Anderson-Darling) is recommended.
-	PULSE_TEST_SHAPIRO_N_BOUND Code = "PULSE_TEST_SHAPIRO_N_BOUND"
-
-	// PULSE_TEST_FISHER_R_OR_C_GT_2 indicates a Fisher exact request on
-	// a contingency table larger than 2×2. Only 2×2 is supported.
-	PULSE_TEST_FISHER_R_OR_C_GT_2 Code = "PULSE_TEST_FISHER_R_OR_C_GT_2"
 
 	// PULSE_EXTENSION_NAME_INVALID indicates an embedder registration
 	// name does not match the required pattern
@@ -2466,15 +2420,6 @@ const (
 	// columns are the implicit Total column).
 	PULSE_CROSSTAB_EMPTY_ROWS Code = "PULSE_CROSSTAB_EMPTY_ROWS"
 
-	// PULSE_CROSSTAB_EMPTY_COLUMNS is not raised. The column axis is
-	// optional: absent (or empty) Columns yields one implicit column
-	// keyed types.CrosstabTotalColumnKey ("Total"). The code is
-	// retained rather than retired — the precedent of
-	// PULSE_SPSS_EXPORT_UNSUPPORTED: removing a code breaks the public
-	// constant, the manifest's error list and every embedder lookup of
-	// it, where a code that is merely never raised breaks nothing.
-	PULSE_CROSSTAB_EMPTY_COLUMNS Code = "PULSE_CROSSTAB_EMPTY_COLUMNS"
-
 	// PULSE_CROSSTAB_MISSING_CELL indicates a Crosstab section was
 	// presented without a Cell aggregation. The cell aggregation is
 	// the value emitted per (row-tuple, column-tuple) intersection
@@ -3090,16 +3035,6 @@ const (
 	// and the index no longer covers the archive.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
-	// PULSE_INDEX_UNSUPPORTED_SHARDED is not raised. A shard-archive
-	// cohort is indexed one sidecar per shard, plus a manifest entry
-	// recording the covered shards, so point-lookup index build /
-	// lookup / verify / list / drop all accept one. The code is
-	// retained rather than retired — the precedent of
-	// PULSE_CROSSTAB_EMPTY_COLUMNS: removing a code breaks the public
-	// constant, the manifest's error list and every embedder lookup of
-	// it, where a code that is merely never raised breaks nothing.
-	PULSE_INDEX_UNSUPPORTED_SHARDED Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
-
 	// PULSE_INDEX_MANIFEST_INVALID indicates the sidecar index MANIFEST
 	// beside a cohort ("cohort.pulse.indexes.json",
 	// internal/encoding.IndexManifestSuffix) exists but cannot be trusted:
@@ -3257,15 +3192,19 @@ const (
 	// "sample" (types.SampleRequest) — never as the Go type name. The
 	// target selects the type the rendered JSON strict-decodes into, so
 	// it cannot be inferred. Details carry the template under
-	// DetailTemplate and the offending target value.
-	//
-	// Also raised when a target-specific facade method is handed a
-	// template declaring a different one — RenderTemplateRequest returns
-	// *types.Request and so accepts only the "request" target. The
-	// declared target is valid, just not one that method can produce;
-	// details then also carry expected_target, and the message names the
-	// general RenderTemplate as the method that handles it.
+	// DetailTemplate and the offending target value. A valid target
+	// handed to a method that cannot produce it is
+	// PULSE_TEMPLATE_TARGET_MISMATCH, not this code.
 	PULSE_TEMPLATE_TARGET_UNKNOWN Code = "PULSE_TEMPLATE_TARGET_UNKNOWN"
+
+	// PULSE_TEMPLATE_TARGET_MISMATCH indicates a target-specific facade
+	// method was handed a template whose (valid) target it cannot
+	// produce — RenderTemplateRequest returns *types.Request and so
+	// accepts only the "request" target. The template is fine; the call
+	// is wrong: the message names the general RenderTemplate as the
+	// method that handles it. Details carry the template under
+	// DetailTemplate, the declared target and expected_target.
+	PULSE_TEMPLATE_TARGET_MISMATCH Code = "PULSE_TEMPLATE_TARGET_MISMATCH"
 
 	// PULSE_TEMPLATE_VAR_MISSING indicates a variable declared
 	// `required` resolved to nothing at render: the caller supplied no
@@ -3978,8 +3917,10 @@ const (
 
 	// PULSE_SPSS_SIDECAR_STALE indicates an SPSS export found a metadata
 	// sidecar whose fingerprint no longer matches the cohort it
-	// describes: the cohort's byte size or modification time has moved
-	// since the sidecar was written, so the two are out of step.
+	// describes: the cohort's byte size has moved since the sidecar was
+	// written, or its modification time has and its content SHA-256 no
+	// longer matches, so the two are out of step. A modification time
+	// that moved over unchanged content is not stale.
 	//
 	// It is an ERROR, and the asymmetry with PULSE_SPSS_SIDECAR_ABSENT
 	// is the point. A stale sidecar still holds a complete, plausible
@@ -3992,18 +3933,18 @@ const (
 	// to write is the only safe answer; there is no partial application
 	// and no silent fallback to defaults.
 	//
-	// The read-path check that raises it is the same cheap O(1) size +
-	// mtime comparison PULSE_INDEX_STALE uses, chosen for the same
-	// reason: hashing a multi-GB cohort on every export would cost more
-	// than the export. It has the same residual gap — an in-place edit
-	// preserving BOTH size and mtime goes unnoticed — and the same
-	// authoritative answer, a full SHA-256 recompute against the
-	// fingerprint the sidecar carries.
+	// The read-path check that raises it is PULSE_INDEX_STALE's rule: a
+	// full size + mtime match is fresh without hashing, a size mismatch
+	// is stale without hashing, and an mtime drift alone escalates to the
+	// SHA-256 recompute against the fingerprint the sidecar carries. It
+	// has the same residual gap — an in-place edit preserving BOTH size
+	// and mtime goes unnoticed.
 	//
 	// Details carry the cohort path under DetailSPSSCohort, the sidecar
 	// path under DetailSPSSSidecar, and the mismatching pair under
-	// DetailSPSSExpected / DetailSPSSActual so a caller can see which of
-	// size and mtime moved.
+	// DetailSPSSExpected / DetailSPSSActual (size, mod_time, plus sha256
+	// when the verdict came from the hash) so a caller can see what
+	// moved.
 	PULSE_SPSS_SIDECAR_STALE Code = "PULSE_SPSS_SIDECAR_STALE"
 
 	// PULSE_SPSS_SIDECAR_INVALID indicates a file exists at the metadata
@@ -5006,7 +4947,6 @@ var allCodes = []Code{
 	ENCODING_INTERNAL,
 	// PROCESSING
 	PROCESSING_CONFIG,
-	PROCESSING_STATE,
 	PROCESSING_RUNTIME,
 	PROCESSING_GROUP,
 	PROCESSING_INTERNAL,
@@ -5014,7 +4954,6 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_RANK_DEFICIENT,
 	PROCESSING_REGRESSION_NO_CONVERGE,
 	PROCESSING_REGRESSION_SEPARATION,
-	PROCESSING_REGRESSION_SINGULAR_GRAM,
 	PROCESSING_REGRESSION_INVALID_FAMILY,
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
@@ -5027,19 +4966,12 @@ var allCodes = []Code{
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,
-	SERVICE_REGISTRY,
 	SERVICE_INTERNAL,
 	// DATA
 	DATA_FILE,
-	DATA_PARSE,
-	DATA_CONFIG,
-	DATA_CALCULATION,
-	DATA_INTERNAL,
 	// CLI
 	CLI_INPUT,
 	CLI_OUTPUT,
-	CLI_COMMAND,
-	CLI_INTERNAL,
 	CLI_ERROR,
 	// PULSE
 	PULSE_IMPORT_SCHEMA_AMBIGUOUS,
@@ -5159,7 +5091,6 @@ var allCodes = []Code{
 	PULSE_SYNTH_DST_NONEXISTENT,
 	PULSE_SYNTH_DST_AMBIGUOUS,
 	PULSE_SYNTH_FIDELITY_MODEL_INVALID,
-	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,
 	PULSE_TEST_INVALID_ALPHA,
@@ -5183,9 +5114,6 @@ var allCodes = []Code{
 	PULSE_TEST_EXACT_UNAVAILABLE,
 	PULSE_TEST_SUBJECT_MISSING,
 	PULSE_TEST_BALANCED_DESIGN_REQUIRED,
-	PULSE_TEST_TUKEY_REQUIRES_K_GE_3,
-	PULSE_TEST_SHAPIRO_N_BOUND,
-	PULSE_TEST_FISHER_R_OR_C_GT_2,
 	PULSE_EXTENSION_NAME_INVALID,
 	PULSE_EXTENSION_NAME_RESERVED,
 	PULSE_EXTENSION_NAME_COLLISION,
@@ -5320,7 +5248,6 @@ var allCodes = []Code{
 	PULSE_LABEL_LOOKUP_MISS,
 	PULSE_LABEL_NOT_APPLIED,
 	PULSE_CROSSTAB_EMPTY_ROWS,
-	PULSE_CROSSTAB_EMPTY_COLUMNS,
 	PULSE_CROSSTAB_MISSING_CELL,
 	PULSE_CROSSTAB_CONFLICTS_WITH_GROUPS,
 	PULSE_CROSSTAB_NORMALIZE_UNSATISFIABLE,
@@ -5377,12 +5304,12 @@ var allCodes = []Code{
 	PULSE_LOOKUP_NOT_FOUND,
 	PULSE_LOOKUP_AMBIGUOUS,
 	PULSE_INDEX_STALE,
-	PULSE_INDEX_UNSUPPORTED_SHARDED,
 	PULSE_INDEX_MANIFEST_INVALID,
 	PULSE_INDEX_MANIFEST_STALE,
 	PULSE_TEMPLATE_NOT_FOUND,
 	PULSE_TEMPLATE_INVALID,
 	PULSE_TEMPLATE_TARGET_UNKNOWN,
+	PULSE_TEMPLATE_TARGET_MISMATCH,
 	PULSE_TEMPLATE_VAR_MISSING,
 	PULSE_TEMPLATE_VAR_UNKNOWN,
 	PULSE_TEMPLATE_VAR_TYPE,

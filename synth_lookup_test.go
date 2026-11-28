@@ -25,9 +25,17 @@ func synthLookupSpec() *SynthSpec {
 	}
 }
 
-func synthLookupHost(t *testing.T, ext Extensions, dir string, rec *hookRecorder) *Pulse {
+// synthLookupHost builds an instance on an in-memory filesystem; files,
+// when non-nil, are written to a LookupTablesDir on it.
+func synthLookupHost(t *testing.T, ext Extensions, files map[string]string, rec *hookRecorder) *Pulse {
 	t.Helper()
-	opts := Options{FS: afero.NewMemMapFs(), Extensions: ext, LookupTablesDir: dir}
+	opts := Options{FS: afero.NewMemMapFs(), Extensions: ext}
+	if files != nil {
+		opts.LookupTablesDir = memTableDirOn(t, opts.FS)
+		for name, body := range files {
+			writeLookupFile(t, opts.FS, opts.LookupTablesDir, name, body)
+		}
+	}
 	if rec != nil {
 		opts.Hooks = rec.hooks()
 	}
@@ -61,11 +69,9 @@ func TestSynth_ReadsInstanceLookupTables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	writeLookupFile(t, dir, "rates.json", `{"east": 0.25, "west": 0.75}`)
 	for name, p := range map[string]*Pulse{
-		"prog": synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: rows}}}, "", nil),
-		"dir":  synthLookupHost(t, Extensions{}, dir, nil),
+		"prog": synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: rows}}}, nil, nil),
+		"dir":  synthLookupHost(t, Extensions{}, map[string]string{"rates.json": `{"east": 0.25, "west": 0.75}`}, nil),
 	} {
 		if _, err := p.Synth(context.Background(), spec, "/out.pulse", SynthOptions{Seed: 5}); err != nil {
 			t.Fatalf("%s: Synth: %v", name, err)
@@ -79,7 +85,7 @@ func TestSynth_ReadsInstanceLookupTables(t *testing.T) {
 	// moves the request hash.
 	hashFor := func(cell float64) string {
 		rec := &hookRecorder{}
-		p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"east": cell, "west": 0.75}}}}, "", rec)
+		p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"east": cell, "west": 0.75}}}}, nil, rec)
 		if _, err := p.Synth(context.Background(), spec, "/out.pulse", SynthOptions{Seed: 5}); err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +106,7 @@ func TestSynth_ReadsInstanceLookupTables(t *testing.T) {
 func TestSynth_ExplicitLookupTablesWin(t *testing.T) {
 	t.Parallel()
 
-	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"east": 1, "west": 2}}}}, "", nil)
+	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: map[string]float64{"east": 1, "west": 2}}}}, nil, nil)
 	_, err := p.Synth(context.Background(), synthLookupSpec(), "/out.pulse", SynthOptions{Seed: 1, LookupTables: map[string]synth.LookupTable{}})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LOOKUP_TABLE_UNKNOWN {
@@ -115,7 +121,7 @@ func TestSynth_CallbackLookupTableRefused(t *testing.T) {
 	t.Parallel()
 
 	cb := LookupTable{Lookup: func(keys ...string) (float64, bool, error) { return 1, true, nil }}
-	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": cb}}, "", nil)
+	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": cb}}, nil, nil)
 	_, err := p.Synth(context.Background(), synthLookupSpec(), "/out.pulse", SynthOptions{Seed: 1})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC || ce.Details["table"] != "rates" {
@@ -130,7 +136,7 @@ func TestSynth_CallbackLookupTableRefused(t *testing.T) {
 
 	p2 := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{
 		"other": cb, "rates": {Rows: map[string]float64{"east": 1, "west": 2}},
-	}}, "", nil)
+	}}, nil, nil)
 	if _, err := p2.Synth(context.Background(), synthLookupSpec(), "/out.pulse", SynthOptions{Seed: 1}); err != nil {
 		t.Fatalf("an unnamed callback table blocked the run: %v", err)
 	}
@@ -142,7 +148,7 @@ func TestSynthStream_HeaderHashFoldsLookups(t *testing.T) {
 	t.Parallel()
 
 	rows := map[string]float64{"east": 0.25, "west": 0.75}
-	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: rows}}}, "", nil)
+	p := synthLookupHost(t, Extensions{LookupTables: map[string]LookupTable{"rates": {Rows: rows}}}, nil, nil)
 	spec := synthLookupSpec()
 	res, err := p.SynthStream(context.Background(), spec, SynthOptions{Seed: 2})
 	if err != nil {

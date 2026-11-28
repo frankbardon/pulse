@@ -19,6 +19,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"maps"
+	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -106,7 +107,6 @@ var RegressionCodes = map[errors.Code]bool{
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT:    true,
 	errors.PROCESSING_REGRESSION_NO_CONVERGE:       true,
 	errors.PROCESSING_REGRESSION_SEPARATION:        true,
-	errors.PROCESSING_REGRESSION_SINGULAR_GRAM:     true,
 	// An ordered slot's admitted rows with a repeat or a gap
 	// (internal/regorder.CheckSeries).
 	errors.PROCESSING_REGRESSION_ORDER: true,
@@ -291,10 +291,22 @@ func Warning(f Failure) *types.ResponseWarning {
 	}
 	return &types.ResponseWarning{
 		Code: string(errors.PULSE_SLOT_FAILED),
-		Message: fmt.Sprintf("%s[%d] %q failed%s with %s: %s; its result carries the error and the other slots proceed",
-			f.Kind, f.Index, f.Label, where, f.Err.Code, f.Err.Message),
+		Message: fmt.Sprintf("%s failed%s with %s: %s; its result carries the error and the other slots proceed",
+			slotName(f), where, f.Err.Code, f.Err.Message),
 		Details: details,
 	}
+}
+
+// slotName names f's slot once in a message: its path `kind[index]`,
+// then its quoted label when it has one of its own. An unnamed slot's
+// label is empty or its path itself (Collect labels an unnamed
+// regression "regressions[i]"), which the message does not repeat.
+func slotName(f Failure) string {
+	path := fmt.Sprintf("%s[%d]", f.Kind, f.Index)
+	if f.Label == "" || f.Label == path {
+		return path
+	}
+	return path + " " + strconv.Quote(f.Label)
 }
 
 // StrictError is f as the Strict refusal: the slot's own code and

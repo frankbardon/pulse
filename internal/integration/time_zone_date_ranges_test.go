@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -178,9 +177,9 @@ func TestTimeZone_DateRangesLocalDayEveryArm(t *testing.T) {
 
 	// The PULSE_RANGE_TABLES_DIR source: the env var is read at
 	// pulse.New, so every instance below built after Setenv carries
-	// the on-disk table "dst_disk".
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "dst_disk.json"), []byte(`{"description":"DST days","ranges":`+dstRangeSpecs+`}`), 0o644); err != nil {
+	// the on-disk table "dst_disk" — a path on Options.FS (#756).
+	dir := "/range-tables"
+	if err := afero.WriteFile(fs, filepath.Join(dir, "dst_disk.json"), []byte(`{"description":"DST days","ranges":`+dstRangeSpecs+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PULSE_RANGE_TABLES_DIR", dir)
@@ -297,7 +296,7 @@ func TestTimeZone_DateRangesLocalDayEveryArm(t *testing.T) {
 					requireCounts(t, dayCountsFromRows(t, rows, sh.key), sh.want)
 				})
 				t.Run(name+"/compose-parallel", func(t *testing.T) {
-					out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(cohort)}}, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+					out, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(cohort), mk(cohort)}}, pulse.ComposeOptions{MaxWorkers: 2})
 					if err != nil {
 						t.Fatal(err)
 					}

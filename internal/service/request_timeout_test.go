@@ -75,11 +75,11 @@ func timeoutEntries(svc *Service) map[string]func(ctx context.Context) error {
 			return err
 		},
 		"ComposeParallel/FailFast": func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{FailFast: true})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{})
 			return err
 		},
 		"ComposeParallel/CollectAll": func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{CollectErrors: true})
 			return err
 		},
 		"ProcessChain": func(ctx context.Context) error {
@@ -100,7 +100,7 @@ func isLimitCode(err error) bool {
 // TestRequestTimeout_TripsOnEveryEntry: the inner RequestTimeout
 // deadline maps to PULSE_LIMIT_EXCEEDED {limit: request_timeout,
 // configured, observed: elapsed} on every entry FR-23 names — the whole
-// Compose / ComposeParallel (both FailFast modes) / chain call included.
+// Compose / ComposeParallel (both failure modes) / chain call included.
 func TestRequestTimeout_TripsOnEveryEntry(t *testing.T) {
 	t.Parallel()
 
@@ -238,7 +238,7 @@ func TestRequestTimeout_NestedEntriesShareOneBudget(t *testing.T) {
 
 // TestRequestTimeout_PerRequestTimeoutStaysRaw: ComposeOptions'
 // per-slot PerRequestTimeout is unchanged — its DeadlineExceeded is not
-// relabelled as the limit, and FailFast reports the timed-out slot.
+// relabelled as the limit, and fail-fast reports the timed-out slot.
 func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +246,7 @@ func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	svc.entryHook = waitOutShortDeadlines
 	_, err := svc.ComposeParallel(context.Background(), timeoutCompose(),
-		ComposeOptions{FailFast: true, PerRequestTimeout: time.Millisecond})
+		ComposeOptions{PerRequestTimeout: time.Millisecond})
 	if isLimitCode(err) || !stderrors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want the per-slot context.DeadlineExceeded", err)
 	}
@@ -333,11 +333,11 @@ func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
 			return err
 		}},
 		{"ComposeParallel/FailFast", 2, func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
 			return err
 		}},
 		{"ComposeParallel/CollectAll", 2, func(ctx context.Context) error {
-			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, CollectErrors: true})
 			return err
 		}},
 		{"ProcessChain", 1, func(ctx context.Context) error {
@@ -391,5 +391,122 @@ func TestRequestTimeout_TripsInLaterChainStage(t *testing.T) {
 	})
 	if _, ok := err.(*errors.CodedError); !ok || !isLimitCode(err) {
 		t.Fatalf("err = %#v, want a bare PULSE_LIMIT_EXCEEDED", err)
+	}
+}
+
+// TestBoundAt_TieKeepsTheOuterBudget (TODO-746): a parent deadline
+// EQUAL to the entry's own — what a coarse platform clock (Windows) hands
+// a nested entry started in the outer entry's tick — keeps the parent's
+// deadline and cause; the nested ctx has no timer of its own, so it is
+// never done before the outer one. context.WithDeadlineCause would add a
+// second timer for the same instant, and over these iterations it fires
+// first often enough (about one run in twelve on an idle machine) that
+// the loop fails without the tie rule. A strictly earlier parent
+// inherits too; a strictly later one is bounded afresh.
+func TestBoundAt_TieKeepsTheOuterBudget(t *testing.T) {
+	t.Parallel()
+
+	const d = time.Millisecond
+	for i := range 100 {
+		start := time.Now()
+		outerCause := &requestTimeoutCause{configured: d, start: start}
+		outer, cancelOuter := context.WithDeadlineCause(context.Background(), start.Add(d), outerCause)
+		nested, release := boundAt(outer, d, start)
+		<-nested.Done()
+		outerDone := context.Cause(outer)
+		got := context.Cause(nested)
+		release()
+		cancelOuter()
+		if outerDone == nil {
+			t.Fatalf("iteration %d: the nested ctx fired before the outer one", i)
+		}
+		if got != outerCause {
+			t.Fatalf("iteration %d: nested cause %v is not the outer budget's", i, got)
+		}
+	}
+
+	earlier, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+	defer cancel()
+	b, release := boundAt(earlier, time.Hour, time.Now())
+	defer release()
+	if dl, _ := b.Deadline(); !dl.Equal(mustDeadline(t, earlier)) {
+		t.Fatalf("an earlier parent deadline was not kept: %v", dl)
+	}
+	start := time.Now()
+	later, release2 := boundAt(earlier, time.Millisecond, start)
+	defer release2()
+	if dl, _ := later.Deadline(); !dl.Equal(start.Add(time.Millisecond)) {
+		t.Fatalf("a later parent deadline displaced the entry's own: %v", dl)
+	}
+}
+
+func mustDeadline(t *testing.T, ctx context.Context) time.Time {
+	t.Helper()
+	dl, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("no deadline")
+	}
+	return dl
+}
+
+// TestRequestTimeout_TieTripsInsideSlots (TODO-746): the Windows CI
+// failure, made deterministic. A frozen clock gives every nested entry
+// the outer entry's deadline exactly, as Windows' coarse monotonic clock
+// does for entries started in one tick; the real 2 ms budget then fires
+// while the slots wait on it. Every arm must report a bare
+// PULSE_LIMIT_EXCEEDED — never the aggregate SERVICE_INTERNAL, or a
+// slot-located wrapper, that a slot's own timer firing first used to
+// leave behind.
+func TestRequestTimeout_TieTripsInsideSlots(t *testing.T) {
+	t.Parallel()
+
+	const budget = 2 * time.Millisecond
+	svc := ctxPollFixture(t, requestTimeoutRows, 10)
+	svc.SetLimits(withRequestTimeout(budget))
+	var frozen atomic.Pointer[time.Time]
+	svc.clock = func() time.Time { return *frozen.Load() }
+	var calls atomic.Int64
+	svc.entryHook = func(ctx context.Context) {
+		if calls.Add(1) > 1 {
+			<-ctx.Done() // a nested entry waits the shared budget out
+		}
+	}
+	for _, arm := range []struct {
+		name string
+		run  func(ctx context.Context) error
+	}{
+		{"Compose", func(ctx context.Context) error {
+			_, err := svc.Compose(ctx, timeoutCompose())
+			return err
+		}},
+		{"ComposeParallel/FailFast", func(ctx context.Context) error {
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2})
+			return err
+		}},
+		{"ComposeParallel/CollectAll", func(ctx context.Context) error {
+			_, err := svc.ComposeParallel(ctx, timeoutCompose(), ComposeOptions{MaxWorkers: 2, CollectErrors: true})
+			return err
+		}},
+		{"ProcessChain", func(ctx context.Context) error {
+			_, err := svc.ProcessChain(ctx, &types.ChainRequest{
+				Cohort: &types.Cohort{Filename: "left.pulse"},
+				Stages: []*types.ChainStage{{Request: timeoutSum()}},
+			})
+			return err
+		}},
+	} {
+		t.Run(arm.name, func(t *testing.T) {
+			for i := range 25 {
+				now := time.Now()
+				frozen.Store(&now)
+				calls.Store(0)
+				// The outer entry maps the trip itself, so the error is
+				// the bare limit, never a slot-located wrapper of one.
+				err := arm.run(context.Background())
+				if ce, ok := err.(*errors.CodedError); !ok || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+					t.Fatalf("run %d: err = %#v, want a bare PULSE_LIMIT_EXCEEDED", i, err)
+				}
+			}
+		})
 	}
 }

@@ -5,6 +5,8 @@ tabular format (a peer to the existing `csv/`, `tsv/`, `ndjson/`,
 `jsonarray/`, `arrow/`, `parquet/`, `excel/`, `spss/` sub-packages under
 `internal/io/`).
 
+> **Run the site checklist first.** `make sites ARGS="io <format>"` prints, for an existing format or a new one, every table that lists formats, the adapter package and its importers; `make sites ARGS="io <Hook>"` does the same for an `iocore` reader / writer hook — its implementers and the import / convert / widen / export pipelines that type-assert to it. See [Finding Change Sites](finding-change-sites.md).
+
 The binding companion list is the Update Demand's I/O rows
 (`.claude/reference/update-demand/io-import.md` and `io-export.md`);
 this page explains each step.

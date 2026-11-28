@@ -193,6 +193,11 @@ var shardMergeHook func(idx int, p *shardPartial)
 // called with the merge window scanAndMergeShards runs at.
 var shardWindowHook func(window int)
 
+// shardScannedHook, when set (tests only — never in production), is
+// called on the worker goroutine with each shard's index and partial
+// the moment its scan completes, before it is reported for the merge.
+var shardScannedHook func(idx int, p *shardPartial)
+
 // shardResult is one scanned shard handed back to the merging
 // goroutine: its archive index and partial, or the scan's error.
 type shardResult struct {
@@ -304,6 +309,9 @@ func (s *Service) scanAndMergeShards(ctx context.Context, req *types.Request, sc
 func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, results chan<- shardResult) {
 	for idx := range jobs {
 		p, err := s.scanShard(ctx, req, schema, dec, arch, idx, starts[idx], shards[idx].Filename)
+		if shardScannedHook != nil && p != nil {
+			shardScannedHook(idx, p)
+		}
 		results <- shardResult{idx: idx, p: p, err: err}
 	}
 }

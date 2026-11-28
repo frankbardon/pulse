@@ -480,15 +480,6 @@ type Options struct {
 	// error and nothing is written.
 	Strict bool
 
-	// ProjectBufferedFields enables buffered-decode field projection.
-	//
-	// Deprecated: projection is on by default; retained for compat.
-	// Setting true keeps projection on even when DisableProjection is
-	// also true (the two are ORed: projection runs when this is true or
-	// DisableProjection is false). Leave it false and set
-	// DisableProjection to opt out.
-	ProjectBufferedFields bool
-
 	// LabelTablesDir points at a directory of JSON files that the
 	// engine auto-registers as LabelTables at pulse.New time. Empty
 	// disables the loader (the only source of LabelTables is then
@@ -498,6 +489,10 @@ type Options struct {
 	// label string, or a wrapped object {"description": "...",
 	// "rows": {"k": "v"}}. The filename without the .json extension
 	// becomes the registered table name.
+	//
+	// This directory, RangeTablesDir, LookupTablesDir and PopulationsDir
+	// are paths on Options.FS when it is set (as TemplateDirs are), else
+	// host paths on the OS filesystem — never rooted at DataDir.
 	//
 	// Honoured after PULSE_LABEL_TABLES_DIR — programmatic value
 	// wins. Tables loaded from disk merge into Options.Extensions.
@@ -851,7 +846,7 @@ func New(opts Options) (*Pulse, error) {
 	svc.SetDisableComponents(opts.DisableComponents)
 	// The engine's worker-pool recovers honour the knob per instance.
 	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
-	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
+	svc.SetProjectBufferedFields(!opts.DisableProjection)
 	runtimeExt := buildRuntimeExtensions(visibleExt)
 	svc.SetExtensions(runtimeExt)
 	// Built eagerly: a malformed template must fail startup with its path
@@ -1116,6 +1111,12 @@ type RowIter = service.RowIter
 // shaping pass raises). The `--stream` writer ends its NDJSON with
 // them as one {"warnings":[...]} record.
 //
+// Timeout: Options.Limits.RequestTimeout bounds the run this call
+// starts, not the drain. Once the iterator is returned, each Next(ctx)
+// runs under the ctx passed to it, so a slow consumer never trips
+// PULSE_LIMIT_EXCEEDED; bound the drain with a deadline on that ctx, or
+// use ProcessStreamResult, whose RequestTimeout covers run and drain.
+//
 // Observability: the operation starts at the call and ends exactly once
 // — when the iterator is drained (or fails), closed, or ctx is
 // cancelled, whichever comes first. Its scan phase runs from the first
@@ -1332,10 +1333,15 @@ type ComposeOptions = service.ComposeOptions
 // execution is safe.
 //
 // Defaults: MaxWorkers = runtime.GOMAXPROCS(0), no per-request timeout,
-// FailFast = false (the zero value): every request runs to completion
-// and the errors are collected. Set FailFast=true to cancel in-flight
-// siblings on the first error instead (`pulse api compose --parallel`
-// sets it unless --no-fail-fast).
+// fail-fast (CollectErrors = false, the zero value): the first request
+// error cancels in-flight siblings and is returned at once, matching
+// serial Compose and `pulse api compose --parallel`. Set
+// CollectErrors = true (the CLI's --no-fail-fast) to run every request
+// to completion; any failure then returns (nil, SERVICE_INTERNAL) with
+// failed_indices and first_error in its details. Neither mode returns
+// partial slots: on a failure the slots that succeeded are discarded.
+// A slot that fails on its data (PULSE_SLOT_FAILED) is not a request
+// error and keeps its identity in a successful response.
 //
 // Returned shape mirrors Compose:
 //
@@ -2398,7 +2404,10 @@ func (p *Pulse) profile(ctx context.Context, path string, opts ProfileOptions) (
 
 // Facet returns distinct values for the named field in the cohort.
 // Categorical fields short-circuit through the dictionary; numeric
-// fields stream the file collecting distinct float values. For richer
+// fields stream the file collecting distinct values in first-seen
+// order, each spelled as Sample spells it: a date YYYY-MM-DD, a
+// datetime RFC 3339 UTC, a decimal128 at its column scale, a u64 its
+// exact integer, any other number its shortest decimal. For richer
 // summaries (counts, null tallies, statistics, histograms, additive
 // contributions) call FacetSchema instead.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {
@@ -3015,7 +3024,7 @@ func (p *Pulse) renderTemplate(name string, vars map[string]any) (*RenderedTempl
 // straight to Process, Predict, or ProcessStream.
 //
 // It is RenderTemplate restricted to the "request" target. A template
-// declaring any other target is PULSE_TEMPLATE_TARGET_UNKNOWN: the target
+// declaring any other target is PULSE_TEMPLATE_TARGET_MISMATCH: the target
 // is a valid one, just not one this method can return, so the message names
 // both the target the template actually declares and RenderTemplate as the
 // method that handles it. Every other fault is RenderTemplate's, unchanged.
@@ -3041,7 +3050,7 @@ func (p *Pulse) renderTemplateRequest(name string, vars map[string]any) (*Reques
 // the render — the call is the mismatch — so the message leads with the
 // target the document declares and points at the method that returns it.
 func wrongTemplateTarget(name string, target template.Target) error {
-	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_UNKNOWN,
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_TARGET_MISMATCH,
 		"template "+strconv.Quote(name)+" declares target "+strconv.Quote(target.String())+
 			", so RenderTemplateRequest cannot return it: that method returns *types.Request and "+
 			"only handles the \"request\" target. Call RenderTemplate("+strconv.Quote(name)+

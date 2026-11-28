@@ -43,18 +43,19 @@ var slotKey = map[string]string{
 	catMatrix:     "matrices",
 }
 
-// requireKey maps a TestMeta.Requires entry — a types.Test Go field
-// name — to its wire key. TestRequireKeysMatchWire holds every entry to
-// the types.Test JSON tag and every manifest Requires value to a row,
-// so a test that grows a new required slot fails until it is mapped.
-var requireKey = map[string]string{
-	"Field":        "field",
-	"Field2":       "field2",
-	"SplitBy":      "split_by",
-	"Rows":         "rows",
-	"Cols":         "cols",
-	"SubjectField": "subject_field",
-	"OrderBy":      "order_by",
+// requireKeys is the set of TestMeta.Requires entries — types.Test wire
+// keys — the binder knows how to fill. TestRequireKeysMatchWire holds
+// every entry to a types.Test JSON tag and every manifest Requires
+// value to the set, so a test that grows a new required slot fails
+// until it is listed.
+var requireKeys = map[string]bool{
+	"field":         true,
+	"field2":        true,
+	"split_by":      true,
+	"rows":          true,
+	"cols":          true,
+	"subject_field": true,
+	"order_by":      true,
 }
 
 // topLevelParams lists, per category, the declared params that are

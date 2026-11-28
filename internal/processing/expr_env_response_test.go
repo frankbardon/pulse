@@ -174,7 +174,7 @@ func TestResponse_GeoArgument(t *testing.T) {
 	set := responseModels(t)
 	coefs := map[string]float64{"(intercept)[NE]": 1, "x1": 2, "x1[NE]": 3, "decay:x1": 0.4, "decay:x1[NE]": 0.2, "k:x1": 3, "s:x1": 1.4, "sigma": 1}
 	spec := &types.RegressionSpec{Type: types.REG_MMM_BAYES, Target: "y", Predictors: []string{"x1"},
-		Params: []byte(`{"channels": ["x1"], "time": "t", "geo": "g", "max_lag": 3}`)}
+		Order: &types.RegressionOrder{Field: "t", Partition: "g"}, Params: []byte(`{"channels": ["x1"], "geo": "g", "max_lag": 3}`)}
 	res := &types.RegressionResult{Type: types.REG_MMM_BAYES, Coefficients: coefs}
 	b, err := model.Bind("panel", spec, res)
 	if err != nil {

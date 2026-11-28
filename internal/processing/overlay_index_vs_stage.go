@@ -715,6 +715,9 @@ func encodeSeriesRow(row map[string]any) (key string, valueCol string, value flo
 // to the chain-overlay handler so the two surfaces evolve
 // independently.
 func coerceNumericValue(v any) (float64, bool) {
+	if f, ok := decimalCellFloat(v); ok {
+		return f, true
+	}
 	switch x := v.(type) {
 	case float64:
 		return x, true

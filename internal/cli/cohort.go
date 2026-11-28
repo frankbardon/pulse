@@ -159,16 +159,21 @@ func printInspectVector(cmd *cli.Command, v *descriptor.InspectVector) {
 	}
 }
 
-// printInspectGroups renders the 0x02 physical layout and each parent
-// group's realized dedup figures. Prints nothing for a 0x01 cohort
-// (Layout nil), so that text stays exactly as it was. Every figure is
-// descriptor.Inspect's — header + schema + file length, no record read.
+// printInspectGroups renders the 0x02 physical layout, the cohort's
+// default zone field (the --json zone_field) and each parent group's
+// realized dedup figures. Prints nothing for a 0x01 cohort (Layout nil:
+// a declared zone field makes the file 0x02), so that text stays
+// exactly as it was. Every figure is descriptor.Inspect's — header +
+// schema + file length, no record read.
 func printInspectGroups(cmd *cli.Command, result *descriptor.InspectResult) {
 	if result.Layout == nil {
 		return
 	}
 	writeText(cmd.Writer, "Format: 0x%02x (record stride %d bytes physical, %d logical)\n",
 		result.Layout.PulseFormatVersion, result.Layout.PhysicalRecordStride, result.Layout.LogicalRecordStride)
+	if result.ZoneField != "" {
+		writeText(cmd.Writer, "Zone field: %s\n", result.ZoneField)
+	}
 	if len(result.Groups) == 0 {
 		return
 	}

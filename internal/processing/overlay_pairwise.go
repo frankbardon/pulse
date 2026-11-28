@@ -231,7 +231,6 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
 			map[string]any{"kind": string(spec.Kind), "param": "letters", "alpha": *params.Letters.Alpha})
 	}
-
 	// Components gate — every kind reads per-cell counters / Welford
 	// triples / margin counts. Without them there is no sample-size leg.
 	if !host.HasComponents() {
@@ -240,6 +239,25 @@ func pairwiseGate(spec *types.OverlaySpec, host *CrosstabHostView, shape pwShape
 			overlayhost.ComponentsRequiredMessage(spec.Kind),
 			map[string]any{"kind": string(spec.Kind)})
 	}
+	// Unknown n_source on a proportion kind: refused as predict refuses
+	// it, never read as the omitted default. Judged after the components
+	// gate and before n_within_depth, predict's order. The Welford kinds
+	// keep their predict-only inertness refusal (any n_source; the
+	// distinct-mode twin below) and the weighted kind refuses every
+	// n_source in checkWeightedTwoMeansZParams.
+	if shape == pwShapeProportion {
+		if msg := overlayhost.PairwiseUnknownNSourceMessage(spec.Kind, params.NSource); msg != "" {
+			return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+				overlayhost.PairwiseUnknownNSourceDetails(spec.Kind, params.NSource))
+		}
+	}
+	// n_within_depth: negative, or non-zero under an n_source that does
+	// not read it — the rule predict raises (#743).
+	if msg := overlayhost.PairwiseWithinDepthMessage(spec.Kind, params); msg != "" {
+		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_PARAM_MISSING, msg,
+			overlayhost.PairwiseWithinDepthDetails(spec.Kind, params))
+	}
+
 	// Welford-input kinds need {mean, variance, n} on at least one cell.
 	if shape == pwShapeWelford && !host.HasWelfordCells() {
 		return pairwiseGateResult{}, errors.NewCodedErrorWithDetails(

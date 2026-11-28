@@ -31,8 +31,8 @@ func TestMMMBayes_HMCStepCapMatchesSampler(t *testing.T) {
 		path float64
 		ok   bool
 	}{{maxBayesHMCSteps, true}, {maxBayesHMCSteps + 0.5, false}} {
-		params, _ := json.Marshal(map[string]any{"channels": []string{"tv"}, "time": "week", "sampler": "hmc", "path_length": tc.path, "step_size": 1})
-		spec := &types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv"}, Params: params}
+		params, _ := json.Marshal(map[string]any{"channels": []string{"tv"}, "sampler": "hmc", "path_length": tc.path, "step_size": 1})
+		spec := &types.RegressionSpec{Type: BayesName, Name: "bayes", Target: "sales", Predictors: []string{"tv"}, Order: BayesOrder(""), Params: params}
 		_, ferr := BayesFactory(spec, nil)
 		_, serr := mcmc.HMC{PathLength: tc.path, StepSize: 1}.Sample(context.Background(), stdNormal{}, 1,
 			mcmc.Options{Chains: 1, Warmup: 1, Draws: 1, Init: []float64{0}})

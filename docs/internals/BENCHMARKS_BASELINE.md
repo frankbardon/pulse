@@ -552,3 +552,30 @@ their axes are not schema-fixed past the `u16` width):
 | `fused crosstab vector element` | 1,136.4 MB | 258.4 MB | 4.40 |
 
 The calibration bounds for those three rows moved to 7.5 / 9.5 / 6.
+
+## Live-peak estimate gates (pre-v1 E7-S4)
+
+The six heavy estimate gates now read the live peak (`peakLiveAbove`
+under `GODEBUG=gcstoptheworld=1`) instead of the sampled `HeapAlloc`
+peak. The live peak holds no garbage, so each estimate / peak factor
+rises by the GC headroom the estimate carries. One pass is the figure:
+`GOMAXPROCS` 2, 4 and 10 agree within 0.02. Apple M1 Max, go1.26:
+
+| Gate case | Sampled | Live |
+|---|---|---|
+| Calibration `buffered full width` (estimate / peak) | 1.43 | 1.49 |
+| Calibration `streaming` | 1.98 | 3.36 |
+| Calibration `buffered projected` | 4.85 | 5.29 |
+| Calibration `fused crosstab wide grid` | 5.86 | 11.09 |
+| Calibration `lookup join` | 1.33 | 3.84 |
+| Calibration `join fan-out` | 1.17 | 1.33 |
+| `EstimateBoundsPeak` unweighted / weighted (estimate / peak) | 1.61 / 1.48 | 2.02 / 2.63 |
+| `EstimateBoundsPeak` components off, unweighted / weighted | 2.51 / 1.93 | 3.61 / 2.50 |
+| `MatrixScale` listwise / pairwise (peak / state) | 1.29 / 1.53 | 1.17 / 1.22 |
+| `ArchiveMemory` matrix scale, serial (peak / estimate) | 0.37 | 0.25 |
+| `ChainTotals` serial / ShardWorkers 4 | 133.5 / 28.2 MB | 87.1 / 6.0 MB |
+| `ChainStageTotals` serial / two-phase | 224.6 / 152.6 MB | 73.7 / 27.9 MB |
+
+Every case's measured factor is in its test, banded ×/÷ 1.25. The six
+gates take 47 s together, against 31 s sampled: a collection at every
+1% of heap growth costs more than three sampled passes.

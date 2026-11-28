@@ -128,7 +128,11 @@ makes these the landing type for an SPSS multiple-dichotomy battery.
 `decimal128` is a 16-byte fixed-point decimal. Each field carries a
 per-field `(precision, scale)` pair written into the schema after the
 description; both top out at 38 (`PULSE_DECIMAL_OVERFLOW`,
-`PULSE_DECIMAL_PRECISION_LOSS`).
+`PULSE_DECIMAL_PRECISION_LOSS`). A decimal `AGG_AVERAGE`, `AGG_VARIANCE`
+or `AGG_STDDEV` whose intermediate would overflow 38 digits (a variance
+over scale 20 or more always does) is computed in f64 instead and the
+response warns `PULSE_DECIMAL_PRECISION_LOSS` once per aggregation slot,
+`details {label, aggregation, field, cells}`.
 
 Use it for currency and any other column where IEEE-754 rounding is
 not acceptable. See the `financial-cohorts` skill for full semantics

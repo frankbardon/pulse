@@ -168,15 +168,15 @@ func TestErrorsSearch_DescriptionMatch(t *testing.T) {
 func TestErrorsSearch_FixupMatch(t *testing.T) {
 	t.Parallel()
 
-	// "Tukey HSD" appears in the PULSE_TEST_TUKEY_REQUIRES_K_GE_3 message
-	// and "two-proportion z" lives in the fixup hint.
-	got := perr.Search("two-proportion z")
+	// "pool rare levels" lives only in the PULSE_TEST_EXPECTED_COUNT_TOO_LOW
+	// fixup hint, never in its message.
+	got := perr.Search("pool rare levels")
 	if len(got) == 0 {
-		t.Fatal("Search returned no results for fixup substring 'two-proportion z'")
+		t.Fatal("Search returned no results for fixup substring 'pool rare levels'")
 	}
 	found := false
 	for _, r := range got {
-		if r.Code == string(perr.PULSE_TEST_TUKEY_REQUIRES_K_GE_3) {
+		if r.Code == string(perr.PULSE_TEST_EXPECTED_COUNT_TOO_LOW) {
 			found = true
 			break
 		}

@@ -189,7 +189,10 @@ numeric range edges) implements the unexported `keyOrderer` hook in
 `internal/processing/grouper.go` — `keyRank(key string) (float64, bool)`,
 derived from the key and the grouper's configuration only, never from
 the records it saw — and adds a `_ keyOrderer = (*yourGrouper)(nil)`
-lock. Every emission site (grouped rows on every arm, `groups`
+lock. A grouper ordered under some configurations only also implements
+`keyOrderGate` (`keyOrdered() bool`): `GROUP_CATEGORY` ranks its keys by
+value over a field that is no dictionary categorical, and turns the
+order off over one, which stays alphabetical byte-identically. Every emission site (grouped rows on every arm, `groups`
 composites, both crosstab arms, grouped matrices) then honours it; an
 explicit `Include` and `Request.Sort` still win. Pin it with a shuffled
 `orderKeysByInclude(includeFilterOf(g), keys)` case and a fused-vs-

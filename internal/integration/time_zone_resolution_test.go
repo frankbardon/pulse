@@ -205,7 +205,7 @@ func TestTimeZone_DerivedFieldRefusedEveryMode(t *testing.T) {
 			assertRefusal(t, err, "groups[0]", "GROUP_DATE", berlin)
 		})
 		t.Run(src.name+"/compose-parallel", func(t *testing.T) {
-			_, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(), mk()}}, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, err := p.ComposeParallel(ctx, &types.ComposedRequest{Requests: []*types.Request{mk(), mk()}}, pulse.ComposeOptions{MaxWorkers: 2})
 			assertRefusal(t, err, "groups[0]", "GROUP_DATE", berlin)
 		})
 		t.Run(src.name+"/chain", func(t *testing.T) {

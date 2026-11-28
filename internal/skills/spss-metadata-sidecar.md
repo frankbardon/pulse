@@ -27,11 +27,11 @@ Document `{format_version, kind, fingerprint, payload}`; `payload` flat and self
 | State | Verdict | Code | Then |
 |---|---|---|---|
 | no file | warning | `PULSE_SPSS_SIDECAR_ABSENT` | synthesise a default; **the normal case** for synth / CSV output |
-| size or mtime moved | **error** | `PULSE_SPSS_SIDECAR_STALE` | nothing — no resolution returned at all |
+| size moved, or mtime moved AND the SHA-256 differs | **error** | `PULSE_SPSS_SIDECAR_STALE` | nothing — no resolution returned at all |
 | not JSON / foreign `kind` / unknown `format_version` / bad digest | **error** | `PULSE_SPSS_SIDECAR_INVALID` | nothing |
 | `IgnoreSidecar` set, file present | warning | `PULSE_SPSS_SIDECAR_IGNORED` | synthesise a default |
 
 - **The split overrides a flatter "a lost sidecar is a warning".** Absent is benign — the cohort never had source metadata. Stale is the highest-fidelity-risk state there is: a complete, plausible dictionary over changed data yields a `.sav` where `IF q1 EQ 5` addresses a category that moved — authoritative-looking, wrong, undetectable downstream. So a refusal returns **no resolution object**; no shape exists in which a caller holds the stale document and writes it by accident.
-- Size + mtime, never a hash, for `PULSE_INDEX_STALE`'s reason: hashing a multi-GB cohort per export costs more than the export. Same residual gap (an in-place edit preserving both); `Document.VerifyDigest(fs, cohort)` is the full SHA-256 recompute.
+- `PULSE_INDEX_STALE`'s drift rule: a full size + mtime match is fresh without a hash; a size change is stale without one; an mtime drift alone escalates to the SHA-256 — a touched or copied cohort with unchanged bytes KEEPS its sidecar. Same residual gap (an in-place edit preserving both); `Document.VerifyDigest(fs, cohort)` always hashes.
 - `WriterOptions{IgnoreSidecar: true}` (`--ignore-sidecar` on `pulse export spss` / `pulse convert`) suppresses the **read**, not the verdict: a healthy sidecar is ignored too (the flag never flips with an mtime), an unreadable one cannot block, both refusals downgrade to the warning path, and the warning deliberately cannot say which refusal it silenced. **No option applies a stale dictionary** — recorded metadata or synthesised default, never fresh-or-stale.
 - Load normalises `multiple_response_sets[].fields`: an ABSENT key (an older sidecar; the slot is `omitempty`) is back-filled from `variables[].short_name` (case-insensitive, first declaration wins, unknown member → `""`). WRONG LENGTH ⇒ rejected — index-for-index with `variables`, and a repair would bind members to the wrong variables.

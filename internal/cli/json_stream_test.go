@@ -187,7 +187,7 @@ func streamArms(t *testing.T, cohort string) []streamArm {
 		req := decodeInto[types.ComposedRequest](t, body)
 		var resp *types.ComposedResponse
 		if workers != 1 {
-			resp, err = p.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: workers, FailFast: true})
+			resp, err = p.ComposeParallel(ctx, req, pulse.ComposeOptions{MaxWorkers: workers})
 		} else {
 			resp, err = p.Compose(ctx, req)
 		}

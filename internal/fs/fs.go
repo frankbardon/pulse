@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/frankbardon/pulse/internal/pathq"
 	"github.com/spf13/afero"
 )
 
@@ -77,7 +78,7 @@ func New(opts ...Option) (*Config, error) {
 	// every call, so a later chdir would silently re-root the instance.
 	abs, err := filepath.Abs(cfg.dataDir)
 	if err != nil {
-		return nil, fmt.Errorf("resolving data directory %q: %w", cfg.dataDir, err)
+		return nil, fmt.Errorf("resolving data directory %s: %w", pathq.Quote(cfg.dataDir), err)
 	}
 	cfg.dataDir = abs
 

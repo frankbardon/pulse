@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -26,15 +25,15 @@ import (
 // predict judging the same names and labels, and the manifest listing
 // them.
 
-func writePopulationDir(t *testing.T, files map[string]string) string {
+func writePopulationDir(t *testing.T, fsys afero.Fs, files map[string]string) string {
 	t.Helper()
-	dir := t.TempDir()
+	dir := memTableDirOn(t, fsys)
 	for name, body := range files {
 		p := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		if err := fsys.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		if err := afero.WriteFile(fsys, p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -57,7 +56,8 @@ func popCodedErr(t *testing.T, err error, code perr.Code) *perr.CodedError {
 func TestLoadPopulations_Dir(t *testing.T) {
 	t.Parallel()
 
-	dir := writePopulationDir(t, map[string]string{
+	fsys := afero.NewMemMapFs()
+	dir := writePopulationDir(t, fsys, map[string]string{
 		"brand" + model.PopulationSuffix:       populationFileFixture,
 		"country.json":                         `{"US": "United States"}`,
 		"c.pulse.spss.json":                    "{nope",
@@ -68,7 +68,7 @@ func TestLoadPopulations_Dir(t *testing.T) {
 		"broken.pulse-population.json.bak":     "{nope",
 		"cohort.pulse":                         "",
 	})
-	opts := Options{PopulationsDir: dir}
+	opts := Options{FS: fsys, PopulationsDir: dir}
 	if err := loadPopulationsFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -85,17 +85,18 @@ func TestLoadPopulations_Dir(t *testing.T) {
 // no-ops; a file is not a directory.
 func TestLoadPopulations_EnvAndPrecedence(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	envDir := writePopulationDir(t, map[string]string{"env" + model.PopulationSuffix: populationFileFixture})
-	optDir := writePopulationDir(t, map[string]string{"opt" + model.PopulationSuffix: populationFileFixture})
+	fsys := afero.NewMemMapFs()
+	envDir := writePopulationDir(t, fsys, map[string]string{"env" + model.PopulationSuffix: populationFileFixture})
+	optDir := writePopulationDir(t, fsys, map[string]string{"opt" + model.PopulationSuffix: populationFileFixture})
 	t.Setenv(envPopulationsDir, envDir)
-	opts := Options{}
+	opts := Options{FS: fsys}
 	if err := loadPopulationsFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := opts.Extensions.Populations["env"]; !ok || len(opts.Extensions.Populations) != 1 {
 		t.Fatalf("env load: %v", opts.Extensions.Populations)
 	}
-	opts = Options{PopulationsDir: optDir}
+	opts = Options{FS: fsys, PopulationsDir: optDir}
 	if err := loadPopulationsFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -103,15 +104,15 @@ func TestLoadPopulations_EnvAndPrecedence(t *testing.T) {
 		t.Fatalf("option did not beat the env var: %v", opts.Extensions.Populations)
 	}
 	t.Setenv(envPopulationsDir, "")
-	opts = Options{}
+	opts = Options{FS: fsys}
 	if err := loadPopulationsFromDir(&opts); err != nil || opts.Extensions.Populations != nil {
 		t.Fatalf("no dir: %v %v", err, opts.Extensions.Populations)
 	}
-	opts = Options{PopulationsDir: filepath.Join(optDir, "absent")}
+	opts = Options{FS: fsys, PopulationsDir: filepath.Join(optDir, "absent")}
 	if err := loadPopulationsFromDir(&opts); err != nil || opts.Extensions.Populations != nil {
 		t.Fatalf("missing dir: %v %v", err, opts.Extensions.Populations)
 	}
-	opts = Options{PopulationsDir: filepath.Join(optDir, "opt"+model.PopulationSuffix)}
+	opts = Options{FS: fsys, PopulationsDir: filepath.Join(optDir, "opt"+model.PopulationSuffix)}
 	if err := loadPopulationsFromDir(&opts); err == nil {
 		t.Fatal("a file accepted as the populations dir")
 	}
@@ -124,24 +125,25 @@ func TestLoadPopulations_EnvAndPrecedence(t *testing.T) {
 func TestLoadPopulations_Refusals(t *testing.T) {
 	t.Parallel()
 
-	bad := writePopulationDir(t, map[string]string{"bad" + model.PopulationSuffix: "{nope"})
-	opts := Options{PopulationsDir: bad}
+	fsys := afero.NewMemMapFs()
+	bad := writePopulationDir(t, fsys, map[string]string{"bad" + model.PopulationSuffix: "{nope"})
+	opts := Options{FS: fsys, PopulationsDir: bad}
 	ce := popCodedErr(t, loadPopulationsFromDir(&opts), perr.PULSE_MODEL_FILE_INVALID)
 	if ce.Details["registered"] != "bad" || ce.Details["path"] != filepath.Join(bad, "bad"+model.PopulationSuffix) || ce.Details["reason"] != model.ReasonFileJSON {
 		t.Fatalf("invalid details %+v", ce.Details)
 	}
-	v9 := writePopulationDir(t, map[string]string{"v9" + model.PopulationSuffix: `{"population_format_version": 9}`})
-	_, err := New(Options{FS: afero.NewMemMapFs(), PopulationsDir: v9})
+	v9 := writePopulationDir(t, fsys, map[string]string{"v9" + model.PopulationSuffix: `{"population_format_version": 9}`})
+	_, err := New(Options{FS: fsys, PopulationsDir: v9})
 	if ce := popCodedErr(t, err, perr.PULSE_MODEL_VERSION_UNSUPPORTED); ce.Details["registered"] != "v9" {
 		t.Fatalf("version details %+v", ce.Details)
 	}
 
-	dir := writePopulationDir(t, map[string]string{"brand" + model.PopulationSuffix: populationFileFixture})
+	dir := writePopulationDir(t, fsys, map[string]string{"brand" + model.PopulationSuffix: populationFileFixture})
 	ext := Extensions{Populations: map[string]Population{"brand": {File: []byte(populationFileFixture)}}}
-	opts = Options{PopulationsDir: dir, Extensions: ext}
+	opts = Options{FS: fsys, PopulationsDir: dir, Extensions: ext}
 	path := filepath.Join(dir, "brand"+model.PopulationSuffix)
 	assertDirCollision(t, loadPopulationsFromDir(&opts), "population", "brand", path)
-	_, err = New(Options{FS: afero.NewMemMapFs(), PopulationsDir: dir, Extensions: ext})
+	_, err = New(Options{FS: fsys, PopulationsDir: dir, Extensions: ext})
 	assertDirCollision(t, err, "population", "brand", path)
 }
 
@@ -151,6 +153,7 @@ func TestLoadPopulations_Refusals(t *testing.T) {
 func TestDecodeRegisteredPopulations(t *testing.T) {
 	t.Parallel()
 
+	fsys := afero.NewMemMapFs()
 	cases := []struct {
 		name string
 		pops map[string]Population
@@ -164,7 +167,7 @@ func TestDecodeRegisteredPopulations(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := New(Options{FS: afero.NewMemMapFs(), Extensions: Extensions{Populations: tc.pops}})
+			_, err := New(Options{FS: fsys, Extensions: Extensions{Populations: tc.pops}})
 			if ce := popCodedErr(t, err, tc.code); ce.Details["registered"] != tc.reg {
 				t.Fatalf("details %+v, want registered %q", ce.Details, tc.reg)
 			}
@@ -187,7 +190,7 @@ func registeredInstance(t *testing.T, fsys afero.Fs, viaDir bool, extra ...func(
 	}
 	opts := Options{FS: fsys}
 	if viaDir {
-		opts.PopulationsDir = writePopulationDir(t, map[string]string{"brand" + model.PopulationSuffix: string(raw)})
+		opts.PopulationsDir = writePopulationDir(t, fsys, map[string]string{"brand" + model.PopulationSuffix: string(raw)})
 	} else {
 		opts.Extensions.Populations = map[string]Population{"brand": {File: raw}}
 	}

@@ -2,9 +2,11 @@ package synth
 
 import (
 	stderrors "errors"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/frankbardon/pulse/errors"
@@ -52,9 +54,36 @@ func decodeDocument(raw []byte, out any) (coded *errors.CodedError, err error) {
 	}
 	var ce *errors.CodedError
 	if stderrors.As(err, &ce) && ce.Code == errors.PULSE_REQUEST_UNKNOWN_FIELD {
-		return ce, err
+		ce = withRemovedPairBernoulli(ce)
+		return ce, ce
 	}
 	return nil, err
+}
+
+// removedPairBernoulliReplacement names what replaced the removed
+// `bernoulli` slot of a categorical-numeric / set-numeric pair.
+const removedPairBernoulliReplacement = `declare the target field's distribution "bernoulli"`
+
+// withRemovedPairBernoulli names the replacement when the unknown key is
+// the removed `bernoulli` slot of a categorical_numeric_pairs[i] or
+// set_numeric_pairs[i] entry. Whether such a pair draws Bernoulli(cell
+// mean) is derived from the target field's own marginal
+// (buildBernoulliConditionals); the slot that used to declare it was
+// deprecated, then removed before v1. The code stays
+// PULSE_REQUEST_UNKNOWN_FIELD; details gain `replacement`.
+func withRemovedPairBernoulli(ce *errors.CodedError) *errors.CodedError {
+	path, _ := ce.Details["path"].(string)
+	if !strings.HasSuffix(path, "].bernoulli") ||
+		!(strings.HasPrefix(path, "categorical_numeric_pairs[") || strings.HasPrefix(path, "set_numeric_pairs[")) {
+		return ce
+	}
+	details := make(map[string]any, len(ce.Details)+1)
+	maps.Copy(details, ce.Details)
+	details["replacement"] = removedPairBernoulliReplacement
+	return errors.NewCodedErrorWithDetails(ce.Code,
+		"the conditional pair slot \"bernoulli\" at "+path+" was removed: a pair draws Bernoulli(cell mean) exactly when its target field's own marginal is bernoulli, so "+
+			removedPairBernoulliReplacement+" and drop the key. "+ce.Message,
+		details)
 }
 
 // ParseProfile strictly decodes a profile document (`profile create`

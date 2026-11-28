@@ -652,7 +652,7 @@ func TestCrosstabCells_SmartDefaultsPerEntry(t *testing.T) {
 	}
 	found := false
 	for _, d := range pr.DefaultsApplied {
-		if reflect.DeepEqual(d.Path, []string{"Crosstab", "Cells", "1", "Type"}) && d.Type == string(types.AGG_SUM) {
+		if reflect.DeepEqual(d.Path, []string{"crosstab", "cells", "1", "type"}) && d.Type == string(types.AGG_SUM) {
 			found = true
 		}
 	}

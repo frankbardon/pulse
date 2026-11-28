@@ -127,7 +127,7 @@ the single most load-bearing design decision on this page:
 | State | Verdict | Code | What the export does |
 |---|---|---|---|
 | No sidecar file | **warning** | `PULSE_SPSS_SIDECAR_ABSENT` | synthesises a default dictionary from the `.pulse` schema |
-| Cohort size or mtime moved since the sidecar was written | **error** | `PULSE_SPSS_SIDECAR_STALE` | nothing — the export stops |
+| Cohort size moved since the sidecar was written, or its mtime moved and its content hash differs | **error** | `PULSE_SPSS_SIDECAR_STALE` | nothing — the export stops |
 | Not JSON / foreign `kind` / unknown `format_version` / bad digest | **error** | `PULSE_SPSS_SIDECAR_INVALID` | nothing — the export stops |
 | `--ignore-sidecar` given, file present or not | **warning** | `PULSE_SPSS_SIDECAR_IGNORED` | synthesises a default dictionary |
 
@@ -141,11 +141,15 @@ refusal returns **no resolution object at all** — there is no shape in
 which a caller ends up holding the stale document and writing it by
 accident.
 
-The staleness check is a cheap O(1) size + mtime comparison, the same
-model `PULSE_INDEX_STALE` uses, with the same residual gap: an in-place
-edit that preserves both is not caught. `Document.VerifyDigest` recomputes
-the authoritative full SHA-256 for a verify-style pass; hashing a
-multi-gigabyte cohort on every export would cost more than the export.
+The staleness check is the rule `PULSE_INDEX_STALE` uses. A size and
+modification time that both still match are fresh, without hashing. A
+changed size is stale, without hashing. A modification time that moved
+while the size held escalates to the cohort's SHA-256: unchanged content
+(a `touch`, a copy, a restore, an object store's whole-second timestamp)
+keeps the sidecar, changed content is stale. The residual gap is the
+index's too: an in-place edit that preserves both size and mtime is not
+caught. `Document.VerifyDigest` always recomputes the full SHA-256 for a
+verify-style pass.
 
 **No option applies a stale dictionary.** The choice is always recorded
 metadata or a synthesised default — never fresh-or-stale.
@@ -601,7 +605,7 @@ row path does — has raised none of them when the job builds its report.
 |---|---|---|
 | `PULSE_SPSS_SIDECAR_ABSENT` | warning | No sidecar; dictionary synthesised from the `.pulse` schema |
 | `PULSE_SPSS_SIDECAR_IGNORED` | warning | `--ignore-sidecar` given; the read was skipped entirely |
-| `PULSE_SPSS_SIDECAR_STALE` | error | Cohort size/mtime moved since the sidecar was written |
+| `PULSE_SPSS_SIDECAR_STALE` | error | Cohort size moved since the sidecar was written, or its mtime moved and its content hash differs |
 | `PULSE_SPSS_SIDECAR_INVALID` | error | Not JSON, foreign `kind`, unknown `format_version`, bad digest, or a broken `multiple_response_sets[].fields` array |
 | `PULSE_SPSS_NAME_INVALID` | error | A cohort field name a `.sav` cannot carry as a variable |
 | `PULSE_SPSS_NAME_COLLISION` | error | Two cohort fields resolve to one SPSS variable name (case-insensitively) |

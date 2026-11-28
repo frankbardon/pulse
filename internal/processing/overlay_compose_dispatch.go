@@ -47,7 +47,7 @@ import (
 //     fan-out kind, overlayhost.ComposeLayerCount) plus a flat
 //     warnings slice.
 //
-// Service-side wiring: post-slot-barrier overlay fold (FailFast-aware).
+// Service-side wiring: post-slot-barrier overlay fold (all slots succeeded).
 // The `internal/service.Compose` /
 // `internal/service.ComposeParallel` orchestrators call `ApplyComposeOverlays`
 // at the post-slot-barrier — once every slot has produced a finalised
@@ -57,12 +57,11 @@ import (
 // via the per-Request `Request.Overlays` slot) is left UNTOUCHED by
 // this barrier.
 //
-// FailFast handling: when `ComposeOptions.FailFast = true` (opt-in;
-// the zero value is false) and any slot fails, the orchestrator SKIPS the overlay fold
-// entirely — no `ApplyComposeOverlays` call, no partial emission.
-// FailFast=false runs the fold over the subset of slots that
-// succeeded; the call site filters the responses slice to the present
-// entries before dispatching.
+// Failure handling: when any slot fails the orchestrator SKIPS the
+// overlay fold entirely — no `ApplyComposeOverlays` call, no partial
+// emission — under fail-fast and under `ComposeOptions.CollectErrors`
+// alike (both return `(nil, error)`). A nil entry in the responses
+// slice is therefore a defensive guard, not a production state.
 //
 // Structural invariants:
 //
@@ -200,7 +199,8 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 //
 // `responses` is the ordered list of per-slot *Response objects in the
 // same order as the originating `ComposedRequest.Requests` slice; nil
-// entries correspond to slots that failed when `FailFast=false`.
+// entries (a defensive guard; production never passes a failed slot)
+// are treated as absent.
 // `labels` is the parallel ordered list of per-slot `Request.Label`
 // values (after applyComposeLabelDefaults has filled empty slots with
 // `request_<index+1>`) — the resolver uses it to build the
@@ -215,7 +215,7 @@ var composeOverlayMultiLayerHandlers = map[types.OverlayKind]composeOverlayMulti
 //   - Targets is REQUIRED to have at least one entry. Empty Targets
 //     fires PULSE_OVERLAY_TARGET_UNKNOWN.
 //   - A target label that does not resolve to any label in `labels`
-//     OR resolves to a nil slot (failed under FailFast=false) fires
+//     OR resolves to a nil slot (the defensive nil guard) fires
 //     PULSE_OVERLAY_TARGET_UNKNOWN via processing.LookupTarget.
 //
 // Defense in depth: the internal/descriptor.ValidateCompose gate
@@ -354,6 +354,15 @@ func ApplyComposeOverlaysRouted(specs []types.ComposeOverlaySpec, responses []*t
 			// refuses it: a host whose shape never compiles the formula
 			// would otherwise answer an empty layer.
 			if cerr := composeOverlayBuiltinRefusal(spec, formula, i); cerr != nil {
+				return nil, nil, nil, cerr
+			}
+		}
+		// OVERLAY_CHISQ_VS_REF's params.reference_kind is "fixed" or
+		// "sample" (#791), refused before reference resolution — the
+		// point predict-compose (validateComposeOverlaySpec, gate 0d)
+		// refuses it at, same code and details.
+		if route == types.OverlayKindChiSqVsRef {
+			if _, cerr := overlayhost.ChiSqVsRefReferenceKind(spec, i); cerr != nil {
 				return nil, nil, nil, cerr
 			}
 		}

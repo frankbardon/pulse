@@ -33,6 +33,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/frankbardon/pulse/internal/pathq"
 )
 
 // KindFMA is the Finding.Kind of a compiler-reported contraction.
@@ -654,7 +656,7 @@ func ParseAllowlist(r io.Reader) ([]Entry, error) {
 			}
 		}
 		if file != path.Clean(file) || path.IsAbs(file) || strings.HasPrefix(file, "..") || strings.Contains(file, `\`) || !strings.HasSuffix(file, ".go") {
-			return nil, fmt.Errorf("allowlist line %d: file %q is not a clean module-relative .go path", n, file)
+			return nil, fmt.Errorf("allowlist line %d: file %s is not a clean module-relative .go path", n, pathq.Quote(file))
 		}
 		key := kind + " " + file + " " + fn
 		if prev, dup := seen[key]; dup {

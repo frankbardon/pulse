@@ -37,18 +37,13 @@ import (
 // downstream layer order matches `ComposedRequest.Overlays` spec
 // order verbatim.
 //
-// FailFast handling: the call-site decides whether to invoke this
-// hook based on the FailFast policy:
-//
-//   - FailFast=true (opt-in; the zero value is false): when
-//     ANY slot fails, the orchestrator does NOT call
-//     applyComposeOverlays — the failing call returns immediately
-//     with the first observed error. No partial overlay emission.
-//   - FailFast=false: the orchestrator calls applyComposeOverlays
-//     with the partial responses slice (failed slots are nil holes).
-//     `processing.ApplyComposeOverlays` resolves Reference / Targets
-//     against the slice; a nil hole at a referenced slot surfaces
-//     PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN.
+// Failure handling: the orchestrators call this hook only when every
+// slot succeeded. When ANY slot fails — fail-fast (the zero
+// ComposeOptions) or ComposeOptions.CollectErrors — the call returns
+// (nil, error) before the hook: no partial overlay emission. A nil
+// hole at a referenced slot is still guarded defensively:
+// `processing.ApplyComposeOverlays` surfaces
+// PULSE_OVERLAY_REFERENCE_UNKNOWN / PULSE_OVERLAY_TARGET_UNKNOWN.
 //
 // Empty-Overlays fast path: when `req.Overlays` is nil OR empty the
 // hook returns `(nil, nil)` with no map allocation, no goroutine, and
@@ -110,8 +105,8 @@ func distributeComposeWarnings(layers []types.OverlayLayer, warnings []types.Ove
 // not per-Request overlays); `requests` is the per-slot Label-default-
 // applied request list returned by `applyComposeLabelDefaults`;
 // `responses` is the parallel per-slot *Response slice (with nil
-// holes for failed slots under FailFast=false). The caller MUST gate
-// this hook with the FailFast policy — see the package doc above.
+// holes only as the defensive guard). The caller MUST call it only
+// once every slot succeeded — see the package doc above.
 //
 // ctx carries the deadline for the one cohort read the hook may make:
 // the categorical-code rule opens a slot's cohort header (and a joined

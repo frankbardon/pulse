@@ -2,6 +2,8 @@ package synth_test
 
 import (
 	"math"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/synth"
@@ -433,5 +435,128 @@ func TestBuildModelFidelity_StaircaseTargetContributesNoResidualCorrelation(t *t
 	}
 	if u.CapturedRho != 0.5 {
 		t.Errorf("Unmeasured[0].CapturedRho = %v, want 0.5 — the gap must carry the figure it could not check", u.CapturedRho)
+	}
+}
+
+// TestBuildModelFidelity_StaircaseEndpointResidualPack (TODO-747): the
+// residual-correlation half over a MIXED pair — one staircase endpoint
+// (`discrete` with predictors, `bernoulli` with predictors, or a
+// zero-predictor `discrete`) correlated with a latent-invertible
+// `normal` target — beside an invertible pair in the same spec.
+//
+// The staircase-by-staircase test above shows the refusal; this pack
+// shows it is PER ENDPOINT. Generation applies every correlation (the
+// staircase endpoint is listed among Fields, the participant set), the
+// invertible pair is still compared and recovered, and only the pair
+// touching the staircase endpoint is unmeasured under no_model_fit,
+// carrying its captured rho. A score residual on either side of a pair
+// attenuates its correlation by a factor that depends on the pair's
+// joint distribution, so one staircase endpoint is enough to make the
+// figure unmeasurable — reporting it would put an attenuated rho where
+// a measured one is expected.
+func TestBuildModelFidelity_StaircaseEndpointResidualPack(t *testing.T) {
+	t.Parallel()
+
+	const (
+		stairRho  = 0.5
+		normalRho = 0.6
+		bar       = 0.05
+	)
+	cases := []struct {
+		name  string
+		model synth.FieldModelSpec
+		// wantErr is the staircase model's own entry error ("" = its
+		// coefficients recover).
+		wantErr string
+	}{
+		{
+			name: "discrete",
+			model: synth.FieldModelSpec{
+				Field: "score", Intercept: 4.0,
+				Predictors:  []synth.ModelPredictorSpec{catLevel("region", "east", 1.2)},
+				ResidualStd: 1.6,
+			},
+		},
+		{
+			name: "bernoulli",
+			model: synth.FieldModelSpec{
+				Field: "flag", Intercept: 0.6,
+				Predictors:  []synth.ModelPredictorSpec{catLevel("region", "east", 0.2)},
+				ResidualStd: 0.45,
+			},
+		},
+		{
+			name:    "discrete-marginal",
+			model:   synth.FieldModelSpec{Field: "score", Intercept: 4.0, ResidualStd: 1.6},
+			wantErr: "a zero-predictor staircase model has no coefficient to recover",
+		},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := modelFidelityStaircaseSpec(12000, tc.model,
+				synth.FieldModelSpec{
+					Field: "spend", Intercept: 100,
+					Predictors:  []synth.ModelPredictorSpec{catLevel("region", "east", 30)},
+					ResidualStd: 15,
+				},
+				synth.FieldModelSpec{
+					Field: "tenure", Intercept: 30,
+					Predictors:  []synth.ModelPredictorSpec{catLevel("plan", "pro", 5)},
+					ResidualStd: 4,
+				},
+			)
+			spec.Fields = append(spec.Fields,
+				synth.FieldSpec{Name: "spend", Type: "f64", Distribution: synth.DistNormal,
+					Params: map[string]any{"mean": 100.0, "std": 25.0}},
+				synth.FieldSpec{Name: "tenure", Type: "f64", Distribution: synth.DistNormal,
+					Params: map[string]any{"mean": 30.0, "std": 6.0}},
+			)
+			stair := tc.model.Field
+			spec.ResidualCorrelations = []synth.CorrelationSpec{
+				{A: stair, B: "spend", Rho: stairRho},
+				{A: "spend", B: "tenure", Rho: normalRho},
+			}
+			schema, records := augmentForModelFidelity(t, spec, 12000, int64(271+i))
+
+			report := &synth.FidelityReport{}
+			synth.BuildModelFidelity(report, schema, records, spec)
+
+			m := findModelFidelity(report, stair)
+			if m == nil {
+				t.Fatalf("no model entry for %s", stair)
+			}
+			if tc.wantErr == "" && m.Error != "" {
+				t.Fatalf("%s: Error %q — the coefficient recovery must still run", stair, m.Error)
+			}
+			if tc.wantErr != "" && !strings.HasPrefix(m.Error, tc.wantErr) {
+				t.Fatalf("%s: Error %q, want prefix %q", stair, m.Error, tc.wantErr)
+			}
+
+			sec := report.ModelResidualCorrelations
+			if sec == nil {
+				t.Fatal("ModelResidualCorrelations is nil — both applied pairs must be reported")
+			}
+			if !slices.Contains(sec.Fields, stair) {
+				t.Errorf("Fields = %v — generation applied the %s correlation, so it is a participant", sec.Fields, stair)
+			}
+			if sec.Compared != 1 || len(sec.Pairs) != 1 {
+				t.Fatalf("Compared = %d, Pairs = %d; want exactly the spend x tenure pair measured", sec.Compared, len(sec.Pairs))
+			}
+			p := residualPair(sec, "spend", "tenure")
+			if p == nil {
+				t.Fatalf("the invertible pair is not the one measured: %+v", sec.Pairs[0])
+			}
+			if p.Delta > bar || p.Flagged {
+				t.Errorf("spend x tenure RecoveredRho = %.4f, captured %.2f — the staircase endpoint "+
+					"must not disturb an invertible pair beside it", p.RecoveredRho, normalRho)
+			}
+			if len(sec.Unmeasured) != 1 {
+				t.Fatalf("Unmeasured = %+v, want the one pair touching %s", sec.Unmeasured, stair)
+			}
+			u := sec.Unmeasured[0]
+			if !(u.A == stair && u.B == "spend") || u.Reason != synth.ResidualUnmeasuredNoModelFit || u.CapturedRho != stairRho {
+				t.Errorf("Unmeasured[0] = %+v, want %s x spend, %s, captured %v", *u, stair, synth.ResidualUnmeasuredNoModelFit, stairRho)
+			}
+		})
 	}
 }

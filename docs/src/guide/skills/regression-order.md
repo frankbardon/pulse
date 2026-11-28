@@ -1,10 +1,10 @@
 ```yaml
 name: regression-order
-description: Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's deprecated params.time alias, and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills.
+description: Fitting a regression's rows in time order — the shared order block {field, partition, gaps}, how the engine sorts and gap-checks the admitted rows before any fit, the duplicate / gap refusals, panels, the models that require an order, the Bayesian media-mix model's order (params.time removed), and adstock carry-over into held-out and scored rows (carryover, adstock_state). Topical design; per-model params in atomic op-reg-* skills.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [order, row order, time order, order.field, order.partition, gaps, PROCESSING_REGRESSION_ORDER, order_required, panel, params.time, carryover, adstock carry-over, adstock_state]
+covers: [order, row order, time order, order.field, order.partition, gaps, PROCESSING_REGRESSION_ORDER, order_required, panel, params_time_removed, carryover, adstock carry-over, adstock_state]
 requires: [capability:regression_order]
 ```
 
@@ -41,7 +41,7 @@ A filtered or null-target row inside the span leaves a gap — the adstock would
 
 ## REG_MMM_BAYES
 
-`REG_MMM_BAYES` reads `order.field` as its time field; `params.time` is the deprecated alias (same fit, same seed — `order: {field: "week"}` draws exactly what `params: {time: "week"}` drew). Both set must name the same field (`reason: time_alias_conflict`). On a geo panel `partition` must be `params.geo`, and without `params.geo` a `partition` is refused (`reason: order_partition_not_geo`). Its own rules still apply: integer steps of 1 (`time_gap`), `holdout_from` and lift windows in `field` units.
+`REG_MMM_BAYES` reads `order.field` as its time field, required (`PROCESSING_CONFIG` `slot: order`). `params.time` is removed: a spec carrying it is refused `PROCESSING_CONFIG` `reason: params_time_removed`, `details.replacement: order.field` (the seed is unchanged — `order: {field: "week"}` draws exactly what `params.time` drew). On a geo panel `partition` must be `params.geo`, and without `params.geo` a `partition` is refused (`reason: order_partition_not_geo`). Its own rules still apply: integer steps of 1 (`time_gap`), `holdout_from` and lift windows in `field` units.
 
 ## Adstock carry-over
 

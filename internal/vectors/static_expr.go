@@ -137,15 +137,40 @@ func (v *staticVisitor) Visit(node *exprast.Node) {
 // arguments first (each as "formula total() argument"; skipped when
 // totalcall refuses the formula — that refusal comes first), every
 // filter expression as "filter".
-func StaticIssues(req *types.Request, schema *encoding.Schema, resolved []Resolved) []*errors.CodedError {
+//
+// failed reports a source the entry compile already refused
+// (PULSE_FORMULA_COMPILE_ERROR — the field-reference walk compiles
+// every expression before the build runs, so the run raises that
+// refusal and never reaches this rule); a slot whose source, or one of
+// whose total() arguments, failed is skipped (#780). nil skips none.
+func StaticIssues(req *types.Request, schema *encoding.Schema, resolved []Resolved, failed func(src string) bool) []*errors.CodedError {
 	var out []*errors.CodedError
 	lenOf := ExprVectorLen(resolved, schema)
 	for _, slot := range ExprSlots(req) {
+		if failed != nil && slotCompileFailed(slot.Src, failed) {
+			continue
+		}
 		if ce := slotStaticIssue(slot, lenOf); ce != nil {
 			out = append(out, ce)
 		}
 	}
 	return out
+}
+
+// slotCompileFailed reports whether failed refused src or one of its
+// total() arguments.
+func slotCompileFailed(src string, failed func(string) bool) bool {
+	if failed(src) {
+		return true
+	}
+	if totalcall.Contains(src) {
+		for _, arg := range totalcall.Args(src) {
+			if failed(arg) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func slotStaticIssue(slot ExprSlot, lenOf func(string) (int, bool)) *errors.CodedError {

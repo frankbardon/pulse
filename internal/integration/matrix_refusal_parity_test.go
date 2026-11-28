@@ -102,7 +102,7 @@ func TestMatrixRefusal_PredictAndValidatorsMatchRuntime(t *testing.T) {
 			_, rerr := p.Compose(ctx, mk())
 			requireCode(t, rerr, c.code)
 			sameEntry(t, descx.ValidateComposeWithOptions(mk(), opts), rerr)
-			_, perr := p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			_, perr := p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 2})
 			requireCode(t, perr, c.code)
 		})
 		t.Run(c.name+"/chain stage 0", func(t *testing.T) {

@@ -22,13 +22,17 @@ import (
 // aggregation is refused at compile on both sides. A name the rule does
 // not decide (an extension or hidden operator's column) stays `any`.
 
-// WelfordCell is the layout of AGG_WELFORD's cell (the engine's
-// processing.WelfordTriple, field for field): a formula reads its
-// figures as w.Mean, w.Variance and w.N, never the cell as a number.
+// WelfordCell is AGG_WELFORD's cell: the engine's
+// processing.WelfordTriple is this type (an alias), so the layout a
+// formula compiles against is the one it runs on. A formula reads its
+// figures by their wire names — w.mean, w.variance, w.n, the keys
+// `data` and the components spell — never the cell as a number. The
+// expr tags make those the only spellings: the Go casing (w.Mean) is
+// an unknown field, PULSE_FORMULA_COMPILE_ERROR on both sides (#782).
 type WelfordCell struct {
-	Mean     float64 `json:"mean"`
-	Variance float64 `json:"variance"`
-	N        uint64  `json:"n"`
+	Mean     float64 `json:"mean" expr:"mean"`
+	Variance float64 `json:"variance" expr:"variance"`
+	N        uint64  `json:"n" expr:"n"`
 }
 
 var (
@@ -162,7 +166,7 @@ func declType(t reflect.Type) exprtypes.Type {
 }
 
 // structType declares a struct-typed column with its field table (the
-// nature a cache builds), so w.Mean compiles to a field read by index.
+// nature a cache builds), so w.mean compiles to a field read by index.
 type structType struct{ t reflect.Type }
 
 func (s structType) Nature() nature.Nature {

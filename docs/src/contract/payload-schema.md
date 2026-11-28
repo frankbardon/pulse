@@ -90,9 +90,7 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   entries, the `Response.warnings` shape),
   `LookupResult`, `RecommendResult` (its draft `request`
   is an open object: a `"<placeholder>"` may sit where `Request` takes a
-  number; `steps` — the `RecommendStep` plan `{tool, request,
-  placeholders, why}` — is deprecated, marked `deprecated: true`, and
-  always absent: recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
+  number; recommend drafts no multi-request plan), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings; operator mode adds `validation`, the `OperatorValidation`
   record `{references, gap, weight_refusal, certification}`), `MaterializePredictResult` (`Pulse.PredictMaterialize`
@@ -176,7 +174,10 @@ drift from the engine:
    extensions; `PostFitType` has no built-in value), so registering a new
    operator changes the schema. Other closed vocabularies with a
    registry list (`MultiplicityMethod`, `ReturnPreset`, `SweepMode`,
-   `CovarianceType`, …) are enums too.
+   `CovarianceType`, `LookupMultiplicity`, `LabelMode`, …) are enums
+   too. `LookupMultiplicity` lists `all`, `assert_unique` and `first`
+   only: the hyphenated `assert-unique` is a CLI flag spelling the
+   library refuses on a `LookupRequest`.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
    express: `OverlayRef` (at most one arm populated; the `matrix {name}`
    arm names a `Request.Matrices` spec for the matrix-result overlay
@@ -205,7 +206,7 @@ The schema is faithful but not maximally strict in two places, by design:
   (`PULSE_REQUEST_UNKNOWN_FIELD`), and the operator's skill documents
   each param.
 - **Small closed mode enums** (`OverlayScope`, `OverlayShape`,
-  `CrosstabNormalize`, `CrosstabShape`, `LabelMode`, `MarginAxis`) are
+  `CrosstabNormalize`, `CrosstabShape`, `MarginAxis`) are
   typed as plain strings rather than `enum`s — they have no registry
   helper, and a hardcoded list would drift silently.
 
@@ -1442,7 +1443,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, `advisories`, an extension model's `outputs`, `holdout` when asked for | the keys `returnPresetPaths` lists: the coefficient table (`std_errors`, `ci_lower` / `ci_upper`, `df`, `conf_level`), the fit settings and statistics, `vcov` / `correlation` / `covariance`, `margins`, `collinearity`, `exponentiated`, `term_tests`, `holdout`, `advisories`, an extension model's `statistics` and `outputs`. Not kept: `credible_intervals`, `selection`, `two_log_lik` / `aic`, `dispersion`, `theta` / `theta_std_err`, `reference` / `categories`, the resample echoes and the multiplicity twins |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, `advisories`, an extension model's `outputs`, `holdout` when asked for | every key but `credible_intervals` and `selection`: the coefficient table (`std_errors`, `ci_lower` / `ci_upper`, `df`, `conf_level`), the fit settings and statistics (`two_log_lik` / `aic`, `dispersion`, `theta` / `theta_std_err`, `reference` / `categories`), the resample echoes (`bootstrap_requested` / `bootstrap_succeeded`, `jackknife_groups`), the multiplicity twins (`p_adjusted`, `significant_adjusted`, `multiplicity`), `vcov` / `correlation` / `covariance`, `margins`, `collinearity`, `exponentiated`, `term_tests`, `holdout`, `advisories`, an extension model's `statistics` and `outputs` (`TestReturnPresetStandard_RegressionMembership`) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

@@ -2,8 +2,7 @@ package processing
 
 import (
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 )
@@ -47,10 +46,6 @@ import (
 // Streamable (per-key state, one map insert per row) and mergeable (the
 // per-key maps union). Its ComponentsMergeability is Partial, matching
 // AGG_DISTINCT_COUNT: the fold is associative but not constant-space.
-type distinctSumParams struct {
-	DistinctBy string `json:"distinct_by"`
-}
-
 type distinctSumAggregator struct {
 	distinctBy string
 
@@ -66,22 +61,17 @@ type distinctSumAggregator struct {
 }
 
 func newDistinctSumAggregator(agg *types.Aggregation, _ *encoding.Schema) (Aggregator, error) {
-	var params distinctSumParams
-	paramread.Declare(paramread.Aggregator, string(agg.Type), &params)
-	if agg != nil && len(agg.Params) > 0 {
-		if err := paramread.Decode(paramread.Aggregator, string(agg.Type), agg.Params, &params); err != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"invalid distinct_sum params: "+err.Error())
-		}
+	// The params rule is internal/opconfig's, the one predict calls.
+	// distinct_by is refused, never defaulted (opconfig.DistinctSumKey).
+	var raw []byte
+	if agg != nil {
+		raw = agg.Params
 	}
-	// Refused, never defaulted: falling back to the aggregation's own
-	// Field would silently turn the operator into a distinct-VALUE sum,
-	// which returns a plausible number for a question nobody asked.
-	if params.DistinctBy == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"AGG_DISTINCT_SUM requires params.distinct_by")
+	key, cerr := opconfig.DistinctSumKey(raw)
+	if cerr != nil {
+		return nil, cerr
 	}
-	return &distinctSumAggregator{distinctBy: params.DistinctBy}, nil
+	return &distinctSumAggregator{distinctBy: key}, nil
 }
 
 func (a *distinctSumAggregator) Aggregate(records []*Record, field string) (float64, error) {

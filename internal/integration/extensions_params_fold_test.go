@@ -188,7 +188,7 @@ func TestExtensions_ParamsExpressionFoldCompose(t *testing.T) {
 	runs := map[string]func(*pulse.ComposedRequest) (*pulse.ComposedResponse, error){
 		"Compose": func(r *pulse.ComposedRequest) (*pulse.ComposedResponse, error) { return p.Compose(ctx, r) },
 		"ComposeParallel": func(r *pulse.ComposedRequest) (*pulse.ComposedResponse, error) {
-			return p.ComposeParallel(ctx, r, pulse.ComposeOptions{MaxWorkers: 2, FailFast: true})
+			return p.ComposeParallel(ctx, r, pulse.ComposeOptions{MaxWorkers: 2})
 		},
 	}
 	for name, run := range runs {

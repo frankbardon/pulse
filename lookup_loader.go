@@ -6,11 +6,15 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
+
+	"github.com/spf13/afero"
 )
 
 // envLookupTablesDir is the environment variable consulted when
@@ -41,19 +45,20 @@ func loadLookupTablesFromDir(opts *Options) error {
 	if dir == "" {
 		return nil
 	}
-	info, err := os.Stat(dir)
+	fsys := configDirFs(opts)
+	info, err := fsys.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
-		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %q", dir), err)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %s", pathq.Quote(dir)), err)
 	}
 	if !info.IsDir() {
-		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %q is not a directory", dir), nil)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: lookup tables dir %s is not a directory", pathq.Quote(dir)), nil)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
-		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: reading lookup tables dir %q", dir), err)
+		return tableFileError("lookup_table", dir, fmt.Sprintf("pulse: reading lookup tables dir %s", pathq.Quote(dir)), err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -73,7 +78,7 @@ func loadLookupTablesFromDir(opts *Options) error {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		raw, err := os.ReadFile(path)
+		raw, err := afero.ReadFile(fsys, path)
 		if err != nil {
 			return tableFileError("lookup_table", path, "pulse: reading lookup table "+path, err)
 		}

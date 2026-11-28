@@ -49,10 +49,10 @@ func artifactsFixture(t *testing.T) (*pulse.Pulse, afero.Fs) {
 }
 
 // moveCopy copies src to dst on afs and carries src's modification
-// time across, as a rename or `cp -p` does. Both sidecars fingerprint
-// the cohort's size AND mtime, and the SPSS sidecar refuses a cohort
-// whose mtime moved (PULSE_SPSS_SIDECAR_STALE), so a mover that resets
-// the cohort's mtime has invalidated what it carried.
+// time across, as a rename or `cp -p` does, so both sidecars are served
+// on their hash-free stat match. (A mover that resets the mtime keeps
+// them too, at one content hash per read: the drift escalates to the
+// fingerprint.)
 func moveCopy(t *testing.T, afs afero.Fs, src, dst string) {
 	t.Helper()
 	b, err := afero.ReadFile(afs, src)

@@ -14,6 +14,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupfit"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -26,9 +27,20 @@ import (
 // precision. Lifted out of categoryGrouper / roundedGrouper /
 // rangeGrouper so the KeyFor and Group paths share a single
 // canonicalisation site.
+//
+// Only an integral value inside int64's range goes through int64(v):
+// the conversion of ±Inf or of a magnitude of 2^63 or more is
+// platform-defined in Go (amd64 yields MinInt64, arm64 saturates), so
+// the key would differ between architectures. Those values take
+// FormatFloat's fixed spellings instead — "+Inf", "-Inf", the exact
+// integer digits of a huge value ("9223372036854775808" for 2^63) —
+// and NaN, never integral, its "NaN". Each still parses back (keyRank).
 func formatRoundedNumeric(v float64) string {
 	if v == math.Trunc(v) {
-		return strconv.FormatInt(int64(v), 10)
+		if v >= -0x1p63 && v < 0x1p63 {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', 0, 64)
 	}
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
@@ -146,8 +158,10 @@ type emissionOrderer interface {
 // the buffered and the fused arm, grouped matrices — emits its buckets in
 // that order. GROUP_QUANTILE ranks by bucket id (D1…D10, never D1, D10,
 // D2), GROUP_RANGE by its numeric low edge ("-20--10" before "-10-0"
-// before "0-10"), GROUP_ROUNDED by its key's value ("-5", "9.5", "10")
-// and GROUP_NUMERIC_RANGES by supplied range index, unmatched last; keys
+// before "0-10"), GROUP_ROUNDED by its key's value ("-5", "9.5", "10"),
+// GROUP_NUMERIC_RANGES by supplied range index, unmatched last, and
+// GROUP_CATEGORY over a non-dictionary field by its key's value ("2"
+// before "10"; keyOrderGate turns it off over a categorical); keys
 // themselves never change. keyRank returns key's
 // ascending sort position and false for a key the grouper never mints
 // (such a straggler sorts after every ranked key, alphabetically); equal
@@ -162,9 +176,23 @@ type keyOrderer interface {
 	keyRank(key string) (float64, bool)
 }
 
+// keyOrderGate is keyOrderer's optional switch, for a grouper whose
+// keys carry an intrinsic order under some configurations only
+// (GROUP_CATEGORY: over a numeric field, never over a dictionary
+// categorical). keyOrdered false means no key order at all — nil, the
+// alphabetical path, byte-identically — decided from the grouper's
+// configuration alone.
+type keyOrderGate interface {
+	keyOrdered() bool
+}
+
 // keyOrderFilter returns g's intrinsic key order as an ordering-only
-// filter, or nil when g does not implement keyOrderer (nil g included).
+// filter, or nil when g does not implement keyOrderer (nil g included)
+// or its keyOrderGate is off.
 func keyOrderFilter(g Grouper) *includeFilter {
+	if gate, ok := g.(keyOrderGate); ok && !gate.keyOrdered() {
+		return nil
+	}
 	if ko, ok := g.(keyOrderer); ok {
 		return &includeFilter{rank: ko.keyRank}
 	}
@@ -347,6 +375,13 @@ type categoryGrouper struct {
 	schema  *encoding.Schema
 	field   string
 	include *includeFilter
+	// numericKeys reports that every key KeyFor mints is a formatted
+	// number (formatRoundedNumeric): the field is no dictionary
+	// categorical in the schema — a number, a date part, a decimal, a
+	// derived numeric column. A schema-time verdict (the same branch
+	// KeyFor takes), never a look at the data; it turns the keyOrderer
+	// rank on (#788).
+	numericKeys bool
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow state so
 	// Components() can emit per-bucket counts without re-scanning the
@@ -370,11 +405,48 @@ func newCategoryGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 		return nil, err
 	}
 	return &categoryGrouper{
-		schema:  schema,
-		field:   grp.Field,
-		include: buildIncludeFilter(grp.Include),
+		schema:      schema,
+		field:       grp.Field,
+		include:     buildIncludeFilter(grp.Include),
+		numericKeys: !dictionaryCategorical(schema, grp.Field),
 	}, nil
 }
+
+// dictionaryCategorical reports whether field is a categorical field
+// carrying its dictionary in schema — the fields whose GROUP_CATEGORY
+// keys are labels (categoryGrouper.KeyFor). Every other field keys by
+// its formatted number.
+func dictionaryCategorical(schema *encoding.Schema, field string) bool {
+	if schema == nil {
+		return false
+	}
+	f := schema.Field(field)
+	return f != nil && f.Type.IsCategorical() && f.Dictionary != nil
+}
+
+// keyRank implements keyOrderer: over a field whose keys are formatted
+// numbers (numericKeys — an integer column, an ATTR_DATE_PART hour or
+// weekday, a decimal) a key ranks by its value, so buckets emit
+// "0", "1", "2", …, "10" where alphabetical order put "10" before "2"
+// and scrambled the negatives — as GROUP_ROUNDED's keys rank. A key
+// that does not parse, or NaN, is unranked (after every ranked key,
+// alphabetically). A label key (a dictionary categorical) is never
+// ranked: keyOrdered turns the hook off and the order stays
+// alphabetical, byte-identically.
+func (g *categoryGrouper) keyRank(key string) (float64, bool) {
+	if !g.numericKeys {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(key, 64)
+	if err != nil || math.IsNaN(v) {
+		return 0, false
+	}
+	return v, true
+}
+
+// keyOrdered implements keyOrderGate: only numeric keys carry an
+// intrinsic order.
+func (g *categoryGrouper) keyOrdered() bool { return g.numericKeys }
 
 // KeyFor implements StreamableGrouper.KeyFor. Categorical fields resolve
 // the wire-format dictionary index to its label; non-categorical numeric
@@ -465,16 +537,17 @@ func (g *categoryGrouper) Components() (map[string]any, error) {
 		}
 	}
 
-	// Order bucket keys for deterministic emission — include order when
-	// an Include list is active, otherwise sort.Strings (byte-identity
-	// for the no-include path). An empty live map collapses to an empty
+	// Order bucket keys for deterministic emission — the grouper's
+	// emission order (includeFilterOf): include order when an Include
+	// list is active, else numeric order over numeric keys (keyRank),
+	// otherwise sort.Strings (byte-identity for a label field). An empty live map collapses to an empty
 	// buckets slice — not nil, since downstream JSON consumers prefer a
 	// concrete `[]` over `null`.
 	keys := make([]string, 0, len(g.liveBuckets))
 	for k := range g.liveBuckets {
 		keys = append(keys, k)
 	}
-	keys = orderKeysByInclude(g.include, keys)
+	keys = orderKeysByInclude(includeFilterOf(g), keys)
 
 	buckets := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
@@ -520,9 +593,13 @@ func newRoundedGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, erro
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
 		return nil, err
 	}
-	if grp.Interval <= 0 {
-		grp.Interval = 1 // default to 1
+	// The interval rule is internal/opconfig's, the one predict calls:
+	// a negative interval is refused, an unset (0) one defaults to 1.
+	iv, cerr := opconfig.GroupInterval(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
+	grp.Interval = iv
 	return &roundedGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 
@@ -687,9 +764,13 @@ func newRangeGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error)
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
 		return nil, err
 	}
-	if grp.Interval <= 0 {
-		grp.Interval = 1 // default to 1
+	// The interval rule is internal/opconfig's, the one predict calls:
+	// a negative interval is refused, an unset (0) one defaults to 1.
+	iv, cerr := opconfig.GroupInterval(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
+	grp.Interval = iv
 	return &rangeGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 
@@ -914,9 +995,12 @@ func newQuantileGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	if _, err := groupfit.Parse(grp.Type, grp.Params); err != nil {
 		return nil, err
 	}
-	buckets := int(grp.Interval)
-	if buckets <= 0 {
-		buckets = 4
+	// The bucket-count rule is internal/opconfig's, the one predict
+	// calls: a negative, NaN, fractional or oversized interval is
+	// refused, an unset (0) one defaults to 4.
+	buckets, cerr := opconfig.QuantileBuckets(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
 	return &quantileGrouper{buckets: buckets, weight: grp.Weight.Spec()}, nil
 }
@@ -1900,4 +1984,7 @@ var (
 	_ keyOrderer = (*numericRangesGrouper)(nil)
 	_ keyOrderer = (*dateGrouper)(nil)
 	_ keyOrderer = (*dateRangesGrouper)(nil)
+	_ keyOrderer = (*categoryGrouper)(nil)
+
+	_ keyOrderGate = (*categoryGrouper)(nil)
 )

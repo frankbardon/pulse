@@ -47,9 +47,9 @@
     "defaults_applied": [
       {
         "path": [
-          "Aggregations",
+          "aggregations",
           "0",
-          "Type"
+          "type"
         ],
         "field": "revenue",
         "type": "AGG_SUM",
@@ -58,9 +58,9 @@
       },
       {
         "path": [
-          "Groups",
+          "groups",
           "0",
-          "Type"
+          "type"
         ],
         "field": "plan",
         "type": "GROUP_CATEGORY",
@@ -117,4 +117,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 951d1bee93cb48b53aa6b1d77c077a051fad29861ee55bdab903e3af1703bb15
+// golden-hash: 448f826a0269782389ba073fb583be898fe34d60e148231407bc2cdbd4550b69

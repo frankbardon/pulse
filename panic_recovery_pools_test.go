@@ -228,7 +228,7 @@ func poolArms() []poolArm {
 			},
 			run: func(ctx context.Context, _ *testing.T, p *Pulse) error {
 				_, err := p.ComposeParallel(ctx, &ComposedRequest{Requests: []*Request{obsRequest(), panicAggRequest()}},
-					ComposeOptions{MaxWorkers: 2, FailFast: true})
+					ComposeOptions{MaxWorkers: 2})
 				return err
 			},
 		},
@@ -389,7 +389,7 @@ func TestPanicRecovery_ComposeFitsSerialMatchesPool(t *testing.T) {
 	}
 }
 
-// TestPanicRecovery_ComposeParallelNoFailFast: without FailFast a
+// TestPanicRecovery_ComposeParallelNoFailFast: with CollectErrors a
 // panicking slot is one failed slot among the rest — the existing
 // aggregate SERVICE_INTERNAL error names its index — and the pool still
 // drains without a leak.
@@ -399,7 +399,7 @@ func TestPanicRecovery_ComposeParallelNoFailFast(t *testing.T) {
 	p := memSetup(t, "", Options{ShardWorkers: 1, DecodeWorkers: 1})
 	before := runtime.NumGoroutine()
 	_, err := p.ComposeParallel(ctx, &ComposedRequest{Requests: []*Request{obsRequest(), panicAggRequest()}},
-		ComposeOptions{MaxWorkers: 2})
+		ComposeOptions{MaxWorkers: 2, CollectErrors: true})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.SERVICE_INTERNAL {
 		t.Fatalf("err = %v, want the SERVICE_INTERNAL aggregate", err)

@@ -35,7 +35,7 @@ Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: tr
 
 ## Inputs
 
-`field` and `params.base`: numeric (types in `## Contract`). On a decile table: defaults (field) over loans (base).
+`field` and `params.base`: numeric (types in `## Contract`); a `decimal128` aggregation reads as its value. On a decile table: defaults (field) over loans (base).
 
 ## Output
 

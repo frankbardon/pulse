@@ -4,11 +4,11 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/pathq"
 )
 
 func TestReadOS(t *testing.T) {
@@ -53,7 +53,7 @@ func TestReadOS(t *testing.T) {
 			if ce.Details["path"] != tc.path {
 				t.Errorf("path detail = %v, want %s", ce.Details["path"], tc.path)
 			}
-			if !strings.Contains(ce.Message, strconv.Quote(tc.path)) {
+			if !strings.Contains(ce.Message, pathq.Quote(tc.path)) {
 				t.Errorf("message %q does not name the path", ce.Message)
 			}
 		})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/winformula"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -40,11 +41,11 @@ import (
 // crosstab MatrixCell builder, overlay handlers — can pass it through
 // the `any`-typed Value slot without pointer-aliasing surprises across
 // copies.
-type WelfordTriple struct {
-	Mean     float64 `json:"mean"`
-	Variance float64 `json:"variance"`
-	N        uint64  `json:"n"`
-}
+//
+// It is winformula.WelfordCell (an alias), the layout a WIN_FORMULA
+// compiles against, so a formula's w.mean / w.variance / w.n read on
+// the output row is the field the compile typed.
+type WelfordTriple = winformula.WelfordCell
 
 type welfordAggregator struct {
 	field string

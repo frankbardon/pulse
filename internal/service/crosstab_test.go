@@ -604,8 +604,8 @@ func TestCrosstab_EmptyRowsRejected(t *testing.T) {
 }
 
 // TestCrosstab_NoColumnsIsTotalColumn: a crosstab with no column grouper
-// is no longer refused (PULSE_CROSSTAB_EMPTY_COLUMNS is not raised) — it
-// runs with the one implicit Total column (U47 #326 / #328).
+// is not refused — it runs with the one implicit Total column (U47 #326 /
+// #328).
 func TestCrosstab_NoColumnsIsTotalColumn(t *testing.T) {
 	t.Parallel()
 

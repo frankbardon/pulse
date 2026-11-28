@@ -290,7 +290,7 @@ func TestExtensions_InheritedDictionaryReadsAsSource(t *testing.T) {
 // first group.
 func dictDefaulted(defaults []descriptor.DefaultApplied) bool {
 	for _, d := range defaults {
-		if fmt.Sprint(d.Path) == "[Groups 0 Type]" && d.Type == string(types.GROUP_CATEGORY) {
+		if fmt.Sprint(d.Path) == "[groups 0 type]" && d.Type == string(types.GROUP_CATEGORY) {
 			return true
 		}
 	}
