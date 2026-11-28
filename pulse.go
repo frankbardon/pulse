@@ -490,6 +490,10 @@ type Options struct {
 	// "rows": {"k": "v"}}. The filename without the .json extension
 	// becomes the registered table name.
 	//
+	// This directory, RangeTablesDir, LookupTablesDir and PopulationsDir
+	// are paths on Options.FS when it is set (as TemplateDirs are), else
+	// host paths on the OS filesystem — never rooted at DataDir.
+	//
 	// Honoured after PULSE_LABEL_TABLES_DIR — programmatic value
 	// wins. Tables loaded from disk merge into Options.Extensions.
 	// LabelTables; collisions are rejected with

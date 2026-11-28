@@ -1,11 +1,14 @@
 package pulse
 
 import (
+	"context"
 	stderrors "errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -21,12 +24,12 @@ import (
 func TestLoadLabelTables_FlatMap(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "country.json"),
+	fsys, dir := memTableDir(t)
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "country.json"),
 		[]byte(`{"US": "United States", "CA": "Canada"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	opts := Options{LabelTablesDir: dir}
+	opts := Options{FS: fsys, LabelTablesDir: dir}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatalf("loadLabelTablesFromDir: %v", err)
 	}
@@ -42,12 +45,12 @@ func TestLoadLabelTables_FlatMap(t *testing.T) {
 func TestLoadLabelTables_Wrapped(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "region.json"),
+	fsys, dir := memTableDir(t)
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "region.json"),
 		[]byte(`{"description": "ISO regions", "rows": {"NA": "North America"}}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	opts := Options{LabelTablesDir: dir}
+	opts := Options{FS: fsys, LabelTablesDir: dir}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -63,18 +66,18 @@ func TestLoadLabelTables_Wrapped(t *testing.T) {
 func TestLoadLabelTables_KeepTheFileKeyOrder(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	fsys, dir := memTableDir(t)
 	files := map[string]string{
 		"flat.json":    `{"NE": "Northeast", "MW": "Midwest", "SO": "South", "WE": "West"}`,
 		"wrapped.json": `{"description": "census regions", "rows": {"WE": "West", "NE": "Northeast", "SO": "South"}}`,
 		"repeat.json":  `{"b": "B", "a": "A", "b": "B2"}`,
 	}
 	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+		if err := afero.WriteFile(fsys, filepath.Join(dir, name), []byte(body), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	opts := Options{LabelTablesDir: dir}
+	opts := Options{FS: fsys, LabelTablesDir: dir}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -91,13 +94,13 @@ func TestLoadLabelTables_KeepTheFileKeyOrder(t *testing.T) {
 
 func TestLoadLabelTables_EnvVar(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "x.json"),
+	fsys, dir := memTableDir(t)
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "x.json"),
 		[]byte(`{"a": "A"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(envLabelTablesDir, dir)
-	opts := Options{}
+	opts := Options{FS: fsys}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -109,12 +112,13 @@ func TestLoadLabelTables_EnvVar(t *testing.T) {
 func TestLoadLabelTables_CollisionWithProgrammatic(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "country.json"),
+	fsys, dir := memTableDir(t)
+	if err := afero.WriteFile(fsys, filepath.Join(dir, "country.json"),
 		[]byte(`{"US": "United States"}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	opts := Options{
+		FS:             fsys,
 		LabelTablesDir: dir,
 		Extensions: Extensions{
 			LabelTables: map[string]LabelTable{"country": {Rows: map[string]string{"US": "US"}}},
@@ -122,7 +126,7 @@ func TestLoadLabelTables_CollisionWithProgrammatic(t *testing.T) {
 	}
 	assertDirCollision(t, loadLabelTablesFromDir(&opts), "label_table", "country", filepath.Join(dir, "country.json"))
 	// pulse.New raises the same coded refusal.
-	_, err := New(Options{FS: afero.NewMemMapFs(), LabelTablesDir: dir, Extensions: opts.Extensions})
+	_, err := New(Options{FS: fsys, LabelTablesDir: dir, Extensions: opts.Extensions})
 	assertDirCollision(t, err, "label_table", "country", filepath.Join(dir, "country.json"))
 }
 
@@ -143,7 +147,8 @@ func assertDirCollision(t *testing.T, err error, category, name, path string) {
 func TestLoadLabelTables_NoDirNoOp(t *testing.T) {
 	t.Parallel()
 
-	opts := Options{}
+	fsys := afero.NewMemMapFs()
+	opts := Options{FS: fsys}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatalf("no-op should not error: %v", err)
 	}
@@ -155,7 +160,8 @@ func TestLoadLabelTables_NoDirNoOp(t *testing.T) {
 func TestLoadLabelTables_NonexistentDir(t *testing.T) {
 	t.Parallel()
 
-	opts := Options{LabelTablesDir: "/path/that/should/not/exist/__pulse__"}
+	fsys := afero.NewMemMapFs()
+	opts := Options{FS: fsys, LabelTablesDir: "/path/that/should/not/exist/__pulse__"}
 	if err := loadLabelTablesFromDir(&opts); err != nil {
 		t.Fatalf("nonexistent dir should be tolerated: %v", err)
 	}
@@ -316,15 +322,15 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "regions.json"),
+			fsys, dir := memTableDir(t)
+			if err := afero.WriteFile(fsys, filepath.Join(dir, "regions.json"),
 				[]byte(`{"NA": "North America"}`), 0644); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, tc.filename), []byte(tc.body), 0644); err != nil {
+			if err := afero.WriteFile(fsys, filepath.Join(dir, tc.filename), []byte(tc.body), 0644); err != nil {
 				t.Fatal(err)
 			}
-			opts := Options{LabelTablesDir: dir}
+			opts := Options{FS: fsys, LabelTablesDir: dir}
 			if err := loadLabelTablesFromDir(&opts); err != nil {
 				t.Fatalf("sidecar must not fail the load: %v", err)
 			}
@@ -359,17 +365,17 @@ func TestLoadLabelTables_MalformedStillHardFails(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
+			fsys, dir := memTableDir(t)
 			path := filepath.Join(dir, "regions.json")
-			if err := os.WriteFile(path, []byte(tc.body), 0644); err != nil {
+			if err := afero.WriteFile(fsys, path, []byte(tc.body), 0644); err != nil {
 				t.Fatal(err)
 			}
 			// A Pulse sidecar in the same directory must not soften this.
-			if err := os.WriteFile(filepath.Join(dir, "cohort.pulse"+spss.SidecarSuffix),
+			if err := afero.WriteFile(fsys, filepath.Join(dir, "cohort.pulse"+spss.SidecarSuffix),
 				[]byte(spssSidecarFixture), 0644); err != nil {
 				t.Fatal(err)
 			}
-			opts := Options{LabelTablesDir: dir}
+			opts := Options{FS: fsys, LabelTablesDir: dir}
 			err := loadLabelTablesFromDir(&opts)
 			if err == nil {
 				t.Fatal("malformed label table must hard-fail")
@@ -415,5 +421,65 @@ func TestIsPulseSidecarName(t *testing.T) {
 		if got := isPulseSidecarName(tc.name); got != tc.want {
 			t.Errorf("isPulseSidecarName(%q) = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// memTableDirs numbers the in-memory configuration directories the
+// loader tests create, so two in one test never collide.
+var memTableDirs atomic.Int64
+
+// memTableDir is a fresh in-memory filesystem holding one empty
+// configuration directory: the loaders read Options.FS (configDirFs),
+// so their tests never touch the host.
+func memTableDir(t *testing.T) (afero.Fs, string) {
+	t.Helper()
+	fsys := afero.NewMemMapFs()
+	return fsys, memTableDirOn(t, fsys)
+}
+
+// memTableDirOn is one more empty directory on fsys.
+func memTableDirOn(t *testing.T, fsys afero.Fs) string {
+	t.Helper()
+	dir := filepath.Join(string(filepath.Separator)+"config", strconv.FormatInt(memTableDirs.Add(1), 10))
+	if err := fsys.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestNew_ConfigDirsReadThroughOptionsFS (#756): with Options.FS set,
+// the label-, range-, lookup-table and populations directories are paths
+// on that filesystem, like the template roots — tables that exist only
+// in memory load at pulse.New and the manifest lists them.
+func TestNew_ConfigDirsReadThroughOptionsFS(t *testing.T) {
+	t.Parallel()
+
+	fsys := afero.NewMemMapFs()
+	write := func(dir, name, body string) string {
+		t.Helper()
+		dir = filepath.Join(string(filepath.Separator)+"pulse-mem-only", dir)
+		if err := afero.WriteFile(fsys, filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	opts := Options{
+		FS:              fsys,
+		LabelTablesDir:  write("labels", "country.json", `{"US": "United States"}`),
+		RangeTablesDir:  write("ranges", "bands.json", `[{"label": "lo", "end": 5}, {"label": "hi", "start": 5}]`),
+		LookupTablesDir: write("lookups", "rates.json", `{"east": 1.5}`),
+		PopulationsDir:  write("populations", "brand"+model.PopulationSuffix, populationFileFixture),
+	}
+	if _, err := os.Stat(opts.LabelTablesDir); err == nil {
+		t.Fatalf("%s exists on the host; the test needs paths only the in-memory Fs has", opts.LabelTablesDir)
+	}
+	p, err := New(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext := p.Manifest(context.Background()).Extensions
+	if len(ext.LabelTables) != 1 || len(ext.RangeTables) != 1 || len(ext.LookupTables) != 1 || len(ext.Populations) != 1 {
+		t.Fatalf("manifest extensions: %d label, %d range, %d lookup, %d population tables; want one each",
+			len(ext.LabelTables), len(ext.RangeTables), len(ext.LookupTables), len(ext.Populations))
 	}
 }

@@ -2,7 +2,6 @@ package pulse
 
 import (
 	stderrors "errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,10 +14,10 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 )
 
-func writeLookupFile(t *testing.T, dir, name, body string) string {
+func writeLookupFile(t *testing.T, fsys afero.Fs, dir, name, body string) string {
 	t.Helper()
 	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+	if err := afero.WriteFile(fsys, p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return p
@@ -121,15 +120,15 @@ func TestParseLookupTableFile_Refusals(t *testing.T) {
 func TestLoadLookupTables_FromDir(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeLookupFile(t, dir, "adjust.json", `{"east": 1.07, "west": 0.98}`)
-	writeLookupFile(t, dir, "grid.json", `{"description": "rate grid", "rows": {"a|b": 4.5}}`)
-	writeLookupFile(t, dir, "notes.txt", `not a table`)
-	if err := os.Mkdir(filepath.Join(dir, "nested.json"), 0o755); err != nil {
+	fsys, dir := memTableDir(t)
+	writeLookupFile(t, fsys, dir, "adjust.json", `{"east": 1.07, "west": 0.98}`)
+	writeLookupFile(t, fsys, dir, "grid.json", `{"description": "rate grid", "rows": {"a|b": 4.5}}`)
+	writeLookupFile(t, fsys, dir, "notes.txt", `not a table`)
+	if err := fsys.Mkdir(filepath.Join(dir, "nested.json"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeLookupFile(t, filepath.Join(dir, "nested.json"), "deep.json", `{"x": 1}`)
-	opts := Options{LookupTablesDir: dir}
+	writeLookupFile(t, fsys, filepath.Join(dir, "nested.json"), "deep.json", `{"x": 1}`)
+	opts := Options{FS: fsys, LookupTablesDir: dir}
 	if err := loadLookupTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +143,13 @@ func TestLoadLookupTables_FromDir(t *testing.T) {
 // read.
 func TestLoadLookupTables_OptionBeatsEnv(t *testing.T) {
 	// serial: t.Setenv mutates the process environment
-	envDir, optDir := t.TempDir(), t.TempDir()
-	writeLookupFile(t, envDir, "from_env.json", `{"k": 1}`)
-	writeLookupFile(t, optDir, "from_opt.json", `{"k": 2}`)
+	fsys, envDir := memTableDir(t)
+	optDir := memTableDirOn(t, fsys)
+	writeLookupFile(t, fsys, envDir, "from_env.json", `{"k": 1}`)
+	writeLookupFile(t, fsys, optDir, "from_opt.json", `{"k": 2}`)
 	t.Setenv(envLookupTablesDir, envDir)
 
-	opts := Options{LookupTablesDir: optDir}
+	opts := Options{FS: fsys, LookupTablesDir: optDir}
 	if err := loadLookupTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestLoadLookupTables_OptionBeatsEnv(t *testing.T) {
 		t.Fatalf("option must win over env: %+v", opts.Extensions.LookupTables)
 	}
 
-	opts = Options{}
+	opts = Options{FS: fsys}
 	if err := loadLookupTablesFromDir(&opts); err != nil {
 		t.Fatal(err)
 	}
@@ -169,8 +169,9 @@ func TestLoadLookupTables_OptionBeatsEnv(t *testing.T) {
 func TestLoadLookupTables_NoDirAndMissingDirNoOp(t *testing.T) {
 	t.Parallel()
 
-	for _, dir := range []string{"", filepath.Join(t.TempDir(), "absent")} {
-		opts := Options{LookupTablesDir: dir}
+	fsys := afero.NewMemMapFs()
+	for _, dir := range []string{"", filepath.Join(memTableDirOn(t, fsys), "absent")} {
+		opts := Options{FS: fsys, LookupTablesDir: dir}
 		if err := loadLookupTablesFromDir(&opts); err != nil {
 			t.Fatalf("dir %q: no-op expected, got %v", dir, err)
 		}
@@ -179,7 +180,7 @@ func TestLoadLookupTables_NoDirAndMissingDirNoOp(t *testing.T) {
 		}
 	}
 	// An empty directory registers nothing either.
-	opts := Options{LookupTablesDir: t.TempDir()}
+	opts := Options{FS: fsys, LookupTablesDir: memTableDirOn(t, fsys)}
 	if err := loadLookupTablesFromDir(&opts); err != nil || len(opts.Extensions.LookupTables) != 0 {
 		t.Fatalf("empty dir: err %v tables %v", err, opts.Extensions.LookupTables)
 	}
@@ -188,8 +189,9 @@ func TestLoadLookupTables_NoDirAndMissingDirNoOp(t *testing.T) {
 func TestLoadLookupTables_NotADirectory(t *testing.T) {
 	t.Parallel()
 
-	file := writeLookupFile(t, t.TempDir(), "plain.json", `{"k": 1}`)
-	opts := Options{LookupTablesDir: file}
+	fsys := afero.NewMemMapFs()
+	file := writeLookupFile(t, fsys, memTableDirOn(t, fsys), "plain.json", `{"k": 1}`)
+	opts := Options{FS: fsys, LookupTablesDir: file}
 	err := loadLookupTablesFromDir(&opts)
 	if err == nil || !strings.Contains(err.Error(), "is not a directory") {
 		t.Fatalf("want not-a-directory error, got %v", err)
@@ -199,9 +201,10 @@ func TestLoadLookupTables_NotADirectory(t *testing.T) {
 func TestLoadLookupTables_CollisionWithProgrammatic(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := writeLookupFile(t, dir, "adjust.json", `{"east": 1}`)
+	fsys, dir := memTableDir(t)
+	path := writeLookupFile(t, fsys, dir, "adjust.json", `{"east": 1}`)
 	opts := Options{
+		FS:              fsys,
 		LookupTablesDir: dir,
 		Extensions:      Extensions{LookupTables: map[string]LookupTable{"adjust": {Rows: map[string]float64{"east": 2}}}},
 	}
@@ -221,11 +224,11 @@ func TestLoadLookupTables_SkipsPulseSidecars(t *testing.T) {
 		"brand" + model.SEMSuffix,
 	} {
 		t.Run(filename, func(t *testing.T) {
-			dir := t.TempDir()
-			writeLookupFile(t, dir, "adjust.json", `{"east": 1}`)
+			fsys, dir := memTableDir(t)
+			writeLookupFile(t, fsys, dir, "adjust.json", `{"east": 1}`)
 			// Not a lookup table: parsing it would be PULSE_LOOKUP_*.
-			writeLookupFile(t, dir, filename, `{"handle": "h1", "nested": {"x": "y"}}`)
-			opts := Options{LookupTablesDir: dir}
+			writeLookupFile(t, fsys, dir, filename, `{"handle": "h1", "nested": {"x": "y"}}`)
+			opts := Options{FS: fsys, LookupTablesDir: dir}
 			if err := loadLookupTablesFromDir(&opts); err != nil {
 				t.Fatalf("sidecar must be skipped: %v", err)
 			}
@@ -242,9 +245,9 @@ func TestLoadLookupTables_SkipsPulseSidecars(t *testing.T) {
 func TestLoadLookupTables_BadFileNamesPath(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	bad := writeLookupFile(t, dir, "rates.json", `{"east": "high"}`)
-	opts := Options{LookupTablesDir: dir}
+	fsys, dir := memTableDir(t)
+	bad := writeLookupFile(t, fsys, dir, "rates.json", `{"east": "high"}`)
+	opts := Options{FS: fsys, LookupTablesDir: dir}
 	ce := wantLookupCode(t, loadLookupTablesFromDir(&opts), errors.PULSE_LOOKUP_CELL_NOT_NUMERIC)
 	if !strings.Contains(ce.Message, bad) || ce.Details["path"] != bad {
 		t.Fatalf("error must name %s: message %q details %v", bad, ce.Message, ce.Details)
@@ -264,19 +267,19 @@ func TestLoadLookupTables_BadFileNamesPath(t *testing.T) {
 func TestNew_LoadsLookupTablesDir(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	writeLookupFile(t, dir, "adjust.json", `{"east": 1.5}`)
-	if _, err := New(Options{FS: afero.NewMemMapFs(), LookupTablesDir: dir}); err != nil {
+	fsys, dir := memTableDir(t)
+	writeLookupFile(t, fsys, dir, "adjust.json", `{"east": 1.5}`)
+	if _, err := New(Options{FS: fsys, LookupTablesDir: dir}); err != nil {
 		t.Fatalf("New with a valid lookup dir: %v", err)
 	}
 	_, err := New(Options{
-		FS: afero.NewMemMapFs(), LookupTablesDir: dir,
+		FS: fsys, LookupTablesDir: dir,
 		Extensions: Extensions{LookupTables: map[string]LookupTable{"adjust": {Rows: map[string]float64{"east": 1}}}},
 	})
 	wantLookupCode(t, err, errors.PULSE_EXTENSION_DUPLICATE)
 
-	badDir := t.TempDir()
-	writeLookupFile(t, badDir, "empty.json", `{}`)
-	_, err = New(Options{FS: afero.NewMemMapFs(), LookupTablesDir: badDir})
+	badDir := memTableDirOn(t, fsys)
+	writeLookupFile(t, fsys, badDir, "empty.json", `{}`)
+	_, err = New(Options{FS: fsys, LookupTablesDir: badDir})
 	wantLookupCode(t, err, errors.PULSE_LOOKUP_TABLE_EMPTY)
 }

@@ -81,12 +81,18 @@ func loadTemplateStore(opts *Options, exprParams map[string][]string) (*template
 	return template.NewStoreWith(templateFs(opts), dirs, template.ValidateOptions{ExprParams: exprParams, SkipName: isPulseSidecarName})
 }
 
-// templateFs is the filesystem template roots are paths on. A supplied
-// Options.FS is used as-is. Without one the instance filesystem is rooted
-// at the data directory, and template roots are process configuration —
-// host paths, absolute or relative to the working directory, that need
-// not sit under DataDir — so the store reads the host filesystem.
-func templateFs(opts *Options) afero.Fs {
+// templateFs is the filesystem template roots are paths on: configDirFs.
+func templateFs(opts *Options) afero.Fs { return configDirFs(opts) }
+
+// configDirFs is the filesystem every configuration directory is a path
+// on — the template roots and the label-, range-, lookup-table and
+// populations directories. A supplied Options.FS is used as-is, so an
+// embedder on an in-memory filesystem keeps its configuration there.
+// Without one the instance filesystem is rooted at the data directory,
+// and these directories are process configuration — host paths, absolute
+// or relative to the working directory, that need not sit under DataDir —
+// so they are read from the host filesystem.
+func configDirFs(opts *Options) afero.Fs {
 	if opts.FS != nil {
 		return opts.FS
 	}

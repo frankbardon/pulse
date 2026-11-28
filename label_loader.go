@@ -3,10 +3,14 @@ package pulse
 import (
 	"bytes"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/afero"
 )
 
 // envLabelTablesDir is the environment variable consulted when
@@ -40,9 +44,10 @@ func loadLabelTablesFromDir(opts *Options) error {
 	if dir == "" {
 		return nil
 	}
-	info, err := os.Stat(dir)
+	fsys := configDirFs(opts)
+	info, err := fsys.Stat(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if stderrors.Is(err, iofs.ErrNotExist) {
 			return nil
 		}
 		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q", dir), err)
@@ -50,7 +55,7 @@ func loadLabelTablesFromDir(opts *Options) error {
 	if !info.IsDir() {
 		return tableFileError("label_table", dir, fmt.Sprintf("pulse: label tables dir %q is not a directory", dir), nil)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := afero.ReadDir(fsys, dir)
 	if err != nil {
 		return tableFileError("label_table", dir, fmt.Sprintf("pulse: reading label tables dir %q", dir), err)
 	}
@@ -75,7 +80,7 @@ func loadLabelTablesFromDir(opts *Options) error {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		raw, err := os.ReadFile(path)
+		raw, err := afero.ReadFile(fsys, path)
 		if err != nil {
 			return tableFileError("label_table", path, "pulse: reading label table "+path, err)
 		}

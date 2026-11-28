@@ -35,7 +35,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 
 | Row kind | Rows | Gaps |
 |---|---:|---:|
-| [Go API symbols](#go-api-symbols) | 2867 | 0 |
+| [Go API symbols](#go-api-symbols) | 2868 | 0 |
 | [Options fields](#options-fields) | 36 | 0 |
 | [Request slots](#request-slots) | 31 | 0 |
 | [Response slots](#response-slots) | 12 | 0 |
@@ -231,6 +231,7 @@ Legend: `yes` documented; **gap** required and missing; blank optional and missi
 | `pulse.ParamMeta` | yes |  | yes |
 | `pulse.ParseFeatureProfile` | yes |  | yes |
 | `pulse.ParseLookupTableFile` | yes |  | yes |
+| `pulse.ParseRangeTableFile` | yes |  | yes |
 | `pulse.Population` | yes |  | yes |
 | `pulse.PostFitRegistration` | yes |  | yes |
 | `pulse.Profile` | yes |  | yes |

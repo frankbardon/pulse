@@ -331,7 +331,7 @@ fails when one is missing). An `Options` field always overrides its variable.
 | `PULSE_IMPORTS_DIR` | Managed-imports subdirectory under the filesystem root (default `imports`). |
 | `PULSE_IMPORT_TTL` | Default TTL for managed imports: a Go duration (`24h`), a day form (`7d`), or `pin`. Default `7d`. |
 | `PULSE_LABEL_TABLES_DIR` | `*.json` files load as label tables at `pulse.New`, keyed by file stem ([Label, Range & Lookup Tables](tables.md)); `Options.LabelTablesDir` wins. |
-| `PULSE_RANGE_TABLES_DIR` | The same, for range tables; `Options.RangeTablesDir` wins. |
+| `PULSE_RANGE_TABLES_DIR` | The same, for range tables; parser `pulse.ParseRangeTableFile` (parse-only); `Options.RangeTablesDir` wins. |
 | `PULSE_LOOKUP_TABLES_DIR` | The same, for lookup tables (`lookup()`); parser `pulse.ParseLookupTableFile`; `Options.LookupTablesDir` wins. |
 | `PULSE_POPULATIONS_DIR` | `*.pulse-population.json` files register as populations, named by file stem. |
 | `PULSE_TEMPLATES_DIR` | Request-template roots, `os.PathListSeparator`-separated; the first root wins. Pulse's own `*.json` sidecars under a root are skipped. |

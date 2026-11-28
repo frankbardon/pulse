@@ -882,6 +882,7 @@ pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
 pulse: func ParseFeatureProfile(data []byte) (*pulse.FeatureProfile, error)
 pulse: func ParseLookupTableFile(name string, data []byte) (pulse.LookupTable, error)
+pulse: func ParseRangeTableFile(name string, data []byte) (pulse.RangeTable, error)
 pulse: type Population struct
 pulse: type Population field File []byte
 pulse: type PostFitRegistration struct
@@ -7246,4 +7247,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0cc0401e4244785ae5b056261a968cebfa0eeb7c9c10cb24b7940fa15880982f
+// golden-hash: 7c51f993b4cfb9043e6b9103999517e9ad51efbc21f762d380e4c616c95b131e

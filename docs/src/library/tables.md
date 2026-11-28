@@ -27,10 +27,14 @@ Two sources, one name space per kind (a name declared twice is
 - **From a directory:** every `*.json` file in `Options.LabelTablesDir`,
   `RangeTablesDir` or `LookupTablesDir` (else `PULSE_LABEL_TABLES_DIR`,
   `PULSE_RANGE_TABLES_DIR`, `PULSE_LOOKUP_TABLES_DIR`) loads at
-  `pulse.New`, named by its file stem. These directories are read from
-  the OS filesystem, never `Options.FS`; a missing directory loads
-  nothing, a malformed file fails `pulse.New` naming the path. Validate
-  a lookup file the way the loader does with `pulse.ParseLookupTableFile`.
+  `pulse.New`, named by its file stem. These directories are paths on
+  `Options.FS` when it is set (an embedder on an in-memory filesystem
+  keeps its tables there), else on the OS filesystem; a missing
+  directory loads nothing, a malformed file fails `pulse.New` naming the
+  path. Parse a file the way the loader does with
+  `pulse.ParseLookupTableFile` or `pulse.ParseRangeTableFile`. The range
+  parser is parse-only: overlapping ranges, a duplicate label or an
+  invalid bound are refused only when `pulse.New` registers the table.
 
 ```go compile
 package tables
@@ -75,4 +79,5 @@ profile hides each kind with `capability:labels`,
 - GoDoc: [`LabelTable`](https://pkg.go.dev/github.com/frankbardon/pulse#LabelTable),
   [`RangeTable`](https://pkg.go.dev/github.com/frankbardon/pulse#RangeTable),
   [`LookupTable`](https://pkg.go.dev/github.com/frankbardon/pulse#LookupTable),
-  [`ParseLookupTableFile`](https://pkg.go.dev/github.com/frankbardon/pulse#ParseLookupTableFile).
+  [`ParseLookupTableFile`](https://pkg.go.dev/github.com/frankbardon/pulse#ParseLookupTableFile),
+  [`ParseRangeTableFile`](https://pkg.go.dev/github.com/frankbardon/pulse#ParseRangeTableFile).
