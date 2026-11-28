@@ -177,10 +177,36 @@ func TestClassify(t *testing.T) {
 		"pulse.go":                                   "root",
 		"internal/mcp/bind.go":                       "mcp",
 		"internal/overlayhost/overlayhost.go":        "other-go",
+		"internal/embeddersmoke/surface.go":          "embedder-smoke",
+		"internal/embeddersmoke/flows_test.go":       "test",
 		"scripts/reference/gen_rotation.R":           "other",
 	} {
 		if got := classify(p); got != want {
 			t.Errorf("classify(%s) = %s, want %s", p, got, want)
+		}
+	}
+}
+
+// TestGoTestCmd_EmbedderSmoke: a root-module package reruns from the
+// repository root; a package of the nested embedder smoke module (which
+// the root `./...` never reaches) reruns from that module's directory
+// with `make smoke`'s -mod=mod.
+func TestGoTestCmd_EmbedderSmoke(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		dir   string
+		tests []string
+		want  string
+	}{
+		{".", nil, "go test -count=1 ./"},
+		{"internal/cli", []string{"TestB", "TestA"}, "go test -count=1 ./internal/cli/ -run '^(TestA|TestB)$'"},
+		{"internal/embeddersmoke", []string{"TestFlows"}, "cd internal/embeddersmoke && GOFLAGS=-mod=mod go test -count=1 ./ -run '^(TestFlows)$'"},
+		{"internal/embeddersmoke/sub", nil, "cd internal/embeddersmoke && GOFLAGS=-mod=mod go test -count=1 ./sub/"},
+		{"internal/embeddersmokex", nil, "go test -count=1 ./internal/embeddersmokex/"},
+	} {
+		if got := goTestCmd(tc.dir, tc.tests); got != tc.want {
+			t.Errorf("goTestCmd(%s, %v) = %q, want %q", tc.dir, tc.tests, got, tc.want)
 		}
 	}
 }

@@ -146,3 +146,30 @@ func TestSlotReport_Options(t *testing.T) {
 		t.Errorf("field-type without a name: exit %d, want 2", code)
 	}
 }
+
+// TestSlotReport_EmbedderSmoke: slot mode type-checks the nested
+// embedder smoke module too, so its uses of a slot are sites — the
+// compile-time surface pin of ComposeOptions.MaxWorkers (a non-test
+// file) and the flow test setting it — and that test's rerun command
+// runs from the nested module.
+func TestSlotReport_EmbedderSmoke(t *testing.T) {
+	t.Parallel()
+
+	rep, err := slotReport(sharedRepo(t), "options", "ComposeOptions.MaxWorkers", options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := findSite(rep, "internal/embeddersmoke/surface.go"); s == nil {
+		t.Error("the smoke module's surface pin is not a site")
+	}
+	var gate *Gate
+	for i := range rep.Gates {
+		if rep.Gates[i].Package == embedderSmokeDir {
+			gate = &rep.Gates[i]
+		}
+	}
+	if gate == nil || !contains(gate.Tests, "TestQueryProcessAndCompose") ||
+		!strings.HasPrefix(gate.Command, "cd "+embedderSmokeDir+" && ") {
+		t.Errorf("no smoke-module rerun gate naming TestQueryProcessAndCompose: %+v", gate)
+	}
+}

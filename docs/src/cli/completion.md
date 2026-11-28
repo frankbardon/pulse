@@ -143,6 +143,11 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   typed word to the binary). `--vector-kind NAME:kind` does not complete.
   Name the cohort first: the cohort must be typed before the field flag;
   with none named nothing is offered.
+- **Zone fields.** The FIELD of `cohort zone set COHORT FIELD` (the
+  positional or `--field`) completes only the named cohort's categorical
+  fields, the ones `zone set` accepts as a default zone field. Whether
+  every value of the field is a time zone is checked when the command
+  runs, not during completion.
 
 Candidates are sorted and the same on every run. They are the full
 built-in vocabularies; a feature profile does not narrow them.

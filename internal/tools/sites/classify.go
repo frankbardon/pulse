@@ -61,6 +61,7 @@ var classTable = []siteClass{
 	{ID: "errors", Title: "Error codes (errors/)", Edit: true,
 		Gates: []string{"TestCodesHaveFixups", "TestManifestErrorCodesComplete"}},
 	{ID: "other-go", Title: "Other Go packages", Edit: true},
+	{ID: "embedder-smoke", Title: "Embedder smoke module (internal/embeddersmoke/, a nested module: rerun `make smoke`)", Edit: true},
 	{ID: "skill-atomic", Title: "Atomic skill (internal/skills/op-*|tool-*|type-*.md)", Edit: true,
 		Hint:  "required sections + token budget — load .claude/reference/skill-pack.md",
 		Gates: []string{"TestOperatorHasAtomicSkill", "TestAtomicSkillHasRequiredSections", "TestSkillTokenBudget", "TestSkillsCoverFeatureFences"}},
@@ -115,6 +116,8 @@ func classify(p string) string {
 		return "test"
 	case strings.Contains(p, "/testdata/") || strings.HasPrefix(p, "testdata/"):
 		return "golden"
+	case strings.HasPrefix(p, embedderSmokeDir+"/") && strings.HasSuffix(p, ".go"):
+		return "embedder-smoke"
 	case strings.HasPrefix(p, "docs/src/guide/") || p == "docs/src/SUMMARY.md" || p == coveragePage:
 		return "docs-generated"
 	case strings.HasPrefix(p, "docs/"):

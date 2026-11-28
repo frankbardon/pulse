@@ -80,9 +80,23 @@ type listPkg struct {
 	Module       *struct{ Path string }
 }
 
+// embedderSmokeDir is the embedder smoke module (`make smoke`): a nested
+// Go module (own go.mod, replace => ../..) that `./...` never reaches,
+// so slot mode lists and type-checks it on its own, with the
+// -mod=mod `make smoke` uses.
+const embedderSmokeDir = "internal/embeddersmoke"
+
 func goList(root string, args ...string) ([]listPkg, error) {
+	return goListIn(root, nil, args...)
+}
+
+// goListIn is goList run in dir with env appended to the environment.
+func goListIn(dir string, env []string, args ...string) ([]listPkg, error) {
 	cmd := exec.Command("go", append([]string{"list", "-e", "-export", "-json=ImportPath,Dir,Name,Export,ForTest,GoFiles,TestGoFiles,XTestGoFiles,Module"}, args...)...)
-	cmd.Dir = root
+	cmd.Dir = dir
+	if env != nil {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -138,8 +152,9 @@ func (r *repo) typeCheck(structName string) (*typedTree, error) {
 }
 
 // typeCheckAll type-checks every module package (with its in-package and
-// external tests) and records each reference to a field of any struct
-// in the types package, in source order per struct.
+// external tests) and the embedder smoke module's packages, and records
+// each reference to a field of any struct in the types package, in
+// source order per struct.
 func (r *repo) typeCheckAll() (*typedModule, error) {
 	pkgs, err := goList(r.root, "-deps", "./...")
 	if err != nil {
@@ -155,6 +170,11 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 			mine = append(mine, p)
 		}
 	}
+	smoke, err := r.embedderSmokePkgs(exports)
+	if err != nil {
+		return nil, err
+	}
+	mine = append(mine, smoke...)
 	t := &typedModule{fset: token.NewFileSet(), files: map[string]*ast.File{}, refs: map[string][]slotRef{}, calls: map[string][]sharedCall{}}
 	parse := func(dir string, names []string) []*ast.File {
 		var out []*ast.File
@@ -221,6 +241,27 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 				exports[p.ImportPath] = p.Export
 			}
 		}
+		if len(smoke) > 0 {
+			// a smoke test's import the root module does not require
+			// (resolved in the nested module, whose go.mod requires it)
+			var left []string
+			for _, ip := range args {
+				if _, ok := exports[ip]; !ok {
+					left = append(left, ip)
+				}
+			}
+			if len(left) > 0 {
+				more, err := goListIn(filepath.Join(r.root, embedderSmokeDir), smokeEnv, append([]string{"-deps"}, left...)...)
+				if err != nil {
+					return nil, err
+				}
+				for _, p := range more {
+					if _, ok := exports[p.ImportPath]; !ok && p.Export != "" {
+						exports[p.ImportPath] = p.Export
+					}
+				}
+			}
+		}
 	}
 	imp := importer.ForCompiler(t.fset, "gc", func(ip string) (io.ReadCloser, error) {
 		f, ok := exports[ip]
@@ -273,6 +314,38 @@ func (r *repo) typeCheckAll() (*typedModule, error) {
 		}
 	}
 	return t, nil
+}
+
+// smokeEnv is the environment `make smoke` builds the nested module
+// with: a root dependency bump flows through without a hand-run tidy.
+var smokeEnv = []string{"GOFLAGS=-mod=mod"}
+
+// embedderSmokePkgs lists the embedder smoke module's own packages (none
+// when the repo has no such module) and adds the export data of its
+// dependencies the root module's listing lacks. A root-module package
+// keeps the root listing's export data.
+func (r *repo) embedderSmokePkgs(exports map[string]string) ([]listPkg, error) {
+	dir := filepath.Join(r.root, embedderSmokeDir)
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+		return nil, nil
+	}
+	pkgs, err := goListIn(dir, smokeEnv, "-deps", "./...")
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", embedderSmokeDir, err)
+	}
+	var out []listPkg
+	for _, p := range pkgs {
+		if _, ok := exports[p.ImportPath]; !ok && p.Export != "" {
+			exports[p.ImportPath] = p.Export
+		}
+		if p.Module == nil || p.Module.Path == modulePath || p.ForTest != "" {
+			continue
+		}
+		if rel, err := filepath.Rel(r.root, p.Dir); err == nil && strings.HasPrefix(filepath.ToSlash(rel)+"/", embedderSmokeDir+"/") {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 const descriptorPkg = modulePath + "/internal/descriptor"

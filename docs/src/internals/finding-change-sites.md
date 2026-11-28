@@ -232,6 +232,12 @@ declarations setting or reading half the struct's fields. `slot request`
 `slot` warns about **per-slot walkers** (functions that reference many
 of the struct's fields) that skip this slot.
 
+Every mode lists a site in the embedder smoke module
+(`internal/embeddersmoke`, a nested module `./...` never reaches) under
+its own section, and prints the rerun of a smoke test from that module's
+directory (`cd internal/embeddersmoke && GOFLAGS=-mod=mod go test …`, as
+`make smoke` runs it).
+
 ## Field types, error codes, MCP tools and I/O
 
 `field-type`, `error-code`, `mcp-tool` and `io` cover a registered name
@@ -331,7 +337,8 @@ Nothing in the site list is hand-maintained:
   `types.Request` / `types.ComposedRequest` / `types.Response` /
   `types.ComposedResponse` field (selectors, promoted fields
   and composite-literal keys, the whole module type-checked against
-  `go list -export` data), string literals equal to its json name,
+  `go list -export` data, and the nested embedder smoke module
+  `internal/embeddersmoke` with it), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand
   rows naming the json name; an options field's are the references to
   its struct, followed through the root package's alias.
@@ -377,9 +384,9 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
 - Synth distribution names are ordinary words, so they are matched only
   as `"quoted"` strings; a quoted `"normal"` in an unrelated parameter
   table is reported too.
-- Slot mode type-checks the module (a few seconds; `go list -export`
-  compiles anything not already in the build cache). A nested module
-  (the embedder smoke module, `internal/embeddersmoke`) is outside it.
+- Slot mode type-checks the module and the embedder smoke module (a few
+  seconds; `go list -export` compiles anything not already in the build
+  cache).
 - A family's helpers and predicates are matched by name: a method, or
   an unexported func, counts callers in its own package only, and a
   name past 80 callers is reported, not expanded.

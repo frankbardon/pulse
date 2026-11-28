@@ -27,6 +27,7 @@ var completionMarkers = map[string]bool{
 // initialised by a constructor call, checked where it is declared.
 var completionSourceVars = map[string]bool{
 	"archiveShards": true, "cohortValue": true, "fieldValue": true,
+	"zoneFieldValue": true,
 }
 
 // completionTables are the package vars holding the flag / positional

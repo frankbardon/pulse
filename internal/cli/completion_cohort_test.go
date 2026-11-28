@@ -437,12 +437,12 @@ func TestCompletion_CohortSources(t *testing.T) {
 
 // TestCompletion_CohortZonePositionals: `cohort zone set` and `cohort
 // zone clear` complete their COHORT positional with the data dir's
-// cohorts, exactly as `cohort inspect` does; `zone set`'s FIELD
-// completes through --field.
+// cohorts, exactly as `cohort inspect` does. (Its FIELD:
+// TestCompletion_CohortZoneSetField.)
 func TestCompletion_CohortZonePositionals(t *testing.T) {
 	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
 
-	fx := newCompletionFixture(t)
+	newCompletionFixture(t)
 	cohorts := completeLeaf(t, "cohort", "inspect")
 	if len(cohorts) == 0 || !slices.ContainsFunc(cohorts, func(c string) bool { return strings.HasSuffix(c, "wide.pulse") }) {
 		t.Fatalf("cohort inspect completes %v, want the data dir's cohorts (test premise)", cohorts)
@@ -452,7 +452,71 @@ func TestCompletion_CohortZonePositionals(t *testing.T) {
 			t.Errorf("%v <TAB> = %v, want the cohorts %v", words, got, cohorts)
 		}
 	}
-	if got := completeLeaf(t, "cohort", "zone", "set", fx.single, "--field"); !slices.Equal(got, fx.fields) {
-		t.Errorf("cohort zone set COHORT --field <TAB>: %d candidates, want the %d schema fields", len(got), len(fx.fields))
+}
+
+// TestCompletion_CohortZoneSetField: the FIELD of `cohort zone set
+// COHORT FIELD` (positional or --field) completes the named cohort's
+// categorical fields — the ones the leaf accepts as a default zone
+// field — and no other; a cohort without one offers nothing, and with
+// no cohort named nothing is offered.
+func TestCompletion_CohortZoneSetField(t *testing.T) {
+	// serial: swaps the package-level cli.completionBaseFs test hook; t.Setenv mutates the process environment
+
+	fx := newCompletionFixture(t)
+	zoned := "/data/zoned.pulse"
+	writeZoneCompletionCohort(t, fx.fs, zoned)
+	want := []string{"region", "tz"}
+	for _, words := range [][]string{
+		{"cohort", "zone", "set", zoned},
+		{"cohort", "zone", "set", zoned, "--field"},
+		{"cohort", "zone", "set", "--input", zoned, "--field"},
+	} {
+		if got := completeLeaf(t, words...); !slices.Equal(got, want) {
+			t.Errorf("%v <TAB> = %v, want the categorical fields %v", words, got, want)
+		}
+	}
+	// The u32-only cohort has no categorical field.
+	if got := completeLeaf(t, "cohort", "zone", "set", fx.single); len(got) != 0 {
+		t.Errorf("cohort zone set %s <TAB> = %v, want nothing (no categorical field)", fx.single, got)
+	}
+	if got := completeLeaf(t, "cohort", "zone", "set", "--field"); len(got) != 0 {
+		t.Errorf("no cohort named: got %v, want nothing", got)
+	}
+	// Past FIELD nothing completes.
+	if got := completeLeaf(t, "cohort", "zone", "set", zoned, "tz"); len(got) != 0 {
+		t.Errorf("cohort zone set COHORT FIELD <TAB> = %v, want nothing", got)
+	}
+}
+
+// writeZoneCompletionCohort writes a flat cohort with two categorical
+// fields (tz, region) and two that may not be a zone field: a u8 and a
+// set (a bitmask, not categorical).
+func writeZoneCompletionCohort(t *testing.T, fsys afero.Fs, path string) {
+	t.Helper()
+	dict := func(vs ...string) *encoding.Dictionary {
+		d := encoding.NewDictionary()
+		for _, v := range vs {
+			if _, err := d.Add(v); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return d
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "tz", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, Dictionary: dict("UTC", "Europe/Berlin")},
+		{Name: "n", Type: encoding.FieldTypeU8, ByteOffset: 1},
+		{Name: "region", Type: encoding.FieldTypeCategoricalU16, ByteOffset: 2, Dictionary: dict("north", "south")},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 4, Dictionary: dict("a", "b")},
+	}}
+	var buf bytes.Buffer
+	if err := encoding.WriteHeader(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(&buf, schema); err != nil {
+		t.Fatal(err)
+	}
+	buf.Write([]byte{0, 7, 1, 0, 1})
+	if err := afero.WriteFile(fsys, path, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
