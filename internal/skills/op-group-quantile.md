@@ -15,7 +15,7 @@ examples_tags: [distribution-shape, buffered-pipeline]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | int | 4 | Number of buckets; the slot's top-level `interval`, not `params`. 4 (quartiles), 10 (deciles), 100 (percentiles). |
+| `interval` | int | 4 | Number of buckets; the slot's top-level `interval`, not `params`. 4 (quartiles), 10 (deciles), 100 (percentiles). 0 is the unset slot; a negative, NaN, infinite, fractional or > 2147483647 one is `PROCESSING_CONFIG` (predict and runtime). |
 | `fit` | enum | `global` | `global`: cut once over the filtered set, any position. `within`: recut per bucket of the groupers before it (crosstab: rows, then columns); a no-op outermost. Each recut is a components `buckets` entry (`group_key` = the outer bucket); the slot floor stays the whole-set cut. |
 
 Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted order statistics (the weighted-percentile rule; `probability` rescaled to the row count). A heavy row spanning a cut lands whole in the higher bucket; `count` / `total_n` stay raw rows.

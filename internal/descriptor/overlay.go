@@ -469,10 +469,12 @@ func validateOverlayPairwise(env *descriptor.Envelope, req *types.Request, spec 
 		}
 	}
 
-	if !types.ValidPairwiseNSource(params.NSource) {
-		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING),
-			"overlay "+string(spec.Kind)+" has unknown n_source: "+params.NSource,
-			map[string]any{"index": index, "kind": string(spec.Kind), "n_source": params.NSource})
+	// Unknown n_source: the runtime twin is processing.pairwiseGate,
+	// same message and details.
+	if msg := overlayhost.PairwiseUnknownNSourceMessage(spec.Kind, params.NSource); msg != "" {
+		details := overlayhost.PairwiseUnknownNSourceDetails(spec.Kind, params.NSource)
+		details["index"] = index
+		env.AddError(string(errors.PULSE_OVERLAY_PARAM_MISSING), msg, details)
 		return
 	}
 	// Weighted-host n_source rule on the proportion kinds

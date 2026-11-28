@@ -18,7 +18,8 @@ import (
 // FILTER_TRUE / FILTER_FALSE with an unknown values mode; FILTER_RANGE
 // without exactly two numeric values; a FILTER_SET_* label the set
 // field's dictionary does not hold; GROUP_RANGE / GROUP_ROUNDED with a
-// negative interval (#506; Request.Groups, both crosstab axes, a
+// negative interval (#506) and GROUP_QUANTILE with an interval that is
+// no whole bucket count (Request.Groups, both crosstab axes, a
 // MAT_DISTANCE params.between grouper). Aggregations are walked in
 // every slot validateAggregationParams walks (top level, crosstab cell
 // and margin aggregations).
@@ -90,7 +91,7 @@ func validateOperatorConfig(env *descriptor.Envelope, req *types.Request, schema
 			return
 		}
 		route := opRoute(inst, g.Type)
-		if route != types.GROUP_RANGE && route != types.GROUP_ROUNDED {
+		if route != types.GROUP_RANGE && route != types.GROUP_ROUNDED && route != types.GROUP_QUANTILE {
 			return
 		}
 		if schema != nil && g.Field != "" {
@@ -98,6 +99,12 @@ func validateOperatorConfig(env *descriptor.Envelope, req *types.Request, schema
 				fieldaccept.Refusal(string(route), fieldaccept.SlotField, g.Field, f.Type) != nil) {
 				return
 			}
+		}
+		if route == types.GROUP_QUANTILE {
+			if _, cerr := opconfig.QuantileBuckets(g.Type, g.Interval); cerr != nil {
+				addCodedError(env, cerr)
+			}
+			return
 		}
 		if _, cerr := opconfig.GroupInterval(g.Type, g.Interval); cerr != nil {
 			addCodedError(env, cerr)

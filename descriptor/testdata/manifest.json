@@ -6329,7 +6329,7 @@
               "type": "int",
               "required": false,
               "default": 4,
-              "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params.",
+              "description": "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params. Default 4 (0 is the unset slot); a negative interval is refused PROCESSING_CONFIG, as is NaN, an infinite or fractional one, or one above 2147483647.",
               "slot": true
             },
             {
@@ -17821,7 +17821,7 @@
             "name": "n_source",
             "type": "enum",
             "required": false,
-            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*).",
+            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*). An unknown mode is PULSE_OVERLAY_PARAM_MISSING (predict and runtime).",
             "enum_values": [
               "cell_n_unweighted",
               "cell_value_weighted",
@@ -17897,7 +17897,7 @@
             "name": "n_source",
             "type": "enum",
             "required": false,
-            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*).",
+            "description": "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*). An unknown mode is PULSE_OVERLAY_PARAM_MISSING (predict and runtime).",
             "enum_values": [
               "cell_n_unweighted",
               "cell_value_weighted",
@@ -22201,4 +22201,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 82bfe93804dbbec79d07ebfe57224030f1dde9d9fea1e8f8ff808902120236ae
+// golden-hash: b70544f8d27a55f9bbe0c671bb855f6045360ab6984cb36220b3e8977510abef

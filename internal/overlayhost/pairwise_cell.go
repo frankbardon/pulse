@@ -190,6 +190,27 @@ func PairwiseMeanCellRefusal(kind types.OverlayKind, pSource string, mode types.
 		"\" when it is a 0..100 percentage"
 }
 
+// PairwiseUnknownNSourceMessage is the PULSE_OVERLAY_PARAM_MISSING
+// message of a proportion OVERLAY_PAIRWISE_* params.n_source that names
+// no mode (types.ValidPairwiseNSource), "" when the mode is known or
+// omitted. Predict (descriptor.validateOverlayPairwise) and the runtime
+// (processing.pairwiseGate) raise it with the same text and
+// PairwiseUnknownNSourceDetails; the runtime once read an unknown mode
+// as the omitted default. A Welford or weighted-moment kind refuses any
+// n_source with its own inertness message instead.
+func PairwiseUnknownNSourceMessage(kind types.OverlayKind, nSource string) string {
+	if types.ValidPairwiseNSource(nSource) {
+		return ""
+	}
+	return "overlay " + string(kind) + " has unknown n_source: " + nSource
+}
+
+// PairwiseUnknownNSourceDetails are the details of the
+// PairwiseUnknownNSourceMessage refusal (predict adds the spec index).
+func PairwiseUnknownNSourceDetails(kind types.OverlayKind, nSource string) map[string]any {
+	return map[string]any{"kind": string(kind), "n_source": nSource}
+}
+
 // PairwiseWithinDepthMessage is the PULSE_OVERLAY_PARAM_MISSING message
 // of an OVERLAY_PAIRWISE_* params.n_within_depth the kind would not
 // apply, "" when the depth is admissible: a negative depth, or a

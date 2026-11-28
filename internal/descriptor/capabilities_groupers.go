@@ -233,7 +233,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Type:        "int",
 					Required:    false,
 					Default:     4,
-					Description: "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params.",
+					Description: "Number of buckets. Conventional values 4 (quartiles), 10 (deciles), 100 (percentiles); set as the group slot's top-level interval, not in params. Default 4 (0 is the unset slot); a negative interval is refused PROCESSING_CONFIG, as is NaN, an infinite or fractional one, or one above 2147483647.",
 					Slot:        true,
 				},
 				groupFitParam,

@@ -923,9 +923,12 @@ func newQuantileGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	if _, err := groupfit.Parse(grp.Type, grp.Params); err != nil {
 		return nil, err
 	}
-	buckets := int(grp.Interval)
-	if buckets <= 0 {
-		buckets = 4
+	// The bucket-count rule is internal/opconfig's, the one predict
+	// calls: a negative, NaN, fractional or oversized interval is
+	// refused, an unset (0) one defaults to 4.
+	buckets, cerr := opconfig.QuantileBuckets(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
 	return &quantileGrouper{buckets: buckets, weight: grp.Weight.Spec()}, nil
 }

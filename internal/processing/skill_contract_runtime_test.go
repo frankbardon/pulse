@@ -56,8 +56,8 @@ func paramDefaultFloat(t *testing.T, d any) float64 {
 // manifest declares an `interval` slot param, the runtime constructs
 // with the slot absent (0) and resolves it to the declared Default — so
 // the param is not Required. A negative interval is refused
-// PROCESSING_CONFIG by GROUP_RANGE / GROUP_ROUNDED (#506), which their
-// descriptions must state; GROUP_QUANTILE still reads it as the default.
+// PROCESSING_CONFIG by GROUP_RANGE / GROUP_ROUNDED (#506) and
+// GROUP_QUANTILE, which their descriptions must state.
 func TestGrouperIntervalDeclarationMatchesRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -86,35 +86,28 @@ func TestGrouperIntervalDeclarationMatchesRuntime(t *testing.T) {
 				t.Fatalf("%s declares no interval Default; the runtime falls back to one", name)
 			}
 			want := paramDefaultFloat(t, param.Default)
-			refusesNegative := name != string(types.GROUP_QUANTILE)
-			if refusesNegative && !strings.Contains(param.Description, "a negative interval is refused PROCESSING_CONFIG") {
+			if !strings.Contains(param.Description, "a negative interval is refused PROCESSING_CONFIG") {
 				t.Errorf("%s interval description %q does not say a negative interval is refused", name, param.Description)
 			}
 			factory, ok := grouperRegistry[types.GroupType(name)]
 			if !ok {
 				t.Fatalf("%s is not in grouperRegistry", name)
 			}
-			inputs := []float64{0, -3}
-			if refusesNegative {
-				_, err := factory(&types.Group{Type: types.GroupType(name), Field: "x", Interval: -3}, schema)
-				var ce *errors.CodedError
-				if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG {
-					t.Errorf("interval -3: runtime err = %v, want PROCESSING_CONFIG", err)
-				}
-				inputs = inputs[:1]
+			_, err := factory(&types.Group{Type: types.GroupType(name), Field: "x", Interval: -3}, schema)
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG {
+				t.Errorf("interval -3: runtime err = %v, want PROCESSING_CONFIG", err)
 			}
-			for _, in := range inputs {
-				g, err := factory(&types.Group{Type: types.GroupType(name), Field: "x", Interval: in}, schema)
-				if err != nil {
-					t.Fatalf("interval %v: runtime refused (%v), so the declaration's default is a fiction", in, err)
-				}
-				got, ok := effectiveInterval(t, g)
-				if !ok {
-					t.Fatalf("%s (%T) has no effectiveInterval case; add one", name, g)
-				}
-				if got != want {
-					t.Errorf("interval %v resolves to %v at runtime, declared Default %v", in, got, want)
-				}
+			g, err := factory(&types.Group{Type: types.GroupType(name), Field: "x"}, schema)
+			if err != nil {
+				t.Fatalf("interval unset: runtime refused (%v), so the declaration's default is a fiction", err)
+			}
+			got, ok := effectiveInterval(t, g)
+			if !ok {
+				t.Fatalf("%s (%T) has no effectiveInterval case; add one", name, g)
+			}
+			if got != want {
+				t.Errorf("interval unset resolves to %v at runtime, declared Default %v", got, want)
 			}
 		})
 	}

@@ -77,7 +77,7 @@ func pairwiseParams(kind types.OverlayKind) []descriptor.Param {
 		ps = append(ps, descriptor.Param{Name: "n_basis", Type: "enum", Required: true, EnumValues: []string{types.PairwiseNBasisKish, types.PairwiseNBasisWeights}, Description: "Variance / sample-size convention over the weighted moments; required, no default."})
 	case !types.PairwiseKindUsesWelford(kind):
 		ps = append(ps,
-			descriptor.Param{Name: "n_source", Type: "enum", Required: false, EnumValues: pairwiseNSources(), Description: "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*)."},
+			descriptor.Param{Name: "n_source", Type: "enum", Required: false, EnumValues: pairwiseNSources(), Description: "Where each leg's sample size is read; omitted, the cell's base: the cell itself under normalize none, else the normalize denominator (weighted: its N*). An unknown mode is PULSE_OVERLAY_PARAM_MISSING (predict and runtime)."},
 			descriptor.Param{Name: "p_source", Type: "enum", Required: false, EnumValues: []string{types.PairwisePSourceCellValue, types.PairwisePSourceCellValuePct}, Description: "How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell names its reading)."},
 		)
 	}

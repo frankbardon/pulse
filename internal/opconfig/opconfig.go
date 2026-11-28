@@ -20,6 +20,9 @@
 //   - FILTER_RANGE: exactly two numeric values (RangeBounds).
 //   - GROUP_RANGE / GROUP_ROUNDED: a positive interval; 0 is the unset
 //     slot and takes the default 1 (GroupInterval, #506).
+//   - GROUP_QUANTILE: a whole-number bucket count from 1 to
+//     MaxQuantileBuckets; 0 is the unset slot and takes the default 4
+//     (QuantileBuckets).
 //
 // A rule that reads the schema takes the resolved field: the caller has
 // already applied the field-reference and accepted-types rules (a slot's
@@ -310,5 +313,38 @@ func GroupInterval(op types.GroupType, interval float64) (float64, *errors.Coded
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 		string(op)+" interval must be positive (omit it for the default 1); got "+shown,
+		map[string]any{"group": string(op), "param": "interval", "value": value})
+}
+
+// DefaultQuantileBuckets is GROUP_QUANTILE's bucket count when the slot
+// leaves interval unset (0): quartiles.
+const DefaultQuantileBuckets = 4
+
+// MaxQuantileBuckets is the largest GROUP_QUANTILE bucket count: the
+// grouper allocates per bucket, and a larger float has no portable int
+// conversion.
+const MaxQuantileBuckets = math.MaxInt32
+
+// QuantileBuckets returns a GROUP_QUANTILE (op, the slot's type as
+// written) slot's bucket count — its interval — or the PROCESSING_CONFIG
+// refusal of one that is negative, NaN, infinite, fractional or above
+// MaxQuantileBuckets (each was read as the default 4 or truncated).
+// Group.Interval is a plain number, so 0 is the unset slot and takes
+// DefaultQuantileBuckets.
+func QuantileBuckets(op types.GroupType, interval float64) (int, *errors.CodedError) {
+	switch {
+	case interval == 0:
+		return DefaultQuantileBuckets, nil
+	case interval >= 1 && interval <= MaxQuantileBuckets && interval == math.Trunc(interval):
+		return int(interval), nil
+	}
+	shown := strconv.FormatFloat(interval, 'g', -1, 64)
+	var value any = interval
+	if math.IsNaN(interval) || math.IsInf(interval, 0) {
+		value = shown
+	}
+	return 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(op)+" interval must be a whole number of buckets from 1 to "+strconv.Itoa(MaxQuantileBuckets)+
+			" (omit it for the default "+strconv.Itoa(DefaultQuantileBuckets)+"); got "+shown,
 		map[string]any{"group": string(op), "param": "interval", "value": value})
 }

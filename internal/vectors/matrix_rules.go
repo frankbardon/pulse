@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -245,11 +246,11 @@ func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets in
 			member = func(k string) bool { _, ok := dict.IDFor(k); return ok }
 		}
 	case types.GROUP_QUANTILE:
-		bins := int64(g.Interval)
-		if bins <= 0 {
-			bins = 4
+		bins, cerr := opconfig.QuantileBuckets(g.Type, g.Interval)
+		if cerr != nil {
+			return 0, BucketBasisUnknown, false
 		}
-		return bins, BucketBasisQuantileBins, true
+		return int64(bins), BucketBasisQuantileBins, true
 	case types.GROUP_KMEANS:
 		if k, ok := KMeansK(g); ok {
 			return int64(k), BucketBasisClusters, true

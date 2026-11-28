@@ -2,6 +2,7 @@ package opconfig_test
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -92,4 +93,24 @@ func TestOpConfig_Rules(t *testing.T) {
 		_, _, cerr = opconfig.RangeBounds([]string{"1"})
 		refused(t, cerr, true)
 	})
+}
+
+// TestQuantileBuckets pins GROUP_QUANTILE's bucket-count rule: 0 is the
+// unset slot (default 4), a whole count from 1 to MaxQuantileBuckets
+// stands, anything else is PROCESSING_CONFIG.
+func TestQuantileBuckets(t *testing.T) {
+	t.Parallel()
+	ok := map[float64]int{0: opconfig.DefaultQuantileBuckets, 1: 1, 4: 4, 10: 10, opconfig.MaxQuantileBuckets: opconfig.MaxQuantileBuckets}
+	for in, want := range ok {
+		got, cerr := opconfig.QuantileBuckets(types.GROUP_QUANTILE, in)
+		if cerr != nil || got != want {
+			t.Errorf("QuantileBuckets(%v) = %d, %v; want %d", in, got, cerr, want)
+		}
+	}
+	for _, in := range []float64{-1, -0.5, 0.5, 2.5, opconfig.MaxQuantileBuckets + 1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		_, cerr := opconfig.QuantileBuckets(types.GROUP_QUANTILE, in)
+		if cerr == nil || cerr.Code != errors.PROCESSING_CONFIG || cerr.Details["param"] != "interval" {
+			t.Errorf("QuantileBuckets(%v) = %v, want a PROCESSING_CONFIG interval refusal", in, cerr)
+		}
+	}
 }
