@@ -10,7 +10,8 @@ import (
 // vectors.GroupKeyField names) to that grouper's intrinsic key order
 // (keyOrderFilter: GROUP_DATE day_of_week Monday-first,
 // GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES supplied order, the numeric
-// bucket groupers by value). It is the one source of the grouper key
+// bucket groupers and GROUP_CATEGORY over a non-dictionary field by
+// value). It is the one source of the grouper key
 // order every row sort of a grouped run follows — Request.Sort, window
 // ORDER BY (WIN_RANK / WIN_DENSE_RANK ties included) and post-test
 // order_by (TEST_TREND). The rank derives from the grouper's

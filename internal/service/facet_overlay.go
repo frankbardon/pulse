@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -283,9 +284,10 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	popReq := &types.FacetRequest{
 		// The population cohort resolves as the host cohort does: under
 		// the host's `data_dir` (resolveCohortPath), on the instance
-		// filesystem (Options.DataDir / PULSE_DATA_DIR roots it). A
-		// union host carries no one directory: the name stands alone.
-		Cohort: &types.Cohort{Filename: cohortName, DataDir: hostDataDir(hostReq)},
+		// filesystem (Options.DataDir / PULSE_DATA_DIR roots it). An
+		// absolute path, and every name under a union host (which
+		// carries no one directory), stands alone.
+		Cohort: &types.Cohort{Filename: cohortName, DataDir: populationDataDir(hostReq, cohortName)},
 		Fields: []string{field},
 		// KS_VS_POP reads `NumericPercentiles` for the population
 		// CDF and the histogram path for INDEX_VS_POP. Forward the host
@@ -315,10 +317,12 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	return popResult, nil
 }
 
-// hostDataDir is the host facet request's cohort directory (its
-// Cohort.DataDir), "" for a union host or a cohort without one.
-func hostDataDir(req *types.FacetRequest) string {
-	if req == nil || req.Cohort == nil {
+// populationDataDir is the directory a population cohort named
+// cohortName resolves under: the host facet request's Cohort.DataDir,
+// or "" for an absolute cohortName, a union host or a host cohort
+// without one.
+func populationDataDir(req *types.FacetRequest, cohortName string) string {
+	if req == nil || req.Cohort == nil || filepath.IsAbs(cohortName) {
 		return ""
 	}
 	return req.Cohort.DataDir

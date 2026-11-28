@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -98,6 +99,54 @@ func TestOrderKeys_BucketOrder(t *testing.T) {
 	}
 	if got := orderKeysByInclude(includeFilterOf(cat), shuffle(deciles)); got[1] != "D10" {
 		t.Errorf("hook-less grouper = %v, want alphabetical", got)
+	}
+	// GROUP_CATEGORY over numeric keys (#788): by value, a key that does
+	// not parse (and NaN) after every ranked key, alphabetically.
+	numbers := []string{"-10", "-5", "0", "2", "9.5", "10", "23", "100", "NaN", "x"}
+	if got := orderKeysByInclude(includeFilterOf(&categoryGrouper{numericKeys: true}), shuffle(numbers)); !reflect.DeepEqual(got, numbers) {
+		t.Errorf("numeric category keys = %v, want %v", got, numbers)
+	}
+}
+
+// TestCategoryGrouper_NumericKeysFromSchema (#788): the value order is
+// a schema-time verdict — on for every field whose keys are formatted
+// numbers (a number, a date, an off-schema derived column, no schema at
+// all), off for a dictionary categorical, whose label keys stay
+// alphabetical (no order filter at all). An Include list still wins.
+func TestCategoryGrouper_NumericKeysFromSchema(t *testing.T) {
+	t.Parallel()
+	dict := encoding.NewDictionary()
+	for _, l := range []string{"10", "9"} {
+		if _, err := dict.Add(l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "cat", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
+		{Name: "num", Type: encoding.FieldTypeU32},
+		{Name: "day", Type: encoding.FieldTypeDate},
+	}}
+	for field, want := range map[string]bool{"cat": false, "num": true, "day": true, "derived_hr": true} {
+		g, err := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: field}, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f := keyOrderFilter(g); (f != nil) != want {
+			t.Errorf("%s: key order filter %v, want ordered=%v", field, f, want)
+		}
+	}
+	if g, err := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: "num"}, nil); err != nil || keyOrderFilter(g) == nil {
+		t.Errorf("no schema: %v, %v; want the value order", g, err)
+	}
+	// A dictionary categorical whose labels look numeric stays byte-wise.
+	cat, _ := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: "cat"}, schema)
+	if got := orderKeysByInclude(includeFilterOf(cat), []string{"9", "10"}); !reflect.DeepEqual(got, []string{"10", "9"}) {
+		t.Errorf("categorical labels = %v, want byte-wise", got)
+	}
+	// An include list wins over the value order.
+	inc, _ := newCategoryGrouper(&types.Group{Type: types.GROUP_CATEGORY, Field: "num", Include: []string{"10", "2"}}, schema)
+	if got := orderKeysByInclude(includeFilterOf(inc), []string{"2", "10"}); !reflect.DeepEqual(got, []string{"10", "2"}) {
+		t.Errorf("include order = %v, want [10 2]", got)
 	}
 }
 

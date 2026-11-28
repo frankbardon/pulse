@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Facet of region on the converters of experiment.pulse (FILTER_INCLUDE converted yes) decorated with an OVERLAY_ZSCORE_VS_POP group overlay: each region's subset frequency against its population frequency, (subset_freq - pop_freq) / sd_pop, sd_pop the population SD across the per-region frequencies (north about +11, west about -15 here). Pair it with OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) for two series layers from one facet pass. ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). Streamable. A zero population frequency emits PULSE_OVERLAY_REF_ZERO and skips the entry; renderers centre colour ramps on baseline 0.",
+    "description": "Facet of region on the converters of experiment.pulse (FILTER_INCLUDE converted yes) decorated with an OVERLAY_ZSCORE_VS_POP group overlay: each region's subset frequency against its population frequency, (subset_freq - pop_freq) / sd_pop, sd_pop the population SD across the per-region frequencies (north about +11, west about -15 here). Pair it with OVERLAY_INDEX_VS_POP (10_facet_index_vs_pop.json) for two series layers from one facet pass. ref.population.cohort names the comparison cohort, resolved as the host cohort is (under its data_dir). Streamable. A zero population frequency emits PULSE_OVERLAY_REF_ZERO and skips the entry; renderers centre colour ramps on baseline 0.",
     "intents": [
       "benchmark",
       "distribution_shape"
@@ -42,7 +42,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": ".data/experiment.pulse"
+          "cohort": "experiment.pulse"
         }
       }
     }

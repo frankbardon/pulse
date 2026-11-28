@@ -35,7 +35,7 @@ None. The key column is named after `field` (a group slot takes no `label`); `in
 
 One bucket per distinct value; key = stringified value (categoricals resolve through the dictionary). Smart default for `categorical_*` / `packed_bool` when `type` is omitted.
 
-Non-empty `include` is order-significant: buckets emit in its order (`data` and components `buckets`); absent, alphabetical.
+Non-empty `include` is order-significant: buckets emit in its order (`data` and components `buckets`). Absent: by value over a number or date-part field (`"2"` before `"10"`, negatives first), alphabetical over a categorical; a `sort` on the key column follows the same order.
 
 ## Components
 

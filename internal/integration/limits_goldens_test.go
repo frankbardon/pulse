@@ -96,16 +96,15 @@ func rebaseModelFiles(v any, dir string) {
 	}
 }
 
-// examplesDataDir is the data directory every example names: a
-// cohort's `data_dir` and the prefix of an overlay's
-// `population.cohort` path (which takes no data_dir of its own and
-// resolves from the working directory, so the examples spell it
-// `.data/<fixture>.pulse`).
+// examplesDataDir is the data directory every example names as a
+// cohort's `data_dir`; an overlay's `population.cohort` resolves under
+// the host's `data_dir`, so the examples spell it `<fixture>.pulse`.
 const examplesDataDir = ".data"
 
 // rebasePopulationCohorts rewrites every overlay `population.cohort`
-// path anywhere in v from the examples' data directory to dir,
-// recording each rewritten path in out.
+// anywhere in v to its absolute path under dir (an absolute population
+// path stands alone; the host's rebased data_dir would resolve it the
+// same), recording each rewritten path in out.
 func rebasePopulationCohorts(v any, dir string, out map[string]bool) {
 	switch x := v.(type) {
 	case map[string]any:

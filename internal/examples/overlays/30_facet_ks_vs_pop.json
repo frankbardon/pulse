@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "overlays",
-    "description": "Facet of income on the customers aged 50 and over (FILTER_RANGE on age; numeric arm with a 20-bin histogram and percentiles) decorated with an OVERLAY_KS_VS_POP scalar overlay: a two-sample Kolmogorov-Smirnov test of the subset's income distribution against the whole cohort's, D = max |F_subset - F_pop| with the asymptotic p TEST_KS reports for the same D and n (D about 0.05, p about 1.0 here: older customers earn like everyone else). Both distribution functions are rebuilt from the histograms, else from the percentiles, so set include_histogram or numeric_percentiles; with neither, or an empty side, the layer reads null with PULSE_OVERLAY_REF_ZERO. ref.population.cohort names the comparison cohort as a path resolved from the working directory (it takes no data_dir, so run from the repo root). Numeric fields only; OVERLAY_CHISQ_VS_POP (18_facet_chisq_vs_pop.json) serves a discrete one. Buffered.",
+    "description": "Facet of income on the customers aged 50 and over (FILTER_RANGE on age; numeric arm with a 20-bin histogram and percentiles) decorated with an OVERLAY_KS_VS_POP scalar overlay: a two-sample Kolmogorov-Smirnov test of the subset's income distribution against the whole cohort's, D = max |F_subset - F_pop| with the asymptotic p TEST_KS reports for the same D and n (D about 0.05, p about 1.0 here: older customers earn like everyone else). Both distribution functions are rebuilt from the histograms, else from the percentiles, so set include_histogram or numeric_percentiles; with neither, or an empty side, the layer reads null with PULSE_OVERLAY_REF_ZERO. ref.population.cohort names the comparison cohort, resolved as the host cohort is (under its data_dir). Numeric fields only; OVERLAY_CHISQ_VS_POP (18_facet_chisq_vs_pop.json) serves a discrete one. Buffered.",
     "intents": [
       "distribution_shape",
       "benchmark"
@@ -56,7 +56,7 @@
       "scope": "group",
       "ref": {
         "population": {
-          "cohort": ".data/customers.pulse"
+          "cohort": "customers.pulse"
         }
       }
     }

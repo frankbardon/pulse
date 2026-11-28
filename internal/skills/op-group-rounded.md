@@ -23,7 +23,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Output
 
-Floored numeric key per row. Each value rounds DOWN to a multiple of `interval` (`19`→`10`, `-3`→`-10`), never to the nearest; key is that scalar. Rows emit in numeric key order (`"-5"`, `"9.5"`, `"10"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
+Floored numeric key per row. Each value rounds DOWN to a multiple of `interval` (`19`→`10`, `-3`→`-10`), never to the nearest; key is that scalar. Rows emit in numeric key order (`"-5"`, `"9.5"`, `"10"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; a `sort` on the key column orders by value too.
 
 ## Components
 

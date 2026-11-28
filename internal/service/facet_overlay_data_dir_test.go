@@ -15,9 +15,10 @@ import (
 // overlay's ref.population.cohort resolves exactly as the host cohort
 // does — under the host's `data_dir`, on the instance filesystem
 // (whose root Options.DataDir / PULSE_DATA_DIR sets: a BasePathFs).
-// Before, the population was opened as the bare name, from the
-// filesystem root, so a host addressed through `data_dir` failed to
-// find a population sitting beside it.
+// An absolute population path stands alone. Before, the population was
+// opened as the bare name, from the filesystem root, so a host
+// addressed through `data_dir` failed to find a population sitting
+// beside it.
 func TestFacetOverlay_PopulationResolvesAsHostCohort(t *testing.T) {
 	t.Parallel()
 	fixture := facetOverlayFixture(t)
@@ -59,6 +60,11 @@ func TestFacetOverlay_PopulationResolvesAsHostCohort(t *testing.T) {
 		_, err = New(cfg).FacetSchema(ctx, req(&types.Cohort{Filename: "host.pulse", DataDir: "/data/sub"}, "root_only.pulse"))
 		if err == nil {
 			t.Fatal("a population outside data_dir was found at the filesystem root")
+		}
+		// An absolute population path stands alone, never joined to
+		// data_dir.
+		if _, err := New(cfg).FacetSchema(ctx, req(&types.Cohort{Filename: "host.pulse", DataDir: "/data/sub"}, "/root_only.pulse")); err != nil {
+			t.Fatalf("absolute population path under a data_dir host: %v", err)
 		}
 	})
 	t.Run("instance_data_dir", func(t *testing.T) {
