@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -245,10 +244,7 @@ func TestExportAnchor_SavUsesArchiveSidecar(t *testing.T) {
 
 	// Stale: the archive moved under its sidecar. The anchored export is
 	// refused exactly as the whole-archive export is.
-	later := time.Now().Add(time.Hour)
-	if err := afs.Chtimes("derived-arch.pulse", later, later); err != nil {
-		t.Fatal(err)
-	}
+	moveCohortUnderSidecar(t, afs, "derived-arch.pulse")
 	refuse := func(path string) *errors.CodedError {
 		w, err := pio.NewWriter(pio.FormatSPSS, afs, "stale.sav", pio.WriterOptions{})
 		if err != nil {

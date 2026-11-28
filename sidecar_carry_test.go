@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -172,6 +173,63 @@ func TestRake_CarriesSPSSSidecar(t *testing.T) {
 	})
 }
 
+// moveCohortUnderSidecar makes cohort's sidecar stale the way an
+// in-place rewrite to the same length does — the modification time moved
+// and the content no longer hashes to the recorded SHA-256 — without
+// corrupting the cohort (the sidecar's fingerprint is what changes). A
+// bare mtime move is NOT stale: the drift escalates to the fingerprint,
+// which still matches (spss.LoadSidecar).
+func moveCohortUnderSidecar(t *testing.T, afs afero.Fs, cohort string) {
+	t.Helper()
+	path := spss.SidecarPath(cohort)
+	raw, err := afero.ReadFile(afs, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	fp := doc["fingerprint"].(map[string]any)
+	fp["sha256"] = "00000000000000000000000000000000000000000000000000000000000000ff"
+	out, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(afs, path, out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().Add(time.Hour)
+	if err := afs.Chtimes(cohort, later, later); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMaterialize_TouchedSidecarIsCarried: a source cohort whose mtime
+// moved over unchanged bytes keeps its sidecar (the drift escalates to
+// the content fingerprint), so the derived cohort carries it.
+func TestMaterialize_TouchedSidecarIsCarried(t *testing.T) {
+	t.Parallel()
+
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, labelledSavSpec(), Options{})
+	later := time.Now().Add(time.Hour)
+	if err := afs.Chtimes(suggestCohort, later, later); err != nil {
+		t.Fatal(err)
+	}
+	res, err := p.Materialize(context.Background(), &Request{
+		Cohort:     &types.Cohort{Filename: suggestCohort},
+		Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "ID", Label: "z"}},
+	}, "derived.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v, want none: a touched cohort's sidecar is fresh", res.Warnings)
+	}
+	assertCarried(t, p, afs, "derived.pulse", []string{"ID", "Q1", "WT", "z"})
+}
+
 // TestMaterialize_StaleSidecarIsNotCarried: a stale source sidecar is
 // reported (its own code) and the derived cohort is written without one.
 func TestMaterialize_StaleSidecarIsNotCarried(t *testing.T) {
@@ -179,9 +237,7 @@ func TestMaterialize_StaleSidecarIsNotCarried(t *testing.T) {
 
 	afs := afero.NewMemMapFs()
 	p := importSav(t, afs, labelledSavSpec(), Options{})
-	if err := afs.Chtimes(suggestCohort, time.Now(), time.Now().Add(time.Hour)); err != nil {
-		t.Fatal(err)
-	}
+	moveCohortUnderSidecar(t, afs, suggestCohort)
 	res, err := p.Materialize(context.Background(), &Request{
 		Cohort:     &types.Cohort{Filename: suggestCohort},
 		Attributes: []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "ID", Label: "z"}},

@@ -3917,8 +3917,10 @@ const (
 
 	// PULSE_SPSS_SIDECAR_STALE indicates an SPSS export found a metadata
 	// sidecar whose fingerprint no longer matches the cohort it
-	// describes: the cohort's byte size or modification time has moved
-	// since the sidecar was written, so the two are out of step.
+	// describes: the cohort's byte size has moved since the sidecar was
+	// written, or its modification time has and its content SHA-256 no
+	// longer matches, so the two are out of step. A modification time
+	// that moved over unchanged content is not stale.
 	//
 	// It is an ERROR, and the asymmetry with PULSE_SPSS_SIDECAR_ABSENT
 	// is the point. A stale sidecar still holds a complete, plausible
@@ -3931,18 +3933,18 @@ const (
 	// to write is the only safe answer; there is no partial application
 	// and no silent fallback to defaults.
 	//
-	// The read-path check that raises it is the same cheap O(1) size +
-	// mtime comparison PULSE_INDEX_STALE uses, chosen for the same
-	// reason: hashing a multi-GB cohort on every export would cost more
-	// than the export. It has the same residual gap — an in-place edit
-	// preserving BOTH size and mtime goes unnoticed — and the same
-	// authoritative answer, a full SHA-256 recompute against the
-	// fingerprint the sidecar carries.
+	// The read-path check that raises it is PULSE_INDEX_STALE's rule: a
+	// full size + mtime match is fresh without hashing, a size mismatch
+	// is stale without hashing, and an mtime drift alone escalates to the
+	// SHA-256 recompute against the fingerprint the sidecar carries. It
+	// has the same residual gap — an in-place edit preserving BOTH size
+	// and mtime goes unnoticed.
 	//
 	// Details carry the cohort path under DetailSPSSCohort, the sidecar
 	// path under DetailSPSSSidecar, and the mismatching pair under
-	// DetailSPSSExpected / DetailSPSSActual so a caller can see which of
-	// size and mtime moved.
+	// DetailSPSSExpected / DetailSPSSActual (size, mod_time, plus sha256
+	// when the verdict came from the hash) so a caller can see what
+	// moved.
 	PULSE_SPSS_SIDECAR_STALE Code = "PULSE_SPSS_SIDECAR_STALE"
 
 	// PULSE_SPSS_SIDECAR_INVALID indicates a file exists at the metadata

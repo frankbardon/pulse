@@ -212,12 +212,11 @@ func TestLoadSidecar_StaleCannotSilentlyProduceOutput(t *testing.T) {
 			mod:  originalMod.Add(time.Second),
 		},
 		{
-			// Not a rewrite at all — a copy, a restore from backup, a
-			// `touch`. The contents may well be identical, but the cheap
-			// check cannot know that and must not assume it.
-			name: "untouched content, later mtime",
-			data: original,
-			mod:  originalMod.Add(time.Hour),
+			// Same length, different content, EARLIER mtime: the drift
+			// escalates to the fingerprint whichever way the clock moved.
+			name: "same length, different content, earlier mtime",
+			data: flipLastByte(original),
+			mod:  originalMod.Add(-time.Hour),
 		},
 	}
 
@@ -259,6 +258,55 @@ func TestLoadSidecar_StaleCannotSilentlyProduceOutput(t *testing.T) {
 				t.Errorf("Details missing %q — a caller cannot see what moved", perr.DetailSPSSActual)
 			}
 		})
+	}
+}
+
+// TestLoadSidecar_TouchedButUnchangedKeepsTheSidecar is the other half
+// of the drift rule: a modification time that moved over the SAME bytes
+// (a `touch`, a copy, a restore, an object store's whole-second
+// LastModified) escalates to the content fingerprint, which matches, so
+// the sidecar resolves as present — exactly as the point-lookup index
+// keeps an index whose cohort was only touched. The sidecar file itself
+// is not rewritten.
+func TestLoadSidecar_TouchedButUnchangedKeepsTheSidecar(t *testing.T) {
+	t.Parallel()
+
+	fs, cohort := sidecarFixture(t)
+	original, err := afero.ReadFile(fs, cohort)
+	if err != nil {
+		t.Fatalf("reading cohort: %v", err)
+	}
+	sidecarBefore, err := afero.ReadFile(fs, SidecarPath(cohort))
+	if err != nil {
+		t.Fatalf("reading sidecar: %v", err)
+	}
+	_, mod := cohortStat(t, fs, cohort)
+	for _, moved := range []time.Duration{time.Hour, -time.Hour, 500 * time.Millisecond} {
+		rewriteCohort(t, fs, cohort, original, mod.Add(moved))
+		res, err := LoadSidecar(fs, cohort, WriterOptions{})
+		if err != nil {
+			t.Fatalf("mtime %+v over unchanged bytes: %v, want the sidecar kept", moved, err)
+		}
+		if res.Status != SidecarStatusPresent || res.Document == nil || res.Warning != nil {
+			t.Fatalf("mtime %+v: status %v, document %v, warning %v; want present, no warning", moved, res.Status, res.Document != nil, res.Warning)
+		}
+	}
+	if after, _ := afero.ReadFile(fs, SidecarPath(cohort)); string(after) != string(sidecarBefore) {
+		t.Error("a read re-stamped the sidecar")
+	}
+
+	// The same drift over CHANGED bytes is stale, and the details carry
+	// both digests.
+	rewriteCohort(t, fs, cohort, flipLastByte(original), mod.Add(time.Hour))
+	_, err = LoadSidecar(fs, cohort, WriterOptions{})
+	if got := codeOf(t, err); got != perr.PULSE_SPSS_SIDECAR_STALE {
+		t.Fatalf("code = %s, want PULSE_SPSS_SIDECAR_STALE", got)
+	}
+	d := err.(*perr.CodedError).Details
+	exp, _ := d[perr.DetailSPSSExpected].(map[string]any)
+	act, _ := d[perr.DetailSPSSActual].(map[string]any)
+	if exp["sha256"] == nil || act["sha256"] == nil || exp["sha256"] == act["sha256"] {
+		t.Errorf("expected %v / actual %v, want the two differing sha256 digests", exp, act)
 	}
 }
 
@@ -304,14 +352,15 @@ func TestLoadSidecar_FreshIsPresentAndCarriesTheDocument(t *testing.T) {
 	}
 }
 
-// TestLoadSidecar_CheckIsCheap pins the "O(1) size plus mtime, never a
-// hash" property by construction: a cohort whose bytes differ from the
-// fingerprint's SHA-256 but whose size and mtime still match RESOLVES.
+// TestLoadSidecar_CheckIsCheap pins the "a full stat match is served
+// hash-free" property by construction: a cohort whose bytes differ from
+// the fingerprint's SHA-256 but whose size and mtime still match
+// RESOLVES.
 //
 // This is the documented residual gap PULSE_INDEX_STALE lives with, and
 // asserting it is deliberate — it is the observable consequence of not
-// hashing on the read path, and a future change that started hashing
-// there would be a performance regression this test would catch.
+// hashing on a full stat match, and a future change that started
+// hashing there would be a performance regression this test would catch.
 // VerifyDigest is the authoritative answer; see the test below.
 func TestLoadSidecar_CheckIsCheap(t *testing.T) {
 	t.Parallel()

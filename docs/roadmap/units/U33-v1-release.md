@@ -255,7 +255,7 @@ Filed from [U76](U76-synth-fidelity-2.md#handed-on); tick in [`TODO.md`](../TODO
 Recorded only in shipped efforts' notes and PR bodies; checked against the code and filed under this unit. Full text in [`TODO.md`](../TODO.md) §15; tick there when delivered.
 
 - [x] **#739** — **Split `PULSE_TEMPLATE_TARGET_MISMATCH` out of `_TARGET_UNKNOWN`** before the freeze. *Done in pre-v1 E1-S4.*
-- [ ] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check.
+- [x] **#740** — **One drift rule for sidecars.** The SPSS sidecar refuses on size / mtime drift; the point-lookup index escalates to a fingerprint check. *Done in pre-v1 E5-S2: escalate, both sidecars; a touched-but-unchanged cohort keeps its SPSS sidecar, a changed one is refused; pinned by `TestLoadSidecar_TouchedButUnchangedKeepsTheSidecar`.*
 - [x] **#741** — **Pairwise extension admission** is exact-match on `{sum, distinct_count}`; confirm, widen or document. *Done in pre-v1 E1-S6.*
 - [x] **#742** — **`ApplyOverlaysWithExtensions` bypass**; confirm every caller gets the same checks. *Done in pre-v1 E1-S6.*
 - [x] **#743** — **`n_within_depth` silent no-op** on crosstab kinds that do not read it; refuse where it has no effect. *Done in pre-v1 E3-S4: a non-zero (or negative) `n_within_depth` under an `n_source` that does not read it is refused `PULSE_OVERLAY_PARAM_MISSING` on both sides (`overlayhost.PairwiseWithinDepthMessage`); 0 stays unset (plain int); pinned by `TestPairwiseWithinDepth_PredictMatchesRuntime`.*
