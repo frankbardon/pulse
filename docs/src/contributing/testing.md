@@ -59,7 +59,9 @@ These tests guard structural invariants. If one of them fails, the
 underlying conventions (not the test) are what need re-thinking. What
 each checks in detail: `.claude/reference/update-demand/gates.md`.
 How to run the documentation checks and work their allowlists:
-[Documentation Checks](doc-checks.md).
+[Documentation Checks](doc-checks.md). How the heap-reading memory
+gates measure, and the regression each was falsified against:
+[Memory Gates](memory-gates.md).
 
 | Gate | Guards |
 |---|---|

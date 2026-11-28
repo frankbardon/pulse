@@ -402,8 +402,10 @@ func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
 // TestShardParallel_DecodeAllocsPerRow (E8-S3): the per-shard parallel
 // reducer decodes each row into one fresh positional Record (the
 // parallel-decode reducer's decode), not three maps and a converted
-// Record — ~58 allocations a row at p = 50 before, ~3 after. The bound
-// leaves room for the run's fixed allocations and the runtime's own.
+// Record — ~58 allocations a row at p = 50 before, ~3 after (3.3-3.4
+// with the run's fixed allocations, arm64 go1.26). E7-S3 audit: the
+// bound was 10 and passed six more allocations a row; at 4 it fails
+// one (4.4).
 func TestShardParallel_DecodeAllocsPerRow(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
 
@@ -424,8 +426,8 @@ func TestShardParallel_DecodeAllocsPerRow(t *testing.T) {
 	runtime.ReadMemStats(&after)
 	perRow := float64(after.Mallocs-before.Mallocs) / rows
 	t.Logf("%.1f allocations a row", perRow)
-	if perRow > 10 {
-		t.Fatalf("%.1f allocations a row on the per-shard parallel arm, want <= 10 (a positional Record per row)", perRow)
+	if perRow > 4 {
+		t.Fatalf("%.1f allocations a row on the per-shard parallel arm, want <= 4 (a positional Record per row)", perRow)
 	}
 }
 
@@ -446,8 +448,12 @@ func mustOpen(t *testing.T, svc *Service, path string) *Cohort {
 // per-shard parallel reducer (processOneShard) alike. Over an archive
 // whose four shards each carry a 100,000-entry dictionary a run then
 // allocates about one dictionary decode (Open's canonical entry) plus
-// the archive bytes Open and the scan read, where a full decode per
-// shard added four more.
+// the scan's fixed buffers (13.2 MB against an 11.4 MB decode, arm64
+// go1.26), where a full decode per shard added four more (61 MB).
+// E7-S3 audit: the bound was 2 decodes + 3 x the archive (80 MB) and
+// passed that regression — the scan streams each shard through its
+// section, so the archive's bytes are never allocated; it is now 1.5
+// decodes, which fails a single shard decoded with its dictionary.
 func TestShardScan_SkipsShardDictionaries(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
 
@@ -478,10 +484,10 @@ func TestShardScan_SkipsShardDictionaries(t *testing.T) {
 				_, err := svc.Process(context.Background(), req)
 				return err
 			})
-			bound := 2*decode + 3*uint64(size)
+			bound := decode + decode/2
 			t.Logf("run allocates %.1f MB; one dictionary decode %.1f MB, archive %.1f MB", float64(got)/(1<<20), float64(decode)/(1<<20), float64(size)/(1<<20))
 			if got > bound {
-				t.Fatalf("run allocates %d bytes, want <= 2 dictionary decodes + 3 x archive = %d (a shard schema decoded with its dictionary)", got, bound)
+				t.Fatalf("run allocates %d bytes, want <= 1.5 dictionary decodes = %d (a shard schema decoded with its dictionary)", got, bound)
 			}
 		})
 	}

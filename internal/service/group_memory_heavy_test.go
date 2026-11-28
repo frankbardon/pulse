@@ -105,10 +105,23 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 // one key every partition shares — stays under the same ceiling once
 // the absorbed partitions are released: a bucket moves into the merged
 // map whole, and nothing of the source partition outlives its merge.
+// The merged figure must also stay within mergedBytesSlack of ONE
+// partition holding every key, measured alongside. E7-S3 audit: under
+// the ceiling alone, a merge that kept every absorbed partition alive
+// (their maps still pointing at the moved buckets) held 474 B a group
+// against 422 and passed.
 func TestGroupMemory_MergedBytesPerGroup(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
 
 	svc := New(nil)
+	single := func() float64 {
+		before := liveHeap()
+		whole, fold := groupMemoryPartition(t, svc)
+		fold(0, groupMemoryKeys)
+		after := liveHeap()
+		runtime.KeepAlive(whole)
+		return float64(after-before) / groupMemoryKeys
+	}()
 	before := liveHeap()
 	m := partialMerger{req: groupMemoryRequest()}
 	const parts = 4
@@ -129,9 +142,18 @@ func TestGroupMemory_MergedBytesPerGroup(t *testing.T) {
 		t.Fatalf("shared key's floor n = %d, want %d (one row per partition + its own)", n, parts+1)
 	}
 	perGroup := float64(after-before) / groupMemoryKeys
-	t.Logf("merged: %.1f bytes/group at %d keys over %d partitions", perGroup, groupMemoryKeys, parts)
+	t.Logf("merged: %.1f bytes/group at %d keys over %d partitions (one partition: %.1f)", perGroup, groupMemoryKeys, parts, single)
 	if perGroup > groupMemoryCeiling {
 		t.Errorf("merged state holds %.1f bytes/group, ceiling %d", perGroup, groupMemoryCeiling)
 	}
+	if perGroup > single+mergedBytesSlack {
+		t.Errorf("merged state holds %.1f bytes/group, one partition %.1f: an absorbed partition outlived its merge", perGroup, single)
+	}
 	runtime.KeepAlive(merged)
 }
+
+// mergedBytesSlack is how far the merged state may sit above one
+// partition holding every key: the merged map grows through the same
+// size classes, so the two measure alike (422 B a group, arm64 go1.26);
+// a retained absorbed partition adds its map, ~52 B a group.
+const mergedBytesSlack = 16

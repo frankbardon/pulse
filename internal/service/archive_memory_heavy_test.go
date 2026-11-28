@@ -26,11 +26,19 @@ import (
 // estimate is an allocation upper bound, so GC timing moves only how
 // far below it the peak lands — and catches a dropped term, not a few
 // percent.
+//
+// E7-S3 audit: at 100,000 entries a shard the one canonical dictionary
+// decode (11 MB) sat inside the estimate's fixed run base, so dropping
+// the schema-decode term (limits.EstimateMemory's SchemaDecodes x
+// SchemaBytes) passed the band; at 250,000 it fails it (ratio 2.1).
+// The sampled peak counts garbage up to the GC goal, which the live
+// fixture raises: the dictionary archive is dropped before the matrix
+// cases, whose peak it otherwise inflated past the ceiling.
 func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
 
 	mem := afero.NewMemMapFs()
-	writeDictArchive(t, mem, "dict.pulse", 4, 4096, 100_000)
+	writeDictArchive(t, mem, "dict.pulse", 4, 4096, 250_000)
 	memCfg, err := fs.New(fs.WithFs(mem))
 	if err != nil {
 		t.Fatal(err)
@@ -41,26 +49,34 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 	osCfg := matrixScaleOSConfig(t, dir)
 	cases := []struct {
 		name string
-		cfg  *fs.Config
+		dict bool // over the in-memory dictionary archive, else the OS one
 		req  func() *types.Request
 	}{
-		{"dictionary archive", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", false) }},
-		{"dictionary archive grouped", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", true) }},
+		{"dictionary archive", true, func() *types.Request { return dictArchiveRequest("dict.pulse", false) }},
+		{"dictionary archive grouped", true, func() *types.Request { return dictArchiveRequest("dict.pulse", true) }},
 		// A grouped total() (U74 E3-S1, #494): ShardWorkers 4 runs the
 		// two-phase pre-pass, then the grouped reduce.
-		{"dictionary archive grouped total", memCfg, func() *types.Request { return totalArchiveRequest("dict.pulse", true, "x0 / total(x0)") }},
-		{"matrix scale archive", osCfg, func() *types.Request { return matrixScaleRequest(scale, p, "pairwise", false) }},
+		{"dictionary archive grouped total", true, func() *types.Request { return totalArchiveRequest("dict.pulse", true, "x0 / total(x0)") }},
+		{"matrix scale archive", false, func() *types.Request { return matrixScaleRequest(scale, p, "pairwise", false) }},
 		// The buffered arm (an order statistic): every record is
 		// materialised, so the payload term's headroom over the largest
 		// shard alone must still bound the peak.
-		{"matrix scale archive buffered", osCfg, func() *types.Request {
+		{"matrix scale archive buffered", false, func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: scale}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x001", Label: "m"}}}
 		}},
 	}
 	for _, c := range cases {
+		cfg := osCfg
+		if c.dict {
+			cfg = memCfg
+		} else {
+			// The dictionary archive is garbage from here on (the
+			// dictionary cases come first).
+			mem, memCfg = nil, nil
+		}
 		for _, workers := range []int{1, 4} {
 			t.Run(fmt.Sprintf("%s/shards=%d", c.name, workers), func(t *testing.T) {
-				svc := New(c.cfg)
+				svc := New(cfg)
 				svc.SetShardWorkers(workers)
 				estimate := float64(archiveMemoryEstimate(t, svc, c.req()))
 				peak := -1.0
