@@ -14,6 +14,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupfit"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -520,9 +521,13 @@ func newRoundedGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, erro
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
 		return nil, err
 	}
-	if grp.Interval <= 0 {
-		grp.Interval = 1 // default to 1
+	// The interval rule is internal/opconfig's, the one predict calls:
+	// a negative interval is refused, an unset (0) one defaults to 1.
+	iv, cerr := opconfig.GroupInterval(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
+	grp.Interval = iv
 	return &roundedGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 
@@ -687,9 +692,13 @@ func newRangeGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error)
 	if err := rejectSetFieldForNumericGrouper(grp, schema); err != nil {
 		return nil, err
 	}
-	if grp.Interval <= 0 {
-		grp.Interval = 1 // default to 1
+	// The interval rule is internal/opconfig's, the one predict calls:
+	// a negative interval is refused, an unset (0) one defaults to 1.
+	iv, cerr := opconfig.GroupInterval(grp.Type, grp.Interval)
+	if cerr != nil {
+		return nil, cerr
 	}
+	grp.Interval = iv
 	return &rangeGrouper{field: grp.Field, interval: grp.Interval}, nil
 }
 

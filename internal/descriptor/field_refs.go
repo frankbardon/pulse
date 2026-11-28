@@ -816,9 +816,23 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 			}
 			w.checkInputs("grouper", string(g.Type), g.Params, "role", role)
 		}
+		// A cell or margin aggregation reads its field like any
+		// aggregation, so one naming none is refused as the aggregations
+		// list refuses it — it once counted nothing and answered 0 in
+		// every cell (#793). A vector aggregator reads its members and
+		// AGG_CONSTANT no column, as there. An untyped entry naming no
+		// field is the crosstab validator's (PULSE_CROSSTAB_CELLS_INVALID:
+		// smart defaults could not type it).
 		agg := func(a *types.Aggregation, role string) {
-			if opRoute(inst, a.Type) != types.AGG_CONSTANT {
-				axis(a.Field, role)
+			if !aggregationKinds(inst, w.snap).IsVector(a.Type) && opRoute(inst, a.Type) != types.AGG_CONSTANT {
+				if a.Field == "" && a.Type != "" {
+					w.check("", func() *errors.CodedError {
+						return refusal("crosstab "+role+" "+string(a.Type)+" names no field",
+							map[string]any{"field": "", "role": role, "aggregation": string(a.Type)})
+					})
+				} else if a.Field != "" {
+					axis(a.Field, role)
+				}
 			}
 			w.checkAgg(a, "crosstab "+role+" "+string(a.Type), "role", role)
 		}

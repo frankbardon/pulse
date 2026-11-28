@@ -47,7 +47,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#777** (11. Documentation audit) The `standard` return preset's regression key list drops keys added since; decide membership, align the list, regenerate the manifest golden
 - [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
 - [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
-- [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
+- [x] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`) *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
 - [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
 - [x] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys) *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
@@ -60,7 +60,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#790** (11. Documentation audit) `WIN_SHARE` / `WIN_LIFT` / `WIN_FORMULA` read a `decimal128` aggregation instead of a silent null
 - [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
 - [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
-- [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
+- [x] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
 - [x] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
 - [x] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate *Done in pre-v1 E2-S3: fifteen dead codes retired; `PULSE_DECIMAL_PRECISION_LOSS` held reserved (documented, not yet raised); gated by `TestRegisteredCodesEmittedOrReserved`.*
@@ -209,7 +209,7 @@ U24 shipped the multivariate matrix operators without a human reviewer: an exter
 
 Filed from [U38 handed on](U38-skill-sync.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#506** — **A non-positive `interval` is silently 1.** `GROUP_RANGE` / `GROUP_ROUNDED` treat an explicit `interval ≤ 0` as 1 at predict and at runtime. U38 corrected the manifest to say so (`interval` optional, default 1) and left the behaviour alone (out of its scope). Decide before the freeze: refuse an explicit `interval ≤ 0` (a behaviour change for `STABILITY.md` and the migration doc, with a predict ≡ runtime test) or keep the coercion and state it in `STABILITY.md`.
+- [x] **#506** — **A non-positive `interval` is silently 1.** `GROUP_RANGE` / `GROUP_ROUNDED` treat an explicit `interval ≤ 0` as 1 at predict and at runtime. U38 corrected the manifest to say so (`interval` optional, default 1) and left the behaviour alone (out of its scope). Decide before the freeze: refuse an explicit `interval ≤ 0` (a behaviour change for `STABILITY.md` and the migration doc, with a predict ≡ runtime test) or keep the coercion and state it in `STABILITY.md`. *Done in pre-v1 E3-S2: a negative interval is refused `PROCESSING_CONFIG` on both sides (`opconfig.GroupInterval`); 0 stays the unset slot (default 1), as `Group.Interval` is a plain number; pinned by `TestPredictParity_ArityCellInterval`.*
 
 ## Inherited from U37
 
@@ -280,7 +280,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#777** — **The `standard` preset's regression keys are stale**; decide membership and regenerate the manifest golden.
 - [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
 - [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.
-- [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
+- [x] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test. *Done in pre-v1 E3-S2: predict skips the static arity rule for an expression the entry compile refused, so it reports the run's one compile error; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests. *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
 - [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
 - [x] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling. *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
@@ -293,7 +293,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#790** — **Share / lift / formula windows read a decimal sum as null, silently**; convert or refuse.
 - [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
 - [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
-- [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
+- [x] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does. *Done in pre-v1 E3-S2: a fieldless crosstab cell / margin aggregation is refused `SERVICE_VALIDATION` by the shared field-reference walk, at predict and at run time; pinned by `TestPredictParity_ArityCellInterval`.*
 - [x] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms. *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
 - [x] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys. *Done in pre-v1 E2-S2: wire-key paths (suggestions too), pinned by `TestPredict_DefaultsAppliedPathsAreWireKeys`.*
 - [x] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it. *Done in pre-v1 E2-S3: fifteen dead codes retired; `PULSE_DECIMAL_PRECISION_LOSS` held reserved (documented, not yet raised); gated by `TestRegisteredCodesEmittedOrReserved`.*

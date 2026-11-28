@@ -200,7 +200,6 @@ func opConfigCases() []opConfigCase {
 func TestOperatorConfig_PredictMatchesRuntime(t *testing.T) {
 	t.Parallel()
 	p := opConfigPulse(t)
-	ctx := context.Background()
 	for _, tc := range opConfigCases() {
 		build := func() *Request {
 			r := &Request{Cohort: &types.Cohort{Filename: opConfigCohort},
@@ -210,32 +209,42 @@ func TestOperatorConfig_PredictMatchesRuntime(t *testing.T) {
 			return r
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := p.Predict(ctx, build())
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, rerr := p.Process(ctx, build())
-			if !tc.refuse {
-				if len(res.Errors) != 0 || rerr != nil {
-					t.Fatalf("well-formed request refused: predict %+v runtime %v", res.Errors, rerr)
-				}
-				return
-			}
-			var ce *perr.CodedError
-			if !stderrors.As(rerr, &ce) {
-				t.Fatalf("runtime err = %v, want a coded refusal", rerr)
-			}
-			if len(res.Errors) == 0 {
-				t.Fatalf("predict accepted what the runtime refused: %s %q", ce.Code, ce.Message)
-			}
-			if len(res.Errors) != 1 {
-				t.Errorf("predict reported %d errors, want the runtime's one: %+v", len(res.Errors), res.Errors)
-			}
-			pe := res.Errors[0]
-			if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(normalizeDetails(ce.Details), normalizeDetails(pe.Details)) {
-				t.Errorf("runtime %s %q %v\n predict %s %q %v", ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
-			}
+			assertPredictRuntimeParity(t, p, build, tc.refuse)
 		})
+	}
+}
+
+// assertPredictRuntimeParity runs build's request through Predict and
+// Process: a well-formed one (refuse false) passes both; otherwise
+// Predict reports exactly the runtime's one refusal — code, message and
+// details.
+func assertPredictRuntimeParity(t *testing.T, p *Pulse, build func() *Request, refuse bool) {
+	t.Helper()
+	ctx := context.Background()
+	res, err := p.Predict(ctx, build())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rerr := p.Process(ctx, build())
+	if !refuse {
+		if len(res.Errors) != 0 || rerr != nil {
+			t.Fatalf("well-formed request refused: predict %+v runtime %v", res.Errors, rerr)
+		}
+		return
+	}
+	var ce *perr.CodedError
+	if !stderrors.As(rerr, &ce) {
+		t.Fatalf("runtime err = %v, want a coded refusal", rerr)
+	}
+	if len(res.Errors) == 0 {
+		t.Fatalf("predict accepted what the runtime refused: %s %q", ce.Code, ce.Message)
+	}
+	if len(res.Errors) != 1 {
+		t.Errorf("predict reported %d errors, want the runtime's one: %+v", len(res.Errors), res.Errors)
+	}
+	pe := res.Errors[0]
+	if string(ce.Code) != pe.Code || ce.Message != pe.Message || !reflect.DeepEqual(normalizeDetails(ce.Details), normalizeDetails(pe.Details)) {
+		t.Errorf("runtime %s %q %v\n predict %s %q %v", ce.Code, ce.Message, ce.Details, pe.Code, pe.Message, pe.Details)
 	}
 }
 

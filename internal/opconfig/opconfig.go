@@ -18,6 +18,8 @@
 //   - FILTER_TRUE / FILTER_FALSE: at most one values entry, "truthy" or
 //     "strict" (BoolMode).
 //   - FILTER_RANGE: exactly two numeric values (RangeBounds).
+//   - GROUP_RANGE / GROUP_ROUNDED: a positive interval; 0 is the unset
+//     slot and takes the default 1 (GroupInterval, #506).
 //
 // A rule that reads the schema takes the resolved field: the caller has
 // already applied the field-reference and accepted-types rules (a slot's
@@ -32,6 +34,7 @@ package opconfig
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -284,4 +287,28 @@ func RangeBounds(values []string) (lo, hi float64, cerr *errors.CodedError) {
 			"parsing range max value "+strconv.Quote(values[1]))
 	}
 	return lo, hi, nil
+}
+
+// GroupInterval returns a GROUP_RANGE / GROUP_ROUNDED (op) slot's
+// interval — the bucket width or rounding increment — or the
+// PROCESSING_CONFIG refusal of a negative (or NaN) one (#506; it was
+// silently read as 1). Group.Interval is a plain number, so 0 is the
+// unset slot (`interval` omitted, or written as 0) and takes the
+// default 1; a type-less slot over a numeric field gets GROUP_RANGE with
+// interval 10 from the smart defaults before this rule runs.
+func GroupInterval(op types.GroupType, interval float64) (float64, *errors.CodedError) {
+	switch {
+	case interval > 0:
+		return interval, nil
+	case interval == 0:
+		return 1, nil
+	}
+	shown := strconv.FormatFloat(interval, 'g', -1, 64)
+	var value any = interval
+	if math.IsNaN(interval) {
+		value = shown
+	}
+	return 0, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+		string(op)+" interval must be positive (omit it for the default 1); got "+shown,
+		map[string]any{"group": string(op), "param": "interval", "value": value})
 }

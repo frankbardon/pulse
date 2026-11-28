@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | `1` | Rounding increment; the slot's top-level `interval`, not `params`. ≤ 0 is treated as 1. |
+| `interval` | float | `1` | Rounding increment; the slot's top-level `interval`, not `params`. Absent or `0` (unset) = 1; negative → `PROCESSING_CONFIG`, at predict and at run time. |
 
 ## Inputs
 

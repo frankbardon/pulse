@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/opconfig"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -16,9 +17,11 @@ import (
 // a params.label its set field's dictionary holds; FILTER_NULL /
 // FILTER_TRUE / FILTER_FALSE with an unknown values mode; FILTER_RANGE
 // without exactly two numeric values; a FILTER_SET_* label the set
-// field's dictionary does not hold. Aggregations are walked in every
-// slot validateAggregationParams walks (top level, crosstab cell and
-// margin aggregations).
+// field's dictionary does not hold; GROUP_RANGE / GROUP_ROUNDED with a
+// negative interval (#506; Request.Groups, both crosstab axes, a
+// MAT_DISTANCE params.between grouper). Aggregations are walked in
+// every slot validateAggregationParams walks (top level, crosstab cell
+// and margin aggregations).
 //
 // A slot whose field a prior rule refuses gets no config finding, as
 // the runtime raises that field refusal first: the accepted-types table
@@ -82,6 +85,43 @@ func validateOperatorConfig(env *descriptor.Envelope, req *types.Request, schema
 		}
 	}
 	validateFilterConfig(env, req.Filterers, schema, inst)
+	group := func(g *types.Group) {
+		if g == nil {
+			return
+		}
+		route := opRoute(inst, g.Type)
+		if route != types.GROUP_RANGE && route != types.GROUP_ROUNDED {
+			return
+		}
+		if schema != nil && g.Field != "" {
+			if f := schema.Field(g.Field); f != nil && (f.Type.IsSet() || f.Type.IsVector() ||
+				fieldaccept.Refusal(string(route), fieldaccept.SlotField, g.Field, f.Type) != nil) {
+				return
+			}
+		}
+		if _, cerr := opconfig.GroupInterval(g.Type, g.Interval); cerr != nil {
+			addCodedError(env, cerr)
+		}
+	}
+	for _, g := range req.Groups {
+		group(g)
+	}
+	if ct := req.Crosstab; ct != nil {
+		for _, g := range ct.Rows {
+			group(g)
+		}
+		for _, g := range ct.Columns {
+			group(g)
+		}
+	}
+	for _, m := range req.Matrices {
+		if opRoute(inst, m.Type) != types.MAT_DISTANCE {
+			continue
+		}
+		if g, ok := vectors.SpecBetween(m); ok {
+			group(&g)
+		}
+	}
 }
 
 // validateFilterConfig is validateOperatorConfig's filterer arm, shared

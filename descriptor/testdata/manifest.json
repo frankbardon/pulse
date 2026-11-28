@@ -6415,7 +6415,7 @@
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
+              "description": "Bucket width on the value axis; set as the group slot's top-level interval, not in params. Default 1 (0 is the unset slot); a negative interval is refused PROCESSING_CONFIG. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -6504,7 +6504,7 @@
               "type": "float",
               "required": false,
               "default": 1,
-              "description": "Rounding increment; set as the group slot's top-level interval, not in params. Default 1; ≤ 0 is treated as 1.",
+              "description": "Rounding increment; set as the group slot's top-level interval, not in params. Default 1 (0 is the unset slot); a negative interval is refused PROCESSING_CONFIG.",
               "slot": true
             }
           ],
@@ -22201,4 +22201,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: feda65dc5477aafda601a4ce7ccaa81cf5a6f0cd21060c4f02492fff8f1313fc
+// golden-hash: f69906b1d62762dbeb4825187fae265a08e4cb0fcefa280df7dd447da2fda2bd

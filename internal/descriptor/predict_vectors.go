@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -81,14 +82,27 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 // PROCESSING_VECTOR_LENGTH_MISMATCH {function, left, right}; code,
 // message and details are the runtime's. A request whose vectors do not
 // resolve is judged without them (the field-reference pass reports
-// that); any other argument is unknown and never refused. models is
-// the request's bound-model catalog (nil none).
+// that); any other argument is unknown and never refused. An
+// expression env already holds a PULSE_FORMULA_COMPILE_ERROR for is
+// skipped: the run raises the compile refusal first and only. models
+// is the request's bound-model catalog (nil none).
 func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, cls vectors.Classifier) {
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0 && len(req.Features) == 0 && len(req.Regressions) == 0) {
 		return
 	}
 	resolved, _ := vectors.ResolveRequest(req, schema, cls)
-	for _, ce := range vectors.StaticIssues(req, schema, resolved) {
+	// An expression the entry compile refused is not judged again: the
+	// run raises that PULSE_FORMULA_COMPILE_ERROR and stops (#780).
+	failed := map[string]bool{}
+	for _, e := range env.Errors {
+		if e.Code != string(errors.PULSE_FORMULA_COMPILE_ERROR) {
+			continue
+		}
+		if src, ok := e.Details["expression"].(string); ok {
+			failed[src] = true
+		}
+	}
+	for _, ce := range vectors.StaticIssues(req, schema, resolved, func(src string) bool { return failed[src] }) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
 }

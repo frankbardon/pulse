@@ -28,6 +28,7 @@ Scalar `int64`. Per-group when wired under a grouper; otherwise one row across t
 ## Gotchas
 
 - Counts non-null inputs only.
+- `field` is required in every slot<!-- feature: capability:crosstab -->, a crosstab `cell` or `margin_aggregations` entry included (it once answered 0 in every cell)<!-- /feature -->: none → `SERVICE_VALIDATION`, at predict and at run time.
 - Weighted (Σw, and the `sum_weights` / `n_eff` floor): a binned sum, the same bits on every worker count and shard split.
 - Over `decimal128` the count is a JSON integer (`4`), never a decimal string.
 - Never a smart default: an omitted `type` never infers `AGG_COUNT` — name it explicitly.
