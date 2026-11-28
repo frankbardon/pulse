@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -58,6 +59,12 @@ type Service struct {
 	// the ctx every RequestTimeout entry hands its run — bounded or not
 	// — so a test can wait out a tiny deadline deterministically.
 	entryHook func(ctx context.Context)
+
+	// clock, when set (tests only), is the RequestTimeout start time
+	// BoundRequest reads instead of time.Now — a frozen clock gives every
+	// nested entry the outer entry's deadline exactly, as a coarse
+	// platform clock does.
+	clock func() time.Time
 
 	// appendSeam, when set (tests only), observes the in-place tail
 	// append of AddShard (shard_append.go) so a crash test can snapshot

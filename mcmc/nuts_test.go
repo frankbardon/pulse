@@ -363,21 +363,37 @@ func TestNUTS_Deterministic(t *testing.T) {
 	}
 }
 
-// cancelAfter cancels its context after n gradient evaluations and
-// counts every evaluation.
+// cancelAfter cancels its context at the n-th gradient evaluation and
+// counts every evaluation (calls) and every evaluation that STARTED
+// after cancel() returned (after).
+//
+// after is keyed to the cancel itself, never to the call counter
+// (TODO-746): the counter reaches n before cancel() runs, and in that
+// window another chain can finish its transition, pass its ctx check on
+// a still-live context and start one more — calls numbered above n that
+// precede the cancel. Counted by number, a run at -cpu 4 -race exceeded
+// the one-transition-per-chain bound about once in 500 runs with the
+// sampler behaving exactly as documented. The cancelled flag is stored
+// after cancel() returns, so a gradient that observes it is ordered
+// after the cancel, and every ctx check its chain makes afterwards sees
+// the context done: each chain contributes at most the rest of one
+// transition.
 type cancelAfter struct {
 	mcmc.Model
-	n      int64
-	calls  atomic.Int64
-	after  atomic.Int64
-	cancel context.CancelFunc
+	n         int64
+	calls     atomic.Int64
+	cancelled atomic.Bool
+	after     atomic.Int64
+	cancel    context.CancelFunc
 }
 
 func (m *cancelAfter) LogDensityGrad(theta, grad []float64) float64 {
-	if c := m.calls.Add(1); c == m.n {
-		m.cancel()
-	} else if c > m.n {
+	c := m.calls.Add(1)
+	if m.cancelled.Load() {
 		m.after.Add(1)
+	} else if c == m.n {
+		m.cancel()
+		m.cancelled.Store(true)
 	}
 	return m.Model.LogDensityGrad(theta, grad)
 }
