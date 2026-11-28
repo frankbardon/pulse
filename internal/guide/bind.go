@@ -401,9 +401,8 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 	case catTest, catPostTest:
 		req := append([]string(nil), op.requires...)
 		req = append(req, optionalSlots[[2]string{op.name, in.ID}]...)
-		for _, goName := range req {
-			k, known := requireKey[goName]
-			if !known {
+		for _, k := range req {
+			if !requireKeys[k] {
 				return nil, nil, false
 			}
 			slots = append(slots, testSlot(op, k))

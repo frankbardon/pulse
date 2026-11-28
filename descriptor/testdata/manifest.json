@@ -7506,8 +7506,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -7545,9 +7545,9 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy",
-          "SubjectField"
+          "field",
+          "split_by",
+          "subject_field"
         ],
         "intents": [
           "change_over_time",
@@ -7571,8 +7571,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -7644,7 +7644,7 @@
           }
         ],
         "requires": [
-          "SplitBy"
+          "split_by"
         ],
         "intents": [
           "compare_groups",
@@ -7672,8 +7672,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups",
@@ -7713,8 +7713,8 @@
           }
         ],
         "requires": [
-          "Rows",
-          "Cols"
+          "rows",
+          "cols"
         ],
         "intents": [
           "compare_groups",
@@ -7742,8 +7742,8 @@
           }
         ],
         "requires": [
-          "Rows",
-          "Cols"
+          "rows",
+          "cols"
         ],
         "intents": [
           "compare_groups",
@@ -7822,8 +7822,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -7849,8 +7849,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -7876,8 +7876,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups",
@@ -7917,8 +7917,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -7954,7 +7954,7 @@
           }
         ],
         "requires": [
-          "SplitBy"
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8026,8 +8026,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "change_over_time",
@@ -8055,8 +8055,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -8126,8 +8126,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8154,7 +8154,7 @@
           }
         ],
         "requires": [
-          "Field"
+          "field"
         ],
         "intents": [
           "distribution_shape"
@@ -8177,8 +8177,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -8235,7 +8235,7 @@
           }
         ],
         "requires": [
-          "Field"
+          "field"
         ],
         "intents": [
           "benchmark",
@@ -8276,8 +8276,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8304,8 +8304,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "change_over_time",
@@ -8345,8 +8345,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8394,8 +8394,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8437,8 +8437,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8468,8 +8468,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups",
@@ -8500,8 +8500,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -8531,8 +8531,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "compare_groups",
@@ -8563,8 +8563,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "change_over_time",
@@ -8595,8 +8595,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -8626,7 +8626,7 @@
           }
         ],
         "requires": [
-          "Field"
+          "field"
         ],
         "intents": [
           "distribution_shape"
@@ -8656,8 +8656,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "relationship"
@@ -8697,8 +8697,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "OrderBy"
+          "field",
+          "order_by"
         ],
         "intents": [
           "change_over_time"
@@ -8747,8 +8747,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -8778,8 +8778,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "Field2"
+          "field",
+          "field2"
         ],
         "intents": [
           "change_over_time",
@@ -16327,7 +16327,7 @@
             "total"
           ],
           "ref_kinds": [
-            "Stage"
+            "stage"
           ],
           "buffered": true,
           "description": "Process-chain overlay: target − reference per coordinate between two stages' results, in the target stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN (target) or PULSE_OVERLAY_REFERENCE_UNKNOWN (ref). Stages of different shapes warn PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (predict and runtime) and the layer is empty. A zero reference is valid (no warning). Scope total; level / within 0. Additive twin of OVERLAY_INDEX_VS_STAGE; centred on 0. Measure: on grouped stages the overlay keys each row on the stage's group keys alone and scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point) on the target and the reference stage; absent, each stage's aggregations[0]. A label a stage lacks is PULSE_OVERLAY_FIELD_UNKNOWN (details which, stage_index; predict and runtime)."
@@ -16343,7 +16343,7 @@
             "total"
           ],
           "ref_kinds": [
-            "Stage"
+            "stage"
           ],
           "buffered": true,
           "description": "Process-chain overlay: (target / reference) · 100 per coordinate between two stages' results, in the target stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN (target) or PULSE_OVERLAY_REFERENCE_UNKNOWN (ref). Stages of different shapes warn PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (predict and runtime) and the layer is empty. A zero reference warns PULSE_OVERLAY_REF_ZERO and that coordinate is null. Scope total; level / within 0. Centred on 100. Measure: on grouped stages the overlay keys each row on the stage's group keys alone and scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point) on the target and the reference stage; absent, each stage's aggregations[0]. A label a stage lacks is PULSE_OVERLAY_FIELD_UNKNOWN (details which, stage_index; predict and runtime)."
@@ -17060,7 +17060,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Population"
+          "population"
         ],
         "buffered": true,
         "description": "χ² goodness-of-fit of a pulse_facet_schema field's subset distribution against a population's (ref.population, required; its cohort in ref.population.cohort). The layer summary carries statistic, parameters.df and p_value. The compared categories C are the subset's listed values the population also shows plus, when the listing is complete (no discrete_top_k cut), every population category the subset lacks, at observed 0. expected[v] = share[v] · subset_N with the population shares renormalised over C, df = |C| − 1 — R's chisq.test(x, p, rescale.p = TRUE) over C, the same p-values as TEST_CHISQ. A subset value the population lacks is left out, one PULSE_OVERLAY_REF_ZERO per value. Categorical fields only: a numeric field is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (predict and runtime). Any expected count below 5 warns PULSE_OVERLAY_EXPECTED_LOW once. An empty subset, subset_N = 0 or an empty population leaves statistic and p_value null with one PULSE_OVERLAY_REF_ZERO; a single category (df 0) leaves p_value null. level / within 0.",
@@ -17178,7 +17178,7 @@
           "group"
         ],
         "ref_kinds": [
-          "BaselineIndex"
+          "baseline_index"
         ],
         "buffered": true,
         "description": "Per-point difference from one fixed baseline point of a SERIES host: point_value − baseline_value, on each entry's summary.statistic, in the host value's units. ref.baseline_index.position (required) is the 0-based baseline point; the baseline point itself scores 0. A zero baseline is valid (no warning). A negative or out-of-range position is PULSE_OVERLAY_REF_UNKNOWN (details baseline_index, series_length; predict and runtime). A missing point keeps its key with no statistic. level / within 0. Additive twin of OVERLAY_INDEX_VS_BASELINE; centred on 0. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17209,7 +17209,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -17230,7 +17230,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Prior"
+          "prior"
         ],
         "buffered": false,
         "description": "Per-point difference from the previous present point of a SERIES host: point_value − prior_value, on each entry's summary.statistic — \"how much did this change\", where OVERLAY_INDEX_VS_PRIOR answers \"what proportion of the prior is this\". ref.prior (lag 0) or an empty ref. The first present point is null; a zero prior is valid (no warning). A missing point keeps its key with no statistic and does not advance the prior. level / within 0. Centred on 0. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17286,7 +17286,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Sibling"
+          "sibling"
         ],
         "buffered": true,
         "description": "Per-group difference from one sibling group of a SERIES host: group_val − sibling_val, on each entry's summary.statistic, in the host value's units. ref.sibling {field, value} (both required) names a grouper field and the key value to compare against; the sibling itself scores 0. An unknown field or unobserved value is PULSE_OVERLAY_REF_UNKNOWN with every statistic null. A zero sibling is valid (no warning). A missing group keeps its key with no statistic. Centred on 0. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17319,7 +17319,7 @@
           "total"
         ],
         "ref_kinds": [
-          "Stage"
+          "stage"
         ],
         "buffered": true,
         "description": "Process-chain overlay: target − reference per coordinate between two stages' results, in the target stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN (target) or PULSE_OVERLAY_REFERENCE_UNKNOWN (ref). Stages of different shapes warn PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (predict and runtime) and the layer is empty. A zero reference is valid (no warning). Scope total; level / within 0. Additive twin of OVERLAY_INDEX_VS_STAGE; centred on 0. Measure: on grouped stages the overlay keys each row on the stage's group keys alone and scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point) on the target and the reference stage; absent, each stage's aggregations[0]. A label a stage lacks is PULSE_OVERLAY_FIELD_UNKNOWN (details which, stage_index; predict and runtime).",
@@ -17408,7 +17408,7 @@
           "group"
         ],
         "ref_kinds": [
-          "BaselineIndex"
+          "baseline_index"
         ],
         "buffered": true,
         "description": "Per-point index against one fixed baseline point of a SERIES host: (point_value / baseline_value) · 100, on each entry's summary.statistic. ref.baseline_index.position (required) is the 0-based baseline point, which scores 100. A zero or missing baseline warns PULSE_OVERLAY_REF_ZERO once (baseline ordinal and group count in details) and every statistic is null. A negative or out-of-range position is PULSE_OVERLAY_REF_UNKNOWN (details baseline_index, series_length; predict and runtime). A missing point keeps its key with no statistic. level / within 0. Centred on 100. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17439,7 +17439,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -17460,7 +17460,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Population"
+          "population"
         ],
         "buffered": false,
         "description": "Per-value index of a pulse_facet_schema field's subset frequency against a population's (ref.population, required; its cohort in ref.population.cohort): subset_freq / pop_freq · 100, one series entry per facet value in the facet's order (count descending, ties by value) on summary.statistic. A numeric field is scored per histogram bin, only when the facet requests a histogram and the population carries one of the same shape; without one the layer has no entries (use OVERLAY_KS_VS_POP). A value the population lacks or holds at 0 warns PULSE_OVERLAY_REF_ZERO once per entry and has no statistic. level / within 0. Centred on 100.",
@@ -17485,7 +17485,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Prior"
+          "prior"
         ],
         "buffered": false,
         "description": "Per-point index against the previous present point of a SERIES host: (point_value / prior_value) · 100, on each entry's summary.statistic. ref.prior (lag 0) or an empty ref. The first present point is null (no warning); a zero prior warns PULSE_OVERLAY_REF_ZERO and that entry is null. A missing point keeps its key with no statistic and does not advance the prior. level / within 0. Centred on 100. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17548,7 +17548,7 @@
           "group"
         ],
         "ref_kinds": [
-          "RollingMean"
+          "rolling_mean"
         ],
         "buffered": true,
         "description": "Per-point index against the mean of the W previous present points of a SERIES host:  point_value / mean(point[i-W] .. point[i-1]) · 100, on each entry's summary.statistic. ref.rolling_mean (required, an empty object) and params.window (W, a positive integer: missing is PULSE_OVERLAY_PARAM_MISSING, non-positive or non-integer PULSE_OVERLAY_LEVEL_OUT_OF_RANGE). A point with fewer than params.min_periods present prior points (default W) is null (no warning); a zero rolling mean warns PULSE_OVERLAY_REF_ZERO once per layer and those entries are null. A missing point keeps its key with no statistic and does not enter the window. level / within 0. Centred on 100. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17591,7 +17591,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Sibling"
+          "sibling"
         ],
         "buffered": true,
         "description": "Per-group index against one sibling group of a SERIES host: (group_val / sibling_val) · 100, on each entry's summary.statistic. ref.sibling {field, value} (both required) names a grouper field and the key value to compare against; the sibling itself scores 100. An unknown field or unobserved value is PULSE_OVERLAY_REF_UNKNOWN, and a zero sibling PULSE_OVERLAY_REF_ZERO, each with every statistic null. A missing group keeps its key with no statistic. Centred on 100. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -17624,7 +17624,7 @@
           "total"
         ],
         "ref_kinds": [
-          "Stage"
+          "stage"
         ],
         "buffered": true,
         "description": "Process-chain overlay: (target / reference) · 100 per coordinate between two stages' results, in the target stage's shape (scalar, series or matrix). ref names the reference stage ({index} or {name}; required); target defaults to the last stage. An unknown stage is PULSE_OVERLAY_TARGET_UNKNOWN (target) or PULSE_OVERLAY_REFERENCE_UNKNOWN (ref). Stages of different shapes warn PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT (predict and runtime) and the layer is empty. A zero reference warns PULSE_OVERLAY_REF_ZERO and that coordinate is null. Scope total; level / within 0. Centred on 100. Measure: on grouped stages the overlay keys each row on the stage's group keys alone and scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point) on the target and the reference stage; absent, each stage's aggregations[0]. A label a stage lacks is PULSE_OVERLAY_FIELD_UNKNOWN (details which, stage_index; predict and runtime).",
@@ -17678,7 +17678,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Population"
+          "population"
         ],
         "buffered": true,
         "description": "Two-sample Kolmogorov-Smirnov test of a numeric pulse_facet_schema field's subset distribution against a population's (ref.population, required; its cohort in ref.population.cohort): D = sup_x |F_subset(x) − F_pop(x)|. payload.scalar is D; the layer summary carries statistic, p_value and parameters n_subset, n_pop. The population keeps summaries, not raw values, so the CDFs come from (1) matching histograms (same min, max and bin count on both sides; ask the facet for a histogram), then p is R ks.test's on the bucketed samples, exact on the ties when m·n \u003c 10000 — what TEST_KS reports on the bucket indices; else (2) common percentile labels, with the limiting Kolmogorov p, ks.test(exact = FALSE); else both null with one PULSE_OVERLAY_REF_ZERO whose details say which facet options were missing. Precision is bounded by the bin width or percentile spacing. An empty subset or population leaves both null with PULSE_OVERLAY_REF_ZERO. A categorical field is refused, PULSE_OVERLAY_SCOPE_UNSUPPORTED (use OVERLAY_CHISQ_VS_POP). level / within 0.",
@@ -17762,7 +17762,7 @@
           "matrix"
         ],
         "ref_kinds": [
-          "Matrix"
+          "matrix"
         ],
         "buffered": true,
         "description": "Summary of a grouped matrix result across its group buckets: an overlay on a request (a process request or a compose slot) carrying matrices and groups and no crosstab. ref.matrix.name names the matrices entry by its effective name (name, else \u003cTYPE\u003e_\u003cvector\u003e / \u003cTYPE\u003e; unknown is PULSE_OVERLAY_REFERENCE_UNKNOWN), and every bucket's primary matrix is read (an upper encoding expanded first) after the multiplicity fold. The primary matrix is the per-cell unweighted mean across buckets; payload.parts: min, max, range and n_groups (a matrix each). Keys are the union of the buckets' row / column keys; a null cell or a key a bucket lacks contributes nothing, and a cell no bucket contributes to is null (n_groups 0). An ungrouped request is PULSE_OVERLAY_GROUPS_REQUIRED. No params; scope matrix; level / within 0. Refused on the compose, chain and facet overlay slots and on a process-chain stage. Descriptive (no p-value).",
@@ -18192,7 +18192,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Prior"
+          "prior"
         ],
         "buffered": true,
         "description": "Tests each period against the present period before it: pooled two-proportion z-test (the OVERLAY_PAIRWISE_PROP_Z kernel). Hosts: a grouped process request (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with no column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: an AGG_AVERAGE measure of a 0/1 indicator: p̂ is its value, n its floor's non-null count (weighted: N* — Σw under frequency, n_eff under probability); on the crosstab host normalize must be none. ref.prior (lag 0) or an empty ref; level / within 0. One series entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -18341,7 +18341,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -18362,7 +18362,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -18385,7 +18385,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": false,
         "fields": [
@@ -18551,7 +18551,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Prior"
+          "prior"
         ],
         "buffered": true,
         "description": "Tests each period against the present period before it: Welch t-test on the means (Welch-Satterthwaite df; the OVERLAY_PAIRWISE_WELCH_T kernel). Hosts: a grouped process request (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with no column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*). ref.prior (lag 0) or an empty ref; level / within 0. One series entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -18651,7 +18651,7 @@
           "group"
         ],
         "ref_kinds": [
-          "YoY"
+          "yoy"
         ],
         "buffered": true,
         "description": "Per-point year-over-year index of a SERIES host against the same period one year earlier: point_value / prior_year_value · 100, on each entry's summary.statistic. ref.yoy (required, an empty object). The host must carry exactly one GROUP_DATE grouper, anywhere in groups; none or several is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (details groupers, date_groupers; predict and runtime). The frequency is params.frequency, else the GROUP_DATE grouper's params.frequency: annual looks back 1 point, quarterly 4, monthly 12, weekly 52 (calendar-week aligned, no day-of-week realignment), daily the exact date 365 days earlier (Feb 29 against a non-leap year is null), hourly the exact hour 365×24 hours earlier. No frequency is PULSE_OVERLAY_YOY_FREQUENCY_MISSING; an unsupported one PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY (details frequency, supported). Over two or more groupers the overlay runs once per combination of the other keys (the lookup never crosses a segment); an explicit params.partition_by must name exactly the non-date keys, else PULSE_OVERLAY_PARTITION_INVALID (reason not_non_date_keys). A point with no prior-year point is null (no warning); a zero prior-year value warns PULSE_OVERLAY_REF_ZERO once per layer and that entry is null. A missing point keeps its key with no statistic. level / within 0. Centred on 100. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime).",
@@ -18697,7 +18697,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -18718,7 +18718,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Population"
+          "population"
         ],
         "buffered": false,
         "description": "Per-value z-score of a pulse_facet_schema field's subset against a population (ref.population, required; its cohort in ref.population.cohort), one series entry per facet value in the facet's order on summary.statistic. Categorical: (subset_freq − pop_freq) / sd_pop, sd_pop the population SD of the population's category frequencies; a value the population lacks scores with pop_freq 0 (no warning). Numeric (only with a histogram on the facet): per bin (bin_center − pop_mean) / pop_sd. A zero sd_pop warns PULSE_OVERLAY_REF_ZERO (per value; once per layer on a numeric field) and those entries have no statistic. level / within 0. Centred on 0.",
@@ -18743,7 +18743,7 @@
           "group"
         ],
         "ref_kinds": [
-          "RollingMean"
+          "rolling_mean"
         ],
         "buffered": true,
         "description": "Per-point z-score against the W previous present points of a SERIES host: (point_value − rolling_mean) / rolling_sd, the SAMPLE SD (n − 1: a window is a sample of the series, where OVERLAY_ZSCORE_VS_TOTAL uses the population SD), on each entry's summary.statistic. ref.rolling_mean (required, an empty object) and params.window (W, a positive integer: missing is PULSE_OVERLAY_PARAM_MISSING, non-positive or non-integer PULSE_OVERLAY_LEVEL_OUT_OF_RANGE). A point with fewer than params.min_periods present prior points (default W, at least 2) is null (no warning); a zero rolling SD warns PULSE_OVERLAY_REF_ZERO once per layer and those entries are null. A missing point keeps its key with no statistic and does not enter the window. level / within 0. Centred on 0. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -18873,7 +18873,7 @@
           "group"
         ],
         "ref_kinds": [
-          "Prior"
+          "prior"
         ],
         "buffered": true,
         "description": "Tests each period against the present period before it: two-means z-test (normal tail, no df; the OVERLAY_PAIRWISE_TWO_MEANS_Z kernel). Hosts: a grouped process request (periods = the last grouper's keys, per params.partition_by partition, scored on params.field) or a crosstab with no column grouper (periods = the rows of the implicit Total column, partitioned on the leading row keys); a crosstab with a column grouper is refused. Legs: the Welford triple {mean, variance, n} of an AGG_WELFORD, AGG_VARIANCE or AGG_STDDEV measure (population variance converted to the sample variance; weighted: variance on w*, n = N*). ref.prior (lag 0) or an empty ref; level / within 0. One series entry per period: statistic (current minus prior) and p_value, which joins the request's multiplicity family (p_adjusted / significant_adjusted). The first present period has a null statistic and no p_value; a missing period keeps its key with no statistic and does not advance the prior; a degenerate test is null with one PULSE_OVERLAY_REF_ZERO warning per reason. A measure without the moments is PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, components disabled PULSE_OVERLAY_COMPONENTS_REQUIRED (predict and runtime). Assumes independent samples: panel respondents in both periods violate it. Measure: on a SERIES host the overlay scores the aggregation whose output label params.field names (its label, else TYPE_field), or one expanded element column \"\u003clabel\u003e[\u003celement label\u003e]\" of a params.expand vector aggregation (an element no row answered is a missing point); absent, aggregations[0]. A label naming no aggregation is PULSE_OVERLAY_FIELD_UNKNOWN (predict and runtime). Partition: with two or more groupers the overlay runs once per partition, the rows sharing the leading group keys params.partition_by names (default every key but the last; [] = one walk over every row); partitions match by key equality, so a sort may interleave them. A list that is not a leading prefix of the group keys is PULSE_OVERLAY_PARTITION_INVALID (predict and runtime). The series runs down the last grouper; with no partition_by and a last grouper that is not a date grouper, predict adds the advisory PULSE_ADVISORY_SERIES_AXIS_NOT_DATE.",
@@ -22216,4 +22216,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7ed8547529a35d49db01337dae401eb6409427e46126913e13e4e136d1ef93e3
+// golden-hash: 251d5ac8156526925df47813a199b9997edda2fd41b0728d708a31fa3c0e28ba

@@ -17,8 +17,8 @@ func placeholder(k string) string { return "<" + k + ">" }
 // the intent: TEST_T (and TEST_HOTELLING_T2) runs one-sample unless
 // split_by is set, and a group comparison is the two-sample form.
 var optionalSlots = map[[2]string][]string{
-	{"TEST_T", "compare_groups"}:            {"SplitBy"},
-	{"TEST_HOTELLING_T2", "compare_groups"}: {"SplitBy"},
+	{"TEST_T", "compare_groups"}:            {"split_by"},
+	{"TEST_HOTELLING_T2", "compare_groups"}: {"split_by"},
 }
 
 // filtererShape is the value slot each built-in filterer reads beside
@@ -87,9 +87,8 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 	case catTest, catPostTest:
 		req := append([]string(nil), op.requires...)
 		req = append(req, optionalSlots[[2]string{op.name, intent}]...)
-		for _, goName := range req {
-			k, ok := requireKey[goName]
-			if !ok {
+		for _, k := range req {
+			if !requireKeys[k] {
 				return draft{}, false
 			}
 			if k == "order_by" {

@@ -273,28 +273,28 @@ func jsonFields(t reflect.Type) map[string]reflect.Type {
 	return out
 }
 
-// TestRequireKeysMatchWire: the Go-name → JSON-key table agrees with
-// types.Test's tags, and covers every Requires value the manifest
-// declares on a test or post-test.
+// TestRequireKeysMatchWire: every key the binder fills is a types.Test
+// JSON tag, and covers every Requires value the manifest declares on a
+// test or post-test.
 func TestRequireKeysMatchWire(t *testing.T) {
 	t.Parallel()
 
+	tags := map[string]bool{}
 	tt := reflect.TypeOf(types.Test{})
-	for goName, key := range requireKey {
-		f, ok := tt.FieldByName(goName)
-		if !ok {
-			t.Errorf("types.Test has no field %s", goName)
-			continue
-		}
-		if tag, _, _ := strings.Cut(f.Tag.Get("json"), ","); tag != key {
-			t.Errorf("requireKey[%s] = %q, wire tag is %q", goName, key, tag)
+	for i := range tt.NumField() {
+		tag, _, _ := strings.Cut(tt.Field(i).Tag.Get("json"), ",")
+		tags[tag] = true
+	}
+	for key := range requireKeys {
+		if !tags[key] {
+			t.Errorf("requireKeys[%s] is not a types.Test JSON tag", key)
 		}
 	}
 	m := descx.BuildManifestForInstance(nil)
 	for _, x := range append(append([]descriptor.TestMeta{}, m.Tests...), m.PostTests...) {
 		for _, r := range x.Requires {
-			if _, ok := requireKey[r]; !ok {
-				t.Errorf("%s requires %s, which requireKey does not map", x.Name, r)
+			if !requireKeys[r] {
+				t.Errorf("%s requires %s, which requireKeys does not list", x.Name, r)
 			}
 		}
 	}

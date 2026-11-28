@@ -50,7 +50,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
 - [ ] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests
 - [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
-- [ ] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys)
+- [x] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys) *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
 - [ ] **#785** (11. Documentation audit) `pulse_facet` renders distinct values per field type
 - [ ] **#786** (11. Documentation audit) Inferred `set_*` rungs promote at import instead of dropping rows
@@ -61,7 +61,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#791** (11. Documentation audit) `OVERLAY_CHISQ_VS_REF` gets a homogeneity mode or a sample-reference warning
 - [ ] **#792** (11. Documentation audit) A CLI route embeds overlay layers in an export
 - [ ] **#793** (11. Documentation audit) A crosstab `AGG_COUNT` cell with no `field` is refused instead of returning zeros
-- [ ] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names
+- [x] **#794** (11. Documentation audit) The manifest's overlay `ref_kinds` lists wire arm names *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
 - [ ] **#795** (11. Documentation audit) Predict's `defaults_applied[].path` uses wire keys
 - [ ] **#796** (11. Documentation audit) Registered codes are emitted or reserved, by a gate
 - [ ] **#797** (11. Documentation audit) `Fixup.Path` pointers use wire keys
@@ -214,7 +214,7 @@ Filed from [U38 handed on](U38-skill-sync.md#handed-on); tick in [`TODO.md`](../
 
 Filed from [U37 handed on](U37-shell-completion.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze.
+- [x] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze. *Done in pre-v1 E2-S1: `LookupMultiplicity` / `LabelMode` enums; the CLI-only `assert-unique` alias is not offered.*
 - [x] **#508** — **Completion candidates containing `:` are split by the shell scripts.** Escape per shell in `writeCandidates` or document it in `completion.md`. *Done in U77 (E1-S2): escaped candidates, bash / fish scripts patched, documented in `completion.md`.*
 
 ## Inherited from U77
@@ -282,7 +282,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
 - [ ] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests.
 - [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
-- [ ] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling.
+- [x] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling. *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.
 - [ ] **#785** — **`pulse_facet` mis-renders date, datetime, decimal and big u64 values**; render per type.
 - [ ] **#786** — **Inferred set rungs drop rows instead of promoting**; extend the ladder.
@@ -293,7 +293,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#791** — **`OVERLAY_CHISQ_VS_REF` overstates two-sample evidence**; add a homogeneity mode or a warning.
 - [ ] **#792** — **No CLI route embeds overlays in an export**; add one or document the library route.
 - [ ] **#793** — **A crosstab count cell with no `field` returns zeros silently**; refuse it as the aggregations path does.
-- [ ] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms.
+- [x] **#794** — **Overlay `ref_kinds` are Go names**; emit the wire arms. *Done in pre-v1 E2-S1: wire arm keys (`baseline_index`, …), gated by `TestManifestRefKindsAreWireKeys`.*
 - [ ] **#795** — **Predict's `defaults_applied` paths are Go names**; emit wire keys.
 - [ ] **#796** — **Two registered codes are never emitted**; retire or reserve them, gate it.
 - [ ] **#797** — **`Fixup.Path` spellings are mixed**; use wire keys.

@@ -720,8 +720,8 @@
           }
         ],
         "requires": [
-          "Rows",
-          "Cols"
+          "rows",
+          "cols"
         ],
         "intents": [
           "compare_groups",
@@ -776,7 +776,7 @@
           }
         ],
         "requires": [
-          "Field"
+          "field"
         ],
         "intents": [
           "benchmark",
@@ -813,8 +813,8 @@
           }
         ],
         "requires": [
-          "Field",
-          "SplitBy"
+          "field",
+          "split_by"
         ],
         "intents": [
           "compare_groups"
@@ -1979,7 +1979,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -2045,7 +2045,7 @@
           "cell"
         ],
         "ref_kinds": [
-          "Margin"
+          "margin"
         ],
         "buffered": true,
         "fields": [
@@ -2514,4 +2514,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3b42e6de264eda9753b2371e428e27838dad1d03a74ef17d49fcdb12d579706a
+// golden-hash: 8137e20d353d7ff018cd6598ebd8e8ae8a9003ae48908bd529e246fa44a94a74

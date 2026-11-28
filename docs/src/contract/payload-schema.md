@@ -174,7 +174,10 @@ drift from the engine:
    extensions; `PostFitType` has no built-in value), so registering a new
    operator changes the schema. Other closed vocabularies with a
    registry list (`MultiplicityMethod`, `ReturnPreset`, `SweepMode`,
-   `CovarianceType`, …) are enums too.
+   `CovarianceType`, `LookupMultiplicity`, `LabelMode`, …) are enums
+   too. `LookupMultiplicity` lists `all`, `assert_unique` and `first`
+   only: the hyphenated `assert-unique` is a CLI flag spelling the
+   library refuses on a `LookupRequest`.
 3. **Hand-tuned strict unions** for the two shapes reflection cannot
    express: `OverlayRef` (at most one arm populated; the `matrix {name}`
    arm names a `Request.Matrices` spec for the matrix-result overlay
@@ -203,7 +206,7 @@ The schema is faithful but not maximally strict in two places, by design:
   (`PULSE_REQUEST_UNKNOWN_FIELD`), and the operator's skill documents
   each param.
 - **Small closed mode enums** (`OverlayScope`, `OverlayShape`,
-  `CrosstabNormalize`, `CrosstabShape`, `LabelMode`, `MarginAxis`) are
+  `CrosstabNormalize`, `CrosstabShape`, `MarginAxis`) are
   typed as plain strings rather than `enum`s — they have no registry
   helper, and a hardcoded list would drift silently.
 

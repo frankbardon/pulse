@@ -83,8 +83,8 @@ func TestOverlayCapabilities_IndexVsMargin(t *testing.T) {
 		t.Errorf("Scopes = %v, want %v", got, want)
 	}
 
-	// RefKinds: ["Margin"]
-	if got, want := entry.RefKinds, []string{"Margin"}; !equalStrings(got, want) {
+	// RefKinds: ["margin"]
+	if got, want := entry.RefKinds, []string{"margin"}; !equalStrings(got, want) {
 		t.Errorf("RefKinds = %v, want %v", got, want)
 	}
 

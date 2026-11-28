@@ -266,6 +266,13 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The response-shaping presets: a closed vocabulary on an ungated
 	// slot.
 	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
+	// The point-lookup multiplicity modes and the label-binding modes:
+	// closed vocabularies with public listers. The CLI's hyphenated
+	// `assert-unique` alias is a flag spelling only (the library refuses
+	// it on LookupRequest), so it is not offered; an absent value is the
+	// default (omitempty).
+	m[reflect.TypeFor[types.LookupMultiplicity]()] = stringify(types.AllLookupMultiplicities())
+	m[reflect.TypeFor[types.LabelMode]()] = stringify(types.AllLabelModes())
 	// The sweep modes, range scales and rank orders: closed vocabularies (a hidden
 	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
 	// SweepRank with it).

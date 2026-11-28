@@ -2961,7 +2961,7 @@
           "type": "string"
         },
         "mode": {
-          "type": "string"
+          "$ref": "#/$defs/LabelMode"
         },
         "table": {
           "type": "string"
@@ -2972,6 +2972,13 @@
         "table"
       ],
       "type": "object"
+    },
+    "LabelMode": {
+      "enum": [
+        "augment",
+        "replace"
+      ],
+      "type": "string"
     },
     "LookupKey": {
       "additionalProperties": false,
@@ -2988,6 +2995,14 @@
         "value"
       ],
       "type": "object"
+    },
+    "LookupMultiplicity": {
+      "enum": [
+        "all",
+        "assert_unique",
+        "first"
+      ],
+      "type": "string"
     },
     "LookupRequest": {
       "additionalProperties": false,
@@ -3008,7 +3023,7 @@
           ]
         },
         "multiplicity": {
-          "type": "string"
+          "$ref": "#/$defs/LookupMultiplicity"
         },
         "return_columns": {
           "items": {
@@ -8646,4 +8661,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 9c4926b25a047de6a8b53c4314aeb4fe4984875c27ec0394e802ef5f0cdbff20
+// golden-hash: 67beb9f9a44c679ca08718b635fe906f042d8825ae72b5f5b2cec4236546b498

@@ -109,7 +109,7 @@ func TestExtensions_OverlayDiscoverableOnEverySurface(t *testing.T) {
 	share := got[1]
 	if !slices.Equal(share.Shapes, []types.OverlayShape{types.OverlayShapeMatrix}) ||
 		!slices.Equal(share.Scopes, []types.OverlayScope{types.OverlayScopeCell}) ||
-		!slices.Equal(share.RefKinds, []string{"Margin"}) || !share.Buffered ||
+		!slices.Equal(share.RefKinds, []string{"margin"}) || !share.Buffered ||
 		len(share.Params) != 1 || share.Params[0].Name != "scale" || share.Params[0].Type != "float" {
 		t.Errorf("share entry = %+v", share)
 	}

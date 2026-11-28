@@ -85,7 +85,7 @@ func testCapabilities() []descriptor.TestMeta {
 				testCovariateParam,
 				{Name: "variance", Type: "enum", Required: false, Default: "unequal", EnumValues: []string{"pooled", "unequal"}, Description: "Two-sample variance: unequal (Welch–Satterthwaite) or pooled (Student, R t.test(var.equal = TRUE): s_p² = ((n_a − 1)s²_a + (n_b − 1)s²_b)/(n_a + n_b − 2), df = n_a + n_b − 2; variant pooled_two_sample, details.pooled_variance; weighted on N*). pooled needs split_by, else PROCESSING_CONFIG."},
 			},
-			Requires: []string{"Field"},
+			Requires: []string{"field"},
 		},
 		{
 			Name:        string(types.TEST_WELCH),
@@ -94,7 +94,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Explicit two-sample Welch t-test alias; identical to TEST_T with split_by.",
 			Streamable:  types.TEST_WELCH.Streamable(),
 			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_CHISQ),
@@ -107,7 +107,7 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "expected", Type: "object", Required: false, Description: "Goodness of fit: map of rows level to expected proportion (each > 0, summing to 1 within 1e-9; never renormalised). Selects variant goodness_of_fit (df = labels − 1) and requires cols absent; an observed level it omits is refused, a listed level never observed counts as 0."},
 				{Name: "correct", Type: "bool", Required: false, Default: false, Description: "Yates' continuity correction on a 2×2 independence table (R chisq.test(correct = TRUE)): Y = min(0.5, min |O − E|), χ² = Σ(|O − E| − Y)²/E; details.continuity_correction = Y; cramers_v / phi stay uncorrected. Inert on larger tables and goodness of fit."},
 			},
-			Requires: []string{"Rows", "Cols"},
+			Requires: []string{"rows", "cols"},
 		},
 		{
 			Name:        string(types.TEST_ANOVA_F),
@@ -116,7 +116,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "One-way ANOVA F-test comparing field means across the categorical split_by partition.",
 			Streamable:  types.TEST_ANOVA_F.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_KS),
@@ -125,7 +125,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Kolmogorov-Smirnov two-sample distribution test on field partitioned by split_by.",
 			Streamable:  types.TEST_KS.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_PAIRED_T),
@@ -134,7 +134,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Paired-sample t-test on the per-row difference d = field − field2.",
 			Streamable:  types.TEST_PAIRED_T.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_PROP_Z),
@@ -151,7 +151,7 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "interval", Type: "enum", Required: false, Default: "wald", EnumValues: []string{"wald", "wilson"}, Description: "One-proportion interval: wald, or wilson (R prop.test's score interval on p, reported on p − p0 like Wald; details.interval). wilson needs p0, else PROCESSING_CONFIG."},
 				{Name: "correct", Type: "bool", Required: false, Default: false, Description: "prop.test's continuity correction: Y = min(0.5, |O − E|) shrinks the statistic (z·(D − Y)/D) and widens the interval (Wald by Y·Σ1/n, Wilson by shifting p̂ ∓ Y/n); details.continuity_correction = Y. Refused with covariate."},
 			},
-			Requires: []string{"Field", "SplitBy"},
+			Requires: []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_PEARSON_R),
@@ -160,7 +160,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Parametric Pearson correlation between field and field2; reports r and a t-test p-value.",
 			Streamable:  types.TEST_PEARSON_R.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_MANN_WHITNEY_U),
@@ -171,7 +171,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Params: []descriptor.Param{alphaParam, testReferenceParam,
 				{Name: "exact", Type: "bool", Required: false, Default: false, Description: "Exact two-sided p (R 4.6 wilcox.test(exact = TRUE)): the permutation distribution of the rank sum on mid-ranks, ties included (variant exact; a frequency weight's expanded rows). Past min(n_a, n_b)·(n_a + n_b) > 5000 the normal p stays and PULSE_TEST_EXACT_UNAVAILABLE warns."},
 			},
-			Requires: []string{"Field", "SplitBy"},
+			Requires: []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_WILCOXON_SR),
@@ -180,7 +180,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Wilcoxon signed-rank test on per-row d = field − field2; buffered tie-corrected sign-rank sum.",
 			Streamable:  types.TEST_WILCOXON_SR.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_KRUSKAL_WALLIS),
@@ -189,7 +189,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Nonparametric k-group location test; ANOVA-like rank sums under tie correction.",
 			Streamable:  types.TEST_KRUSKAL_WALLIS.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_SPEARMAN_R),
@@ -198,7 +198,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Rank-based correlation between field and field2 (monotonic association).",
 			Streamable:  types.TEST_SPEARMAN_R.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_KENDALL_TAU),
@@ -207,7 +207,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Concordance-based correlation between field and field2; buffered O(n²) pair count.",
 			Streamable:  types.TEST_KENDALL_TAU.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_ANOVA_WELCH),
@@ -216,7 +216,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Heteroscedasticity-robust one-way ANOVA with Welch-Satterthwaite df correction.",
 			Streamable:  types.TEST_ANOVA_WELCH.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_ANOVA_RM),
@@ -228,7 +228,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "incomplete", Type: "enum", Required: false, Default: "complete_case", EnumValues: []string{"complete_case", "mixed"}, Description: "A subject missing a condition: complete_case drops it (details.dropped_subjects, PULSE_TEST_SUBJECT_MISSING warns); mixed keeps every observed cell in the REML model y ~ cond + (1 | subject) and reports F with Satterthwaite df (lmerTest anova; variant mixed; details.df_error fractional, var_subject, var_residual, incomplete_subjects; no sums of squares or effect size)."},
 			},
-			Requires: []string{"Field", "SplitBy", "SubjectField"},
+			Requires: []string{"field", "split_by", "subject_field"},
 		},
 		{
 			Name:        string(types.TEST_BROWN_FORSYTHE),
@@ -237,7 +237,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Homogeneity-of-variance test; one-way ANOVA on absolute deviations from per-group medians.",
 			Streamable:  types.TEST_BROWN_FORSYTHE.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_FISHER_EXACT),
@@ -246,7 +246,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Exact two-sided p-value for a 2×2 rows×cols contingency table (R fisher.test's tie rule); small-sample CHISQ alternative. statistic is the conditional MLE odds ratio; details.ci_low / ci_high its exact conditional interval at 1 − alpha.",
 			Streamable:  types.TEST_FISHER_EXACT.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Rows", "Cols"},
+			Requires:    []string{"rows", "cols"},
 		},
 		{
 			Name:        string(types.TEST_SHAPIRO_WILK),
@@ -255,7 +255,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Shapiro-Francia (W′) normality test on field; runs per-group when split_by is set (p-value advisory outside 5..5000).",
 			Streamable:  types.TEST_SHAPIRO_WILK.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field"},
+			Requires:    []string{"field"},
 		},
 		{
 			Name:        string(types.TEST_Z_TWO_SAMPLE),
@@ -264,7 +264,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Description: "Two-sample z-test on field means across two split_by groups; identical SE to TEST_WELCH but p-value via standard normal Φ.",
 			Streamable:  types.TEST_Z_TWO_SAMPLE.Streamable(),
 			Params:      []descriptor.Param{alphaParam, testReferenceParam, testCovariateParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_HOTELLING_T2),
@@ -289,7 +289,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
 			},
-			Requires: []string{"SplitBy"},
+			Requires: []string{"split_by"},
 		},
 		{
 			Name:        string(types.TEST_BARTLETT_SPHERICITY),
@@ -312,7 +312,7 @@ func testCapabilities() []descriptor.TestMeta {
 				alphaParam,
 				{Name: "missing", Type: "enum", Required: false, Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member is dropped)."},
 			},
-			Requires: []string{"SplitBy"},
+			Requires: []string{"split_by"},
 		},
 		{
 			Name:        string(types.TEST_MARDIA),
@@ -339,7 +339,7 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "variant", Type: "enum", Required: false, Default: "mann_kendall", EnumValues: []string{"mann_kendall"}, Description: "Trend test variant; mann_kendall is the only one."},
 				partitionByParam,
 			},
-			Requires: []string{"Field", "OrderBy"},
+			Requires: []string{"field", "order_by"},
 		},
 		{
 			Name:        string(types.TEST_TUKEY_HSD),
@@ -355,7 +355,7 @@ func testCapabilities() []descriptor.TestMeta {
 				{Name: "n_column", Type: "string", Required: false, Default: "n", Description: "Result-row column holding each group's size (the per-group n Tukey-Kramer weighs a pair by)."},
 				partitionByParam,
 			},
-			Requires: []string{"Field", "SplitBy"},
+			Requires: []string{"field", "split_by"},
 		},
 	}
 }
@@ -378,7 +378,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 				{Name: "n_col", Type: "string", Required: true, Description: "Result-row column holding each group's size n."},
 				{Name: "variance_col", Type: "string", Required: true, Description: "Result-row column holding each group's sample variance."},
 			},
-			Requires: []string{"Field", "SplitBy"},
+			Requires: []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_PEARSON_R) + "/pearson_post",
@@ -388,7 +388,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Pearson correlation between two output columns of the result row set.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_PAIRED_T) + "/paired_two_sided_post",
@@ -398,7 +398,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Paired t-test on the per-row difference of two output columns.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_SPEARMAN_R) + "/rank_pearson_post",
@@ -408,7 +408,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Spearman rank correlation between two output columns of the result row set.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_KENDALL_TAU) + "/tau_b_post",
@@ -418,7 +418,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Kendall tau-b correlation between two output columns of the result row set.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_WILCOXON_SR) + "/asymptotic_post",
@@ -428,7 +428,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Wilcoxon signed-rank test on the per-row difference of two output columns (asymptotic p-value).",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 		{
 			Name:        string(types.TEST_ANOVA_WELCH) + "/welch_one_way_post",
@@ -442,7 +442,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 				{Name: "n_col", Type: "string", Required: true, Description: "Result-row column holding each group's size n."},
 				{Name: "variance_col", Type: "string", Required: true, Description: "Result-row column holding each group's sample variance."},
 			},
-			Requires: []string{"Field", "SplitBy"},
+			Requires: []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_BROWN_FORSYTHE) + "/median_post",
@@ -452,7 +452,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Brown-Forsythe homogeneity-of-variance test on output columns; absolute deviations from medians.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "SplitBy"},
+			Requires:    []string{"field", "split_by"},
 		},
 		{
 			Name:        string(types.TEST_SHAPIRO_WILK) + "/shapiro_francia_post",
@@ -462,7 +462,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Shapiro-Francia normality test on an output column (Shapiro-Wilk variant for the post-row set).",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field"},
+			Requires:    []string{"field"},
 		},
 		{
 			Name:        string(types.TEST_KS) + "/two_sample_post",
@@ -472,7 +472,7 @@ func postTestCapabilities() []descriptor.TestMeta {
 			Description: "Kolmogorov-Smirnov two-sample test between two output columns of the result row set.",
 			Streamable:  false,
 			Params:      []descriptor.Param{alphaParam},
-			Requires:    []string{"Field", "Field2"},
+			Requires:    []string{"field", "field2"},
 		},
 	})
 }
