@@ -48,7 +48,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [ ] **#778** (11. Documentation audit) Pass an extension filterer's params to `FieldInputs` on the runtime and predict sides, with a parity test
 - [ ] **#779** (11. Documentation audit) `AGG_RATIO` requires and type-checks a `field` it never reads; align manifest, refusal and skill or stop requiring it
 - [ ] **#780** (11. Documentation audit) Predict ≡ runtime on a formula arity fault (`to_day()`)
-- [ ] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests
+- [x] **#781** (11. Documentation audit) Predict runs the operator config checks the runtime refuses on (eight operator families + overlay baseline position), with parity tests *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
 - [ ] **#782** (11. Documentation audit) `WIN_FORMULA` accepts the wire spelling of a Welford cell (`w.mean`)
 - [x] **#783** (11. Documentation audit) Decide the manifest `tests[].requires` spelling (Go names vs wire keys) *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** (11. Documentation audit) Correct or enforce `FEAT_*` `emits_type`
@@ -281,7 +281,7 @@ Found in docs-content (E4-S1, E5-S1, E5-S3, E5-S5, E5-S6, E5-S7b, E5-G1, E6-S5, 
 - [ ] **#778** — **Extension filterers get no params in `FieldInputs`**; pass them on both sides with a parity test.
 - [ ] **#779** — **`AGG_RATIO` requires a `field` it never reads**; align manifest, refusal and skill, or stop requiring it.
 - [ ] **#780** — **Formula arity fault: predict and runtime report different codes**; align with a parity test.
-- [ ] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests.
+- [x] **#781** — **Predict misses config refusals the run makes**; run the checks at predict with parity tests. *Done in pre-v1 E3-S1: the constructors' config rules moved to the `internal/opconfig` leaf both sides call (CI `confidence` and `FILTER_RANGE` bounds included), and the `*_vs_baseline` bound follows `partition_by`; pinned by `TestOperatorConfig_PredictMatchesRuntime`.*
 - [ ] **#782** — **`WIN_FORMULA` needs Go casing for a Welford cell**; accept `w.mean`.
 - [x] **#783** — **`tests[].requires` uses Go names**; owner decision on the wire spelling. *Done in pre-v1 E2-S1: wire keys (`split_by`, …), gated by `TestManifestTestRequiresAreWireKeys`.*
 - [ ] **#784** — **`FEAT_*` `emits_type` is wrong and unread**; correct or enforce it.

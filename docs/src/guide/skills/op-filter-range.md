@@ -29,7 +29,7 @@ Wire: `values` is a top-level filterer key (beside `field`), not under `params`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `values` | array | (required) | `[low, high]`, number strings. Any other count → `PROCESSING_CONFIG` at run time; predict passes it. |
+| `values` | array | (required) | `[low, high]`, number strings. Any other count, or a bound that is not a number → `PROCESSING_CONFIG`, at predict and at run time. |
 
 ## Inputs
 

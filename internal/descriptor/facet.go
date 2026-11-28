@@ -318,6 +318,7 @@ func validateFacetWithOptions(head cohortHead, warns *[]encx.CohesionWarning, re
 	// filterer construction raises them.
 	validateFieldAcceptance(env, &types.Request{Filterers: req.Filterers}, schema, opts.instance(), nil)
 	validateFilterValues(env, req.Filterers, schema, opts.instance())
+	validateFilterConfig(env, req.Filterers, schema, opts.instance())
 
 	// Instance resource limits — the rule FacetSchema's pre-flight
 	// refuses with (FacetLimitRefusal), right after its field

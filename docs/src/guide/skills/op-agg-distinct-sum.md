@@ -26,7 +26,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG` at run time (predict passes it), never defaulted to `field`; unknown: `SERVICE_VALIDATION`. |
+| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG` (predict refuses it too), never defaulted to `field`; unknown: `SERVICE_VALIDATION`. |
 
 ## Inputs
 

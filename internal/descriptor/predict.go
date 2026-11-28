@@ -761,6 +761,11 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// dictionary — the runtime constructor's rule (valuematch).
 	validateFilterValues(env, req.Filterers, schema, opts.instance())
 
+	// The operator config faults the runtime constructors refuse
+	// (internal/opconfig): params and values lists judged without a
+	// record.
+	validateOperatorConfig(env, req, schema, opts.instance())
+
 	// Validate window operations (structural checks; no execution).
 	validateWindows(env, req, schema, opts)
 

@@ -44,7 +44,7 @@ Scalar `float64` — lower CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null
 
 - Normal z, not t: small samples get narrower intervals than t.
 - `n < 2` (weighted N* ≤ 1) → NaN (no variance estimate).
-- `"bootstrap"` → `PROCESSING_CONFIG` at run time; predict passes it.
+- `"bootstrap"` → `PROCESSING_CONFIG` (reserved), at predict and at run time; so is a `confidence` outside (0, 1).
 
 ## See
 

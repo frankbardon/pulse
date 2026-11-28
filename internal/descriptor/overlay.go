@@ -801,7 +801,7 @@ func ValidateOverlays(env *descriptor.Envelope, req *types.Request, schema *enco
 		validateOverlayMarkov(env, req, spec, opts.overlayRoute(spec.Kind), i)
 		validateOverlayRake(env, req, spec, schema, opts.instance(), opts.overlayRoute(spec.Kind), i)
 		validateOverlayLevelWithinPredict(env, req, spec, opts.overlayRoute(spec.Kind), i)
-		validateOverlayBaselineIndexPredict(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), i)
+		validateOverlayBaselineIndexPredict(env, req, spec, schema, extensionsFromOpts(opts), opts.instance(), opts.overlayRoute(spec.Kind), i)
 		cols := vectors.AggregationColumns(req, func() *encoding.Schema { return schema }, aggregationKinds(opts.instance(), nil))
 		validateOverlaySeriesField(env, req, spec, opts.overlayRoute(spec.Kind), i, cols, opts.instance())
 		validateOverlaySeriesPartition(env, req, spec, opts.overlayRoute(spec.Kind), i, opts.instance())
@@ -932,7 +932,14 @@ func validateOverlaySeriesField(env *descriptor.Envelope, req *types.Request, sp
 //     no shipping kind consumes those). The gate skips when
 //     `req.Crosstab` is set so a future MATRIX-host kind landing on a
 //     different Ref arm does not collide with the SERIES check.
-func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, index int) {
+//
+//   - Partitioned hosts: a kind that runs once per params.partition_by
+//     partition (seriespartition.AppliesWith) resolves the position
+//     inside EACH partition, so the bound is taken over the groupers
+//     past the seriespartition.Depth prefix — the partition's series —
+//     never over the whole cartesian (#781). A partition_by the
+//     partition rule refuses is that rule's finding.
+func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Request, spec *types.OverlaySpec, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, route types.OverlayKind, index int) {
 	if spec == nil || spec.Ref.BaselineIndex == nil {
 		return
 	}
@@ -947,6 +954,15 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 	// Compute the predicted series length upper bound. -1 means "not
 	// derivable from schema; defer the range check to runtime".
 	predictedLength := overlayBaselineIndexPredictedSeriesLength(req, schema, snap, inst)
+	if req != nil && len(req.Groups) > 0 && seriespartition.AppliesWith(route, partitionHonours(inst)) {
+		depth, err := seriespartition.Depth(req.Groups, spec, index)
+		switch {
+		case err != nil || depth >= len(req.Groups):
+			predictedLength = -1
+		default:
+			predictedLength = categoricalSeriesLengthBound(req.Groups[depth:], keySchemaOf(req.Attributes, schema, snap, inst), inst)
+		}
+	}
 	if ref.Position < 0 {
 		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
 			"overlay "+string(spec.Kind)+" baseline-index position must be non-negative",

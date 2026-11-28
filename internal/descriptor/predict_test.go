@@ -271,6 +271,11 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// (D33, TestPercentileParam_PredictMatchesRuntime).
 			agg.Params = json.RawMessage(`{"percentile":50}`)
 		}
+		if aggType == types.AGG_DISTINCT_SUM {
+			// Its required params.distinct_by is refused when absent
+			// (TestOperatorConfig_PredictMatchesRuntime, #781).
+			agg.Params = json.RawMessage(`{"distinct_by":"val"}`)
+		}
 		if aggType == types.AGG_WEIGHTED_MEAN {
 			// A weighted figure: with no weight resolving it is refused
 			// (TestResolveWeights_WeightedMeanSugar).

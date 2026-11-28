@@ -68,7 +68,13 @@ runtime's verdict is therefore always either:
   no way to know was bad), or
 - A capability declaration that drifted from the registry (the
   capability row says the operator accepts a type the runtime
-  rejects, or vice versa).
+  rejects, or vice versa), or
+- A config rule only the runtime constructor applies (a required
+  param, a values mode, a label the dictionary must hold). Move it
+  into a no-execute leaf both sides call — `internal/opconfig` holds
+  the operator config rules, `internal/ddofspec` and
+  `internal/percentilespec` single params — and pin it with a
+  predict ≡ runtime test (`TestOperatorConfig_PredictMatchesRuntime`).
 
 For the second case, the registry-vs-capability parity gates are:
 

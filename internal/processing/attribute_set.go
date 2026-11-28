@@ -1,12 +1,10 @@
 package processing
 
 import (
-	"fmt"
-
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/opconfig"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -76,10 +74,6 @@ func (a *setPopcountAttribute) Row(r *Record, field string) (float64, error) {
 // label, so the row stays in the base and the flag's mean is the share
 // of the whole base (ATTR_CODE_IN's rule; FILTER_NULL drops the nulls).
 
-type setHasParams struct {
-	Label string `json:"label"`
-}
-
 // setHasAttribute tests one dictionary bit per row. bit is the
 // dictionary ID resolved at construction, or -1 when no schema was
 // available to resolve it — SetMask.Has(-1) is false, so an unresolved
@@ -93,57 +87,35 @@ func newSetHasAttribute(attr *types.Attribute, schema *encoding.Schema) (Attribu
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"ATTR_SET_HAS requires field")
 	}
-	if len(attr.Params) == 0 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS requires params with a \"label\" field")
+	// The field is judged before the params (a slot's field refusal
+	// precedes its config refusal, as predict orders them); the params
+	// and label rules are internal/opconfig's, the ones predict calls.
+	var f *encoding.Field
+	if schema != nil {
+		f = schema.Field(attr.Field)
+		if f == nil {
+			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
+				"ATTR_SET_HAS: unknown field "+attr.Field)
+		}
+		if !f.Type.IsSet() {
+			return nil, setFieldRefusal(string(attr.Type), attr.Field, f.Type)
+		}
 	}
-	var params setHasParams
-	if err := paramread.Decode(paramread.Attribute, string(attr.Type), attr.Params, &params); err != nil {
-		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "parsing ATTR_SET_HAS params")
+	label, cerr := opconfig.SetHasLabel(attr.Params)
+	if cerr != nil {
+		return nil, cerr
 	}
-	if params.Label == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS requires non-empty params.label")
-	}
-	if schema == nil {
+	if f == nil {
 		// Tolerated for registry tests; runtime always has schema. The
 		// label cannot be resolved to a bit, so the attribute reports
 		// absent for every row instead of guessing bit 0.
 		return &setHasAttribute{bit: -1}, nil
 	}
-	f := schema.Field(attr.Field)
-	if f == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS: unknown field "+attr.Field)
+	bit, cerr := opconfig.SetHasBit(attr.Field, f, label)
+	if cerr != nil {
+		return nil, cerr
 	}
-	if !f.Type.IsSet() {
-		return nil, setFieldRefusal(string(attr.Type), attr.Field, f.Type)
-	}
-	if f.Dictionary == nil {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS: field "+attr.Field+" has no dictionary")
-	}
-	id, ok := f.Dictionary.IDFor(params.Label)
-	if !ok {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"ATTR_SET_HAS: label "+params.Label+" not in dictionary for field "+attr.Field)
-	}
-	// Guard against the DECLARED RUNG's capacity, not against 64: a
-	// set_u128 / set_u256 column legitimately carries members above bit
-	// 63, while a bit beyond the rung can never be set on any row.
-	if capacity := int(f.Type.MaxSetEntries()); int(id) >= capacity {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("ATTR_SET_HAS: label %q maps to bit %d, beyond the %d-member capacity of %s field %q",
-				params.Label, id, capacity, f.Type, attr.Field),
-			map[string]any{
-				"field":    attr.Field,
-				"type":     f.Type.String(),
-				"capacity": capacity,
-				"bit":      int(id),
-				"label":    params.Label,
-			})
-	}
-	return &setHasAttribute{bit: int(id)}, nil
+	return &setHasAttribute{bit: bit}, nil
 }
 
 func (a *setHasAttribute) Compute(records []*Record, field string) ([]float64, error) {
