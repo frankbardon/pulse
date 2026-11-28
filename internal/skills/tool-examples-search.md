@@ -13,7 +13,7 @@ Find a runnable template matching the question; clone its body via `pulse_exampl
 
 ## Input
 
-- `query` (string, optional): plain words. One word is a case-insensitive substring of name, description or operators; several must each match a whole word (no stemming) of name, description, operators, intents or tags. Fallbacks, in order: an operator alias (`anova`, `pearson`) or intent phrase (`move together`); then a near-miss spelling (`regon` → `region`; one edit at 4–7 letters, two at 8+, exact at ≤3).
+- `query` (string, optional): plain words. One word is a case-insensitive substring of name, description or operators; several must each match a whole word (no stemming) of name, description, operators, intents or tags. Fallbacks, in order: an operator alias (`anova`, `pearson`) or intent phrase (`move together`); then plain-word synonyms (`missing` ↔ `null`, `rate` ↔ `count`); then a near-miss spelling (`regon` → `region`; one edit at 4–7 letters, two at 8+, exact at ≤3).
 - `intent` (string, optional): an intent-taxonomy ID (`compare_groups`, `relationship`, …); results must declare it. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`, `details.valid` lists the IDs.
 - `tags` (string[], optional): ANDed list of canonical taxonomy tags (e.g. `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`).
 - `category` (string, optional): exact directory — `aggregations`, `attributes`<!-- feature: capability:compose -->, `compose`<!-- /feature --><!-- feature: capability:crosstab -->, `crosstab`<!-- /feature --><!-- feature: capability:facet -->, `facet`<!-- /feature -->, `features`, `filterers`, `groupers`<!-- feature: capability:materialize_output -->, `materialize`<!-- /feature --><!-- feature: capability:matrices -->, `matrices`<!-- /feature -->, `overlays`, `regression`, `tests`, `windows`.
@@ -26,7 +26,7 @@ Find a runnable template matching the question; clone its body via `pulse_exampl
 
 - Tags are ANDed, not ORed. Two tags → results carrying both.
 - `category` is an exact directory match, not a substring.
-- Literal matches win over aliases, aliases over near-misses.
+- Literal beats alias beats synonym beats near-miss.
 - Embedder examples (own categories too) search and prune like built-ins; the `pulse examples search` CLI leaf reads the built-in library only.
 - The summary does NOT include the runnable body; you MUST follow up with `pulse_examples_get`.
 

@@ -28,7 +28,8 @@ type Query struct {
 // tables of the synonym match tier and the visibility filters. Every
 // table key is in internal/descriptor's FoldAlias form (lower-cased,
 // whitespace collapsed, punctuation kept). The zero value searches the
-// whole library with the synonym tier disabled.
+// whole library with the synonym tier disabled (the word-synonym tier,
+// whose table is built in, still runs).
 type Options struct {
 	// Aliases maps a Purpose.KnownAs alias to the operator declaring it.
 	Aliases map[string]string
@@ -90,7 +91,14 @@ type matchTier interface {
 //     intent's Sound expands it to that intent. An example matches when
 //     its operators or intents carry an expansion; the fields matched by
 //     the expansions and by any query token count.
-//  3. fuzzy — typo tolerance, the last resort: every content query token
+//  3. word synonyms — the exact tier's rule with each plain query word
+//     widened to its group in wordSynonyms ("missing" ↔ "null",
+//     "blank", …; "rate" ↔ "count", "frequency"), for words no operator
+//     alias or intent Sound carries: an example matches when every
+//     content query token, or one of its synonyms, is a token of some
+//     field (one every token matches literally the exact tier already
+//     answered). Score = distinct matched fields.
+//  4. fuzzy — typo tolerance, the last resort: every content query token
 //     (stop words and placeholders dropped) must match some field token
 //     either exactly or, when both tokens are fuzzable (longer than
 //     three characters), within fuzzyEdits(len(query token)) edits —
@@ -181,14 +189,15 @@ func SearchLibrary(q Query, opts Options) []ExampleSummary {
 	return SearchQuery(lib, q, opts)
 }
 
-// tiersFor builds the ordered tiers for a non-empty query.
+// tiersFor builds the ordered tiers for a non-empty query: exact, the
+// alias / Sound synonyms, the plain-word synonyms, fuzzy.
 func tiersFor(query string, syn Options) []matchTier {
 	toks := Tokenize(query)
 	var exact matchTier = newTokenTier(toks)
 	if len(toks) == 1 && toks[0] == strings.ToLower(query) {
 		exact = substringTier{q: toks[0]}
 	}
-	return []matchTier{exact, newSynonymTier(query, toks, syn), newFuzzyTier(toks)}
+	return []matchTier{exact, newSynonymTier(query, toks, syn), newWordSynonymTier(toks), newFuzzyTier(toks)}
 }
 
 // tokenize fills d.fields once.
@@ -394,6 +403,91 @@ func (t synonymTier) match(d *searchDoc) int {
 			if slices.Contains(f, tok) {
 				bits |= 1 << i
 			}
+		}
+	}
+	return bits
+}
+
+// wordSynonyms are the plain-word synonym groups of the word-synonym
+// tier: each word reaches every other word of its group. They are the
+// everyday words a question uses for what the library's text spells
+// another way ("null" for "missing", "mean" for "average"), never an
+// operator name (Purpose.KnownAs aliases carry those) or a topic phrase
+// (intent Sounds). Every word is a lower-case Tokenize token in exactly
+// one group (TestWordSynonyms_Table).
+var wordSynonyms = [][]string{
+	{"missing", "null", "nulls", "blank", "blanks", "empty", "absent", "nan"},
+	{"average", "mean", "avg"},
+	{"total", "sum"},
+	{"count", "counts", "tally", "frequency", "frequencies", "rate", "rates"},
+	{"share", "proportion", "percentage", "percent", "fraction", "ratio"},
+	{"spread", "dispersion", "variability", "variance"},
+	{"correlation", "correlate", "association", "associated"},
+	{"difference", "differ", "versus"},
+	{"segment", "segments", "cluster", "clusters"},
+	{"outlier", "outliers", "anomaly", "anomalies"},
+	{"duplicate", "duplicates", "dedup"},
+	{"churn", "retention", "attrition"},
+	{"forecast", "prediction"},
+}
+
+// wordSynonymIndex maps each word to the other words of its group.
+var wordSynonymIndex = func() map[string][]string {
+	out := map[string][]string{}
+	for _, g := range wordSynonyms {
+		for _, w := range g {
+			for _, o := range g {
+				if o != w {
+					out[w] = append(out[w], o)
+				}
+			}
+		}
+	}
+	return out
+}()
+
+// wordSynonymTier matches through the plain-word synonym table.
+type wordSynonymTier struct {
+	content []string
+	syns    [][]string // per content token: its synonyms
+	any     bool       // some content token has a synonym
+}
+
+func newWordSynonymTier(toks []string) wordSynonymTier {
+	var t wordSynonymTier
+	for _, tok := range toks {
+		if !isContent(tok) {
+			continue
+		}
+		t.content = append(t.content, tok)
+		s := wordSynonymIndex[tok]
+		t.syns = append(t.syns, s)
+		t.any = t.any || len(s) > 0
+	}
+	return t
+}
+
+func (t wordSynonymTier) match(d *searchDoc) int {
+	if !t.any || len(t.content) == 0 {
+		return 0
+	}
+	bits := 0
+	for i, tok := range t.content {
+		direct, synonym := false, false
+		for fi, f := range d.fields {
+			if slices.Contains(f, tok) {
+				bits |= 1 << fi
+				direct = true
+			}
+			for _, s := range t.syns[i] {
+				if slices.Contains(f, s) {
+					bits |= 1 << fi
+					synonym = true
+				}
+			}
+		}
+		if !direct && !synonym {
+			return 0
 		}
 	}
 	return bits
