@@ -531,12 +531,20 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				addAllKnown(inputs)
 			}
 		}
-		for _, f := range req.Filterers {
+		// An extension filterer's hook reads its slot's params (#778), in
+		// Request.Filterers and in a fitted attribute's params.fit_on.
+		filters := append([]*types.Filterer(nil), req.Filterers...)
+		for _, a := range req.Attributes {
+			if a != nil {
+				filters = append(filters, vectors.AttributeFitOn(a.Type, a)...)
+			}
+		}
+		for _, f := range filters {
 			if f == nil {
 				continue
 			}
 			if _, custom := ext.Filterers[f.Type]; custom {
-				inputs, ok := ext.FieldInputsFor("filterer", string(f.Type), nil)
+				inputs, ok := ext.FieldInputsFor("filterer", string(f.Type), f.Params)
 				if !ok {
 					out.Widen()
 					return out

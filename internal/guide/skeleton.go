@@ -135,7 +135,7 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		}
 		// A regression attribute reads target / predictors (declared
 		// params), never field. A field-ignoring aggregator (AGG_RATIO)
-		// still names one on the wire, which requires it.
+		// still names one (optional; it gives the default label).
 		if (!op.ignoresField || op.category == catAggregator) && !regressionShaped(op) {
 			entry["field"] = str("field")
 		}

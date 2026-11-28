@@ -631,14 +631,14 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 		{
 			Name:        string(types.AGG_RATIO),
 			Category:    "aggregator",
-			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is required on the wire but never read — the two summed fields come from params; it still takes any type but decimal128 (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL), so name the numerator unless it is decimal. Denominator-zero yields NaN (null in JSON).",
+			Description: "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is optional and never read — the two summed fields come from params — so no rule judges it (any name, any type). Denominator-zero yields NaN (null in JSON).",
 			Params: []descriptor.Param{
 				{
 					Name:        "numerator_field",
 					Type:        "field",
 					NamesColumn: true,
 					Required:    true,
-					FieldFilter: "any",
+					FieldFilter: "numeric",
 					Description: "Field or derived label summed as the numerator, read numerically (a date as epoch days); a categorical, set or vector field is refused (PULSE_FIELD_TYPE_UNSUPPORTED).",
 				},
 				{
@@ -646,16 +646,16 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 					Type:        "field",
 					NamesColumn: true,
 					Required:    true,
-					FieldFilter: "any",
+					FieldFilter: "numeric",
 					Description: "Field or derived label summed as the denominator; the same types as the numerator.",
 				},
 			},
 			// IgnoresField, and AcceptsTypes therefore says only that no
-			// type is refused in a slot the operator discards. The wire
-			// form still requires Aggregation.Field (predict and the
-			// runtime both refuse an empty one); every type is equally
-			// fine there because none of them is read, so bound Recommend
-			// fills it with the numerator's field (U35 #249).
+			// type is refused in a slot the operator discards: the field
+			// is optional and neither predict nor the runtime judges it
+			// (fieldaccept.IgnoresField — no existence check, no decimal
+			// rule; #779). Bound Recommend still fills it with the
+			// numerator's field (U35 #249).
 			IgnoresField:  true,
 			AcceptsTypes:  allCohortFieldTypes,
 			EmitsTypeNote: "scalar float64 (NaN, null in JSON, when denominator sum == 0)",

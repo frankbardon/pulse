@@ -162,6 +162,102 @@
         ]
       },
       {
+        "operator": "AGG_RATIO",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of one field divided by the total of another, over all rows or per group, such as revenue per order. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "denominator_field": "seats",
+                "numerator_field": "revenue"
+              },
+              "type": "AGG_RATIO"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it",
+            "use": "ATTR_FORMULA"
+          },
+          {
+            "when": "you want an average where some rows count more than others",
+            "use": "AGG_WEIGHTED_MEAN"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RATIO",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of one field divided by the total of another, over all rows or per group, such as revenue per order. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "denominator_field": "score",
+                "numerator_field": "revenue"
+              },
+              "type": "AGG_RATIO"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it",
+            "use": "ATTR_FORMULA"
+          },
+          {
+            "when": "you want an average where some rows count more than others",
+            "use": "AGG_WEIGHTED_MEAN"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_RATIO",
+        "category": "aggregator",
+        "level": "basic",
+        "why": "Total of one field divided by the total of another, over all rows or per group, such as revenue per order. It uses seats (u16) and revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "params": {
+                "denominator_field": "revenue",
+                "numerator_field": "seats"
+              },
+              "type": "AGG_RATIO"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you want the average of each row's own ratio: compute it per row (guarding a 0 denominator), then average it",
+            "use": "ATTR_FORMULA"
+          },
+          {
+            "when": "you want an average where some rows count more than others",
+            "use": "AGG_WEIGHTED_MEAN"
+          }
+        ]
+      },
+      {
         "operator": "AGG_SUM",
         "category": "aggregator",
         "level": "basic",
@@ -292,96 +388,12 @@
             "use": "GROUP_SET_PER_ELEMENT"
           }
         ]
-      },
-      {
-        "operator": "FEAT_FREQUENCY_ENCODE",
-        "category": "feature",
-        "level": "intermediate",
-        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses region (categorical_u8, 4 groups).",
-        "bound": true,
-        "request": {
-          "cohort": {
-            "filename": "recommend.pulse"
-          },
-          "features": [
-            {
-              "field": "region",
-              "type": "FEAT_FREQUENCY_ENCODE"
-            }
-          ]
-        },
-        "alternatives": [
-          {
-            "when": "you want the count table itself, one row per category: group by the field, then count",
-            "use": "GROUP_CATEGORY"
-          },
-          {
-            "when": "the field has few categories and each should be its own field",
-            "use": "FEAT_ONE_HOT"
-          }
-        ]
-      },
-      {
-        "operator": "FEAT_FREQUENCY_ENCODE",
-        "category": "feature",
-        "level": "intermediate",
-        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses plan (categorical_u8, 2 groups).",
-        "bound": true,
-        "request": {
-          "cohort": {
-            "filename": "recommend.pulse"
-          },
-          "features": [
-            {
-              "field": "plan",
-              "type": "FEAT_FREQUENCY_ENCODE"
-            }
-          ]
-        },
-        "alternatives": [
-          {
-            "when": "you want the count table itself, one row per category: group by the field, then count",
-            "use": "GROUP_CATEGORY"
-          },
-          {
-            "when": "the field has few categories and each should be its own field",
-            "use": "FEAT_ONE_HOT"
-          }
-        ]
-      },
-      {
-        "operator": "FEAT_FREQUENCY_ENCODE",
-        "category": "feature",
-        "level": "intermediate",
-        "why": "Replaces each category with the share of records that carry it, one number that says how common the category is. It uses churned (packed_bool, 2 groups).",
-        "bound": true,
-        "request": {
-          "cohort": {
-            "filename": "recommend.pulse"
-          },
-          "features": [
-            {
-              "field": "churned",
-              "type": "FEAT_FREQUENCY_ENCODE"
-            }
-          ]
-        },
-        "alternatives": [
-          {
-            "when": "you want the count table itself, one row per category: group by the field, then count",
-            "use": "GROUP_CATEGORY"
-          },
-          {
-            "when": "the field has few categories and each should be its own field",
-            "use": "FEAT_ONE_HOT"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 14
+    "candidates_considered": 17
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 99e98eae975f522ffe4af0c911bc7df0d21f75f86b8d1a328dd74e4982ac59a1
+// golden-hash: 0c3b0d65f623cda71b48b9f7eed8e7ac41737e00aa55c0b5aade58ea115b3f14

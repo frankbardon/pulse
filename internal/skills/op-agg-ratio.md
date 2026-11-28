@@ -1,6 +1,6 @@
 ---
 name: op-agg-ratio
-description: Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is required and type-checked but never read.
+description: Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is optional and never read.
 kind: operator
 category: AGG
 operator: AGG_RATIO
@@ -24,7 +24,7 @@ Weighted: Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_U
 
 ## Inputs
 
-`field` is never read (`ignores_field`) but required (absent → `SERVICE_VALIDATION`) and type-checked: any type but `decimal128` (`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`). Name the numerator unless it is decimal.
+`field` is never read (`ignores_field`): optional, and judged by no rule (any name, any type, `decimal128` included). Without it, give a `label` (the default is `AGG_RATIO_`).
 
 ## Output
 

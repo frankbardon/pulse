@@ -2097,14 +2097,14 @@
         {
           "name": "AGG_RATIO",
           "category": "aggregator",
-          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is required on the wire but never read — the two summed fields come from params; it still takes any type but decimal128 (PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL), so name the numerator unless it is decimal. Denominator-zero yields NaN (null in JSON).",
+          "description": "Emits sum(numerator_field) / sum(denominator_field) — on a weighted slot sum(w*num) / sum(w*den). The slot's own field is optional and never read — the two summed fields come from params — so no rule judges it (any name, any type). Denominator-zero yields NaN (null in JSON).",
           "params": [
             {
               "name": "numerator_field",
               "type": "field",
               "required": true,
               "description": "Field or derived label summed as the numerator, read numerically (a date as epoch days); a categorical, set or vector field is refused (PULSE_FIELD_TYPE_UNSUPPORTED).",
-              "field_filter": "any",
+              "field_filter": "numeric",
               "names_column": true
             },
             {
@@ -2112,7 +2112,7 @@
               "type": "field",
               "required": true,
               "description": "Field or derived label summed as the denominator; the same types as the numerator.",
-              "field_filter": "any",
+              "field_filter": "numeric",
               "names_column": true
             }
           ],
@@ -14788,7 +14788,7 @@
       },
       {
         "name": "op-agg-ratio",
-        "description": "Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is required and type-checked but never read."
+        "description": "Emits sum(numerator_field) / sum(denominator_field). The slot's own `field` is optional and never read."
       },
       {
         "name": "op-agg-rmse",
@@ -22201,4 +22201,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f69906b1d62762dbeb4825187fae265a08e4cb0fcefa280df7dd447da2fda2bd
+// golden-hash: 15e91b6399386d498fca819a2cfb533a46f5851ce77016177793635af7126f31

@@ -36,8 +36,8 @@ type Operator struct {
 	// a client cannot tell "every type is welcome here" from "this slot
 	// is not read at all", and the full AcceptsTypes list reads as a
 	// type claim about a slot the operator discards. When IgnoresField is
-	// set, AcceptsTypes says only that no type is REFUSED (the request
-	// wire form still requires a field name), and the operator's real
+	// set, AcceptsTypes says only that no type is REFUSED (the field is
+	// optional and no rule judges it), and the operator's real
 	// type constraints live on its Params entries, which carry
 	// Type=="field" plus a FieldFilter.
 	//
@@ -57,7 +57,7 @@ type Operator struct {
 	// emits its params' constant, and a field (vector, fields) on its
 	// slot is PROCESSING_CONFIG reason field_not_accepted. Its
 	// AcceptsTypes is empty ("no field input"), never a type list — the
-	// opposite of IgnoresField, whose slot requires a field name it then
+	// opposite of IgnoresField, whose slot may name a field it then
 	// discards. Held by descriptor's
 	// TestCapabilities_ForbidsFieldMatchesWindowRule against the shared
 	// window rule (internal/windowparams.FieldForbidden) and AGG_CONSTANT.

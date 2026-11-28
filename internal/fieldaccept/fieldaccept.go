@@ -521,7 +521,20 @@ func DecimalAggregators() []string {
 // slot: a decimal128 primary field on a built-in aggregator with no
 // decimal arm.
 func decimalRefused(op string, slot Slot, ft encoding.FieldType) bool {
-	return slot == SlotField && ft.IsDecimal() && builtinAggregators[op] && !decimalArm[op]
+	return slot == SlotField && ft.IsDecimal() && builtinAggregators[op] && !decimalArm[op] && !ignoresField[op]
+}
+
+// ignoresField are the built-in aggregators that never read their
+// slot's own Field (manifest ignores_field): AGG_RATIO sums its
+// params.numerator_field / denominator_field. Their Field is optional
+// and judged by no rule — not the field-reference walk, not the decimal
+// rule (#779).
+var ignoresField = map[string]bool{"AGG_RATIO": true}
+
+// IgnoresField reports whether the built-in op never reads its slot's
+// own Field (ignoresField).
+func IgnoresField(op string) bool {
+	return ignoresField[op]
 }
 
 // Lookup returns the rule for op's slot; false when the slot is not

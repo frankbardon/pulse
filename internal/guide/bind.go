@@ -460,8 +460,9 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			slots = append(slots, bslot{key: "fields", list: true, min: 2, vector: true, accept: both(typeIn(op.accepts), kindIs(descriptor.FieldKindNumeric))})
 			break
 		}
-		// A field-ignoring aggregator (AGG_RATIO) still names a field on
-		// the wire: boundDraft fills it with its first bound param field.
+		// A field-ignoring aggregator (AGG_RATIO) may name a field it
+		// never reads: boundDraft fills it with its first bound param
+		// field, so the draft's default label names the numerator.
 		// A regression attribute reads target / predictors (below).
 		if !op.ignoresField && !regressionShaped(op) {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
@@ -760,9 +761,9 @@ func boundDraft(op opInfo, cohort *types.Cohort, slots []bslot, b binding, needs
 			}
 			put(s.loc, s.key, v)
 		}
-		// The wire requires an aggregation's field even when the
-		// operator ignores it (AGG_RATIO, IgnoresField): name the first
-		// field it does read, so the draft is the runtime's valid form.
+		// An operator that ignores its field (AGG_RATIO, IgnoresField)
+		// takes one optionally: name the first field it does read, so
+		// the draft's default label (TYPE_field) names it.
 		if op.category == catAggregator && op.ignoresField && len(slots) > 0 && !b.vector[0] {
 			entry["field"] = b.fields[0][0]
 		}

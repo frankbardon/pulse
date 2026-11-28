@@ -2246,6 +2246,11 @@ pulse.AggregatorRegistration{
 }
 ```
 
+`raw` is the slot's own `Params` block — for a filterer, its
+`Filterer.Params`, in `Request.Filterers` and in a fitted attribute's
+`params.fit_on` alike — at predict and at runtime; nil when the slot
+carries none, so a hook decodes it defensively.
+
 Return-value semantics:
 
 - `nil` or empty slice: no extra fields beyond the spec's `Field`.

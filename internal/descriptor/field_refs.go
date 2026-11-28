@@ -388,7 +388,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		if fil == nil {
 			continue
 		}
-		w.checkInputs("filterer", string(fil.Type), nil, "filter")
+		w.checkInputs("filterer", string(fil.Type), fil.Params, "filter")
 		if opRoute(inst, fil.Type) == types.FILTER_EXPRESSION {
 			before := len(w.out)
 			w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
@@ -792,7 +792,10 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		// VectorInput) reads its members (step 11, source columns only),
 		// never a field. AGG_CONSTANT reads no column at all: a field it
 		// names is its own refusal (field_not_accepted), not this one.
-		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) && opRoute(inst, agg.Type) != types.AGG_CONSTANT {
+		// AGG_RATIO ignores its field (it sums its params columns), so
+		// the field is optional and never judged (#779).
+		if !aggregationKinds(inst, w.snap).IsVector(agg.Type) && !fieldaccept.IgnoresField(string(opRoute(inst, agg.Type))) &&
+			opRoute(inst, agg.Type) != types.AGG_CONSTANT {
 			w.check(agg.Field, func() *errors.CodedError {
 				return refusal("aggregation references unknown field: "+agg.Field,
 					map[string]any{"field": agg.Field, "aggregation": string(agg.Type)})
@@ -824,7 +827,8 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		// field is the crosstab validator's (PULSE_CROSSTAB_CELLS_INVALID:
 		// smart defaults could not type it).
 		agg := func(a *types.Aggregation, role string) {
-			if !aggregationKinds(inst, w.snap).IsVector(a.Type) && opRoute(inst, a.Type) != types.AGG_CONSTANT {
+			if !aggregationKinds(inst, w.snap).IsVector(a.Type) && !fieldaccept.IgnoresField(string(opRoute(inst, a.Type))) &&
+				opRoute(inst, a.Type) != types.AGG_CONSTANT {
 				if a.Field == "" && a.Type != "" {
 					w.check("", func() *errors.CodedError {
 						return refusal("crosstab "+role+" "+string(a.Type)+" names no field",
@@ -1246,7 +1250,7 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 // attribute by the Request filterer rule (step 2) against the columns
 // visible to the attribute.
 func (w *fieldRefWalk) checkFitOn(fil *types.Filterer, attr *types.Attribute, models model.Catalog) {
-	w.checkInputs("filterer", string(fil.Type), nil, "filter")
+	w.checkInputs("filterer", string(fil.Type), fil.Params, "filter")
 	if opRoute(w.inst, fil.Type) == types.FILTER_EXPRESSION {
 		before := len(w.out)
 		w.checkTotal(fil.Expression, string(types.FILTER_EXPRESSION))
