@@ -281,7 +281,11 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 		return cached, nil
 	}
 	popReq := &types.FacetRequest{
-		Cohort: &types.Cohort{Filename: cohortName},
+		// The population cohort resolves as the host cohort does: under
+		// the host's `data_dir` (resolveCohortPath), on the instance
+		// filesystem (Options.DataDir / PULSE_DATA_DIR roots it). A
+		// union host carries no one directory: the name stands alone.
+		Cohort: &types.Cohort{Filename: cohortName, DataDir: hostDataDir(hostReq)},
 		Fields: []string{field},
 		// KS_VS_POP reads `NumericPercentiles` for the population
 		// CDF and the histogram path for INDEX_VS_POP. Forward the host
@@ -309,6 +313,15 @@ func (c *populationCache) populationResult(ctx context.Context, s *Service, coho
 	popResult = relabelPopulationField(popResult, field, resolver)
 	c.byKey[key] = popResult
 	return popResult, nil
+}
+
+// hostDataDir is the host facet request's cohort directory (its
+// Cohort.DataDir), "" for a union host or a cohort without one.
+func hostDataDir(req *types.FacetRequest) string {
+	if req == nil || req.Cohort == nil {
+		return ""
+	}
+	return req.Cohort.DataDir
 }
 
 // populationCodedKey carries the host field a *_VS_POP population facet

@@ -2404,7 +2404,10 @@ func (p *Pulse) profile(ctx context.Context, path string, opts ProfileOptions) (
 
 // Facet returns distinct values for the named field in the cohort.
 // Categorical fields short-circuit through the dictionary; numeric
-// fields stream the file collecting distinct float values. For richer
+// fields stream the file collecting distinct values in first-seen
+// order, each spelled as Sample spells it: a date YYYY-MM-DD, a
+// datetime RFC 3339 UTC, a decimal128 at its column scale, a u64 its
+// exact integer, any other number its shortest decimal. For richer
 // summaries (counts, null tallies, statistics, histograms, additive
 // contributions) call FacetSchema instead.
 func (p *Pulse) Facet(ctx context.Context, path string, field string) ([]string, error) {

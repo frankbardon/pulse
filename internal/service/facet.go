@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -23,7 +22,10 @@ import (
 //     record streaming is required.
 //
 // For numeric fields the cohort is streamed once and the set of
-// distinct values observed is returned in encounter order. For shard
+// distinct values observed is returned in encounter order, each
+// rendered by its field type (processing.FacetValue): a date as
+// YYYY-MM-DD, a datetime as RFC 3339 UTC, a decimal128 at its column
+// scale, a u64 as its exact word, any other number as a plain float. For shard
 // archives the stream spans every shard in central-directory
 // (insertion) order — the union semantics specified in §5.4. The
 // streamed distinct-value set is bounded by MaxGroups, and a set
@@ -85,26 +87,29 @@ func (s *Service) facet(ctx context.Context, path string, field string) ([]strin
 	defer iter.Close()
 
 	l := s.Limits()
-	seen := make(map[float64]struct{})
+	seen := make(map[any]struct{})
 	var values []string
 	poll := processing.NewCtxPoller(ctx)
 	for iter.Next() {
 		if err := poll.Poll(); err != nil {
 			return nil, err
 		}
-		v, ok := iter.Record().NumericValue(field)
+		// Each value rendered by its field type, as Sample and Lookup
+		// render it (processing.FacetValue): a date's calendar literal,
+		// a decimal at its scale, a u64's exact word.
+		key, text, ok := processing.FacetValue(iter.Record(), f)
 		if !ok {
 			continue
 		}
-		if _, dup := seen[v]; dup {
+		if _, dup := seen[key]; dup {
 			continue
 		}
 		// MaxGroups bounds the distinct values the stream mints.
 		if err := limits.Check(l, limits.MaxGroups, int64(len(seen))+1); err != nil {
 			return nil, err
 		}
-		seen[v] = struct{}{}
-		values = append(values, strconv.FormatFloat(v, 'f', -1, 64))
+		seen[key] = struct{}{}
+		values = append(values, text)
 	}
 	if err := iter.Err(); err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/json"
 	"reflect"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -316,4 +317,46 @@ func (r *Record) fieldNamed(name string) *encoding.Field {
 		return nil
 	}
 	return r.schema.Field(name)
+}
+
+// FacetValue is field f's non-null cell of rec as pulse_facet lists it
+// (Service.Facet's streamed path): the typed string Sample and Lookup
+// render (RenderRecordCells) — a date its YYYY-MM-DD literal, a
+// datetime its RFC 3339 UTC literal, a decimal128 its string at the
+// column scale ("87.50"), a u64 its exact word — and any other numeric
+// cell its plain shortest float ("2.5"). key is the distinct-value key:
+// the float64 for a plain number (so 0 and -0 are one value, as
+// before), else the rendered string, which is exact (a decimal or a u64
+// past 2^53 whose float64 echoes collide stay two values). ok is false
+// for a null or non-numeric cell (a set or vector field is never listed).
+func FacetValue(rec *Record, f *encoding.Field) (key any, text string, ok bool) {
+	switch f.Type {
+	case encoding.FieldTypeDecimal128:
+		d, ok := rec.DecimalValue(f.Name)
+		if !ok {
+			return nil, "", false
+		}
+		s := d.String(f.Scale)
+		return s, s, true
+	case encoding.FieldTypeU64:
+		u, ok := rec.Uint64Value(f.Name)
+		if !ok {
+			return nil, "", false
+		}
+		s := strconv.FormatUint(u, 10)
+		return s, s, true
+	}
+	v, ok := rec.NumericValue(f.Name)
+	if !ok {
+		return nil, "", false
+	}
+	switch f.Type {
+	case encoding.FieldTypeDate:
+		s := temporal.FormatDay(int64(v))
+		return s, s, true
+	case encoding.FieldTypeDateTime:
+		s := temporal.FormatUTC(int64(v))
+		return s, s, true
+	}
+	return v, strconv.FormatFloat(v, 'f', -1, 64), true
 }

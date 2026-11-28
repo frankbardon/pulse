@@ -50,7 +50,7 @@ A filterer naming an unknown field — or, outside an expression filter, none �
 
 ## FACET-host overlays
 
-`FacetRequest.Overlays` decorates with population-comparison statistics. Each `OverlaySpec` produces one `OverlayLayer` in `FacetResult.Overlays` in slot order. The legal kinds are manifest `facet.supported_overlay_kinds`, all against a `Ref.Population` reference cohort:
+`FacetRequest.Overlays` adds population-comparison statistics. Each `OverlaySpec` yields one `OverlayLayer` in `FacetResult.Overlays`, in slot order. Legal kinds: manifest `facet.supported_overlay_kinds`, all against a `Ref.Population` cohort:
 
 | Kind | Shape | Stream | Host arm | Computes |
 |---|---|---|---|---|
@@ -67,9 +67,9 @@ A filterer naming an unknown field — or, outside an expression filter, none �
 | `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + `ks.test` p-value |
 <!-- /feature -->
 
-Common contract: `ref.population` REQUIRED (`cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `scope: group` only; `level` / `within` 0 (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host field via `params.field`; omit only when the facet lists one field (else `PULSE_OVERLAY_PARAM_MISSING`); an unlisted one ⇒ `PULSE_OVERLAY_FIELD_UNKNOWN` (`available_fields`); a discrete-only kind on a numeric field or a numeric-only kind on a discrete one ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`. The run facets the population too, with the same `numeric_percentiles` / `include_histogram`.
+Common contract: `ref.population` REQUIRED (`cohort` names the comparison `.pulse`, resolved like the host's: under its `data_dir`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `scope: group` only; `level` / `within` 0 (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host field via `params.field`; omit only when the facet lists one field (else `PULSE_OVERLAY_PARAM_MISSING`); an unlisted one ⇒ `PULSE_OVERLAY_FIELD_UNKNOWN` (`available_fields`); a discrete-only kind on a numeric field or a numeric-only kind on a discrete one ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`. The run facets the population too, with the same `numeric_percentiles` / `include_histogram`.
 
-Mixing streamable + buffered kinds runs buffered; math is unchanged. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
+Mixing streamable + buffered kinds runs buffered, same math. Same cohort may serve as host + population (recursion strips `Filterers`). Warning codes: `PULSE_OVERLAY_REF_ZERO` (per entry for the series kinds; once per layer for a degenerate population on the scalar tests), `PULSE_OVERLAY_EXPECTED_LOW` (the χ² kind when any expected cell is `< 5`).
 
 <!-- feature: capability:multiplicity -->
 ## Multiplicity
