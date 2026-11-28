@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32, U32b, U32c]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 802, 803, 804, 813, 814]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 224, 228, 232, 233, 234, 311, 464, 469, 497, 506, 507, 508, 526, 588, 589, 590, 591, 592, 593, 660, 661, 662, 663, 664, 665, 684, 723, 735, 736, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 756, 767, 769, 770, 771, 772, 773, 774, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 802, 803, 804, 813, 814, 815]
 branch: v1-release
 ---
 
@@ -79,6 +79,7 @@ Publish `STABILITY.md` with the final public package list, cut `v1.0.0-rc.1` thr
 - [x] **#812** (11. Documentation audit) A `PULSE_SLOT_FAILED` warning names an unnamed slot once *Done in pre-v1 E5-S4.*
 - [x] **#813** (11. Documentation audit) `pulse completion` completes the FIELD positional of `cohort zone set` *Done in pre-v1 E6-S5.*
 - [x] **#814** (11. Documentation audit) `make sites` slot mode type-checks the embedder smoke module *Done in pre-v1 E6-S5.*
+- [x] **#815** (15. Found in roadmap-inventory (2026-11-02)) The six heavy estimate gates read an exact live-heap peak, not the GC-goal-sensitive sampled one *Done in pre-v1 E7-S4.*
 - [ ] **#661** `STABILITY.md` package list rebuilt from the public-API golden (`internal/apigolden/testdata/public_api.txt`), not the U02 draft: adds `linalg`, `linalg/detmath`, `linalg/metric`, `optimize`, `mcmc`, `observe`, `observe/otel`, `observe/prom`. MCMC, MMM, SEM and `optimize` are core and frozen; there is no experimental tier (owner decision 2026-11-02). Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Covered" table · [U33](U33-v1-release.md)
 - [ ] **#662** Manifest `deprecated: true` field, promised by the `STABILITY.md` draft's Deprecation section but unbuilt (no `deprecated` manifest field and no `// Deprecated:` GoDoc outside `internal/` to back it): build it, or cut the promise from the policy. Evidence: `v1.0.0-api-and-release/02-stability-policy.md` "Deprecation" · [U33](U33-v1-release.md)
 - [x] **#663** Remove the deprecated public leftovers before the freeze: `ProjectBufferedFields` (`pulse.go:466`, no-op), the synth `Bernoulli` slot (`internal/synth/spec.go:288,357`, use `DistBernoulli`), and the always-nil `Steps` fields (`descriptor/recommend.go:74`, `internal/descriptor/schema.go:624`) **Done (pre-v1 E1-S3): removed, with the `REG_MMM_BAYES` `params.time` alias.** · [U33](U33-v1-release.md)
@@ -268,6 +269,7 @@ Recorded only in shipped efforts' notes and PR bodies; checked against the code 
 - [x] **#747** — **Residual-correlation fidelity for a staircase endpoint.** *Done in pre-v1 E7-S1: `TestBuildModelFidelity_StaircaseEndpointResidualPack` — a staircase endpoint is unmeasured per pair by design.*
 - [x] **#748** — **Indirect gRPC dependency** via the OTLP exporter; accept or drop before the freeze. *Done in pre-v1 E1-S6.*
 - [x] **#749** — **Confirm closed:** categorical-dictionary-index regression predictors, set-field MCP enum narrowing. *(a) closed in pre-v1 E1-S6; (b) closed in pre-v1 E4-S6 (set-field MCP enums narrowed to `c.Set`).*
+- [x] **#815** — **Estimate gates on an exact live-heap probe** (the sampled peak let MatrixScale listwise admit a dropped bucket factor). *Done in pre-v1 E7-S4: `peakLiveAbove` under stop-the-world GC, bands re-pinned ×/÷ 1.25 from measured figures, every E7-S3 injection caught.*
 
 ## Handed on from U32
 

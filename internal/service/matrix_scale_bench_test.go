@@ -458,14 +458,22 @@ func TestMatrixScaleCohort_MatchesReferenceWriter(t *testing.T) {
 	}
 }
 
-// The ratio bands, by missing mode. Measured on darwin/arm64 (go1.26,
-// DecodeWorkers 1): pairwise peak / predicted ≈ 1.5 (8.8 MB of state,
+// The ratio bands, by missing mode. On the sampled peak (before E7-S4;
+// darwin/arm64, go1.26, DecodeWorkers 1): pairwise peak / predicted ≈ 1.5 (8.8 MB of state,
 // decode buffers and garbage on top); listwise ≈ 3.4, its 1 MB of state
 // small beside the same fixed overhead. The floor is below 1 because a
 // sampled peak can only under-read the live state, never invent it; the
 // ceilings leave GC-timing headroom yet fail an estimate that drops the
 // 25 merge blocks (ratio ≈ 37) or the 4 buckets (≈ 6 pairwise).
+//
+// E7-S4 moved the gate to the live peak (peakLiveAbove under the
+// stop-the-world collector), garbage excluded: listwise 1.11-1.19,
+// pairwise 1.20-1.22 (darwin/arm64, go1.26, GOMAXPROCS 2, 4 and 10).
+// The band is the lowest ÷ 1.25 and the highest x 1.25 (the
+// calibrationBand rule), rounded to a tenth: it fails a dropped bucket
+// factor on either mode (listwise ≈ 4.7; the sampled 5.98 passed the
+// old ceiling of 8) and a halved block count (≈ 2.4).
 var (
-	matrixScaleRatioMin = map[string]float64{"listwise": 0.8, "pairwise": 0.8}
-	matrixScaleRatioMax = map[string]float64{"listwise": 8, "pairwise": 3}
+	matrixScaleRatioMin = map[string]float64{"listwise": 0.9, "pairwise": 0.9}
+	matrixScaleRatioMax = map[string]float64{"listwise": 1.5, "pairwise": 1.5}
 )

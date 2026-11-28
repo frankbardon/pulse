@@ -21,21 +21,24 @@ import (
 // dwarf records x stride (without the archive terms the estimate was
 // ~1/5 of its peak), and the matrix scale archive (~100K rows x p = 50, 8
 // shards), where the payload dominates — streamed (a pairwise
-// covariance) and buffered (an AGG_MEDIAN). The peak is the minimum of
-// three sampled passes (measurePeakHeap); the band is loose — the
-// estimate is an allocation upper bound, so GC timing moves only how
-// far below it the peak lands — and catches a dropped term, not a few
-// percent.
+// covariance) and buffered (an AGG_MEDIAN). The peak is the live heap
+// (peakLiveAbove, exact under the stop-the-world collector
+// rerunUnderSTWGC runs the test under): the estimate is an allocation
+// upper bound with GC headroom, so the live peak lands well below it,
+// and the band catches a dropped or restored term, not a few percent.
 //
 // E7-S3 audit: at 100,000 entries a shard the one canonical dictionary
 // decode (11 MB) sat inside the estimate's fixed run base, so dropping
 // the schema-decode term (limits.EstimateMemory's SchemaDecodes x
-// SchemaBytes) passed the band; at 250,000 it fails it (ratio 2.1).
-// The sampled peak counts garbage up to the GC goal, which the live
-// fixture raises: the dictionary archive is dropped before the matrix
-// cases, whose peak it otherwise inflated past the ceiling.
+// SchemaBytes) passed the band; at 250,000 it fails it. The dictionary
+// archive is still dropped before the matrix cases: a sampled peak
+// counted garbage up to the GC goal the live fixture raised (18 -> 47
+// MB); the live peak does not, but nothing reads it there.
 func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+	if rerunUnderSTWGC(t) {
+		return
+	}
 
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "dict.pulse", 4, 4096, 250_000)
@@ -79,18 +82,12 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 				svc := New(cfg)
 				svc.SetShardWorkers(workers)
 				estimate := float64(archiveMemoryEstimate(t, svc, c.req()))
-				peak := -1.0
-				for range 3 {
-					got, err := measurePeakHeap(func() error {
-						_, err := svc.Process(context.Background(), c.req())
-						return err
-					})
-					if err != nil {
-						t.Fatalf("Process: %v", err)
-					}
-					if peak < 0 || got < peak {
-						peak = got
-					}
+				peak, err := peakLiveAbove(func() error {
+					_, err := svc.Process(context.Background(), c.req())
+					return err
+				})
+				if err != nil {
+					t.Fatalf("Process: %v", err)
 				}
 				ratio := peak / estimate
 				t.Logf("measured peak %.1f MB, estimate %.1f MB, ratio %.2f", peak/(1<<20), estimate/(1<<20), ratio)

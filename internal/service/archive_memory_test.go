@@ -266,9 +266,16 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 // grouped, 0.50 / 0.82 matrix scale serial / 4 workers, 0.58 buffered.
 // Restoring the whole-archive term fails the floor (0.14 matrix scale
 // serial).
+//
+// E7-S4 re-pinned the band on the live peak (peakLiveAbove under the
+// stop-the-world collector; darwin/arm64, go1.26, GOMAXPROCS 2, 4 and
+// 10 within 0.01): dictionary 0.49-0.50, grouped 0.54, grouped total
+// 0.55-0.57, matrix scale 0.25-0.26 serial and at 4 workers, buffered
+// 0.55. The band is the lowest ÷ 1.25 and the highest x 1.25 (the
+// calibrationBand rule), so the ceiling falls from 1.2 to 0.7.
 const (
-	archiveRatioMin = 0.3
-	archiveRatioMax = 1.2
+	archiveRatioMin = 0.2
+	archiveRatioMax = 0.7
 )
 
 // TestArchiveMemory_DirectoryTermBoundsOpen (U51 E1-S2): the memory

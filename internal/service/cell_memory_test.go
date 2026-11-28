@@ -284,6 +284,21 @@ func peakLive(fn func() error) (uint64, error) {
 // peakLiveMetric is the marked live heap peakLive samples.
 const peakLiveMetric = "/gc/heap/live:bytes"
 
+// peakLiveAbove is peakLive's peak above the live heap before fn (two
+// collections first, so a pool's victim cache is not counted as the
+// run's): the most fn's own state held at once, garbage excluded. The
+// heavy estimate gates (memory-gates.md) bound it; like peakLive it is
+// exact only under rerunUnderSTWGC, and one pass is the figure — there
+// is no GC timing left for a minimum or maximum of several to absorb.
+func peakLiveAbove(fn func() error) (float64, error) {
+	before := liveHeap()
+	peak, err := peakLive(fn)
+	if err != nil {
+		return 0, err
+	}
+	return max(0, float64(peak)-float64(before)), nil
+}
+
 // cellMemoryFigures are a case's measured bytes beyond the heap before
 // the run: the run's peak live heap (the buffered arm's materialised
 // records included — the estimate charges them), and on the fused arm
