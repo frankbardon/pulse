@@ -5,6 +5,8 @@ embedded MCP server. The MCP layer is split into the SDK-free core
 (`internal/mcp/`), the go-sdk adapter (`mcp/gosdk/`, the only package importing
 the MCP SDK), and the leaf metadata package (`internal/mcp/toolmeta/`).
 
+> **Run the site checklist first.** `make sites ARGS="mcp-tool <name>"` (`inspect` or `pulse_inspect`; a new name gives the template) prints every table that lists tools (`toolmeta.Meta`, `mcpToolBindings`, the core catalog), the tool's sites and the gates below. See [Finding Change Sites](finding-change-sites.md).
+
 Each MCP tool wraps one slice of `pulse.Pulse` and is served over
 stdio (`pulse mcp`) or an embedder-supplied HTTP transport. The catalog
 covers one tool per facade method (`pulse_inspect`, `pulse_predict`,

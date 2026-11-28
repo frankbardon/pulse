@@ -1,8 +1,9 @@
 # Finding Change Sites
 
 **Audience:** Pulse internals contributors (human or agent) about to
-change an operator, a request/response slot or an example fixture
-cohort.
+change an operator, a request/response slot, a facade options field, an
+example fixture cohort, a field type, an error code, an MCP tool or an
+I/O format or reader hook.
 
 A Pulse change rarely lives in one file: a new operator touches its
 type constant and registry, the engine, a capability declaration, a
@@ -20,7 +21,13 @@ make sites ARGS="new-op overlay"          # a NEW operator of a category
 make sites ARGS="slot request matrices"   # a Request / Response slot (Go or json name)
 make sites ARGS="slot request my_new_slot"  # unknown name = new-slot template
 make sites ARGS="slot compose sweep"      # a Compose-level slot (ComposedRequest)
+make sites ARGS="slot options ComposeOptions.CollectErrors"  # a facade options field
 make sites ARGS="fixture survey"          # an example fixture cohort (or a new stem)
+make sites ARGS="field-type decimal128"   # a .pulse field type (or a new name)
+make sites ARGS="error-code PULSE_SLOT_FAILED"  # an error code (or a new one)
+make sites ARGS="mcp-tool inspect"        # an MCP tool (pulse_inspect; or a new name)
+make sites ARGS="io csv"                  # an I/O format (or a new one)
+make sites ARGS="io SchemaAwareReader"    # an iocore reader / writer hook (or a new one)
 make sites ARGS="categories"              # categories and their operators
 # or: go run ./internal/tools/sites [--json] [--all] <mode> ...
 ```
@@ -186,6 +193,23 @@ Its sites never name an operator or a slot, so each is found by shape:
   runners; **Regenerate** names the `main` package under
   `internal/examples/fixtures/cmd/`.
 
+`op` also prints three kinds of site found by shape:
+
+- **Default copies** — a numeric literal equal to a `Default*` constant
+  the operator's own files declare (`opconfig.DefaultQuantileBuckets`),
+  inside a branch keyed on the operator (a `case` listing it, an `if`
+  naming it): a second copy of the default that drifts when the
+  constant changes. Call the constant or its helper instead.
+- **Oracle suites** — test files declaring two or more
+  `TestReferenceOracle_*` functions that name the operator or open one
+  of its fixtures (`overlay_reference_oracle_test.go`): a new R oracle
+  fixture for the operator gets its test there.
+- **Category catalogue tables** (also in `new-op`) — Markdown tables
+  whose rows name three or more categories by prefix (`` `AGG_*` ``,
+  `` `MAT_*` ``): the MCP page's bound-enum table, the skill-routing
+  table. A table with rows for 75% of the categories and none for this
+  one warns.
+
 `op` also warns about **category-norm sites missing**: files at least
 75% of the category's operators appear in, outside Go comments, but
 this one does not (a doc comment walking per-operator special cases is
@@ -196,8 +220,74 @@ whose elements or map keys spell at least two and under 75% of the
 category (`vectors.VectorAggregationTypes`). A new operator of the
 family a list selects joins it; the registry enumerators never reach
 it.
+`slot options <Type>[.<Field>]` covers a field of a facade options
+struct: a root-package type named `*Options`, declared there
+(`pulse.Options`) or aliased (`ComposeOptions` = `service.ComposeOptions`).
+References are resolved through the alias, so a CLI literal
+`pulse.ComposeOptions{CollectErrors: …}` is a site. With no field, or one
+the struct does not declare, it prints the new-field template: the
+declarations setting or reading half the struct's fields. `slot request`
+/ `slot compose` route an `*Options` name there.
+
 `slot` warns about **per-slot walkers** (functions that reference many
 of the struct's fields) that skip this slot.
+
+## Field types, error codes, MCP tools and I/O
+
+`field-type`, `error-code`, `mcp-tool` and `io` cover a registered name
+that is not an operator. Each reads its members from code by AST:
+
+| Mode | Members | Spellings |
+|---|---|---|
+| `field-type` | the `FieldType` constants of `encoding/field_type.go`, named by `String()` | the constant, the wire name (`decimal128`; a short word such as `date` or `u8` only quoted or backticked), the skill stem `type-<name>` |
+| `error-code` | the `Code` constants of `errors/codes.go` | the constant, which is the wire string |
+| `mcp-tool` | the `Tool*` constants of `internal/mcp/toolmeta/meta.go` | the constant, its `Desc*` partner, the wire name, the skill stem `tool-<name>`; `inspect` resolves to `pulse_inspect` |
+| `io` (format) | the `formats` slice of `io/format.go` | the constant (`FormatCSV`), the quoted or backticked wire name |
+| `io` (hook) | the exported interfaces of `internal/iocore` | the interface name |
+
+A name the registry does not hold is a NEW member (for `io`, a name with
+an upper-case letter is a hook, otherwise a format). Each report lists
+the member's sites by class, like `op`, then:
+
+- **Registration tables** — a Go declaration (comments excluded) or a
+  run of consecutive non-Go lines naming three or more members (a
+  Markdown table row counts its first cell only). A table naming 75% of
+  the members is complete: one that skips an existing member warns (a
+  test table only notes it), and a NEW member joins every one. A NEW
+  field type, format or hook also lists the subsets (a switch arm, a
+  refusal list) to check; goldens and generated pages are regenerated,
+  never registered, so they are never tables.
+- **Norm files** — files 75% of the members land in outside a single
+  table (`io/facade.go`'s alias block, one declaration per hook).
+
+Each mode adds the sites its members reach without the name:
+
+- `field-type`: the callers of a **selective predicate** (a bool func
+  naming the type and under half the family: `facetIsNumeric`), and the
+  callers of a coded refusal among them (`FacetFieldTypeRefusal`, called
+  by predict and the runtime); the **type-word helpers** (a plain func
+  whose name carries the type's word: `decimalCellFloat`) with their
+  generic callers (`toFloat64`, `scalarFromCell`, `coerceFloat64`, …);
+  and the **numeric key / label formatters** (`func(float64) string`) in
+  files that switch on field types or call a `FieldType` predicate
+  (`formatRoundedNumeric`).
+- `error-code`: the **code-family tables** — Go `var` / `const`
+  declarations naming three or more codes, most of them sharing the
+  code's `DOMAIN_CATEGORY` head (`PULSE_OVERLAY_*`).
+- `mcp-tool`: for a NEW tool, the toolmeta constants and the skill file
+  to create.
+- `io` (format): the **adapter package** `internal/io/<name>/` (to
+  create, for a new one) and the files importing it.
+- `io` (hook): the **implementers** (types declaring every method of the
+  hook, embedded interfaces included; for a NEW hook, every
+  `iocore.Reader` / `iocore.Writer` implementer) and the **pipelines**
+  that type-assert to it (for a NEW hook, to any sibling): the import,
+  convert, widen and export jobs.
+
+Gates are the tests naming the member, the tests reading a Go
+registration table, and the mode's own structural gates
+(`TestCodesHaveFixups`, `TestManifestMCPToolsComplete`,
+`TestSkillsCoverAllFieldTypes`, `TestIOImportBoundary`, …).
 
 In `new-op` output `<op>` stands for the operator name minus its
 prefix, lower-case, joined with `_` or `-` like its neighbours
@@ -243,10 +333,16 @@ Nothing in the site list is hand-maintained:
   and composite-literal keys, the whole module type-checked against
   `go list -export` data), string literals equal to its json name,
   `Request.<Field>` mentions in prose and goldens, and update-demand
-  rows naming the json name.
+  rows naming the json name; an options field's are the references to
+  its struct, followed through the root package's alias.
+- **Family members** (field types, error codes, MCP tools, formats,
+  hooks) are read by AST from their declaring file (above); their
+  tables, norm files and reached sites are found by shape and pinned on
+  a fixture tree and on the real one.
 
-The hand-kept parts — the reading list per category and the structural
-gate names per site class — are pinned by the tool's own tests
+The hand-kept parts — the reading list per category, slot root and
+family, and the structural gate names per site class and family — are
+pinned by the tool's own tests
 (`TestManualPathsExist`, `TestStaticGatesExist`), so a renamed
 reference doc or gate fails `go test ./internal/tools/sites/`.
 
@@ -282,4 +378,8 @@ reference doc or gate fails `go test ./internal/tools/sites/`.
   as `"quoted"` strings; a quoted `"normal"` in an unrelated parameter
   table is reported too.
 - Slot mode type-checks the module (a few seconds; `go list -export`
-  compiles anything not already in the build cache).
+  compiles anything not already in the build cache). A nested module
+  (the embedder smoke module, `internal/embeddersmoke`) is outside it.
+- A family's helpers and predicates are matched by name: a method, or
+  an unexported func, counts callers in its own package only, and a
+  name past 80 callers is reported, not expanded.

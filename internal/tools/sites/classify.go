@@ -76,7 +76,7 @@ var classTable = []siteClass{
 	{ID: "other", Title: "Other files (scripts, workflows, top-level examples)", Edit: true},
 	{ID: "test", Title: "Tests that name it (rerun; extend the table-driven ones)"},
 	{ID: "golden", Title: "Goldens / fixtures (testdata/) — regenerate, never hand-edit"},
-	{ID: "docs-generated", Title: "Generated Analysis Guide (docs/src/guide/) — `make docs-generate`, never hand-edit",
+	{ID: "docs-generated", Title: "Generated book pages (docs/src/guide/, the coverage page) — `make docs`, never hand-edit",
 		Gates: []string{"TestDocsGeneratedCurrent"}},
 	{ID: "history", Title: "History (docs/roadmap/, CHANGELOG) — informational, not a site"},
 }
@@ -99,6 +99,10 @@ func classOrder(id string) int {
 	return len(classTable)
 }
 
+// coveragePage is the generated documentation-coverage book page
+// (internal/doccoverage, rewritten by `make docs`).
+const coveragePage = "docs/src/contract/coverage.md"
+
 // classify maps a repo-relative path to its class ID.
 func classify(p string) string {
 	base := path.Base(p)
@@ -111,7 +115,7 @@ func classify(p string) string {
 		return "test"
 	case strings.Contains(p, "/testdata/") || strings.HasPrefix(p, "testdata/"):
 		return "golden"
-	case strings.HasPrefix(p, "docs/src/guide/") || p == "docs/src/SUMMARY.md":
+	case strings.HasPrefix(p, "docs/src/guide/") || p == "docs/src/SUMMARY.md" || p == coveragePage:
 		return "docs-generated"
 	case strings.HasPrefix(p, "docs/"):
 		return "docs"
@@ -206,6 +210,8 @@ func (r *repo) regenFor(p string) (cmd, note string) {
 	switch {
 	case strings.HasPrefix(p, "docs/src/guide/") || p == "docs/src/SUMMARY.md":
 		return "make docs-generate", "TestDocsGeneratedCurrent fails until the tree is regenerated"
+	case p == coveragePage:
+		return "make docs", "the documentation-coverage page (internal/doccoverage); TestDocsCoverageCurrent fails until it is regenerated"
 	case strings.HasPrefix(p, "internal/processing/testdata/reference/"):
 		return "make reference", "R oracle goldens (needs Rscript; CI never runs R)"
 	}

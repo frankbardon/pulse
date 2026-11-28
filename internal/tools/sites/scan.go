@@ -12,11 +12,15 @@ import (
 //   - words: identifier tokens [A-Za-z0-9_]+ (wire names, Go consts);
 //   - stems: skill-stem tokens [A-Za-z0-9_-]+ (op-mat-pca);
 //   - quoted: an identifier token immediately wrapped in double quotes
-//     (synth distribution names, which are ordinary English words).
+//     (synth distribution names, which are ordinary English words);
+//   - ticked: like quoted, but a backtick pair counts too (an ordinary
+//     word such as the field type `date` or the format `csv`, which
+//     Markdown spells in backticks).
 type matcher struct {
 	words  map[string][]int
 	stems  map[string][]int
 	quoted map[string][]int
+	ticked map[string][]int
 }
 
 // hit is one occurrence of an operator's alias.
@@ -66,7 +70,7 @@ func scanBytes(p string, src []byte, m *matcher) []hit {
 		}
 	}
 	n := len(src)
-	if len(m.words) > 0 || len(m.quoted) > 0 {
+	if len(m.words) > 0 || len(m.quoted) > 0 || len(m.ticked) > 0 {
 		for i := 0; i < n; {
 			if !isWord(src[i]) {
 				i++
@@ -80,6 +84,9 @@ func scanBytes(p string, src []byte, m *matcher) []hit {
 				emit(ops, i)
 			}
 			if ops, ok := m.quoted[string(src[i:j])]; ok && i > 0 && src[i-1] == '"' && j < n && src[j] == '"' {
+				emit(ops, i)
+			}
+			if ops, ok := m.ticked[string(src[i:j])]; ok && i > 0 && j < n && src[j] == src[i-1] && (src[j] == '"' || src[j] == '`') {
 				emit(ops, i)
 			}
 			i = j

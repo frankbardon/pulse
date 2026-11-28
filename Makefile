@@ -192,15 +192,21 @@ bench:
 bench-scale:
 	$(GO) test -bench=MatrixScale -benchmem -benchtime=1x -run='^$$' -count=1 -timeout=0 ./internal/service/ -args -matrix-scale
 
-# sites prints the change-site checklist for an operator or a
-# Request/Response slot: every file + declaration to edit, the gate
+# sites prints the change-site checklist for an operator, a
+# Request/Response slot, a fixture cohort, a field type, an error code,
+# an MCP tool or an I/O format / hook: every file + declaration to edit, the gate
 # tests to rerun and the goldens to regenerate, derived from code
 # (registries, AST, classified identifier occurrences, go/types for
 # slots). Development tool only (internal/tools/sites). Examples:
 #   make sites ARGS="op MAT_PCA"
 #   make sites ARGS="new-op overlay"
 #   make sites ARGS="slot request matrices"
+#   make sites ARGS="slot options ComposeOptions.CollectErrors"
 #   make sites ARGS="fixture survey"
+#   make sites ARGS="field-type decimal128"
+#   make sites ARGS="error-code PULSE_SLOT_FAILED"
+#   make sites ARGS="mcp-tool inspect"
+#   make sites ARGS="io csv"
 #   make sites ARGS="--json categories"
 # Recipe: docs/src/internals/finding-change-sites.md.
 sites:

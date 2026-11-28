@@ -4,6 +4,8 @@
 `SERVICE_*` / `ENCODING_*` / `PROCESSING_*` / `DATA_*` / `CLI_*` error
 code, or renaming / removing one.
 
+> **Run the site checklist first.** `make sites ARGS="error-code <CODE>"` prints, for an existing code or a new one, every table that registers codes (`codeMetadata`, `errorOwners`, `allCodes`, …), the code-family tables of its `DOMAIN_CATEGORY` head, its emitters and the gates below. See [Finding Change Sites](finding-change-sites.md).
+
 The Pulse error system runs under six domains. Every code carries a
 typed `CodedError`, a human-readable `Message`, and at least one
 `Fixup` template explaining how to recover. `pulse errors list` prints

@@ -33,7 +33,8 @@ func reportFiles(rep *Report) map[string]bool {
 	out := map[string]bool{}
 	for _, s := range rep.Sections {
 		switch s.Class {
-		case "enumerators", "derived", "param-enums", "oracle", "spec", "params", "primitives", "metric-consumers", "compose", "floors", "generator-cases":
+		case "enumerators", "derived", "param-enums", "oracle", "spec", "params", "primitives", "metric-consumers", "compose", "floors", "generator-cases",
+			"oracle-suites", "default-copies", "catalogues":
 			continue // derived from the named sites; they need not name the operator
 		}
 		for _, site := range s.Sites {
@@ -165,6 +166,7 @@ func TestClassify(t *testing.T) {
 		"descriptor/testdata/manifest.json":          "golden",
 		"docs/src/guide/catalog/matrix.md":           "docs-generated",
 		"docs/src/SUMMARY.md":                        "docs-generated",
+		"docs/src/contract/coverage.md":              "docs-generated",
 		"docs/src/library/matrices.md":               "docs",
 		"docs/roadmap/TODO.md":                       "history",
 		"internal/skills/op-mat-pca.md":              "skill-atomic",
@@ -202,6 +204,13 @@ func TestStaticGatesExist(t *testing.T) {
 			t.Errorf("slot gate %s missing", g)
 		}
 	}
+	for _, f := range []family{fieldTypeFamily, errorCodeFamily, mcpToolFamily, {Mode: "io", Gates: ioGates}} {
+		for _, g := range f.Gates {
+			if len(idx[g]) == 0 {
+				t.Errorf("%s mode names gate %s, which no *_test.go declares", f.Mode, g)
+			}
+		}
+	}
 }
 
 // TestManualPathsExist pins the hand-kept reading lists to real files.
@@ -216,6 +225,11 @@ func TestManualPathsExist(t *testing.T) {
 	all = append(all, slotManual...)
 	all = append(all, slotManualResponse...)
 	all = append(all, slotManualCompose...)
+	all = append(all, slotManualOptions...)
+	all = append(all, ioManual...)
+	for _, f := range []family{fieldTypeFamily, errorCodeFamily, mcpToolFamily} {
+		all = append(all, f.Manual...)
+	}
 	for _, p := range all {
 		if _, err := os.Stat(path.Join(r.root, p)); err != nil {
 			t.Errorf("manual path %s: %v", p, err)

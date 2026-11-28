@@ -184,6 +184,7 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 | `windows[].field`, `windows[].partition_by[]` | All cohort field names |
 | `windows[].order_by[].field` | Numeric and date fields |
 | `windows[].type` | Full window catalogue (`WIN_*`) |
+| `features[].type` | Full feature catalogue (`FEAT_*`) |
 | `tests[].field`, `tests[].field2` | Numeric fields only |
 | `tests[].split_by` / `rows` / `cols` / `subject_field` | All cohort field names |
 | `tests[].type` | Full test catalogue (`TEST_*`) |
@@ -191,6 +192,7 @@ What gets constrained on bound `pulse_process` / `pulse_predict` / `pulse_compos
 | `regressions[].target`, `regressions[].predictors[]` | Numeric fields only |
 | `regressions[].type` | Full regression catalogue (`REG_*`) |
 | `matrices[].type` | Full matrix catalogue (`MAT_*`) |
+| `overlays[].kind` | The overlay catalogue (`OVERLAY_*`) narrowed to the kinds the tool's request shape runs: `pulse_process` / `pulse_predict` the request-host kinds, `pulse_compose`'s top-level `overlays` the Compose kinds (plus `OVERLAY_FORMULA`), `pulse_process_chain` and `pulse_facet_schema` their own; an extension kind joins the shapes its handlers serve |
 | `joins[].on[].left_field` | All cohort field names (left side only) |
 | `joins[].on[].right_field` | The join targets' field names when `pulse_inspect` named `joins`; free string otherwise |
 | `pulse_facet` `field` arg | All cohort field names |

@@ -34,6 +34,17 @@ var slotManual = []string{
 
 var slotManualResponse = []string{udComps, refComps}
 
+// slotManualOptions is the reading for a facade options struct field
+// (pulse.Options, ComposeOptions): public Go surface, not payload.
+var slotManualOptions = []string{
+	udIndex,
+	".claude/reference/update-demand/payload-and-return.md",
+	".claude/reference/architecture.md",
+	refFeatures,
+	"docs/src/library/options.md",
+	"docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md",
+}
+
 // slotManualCompose is the extra reading for a Compose-level slot.
 var slotManualCompose = []string{
 	".claude/reference/update-demand/compose.md",
@@ -327,17 +338,105 @@ func deref(t types.Type) types.Type {
 }
 
 // namedIn returns the type name when t (or *t) is a named type of the
-// types package, else "".
+// types package; for an options struct of any other module package (a
+// name ending in Options: pulse.Options, service.ComposeOptions) its
+// qualified key "<import path>.<Name>" (optionsKey); else "".
 func namedIn(t types.Type) string {
 	if t == nil {
 		return ""
 	}
-	t = deref(t)
+	t = types.Unalias(deref(types.Unalias(t)))
 	n, ok := t.(*types.Named)
-	if !ok || n.Obj().Pkg() == nil || n.Obj().Pkg().Path() != typesPkg {
+	if !ok || n.Obj().Pkg() == nil {
 		return ""
 	}
-	return n.Obj().Name()
+	switch pp := n.Obj().Pkg().Path(); {
+	case pp == typesPkg:
+		return n.Obj().Name()
+	case (pp == modulePath || strings.HasPrefix(pp, modulePath+"/")) && strings.HasSuffix(n.Obj().Name(), "Options"):
+		return optionsKey(pp, n.Obj().Name())
+	}
+	return ""
+}
+
+// optionsKey is the typedModule key of an options struct.
+func optionsKey(importPath, name string) string { return importPath + "." + name }
+
+// splitOptionsKey returns the package directory and type name of an
+// options key ("" dir for a types-package struct name).
+func splitOptionsKey(key string) (dir, name string, ok bool) {
+	i := strings.LastIndex(key, ".")
+	if i < 0 || !strings.HasPrefix(key, modulePath) {
+		return "", key, false
+	}
+	dir = strings.TrimPrefix(strings.TrimPrefix(key[:i], modulePath), "/")
+	if dir == "" {
+		dir = "."
+	}
+	return dir, key[i+1:], true
+}
+
+// displayStruct names a slot root for prose: types.Request, or the
+// package-qualified options struct (service.ComposeOptions).
+func displayStruct(key string) string {
+	if dir, name, ok := splitOptionsKey(key); ok {
+		if dir == "." {
+			return "pulse." + name
+		}
+		return path.Base(dir) + "." + name
+	}
+	return "types." + key
+}
+
+// optionsStruct resolves a root-package options type name (ComposeOptions,
+// Options, WatchOptions) to its declaring struct's key, following an alias
+// (type ComposeOptions = service.ComposeOptions) through the file's
+// imports.
+func (r *repo) optionsStruct(name string) (string, bool) {
+	if !strings.HasSuffix(name, "Options") {
+		return "", false
+	}
+	for _, p := range r.files {
+		if path.Dir(p) != "." || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+			continue
+		}
+		g := r.parse(p)
+		if g == nil {
+			continue
+		}
+		for _, d := range g.file.Decls {
+			gd, ok := d.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, sp := range gd.Specs {
+				ts := sp.(*ast.TypeSpec)
+				if ts.Name.Name != name {
+					continue
+				}
+				switch t := ts.Type.(type) {
+				case *ast.StructType:
+					return optionsKey(modulePath, name), true
+				case *ast.SelectorExpr:
+					x, ok := t.X.(*ast.Ident)
+					if !ok {
+						return "", false
+					}
+					for _, im := range g.file.Imports {
+						ip, _ := strconv.Unquote(im.Path.Value)
+						alias := path.Base(ip)
+						if im.Name != nil {
+							alias = im.Name.Name
+						}
+						if alias == x.Name {
+							return optionsKey(ip, t.Sel.Name), true
+						}
+					}
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 // structField is one declared field of the slot struct.
@@ -350,8 +449,12 @@ type structField struct {
 }
 
 func (r *repo) structFields(structName string) ([]structField, error) {
+	dir := "types"
+	if d, n, ok := splitOptionsKey(structName); ok {
+		dir, structName = d, n
+	}
 	for _, p := range r.files {
-		if path.Dir(p) != "types" || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+		if path.Dir(p) != dir || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
 			continue
 		}
 		g := r.parse(p)
@@ -386,7 +489,7 @@ func (r *repo) structFields(structName string) ([]structField, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("struct types.%s not found", structName)
+	return nil, fmt.Errorf("struct %s not found in %s", structName, dir)
 }
 
 // slotOwner is one declared field a slot name resolves to.
@@ -409,7 +512,7 @@ func slotRoots(which string) ([]string, error) {
 	case "response", "resp":
 		return []string{"Response", "ComposedResponse"}, nil
 	}
-	return nil, fmt.Errorf("slot root must be request, compose or response, got %q", which)
+	return nil, fmt.Errorf("slot root must be request, compose, response or options, got %q", which)
 }
 
 // resolveSlot maps a slot name to the root struct whose per-slot walkers
@@ -418,6 +521,9 @@ func slotRoots(which string) ([]string, error) {
 // the roots (an item-level key such as `for_each`, root ""); else no
 // owner — a NEW slot on the first root.
 func (r *repo) resolveSlot(which, name string) (string, []slotOwner, error) {
+	if isOptionsRoot(which) {
+		return r.resolveOptions(name)
+	}
 	roots, err := slotRoots(which)
 	if err != nil {
 		return "", nil, err
@@ -476,7 +582,44 @@ func (r *repo) resolveSlot(which, name string) (string, []slotOwner, error) {
 	return roots[0], nil, nil
 }
 
+// isOptionsRoot reports the `options` slot root: the fields of a facade
+// options struct (pulse.Options, ComposeOptions, WatchOptions).
+func isOptionsRoot(which string) bool {
+	switch strings.ToLower(which) {
+	case "options", "option", "opts":
+		return true
+	}
+	return false
+}
+
+// resolveOptions maps "<Type>[.<Field>]" (a root-package options type) to
+// its struct key and the named field: no field, or one the struct does
+// not declare, is the new-field template.
+func (r *repo) resolveOptions(name string) (string, []slotOwner, error) {
+	typ, field, _ := strings.Cut(name, ".")
+	key, ok := r.optionsStruct(typ)
+	if !ok {
+		return "", nil, fmt.Errorf("options: %q is no root-package options struct (a type named *Options declared or aliased in the root package)", typ)
+	}
+	fields, err := r.structFields(key)
+	if err != nil {
+		return "", nil, err
+	}
+	for _, f := range fields {
+		if field != "" && strings.EqualFold(f.Name, field) {
+			return key, []slotOwner{{key, f}}, nil
+		}
+	}
+	return key, nil, nil
+}
+
 func slotReport(r *repo, which, name string, opts options) (*Report, error) {
+	if !isOptionsRoot(which) {
+		// a facade options struct named on a payload root: route it
+		if _, ok := r.optionsStruct(strings.SplitN(name, ".", 2)[0]); ok {
+			which = "options"
+		}
+	}
 	root, owners, err := r.resolveSlot(which, name)
 	if err != nil {
 		return nil, err
@@ -498,6 +641,12 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 	rep := &Report{Mode: "slot", Target: name}
 	if root != "" {
 		rep.Target = root + "." + name
+		if _, _, ok := splitOptionsKey(root); ok {
+			rep.Target = displayStruct(root)
+			if _, f, ok := strings.Cut(name, "."); ok {
+				rep.Target += "." + f
+			}
+		}
 	}
 	ownsRef := map[string]bool{} // Struct\x00Field of every owner
 	for _, o := range owners {
@@ -576,6 +725,12 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		})
 	}
 	walkerMin := int(math.Max(6, math.Ceil(0.25*float64(len(fields)))))
+	_, optName, optRoot := splitOptionsKey(root)
+	if optRoot {
+		// an options struct is small: a declaration setting or reading
+		// half its fields builds or consumes it
+		walkerMin = int(math.Max(2, math.Ceil(0.5*float64(len(fields)))))
+	}
 	var walkers []declKey
 	for k, fs := range declFields {
 		if len(fs) >= walkerMin {
@@ -644,18 +799,37 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 
 	jsonNames := map[string]bool{}
 	if len(owners) == 0 {
-		rep.Summary = []string{
-			fmt.Sprintf("no field %q on types.%s — NEW slot template: add the field to types.%s, then extend every per-slot walker below", name, root, root),
-			fmt.Sprintf("walkers = declarations referencing >= %d of the %d %s fields (go/types-resolved field use or json-name string literal)", walkerMin, len(fields), root),
+		missing := fmt.Sprintf("no field %q on %s", name, displayStruct(root))
+		if optRoot {
+			missing = "no field named on " + displayStruct(root)
+			if _, f, ok := strings.Cut(name, "."); ok {
+				missing = fmt.Sprintf("no field %q on %s", f, displayStruct(root))
+			}
 		}
-		addSym(fields[0].Path, "type "+root, []int{fields[0].Line}, "declare the field + json tag (omitempty: additive wire)")
-		regenPaths = append(regenPaths, "descriptor/testdata/payload-schema.json", "internal/apigolden/testdata/public_api.txt")
+		rep.Summary = []string{
+			fmt.Sprintf("%s — NEW slot template: add the field to %s, then extend every per-slot walker below", missing, displayStruct(root)),
+			fmt.Sprintf("walkers = declarations referencing >= %d of the %d %s fields (go/types-resolved field use or json-name string literal)", walkerMin, len(fields), displayStruct(root)),
+		}
+		if optRoot {
+			addSym(fields[0].Path, "type "+optName, []int{fields[0].Line}, "declare the field; its GoDoc states the zero value's behaviour")
+		} else {
+			addSym(fields[0].Path, "type "+root, []int{fields[0].Line}, "declare the field + json tag (omitempty: additive wire)")
+		}
+		if _, _, opt := splitOptionsKey(root); opt {
+			regenPaths = append(regenPaths, "internal/apigolden/testdata/public_api.txt")
+		} else {
+			regenPaths = append(regenPaths, "descriptor/testdata/payload-schema.json", "internal/apigolden/testdata/public_api.txt")
+		}
 		for _, k := range walkers {
 			addSym(k.path, k.sym, nil, fmt.Sprintf("[%d/%d fields]", len(declFields[k]), len(fields)))
 		}
 	} else {
 		for _, o := range owners {
-			rep.Summary = append(rep.Summary, fmt.Sprintf("types.%s.%s %s `json:\"%s\"` — %s L%d", o.Struct, o.Field.Name, o.Field.Type, o.Field.JSON, o.Field.Path, o.Field.Line))
+			tag := fmt.Sprintf(" `json:\"%s\"`", o.Field.JSON)
+			if optRoot {
+				tag = ""
+			}
+			rep.Summary = append(rep.Summary, fmt.Sprintf("%s.%s %s%s — %s L%d", displayStruct(o.Struct), o.Field.Name, o.Field.Type, tag, o.Field.Path, o.Field.Line))
 			if o.Field.JSON != "" && o.Field.JSON != "-" {
 				jsonNames[o.Field.JSON] = true
 			}
@@ -719,7 +893,11 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 		// prose + goldens: "Request.Field" spelled out
 		var quals []string
 		for _, o := range owners {
-			quals = append(quals, o.Struct+"."+o.Field.Name)
+			st := o.Struct
+			if _, n, ok := splitOptionsKey(st); ok {
+				st = n // prose spells ComposeOptions.CollectErrors
+			}
+			quals = append(quals, st+"."+o.Field.Name)
 		}
 		for _, qual := range quals {
 			for _, p := range r.files {
@@ -808,11 +986,16 @@ func slotReport(r *repo, which, name string, opts options) (*Report, error) {
 	rep.Gates = append(rep.Gates, composeGates...)
 	rep.Gates = append(rep.Gates, r.staticGates(classes)...)
 	r.wholeRepo(rep, classes, listed)
-	if len(owners) == 0 {
+	if _, _, opt := splitOptionsKey(root); opt {
+		rep.Gates = append(rep.Gates, r.namedGates("public Go surface gates", "TestPublicAPIGolden")...)
+	} else if len(owners) == 0 {
 		rep.Gates = append(rep.Gates, r.namedGates("payload contract gates", "TestPayloadSchemaGolden", "TestPublicAPIGolden", "TestUpdateDemandTableCovers")...)
 	}
 	rep.Regenerate = r.regens(regenPaths)
 	rep.Manual = append([]string{}, slotManual...)
+	if _, _, opt := splitOptionsKey(root); opt {
+		rep.Manual = append([]string{}, slotManualOptions...)
+	}
 	switch root {
 	case "Response":
 		rep.Manual = append(rep.Manual, slotManualResponse...)
